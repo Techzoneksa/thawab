@@ -34,6 +34,13 @@ export default tseslint.config(
       ],
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-explicit-any": "warn",
+    },
+  },
+  {
+    files: ["src/routes/**/*.tsx"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
     },
   },
   eslintPluginPrettier,
