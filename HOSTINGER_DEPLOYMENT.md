@@ -5,6 +5,7 @@
 > **هذا المشروع مبني على TanStack Start (React + Vite + Nitro SSR)، وليس Next.js.**
 >
 > لذلك:
+>
 > - **لا** تستخدم "Next.js" preset في Hostinger
 > - **لا** تضبط Output directory إلى `.next`
 > - استخدم الإعدادات في الجدول أدناه حرفياً
@@ -15,16 +16,16 @@
 
 ## الإعدادات النهائية لـ Hostinger
 
-| الإعداد | القيمة المطلوبة |
-|---------|----------------|
+| الإعداد              | القيمة المطلوبة                                |
+| -------------------- | ---------------------------------------------- |
 | **Framework preset** | **Node.js** (من قائمة frameworks وليس Next.js) |
-| **Branch** | `nextjs-migration` |
-| **Node version** | `22.x` |
-| **Root directory** | `./` |
-| **Package manager** | `npm` |
-| **Build command** | `npm run build` |
-| **Output directory** | `.output` (وليس `.next`) |
-| **Start command** | `npm run start` |
+| **Branch**           | `nextjs-migration`                             |
+| **Node version**     | `22.x`                                         |
+| **Root directory**   | `./`                                           |
+| **Package manager**  | `npm`                                          |
+| **Build command**    | `npm run build`                                |
+| **Output directory** | `.output` (وليس `.next`)                       |
+| **Start command**    | `npm run start`                                |
 
 ---
 
@@ -69,14 +70,14 @@ git push origin nextjs-migration
 4. اختر الفرع: `nextjs-migration`
 5. اضبط الإعدادات التالية:
 
-   | الحقل | القيمة |
-   |-------|--------|
-   | Framework | **Node.js** (ابحث عنه في القائمة) |
-   | Node version | **22.x** |
-   | Root directory | `./` (اتركها افتراضية) |
-   | Build command | `npm run build` |
-   | Output directory | `.output` |
-   | Start command | `npm run start` |
+   | الحقل            | القيمة                            |
+   | ---------------- | --------------------------------- |
+   | Framework        | **Node.js** (ابحث عنه في القائمة) |
+   | Node version     | **22.x**                          |
+   | Root directory   | `./` (اتركها افتراضية)            |
+   | Build command    | `npm run build`                   |
+   | Output directory | `.output`                         |
+   | Start command    | `npm run start`                   |
 
 6. احفظ الإعدادات
 7. اضغط **Deploy** (أو انتظر الدفع التلقائي)
@@ -86,6 +87,7 @@ git push origin nextjs-migration
 بعد اكتمال النشر (يتوقع 2-5 دقائق)، تحقق من العناصر التالية:
 
 #### الصفحات الأساسية
+
 - [ ] `https://<domain>/` ← لوحة المعلومات الرئيسية
 - [ ] `https://<domain>/finance/accounts` ← دليل الحسابات
 - [ ] `https://<domain>/donors` ← المتبرعون
@@ -95,18 +97,21 @@ git push origin nextjs-migration
 - [ ] `https://<domain>/settings/system` ← الإعدادات
 
 #### التحقق من الهوية
+
 - [ ] شعار "ثواب" يظهر في أعلى القائمة الجانبية
 - [ ] لا يوجد نص "CharityCloud" في أي صفحة
 - [ ] لا يوجد نص "SaaS" في أي صفحة
 - [ ] وصف المشروع: "نظام خاص لإدارة الجمعيات والجهات الخيرية"
 
 #### التحقق من المظهر
+
 - [ ] الاتجاه RTL صحيح (نص من اليمين لليسار)
 - [ ] خط Tajawal يظهر بشكل صحيح
 - [ ] القائمة الجانبية تعمل
 - [ ] الألوان والتصميم سليم
 
 #### التحقق من الأخطاء
+
 - [ ] لا يوجد 404 في أي صفحة
 - [ ] لا يوجد 500 (Server Error)
 - [ ] Console خالٍ من الأخطاء (اضغط F12 → Console)
@@ -127,6 +132,7 @@ git push origin nextjs-migration
 **السبب**: Start command غير صحيح أو Output directory خطأ.
 
 **الحل**: تأكد من:
+
 - Output directory = `.output` (وليس `.next`)
 - Start command = `npm run start`
 

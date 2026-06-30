@@ -1,232 +1,438 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
   Card,
   Btn,
   Badge,
+  FilterBar,
+  Select,
   Table,
   Td,
   MobileTable,
   MobilePageHeader,
+  MobileSearchInput,
+  MobileFilterDrawer,
 } from "@/components/erp/AppShell";
 import { fmtSAR } from "@/data/sample";
-import { Printer, Download, Plus, Eye, CheckCircle, XCircle } from "lucide-react";
-import { useState } from "react";
+import { Printer, Download, Plus, Eye, CheckCircle, XCircle, FileText } from "lucide-react";
+import { useState, useEffect } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   PrintButton,
+  EmptyState,
+  PrintStyle,
 } from "@/components/erp/actions";
-
-type ReceiptItem = {
-  id: string;
-  donor: string;
-  amount: number;
-  date: string;
-  channel: string;
-  status: string;
-};
+import { useAuth } from "@/lib/api/auth";
+import {
+  getReceipts,
+  printReceipt,
+  voidReceipt,
+  deleteReceipt,
+  type Receipt,
+  type ReceiptFilters,
+} from "@/lib/api/receipts";
 
 export const Route = createFileRoute("/receipts")({
   head: () => ({ meta: [{ title: "الإيصالات الإلكترونية — ثواب" }] }),
-  component: () => {
-    const [data, setData] = useState<ReceiptItem[]>(
-      Array.from({ length: 10 }).map((_, i) => ({
-        id: `RCT-2406-0${188 - i}`,
-        donor: [
-          "مؤسسة الراجحي الإنسانية",
-          "عبدالله العتيبي",
-          "شركة أرامكو",
-          "نورة القحطاني",
-          "خالد الدوسري",
-        ][i % 5],
-        amount: [600000, 12000, 250000, 5000, 800][i % 5],
-        date: `1446/10/${12 - i}`,
-        channel: ["البوابة الإلكترونية", "تطبيق الجوال", "مقر الجمعية"][i % 3],
-        status: "مصروف",
-      })),
-    );
-    const [formOpen, setFormOpen] = useState(false);
-    const [confirmIdx, setConfirmIdx] = useState(-1);
-    const [formDonor, setFormDonor] = useState("");
-    const [formAmount, setFormAmount] = useState("");
-    const [formChannel, setFormChannel] = useState("نقدي");
+  component: Page,
+});
 
-    const nextId = () => `RCT-2406-0${String(200 + data.length + 1).slice(-3)}`;
+function statusToneLocal(s: string) {
+  if (s === "مرحّل") return "success";
+  if (s === "ملغي") return "error";
+  if (s === "معلق") return "warning";
+  return "muted";
+}
 
-    const handleSave = () => {
-      if (!formDonor.trim() || !formAmount.trim()) {
-        showToast("يرجى إدخال البيانات", "error");
-        return;
-      }
-      setData([
-        {
-          id: nextId(),
-          donor: formDonor,
-          amount: Number(formAmount),
-          date: new Date().toLocaleDateString("ar-SA"),
-          channel: formChannel,
-          status: "مصروف",
-        },
-        ...data,
-      ]);
-      showToast("تم إصدار الإيصال بنجاح", "success");
-      setFormOpen(false);
-      setFormDonor("");
-      setFormAmount("");
-      setFormChannel("نقدي");
-    };
+function Page() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [printTarget, setPrintTarget] = useState<Receipt | null>(null);
+  const [voidTarget, setVoidTarget] = useState<Receipt | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [typeFilter, setTypeFilter] = useState("الكل");
 
-    const handleDelete = () => {
-      setData(data.filter((_, i) => i !== confirmIdx));
-      showToast("تم حذف الإيصال", "success");
-      setConfirmIdx(-1);
-    };
+  const [apiFilters, setApiFilters] = useState<ReceiptFilters>({
+    search: "",
+    status: "",
+    type: "",
+    page: 1,
+    limit: 50,
+  });
 
-    return (
-      <>
-        <AppShell
-          breadcrumb={["الرئيسية", "التبرعات", "الإيصالات"]}
-          title="الإيصالات الإلكترونية"
-          actions={
-            <>
-              <ExportButton data={data} filename="receipts.csv" />
-              <PrintButton label="طباعة دفعية" />
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["receipts", apiFilters],
+    queryFn: () => getReceipts(apiFilters),
+  });
+
+  const receipts = data?.items || [];
+  const totalCount = data?.total || 0;
+
+  useEffect(() => {
+    setApiFilters((f) => ({
+      ...f,
+      search: searchQuery,
+      status: statusFilter,
+      type: typeFilter,
+    }));
+  }, [searchQuery, statusFilter, typeFilter]);
+
+  const printMutation = useMutation({
+    mutationFn: printReceipt,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["receipts"] });
+      showToast("تم تجهيز الإيصال للطباعة", "success");
+      setPrintTarget(null);
+      window.print();
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
+
+  const voidMutation = useMutation({
+    mutationFn: voidReceipt,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["receipts"] });
+      queryClient.invalidateQueries({ queryKey: ["donations"] });
+      showToast("تم إلغاء الإيصال بنجاح", "success");
+      setVoidTarget(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteReceipt,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["receipts"] });
+      queryClient.invalidateQueries({ queryKey: ["donations"] });
+      showToast("تم حذف الإيصال بنجاح", "success");
+      setDeleteTarget(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
+
+  const handlePrint = (r: Receipt) => {
+    printMutation.mutate({ id: r.id, userId: user?.id, userName: user?.name });
+  };
+
+  const handleVoid = () => {
+    if (voidTarget) {
+      voidMutation.mutate({ id: voidTarget.id, userId: user?.id, userName: user?.name });
+    }
+  };
+
+  const handleDelete = () => {
+    if (deleteTarget) {
+      deleteMutation.mutate({ id: deleteTarget, userId: user?.id, userName: user?.name });
+    }
+  };
+
+  const stats = [
+    { label: "إجمالي الإيصالات", value: fmtSAR(receipts.reduce((s, r) => s + r.amount, 0)) },
+    { label: "مرحّل", value: receipts.filter((r: Receipt) => r.status === "مرحّل").length },
+    { label: "طباعة", value: receipts.filter((r: Receipt) => r.printed).length },
+    { label: "ملغي", value: receipts.filter((r: Receipt) => r.status === "ملغي").length },
+  ];
+
+  return (
+    <>
+      <AppShell
+        breadcrumb={["الرئيسية", "التبرعات", "الإيصالات"]}
+        title="الإيصالات الإلكترونية"
+        actions={
+          <>
+            <ExportButton data={receipts} filename="الإيصالات.csv" />
+            <PrintButton label="طباعة دفعية" />
+          </>
+        }
+      >
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-3 lg:mb-4">
+          {stats.map((s) => (
+            <Card key={s.label} className="p-3 lg:p-4">
+              <div className="text-xs text-muted-foreground truncate">{s.label}</div>
+              <div className="text-base lg:text-xl font-extrabold mt-1 tabular-nums truncate">
+                {s.value}
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        <FilterBar>
+          <div className="relative flex-1 min-w-[200px] hidden lg:block">
+            <Printer
+              size={14}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              className="w-full rounded-lg border bg-background py-1.5 pr-9 pl-3 text-sm"
+              placeholder="بحث برقم الإيصال، اسم المتبرع..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <Select
+            label="الحالة"
+            options={["الكل", "مرحّل", "ملغي"]}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          />
+          <Select
+            label="النوع"
+            options={["الكل", "تبرع", "مساعدة", "كفالة"]}
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+          />
+          <Btn variant="ghost" className="lg:hidden" onClick={() => setFilterOpen(true)}>
+            <Printer size={15} /> تصفية
+          </Btn>
+        </FilterBar>
+
+        <div className="lg:hidden flex items-center gap-2 mb-3">
+          <MobileSearchInput
+            placeholder="بحث عن إيصال..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
+        <MobilePageHeader title="الإيصالات الإلكترونية" count={`${receipts.length} إيصال`} />
+
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+          </div>
+        ) : error ? (
+          <EmptyState
+            title="خطأ في تحميل البيانات"
+            description="حدث خطأ أثناء تحميل قائمة الإيصالات"
+            action={
               <Btn
                 variant="primary"
-                onClick={() => {
-                  setFormDonor("");
-                  setFormAmount("");
-                  setFormChannel("نقدي");
-                  setFormOpen(true);
-                }}
+                onClick={() => queryClient.invalidateQueries({ queryKey: ["receipts"] })}
               >
-                <Plus size={15} /> إصدار إيصال
+                إعادة المحاولة
               </Btn>
-            </>
-          }
-        >
+            }
+          />
+        ) : receipts.length === 0 ? (
+          <EmptyState
+            title="لا توجد إيصالات"
+            description="الإيصالات ستظهر هنا عند إصدارها من التبرعات"
+          />
+        ) : (
           <>
-            <MobilePageHeader title="الإيصالات الإلكترونية" count={`${data.length} إيصال`} />
-            <MobileTable
-              columns={["رقم الإيصال", "المتبرع", "المبلغ", "التاريخ", "القناة", "الحالة", ""]}
-              rows={data}
-              renderRow={(r, idx) => (
-                <>
-                  <Td className="font-mono text-xs">{r.id}</Td>
-                  <Td className="font-semibold">{r.donor}</Td>
-                  <Td className="tabular-nums font-bold text-success">{fmtSAR(r.amount)}</Td>
-                  <Td className="text-muted-foreground">{r.date}</Td>
-                  <Td>{r.channel}</Td>
-                  <Td>
-                    <Badge tone="success">{r.status}</Badge>
-                  </Td>
-                  <Td>
-                    <ActionMenu
-                      actions={[
-                        {
-                          label: "طباعة",
-                          icon: Printer,
-                          onClick: () => showToast("تم تجهيز الإيصال للطباعة", "info"),
-                        },
-                        {
-                          label: "عرض",
-                          icon: Eye,
-                          onClick: () => showToast(`${r.donor} - ${fmtSAR(r.amount)}`, "info"),
-                        },
-                        {
-                          label: "حذف",
-                          icon: XCircle,
-                          variant: "destructive" as const,
-                          onClick: () => setConfirmIdx(idx),
-                        },
-                      ]}
-                    />
-                  </Td>
-                </>
-              )}
-              mobileCard={(r, idx) => (
+            <div className="hidden lg:block">
+              <Table
+                columns={[
+                  "رقم الإيصال",
+                  "المتبرع",
+                  "المشروع",
+                  "المبلغ",
+                  "التاريخ",
+                  "الحالة",
+                  "مطبوع",
+                  "",
+                ]}
+                rows={receipts}
+                renderRow={(r: Receipt) => (
+                  <>
+                    <Td className="font-mono text-xs">{r.number}</Td>
+                    <Td className="font-semibold">{r.donorName || "—"}</Td>
+                    <Td className="text-muted-foreground text-xs">{r.projectName || "—"}</Td>
+                    <Td className="tabular-nums font-bold text-success">{fmtSAR(r.amount)}</Td>
+                    <Td className="text-muted-foreground text-xs">{r.date}</Td>
+                    <Td>
+                      <Badge tone={statusToneLocal(r.status)}>{r.status}</Badge>
+                    </Td>
+                    <Td>
+                      {r.printed ? (
+                        <Badge tone="success">نعم</Badge>
+                      ) : (
+                        <Badge tone="muted">لا</Badge>
+                      )}
+                    </Td>
+                    <Td>
+                      <ActionMenu actions={getReceiptActions(r)} />
+                    </Td>
+                  </>
+                )}
+              />
+            </div>
+
+            <div className="lg:hidden space-y-2">
+              {receipts.map((r: Receipt) => (
                 <Card key={r.id} className="p-3">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold">{r.donor}</span>
-                    <span className="font-mono text-xs text-muted-foreground">{r.id}</span>
+                    <span className="font-semibold text-sm">{r.donorName || "—"}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{r.number}</span>
                   </div>
                   <div className="text-lg font-bold text-success">{fmtSAR(r.amount)}</div>
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-xs text-muted-foreground">{r.date}</span>
-                    <span className="text-xs">{r.channel}</span>
+                    <Badge tone={statusToneLocal(r.status)}>{r.status}</Badge>
                   </div>
-                  <div className="flex gap-2 mt-2">
+                  <div className="flex gap-2 mt-3">
                     <button
-                      className="flex-1 rounded-lg bg-primary text-primary-foreground text-xs font-semibold py-2 min-h-[36px]"
-                      onClick={() => showToast("تم تجهيز الإيصال للطباعة", "info")}
+                      className="flex-1 rounded-lg bg-primary text-primary-foreground text-xs font-semibold py-2 min-h-[36px] flex items-center justify-center gap-1"
+                      onClick={() => handlePrint(r)}
                     >
-                      <Printer size={13} className="inline ms-1" /> طباعة
+                      <Printer size={13} /> طباعة
                     </button>
-                    <button className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px]">
-                      PDF
+                    <button className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px] flex items-center justify-center gap-1">
+                      <FileText size={13} /> PDF
                     </button>
                   </div>
                 </Card>
-              )}
-            />
-          </>
-        </AppShell>
+              ))}
+            </div>
 
-        <EntityFormDrawer
-          open={formOpen}
-          onClose={() => setFormOpen(false)}
-          title="إصدار إيصال"
-          onSave={handleSave}
-        >
+            <div className="flex items-center justify-between mt-4 text-xs text-muted-foreground">
+              <span>
+                عرض {receipts.length} من {totalCount} إيصال
+              </span>
+            </div>
+          </>
+        )}
+      </AppShell>
+
+      {/* Print Receipt Modal/Drawer */}
+      {printTarget && (
+        <ReceiptPrintDrawer receipt={printTarget} onClose={() => setPrintTarget(null)} />
+      )}
+
+      <ConfirmDialog
+        open={!!voidTarget}
+        onClose={() => setVoidTarget(null)}
+        onConfirm={handleVoid}
+        title="إلغاء الإيصال"
+        message={`هل أنت متأكد من إلغاء إيصال ${voidTarget?.number}؟ سيتم تحديث حالة التبرع المرتبطة.`}
+        confirmText="إلغاء"
+        cancelText="التراجع"
+        variant="destructive"
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="حذف الإيصال"
+        message="هل أنت متأكد من حذف هذا الإيصال؟"
+        confirmText="حذف"
+        cancelText="إلغاء"
+        variant="destructive"
+      />
+
+      <MobileFilterDrawer open={filterOpen} onClose={() => setFilterOpen(false)}>
+        <div className="space-y-4">
           <div>
-            <label className="text-xs font-semibold text-muted-foreground">المتبرع</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formDonor}
-              onChange={(e) => setFormDonor(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">المبلغ</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              value={formAmount}
-              onChange={(e) => setFormAmount(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">القناة</label>
+            <label className="text-xs font-semibold text-muted-foreground">الحالة</label>
             <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formChannel}
-              onChange={(e) => setFormChannel(e.target.value)}
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1 min-h-[44px]"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <option>نقدي</option>
-              <option>تحويل بنكي</option>
-              <option>مدى</option>
-              <option>Apple Pay</option>
-              <option>STC Pay</option>
+              <option>الكل</option>
+              <option>مرحّل</option>
+              <option>ملغي</option>
             </select>
           </div>
-        </EntityFormDrawer>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">النوع</label>
+            <select
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1 min-h-[44px]"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            >
+              <option>الكل</option>
+              <option>تبرع</option>
+              <option>مساعدة</option>
+              <option>كفالة</option>
+            </select>
+          </div>
+        </div>
+      </MobileFilterDrawer>
 
-        {confirmIdx >= 0 && (
-          <ConfirmDialog
-            open
-            onClose={() => setConfirmIdx(-1)}
-            onConfirm={handleDelete}
-            title="تأكيد الحذف"
-            message="هل أنت متأكد من حذف الإيصال؟"
-            confirmText="حذف"
-            variant="destructive"
-          />
-        )}
-      </>
-    );
-  },
-});
+      <PrintStyle />
+    </>
+  );
+
+  function getReceiptActions(r: Receipt) {
+    const actions: any[] = [
+      {
+        label: "طباعة",
+        icon: Printer,
+        onClick: () => handlePrint(r),
+      },
+      {
+        label: "عرض",
+        icon: Eye,
+        onClick: () => showToast(`${r.number}: ${r.donorName} - ${fmtSAR(r.amount)}`, "info"),
+      },
+    ];
+
+    if (r.status !== "ملغي") {
+      actions.push({
+        label: "إلغاء",
+        icon: XCircle,
+        variant: "destructive" as const,
+        onClick: () => setVoidTarget(r),
+      });
+    }
+
+    return actions;
+  }
+}
+
+// Receipt Print Drawer Component
+function ReceiptPrintDrawer({ receipt, onClose }: { receipt: Receipt; onClose: () => void }) {
+  useEffect(() => {
+    window.print();
+    onClose();
+  }, []);
+
+  return (
+    <div className="print-only">
+      <div className="p-8" dir="rtl">
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold">ثواب — نظام إدارة الجمعيات الخيرية</h1>
+          <h2 className="text-xl font-semibold mt-2">إيصال استلام تبرع</h2>
+        </div>
+        <div className="space-y-4">
+          <div className="flex justify-between">
+            <span>رقم الإيصال:</span>
+            <span className="font-bold">{receipt.number}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>التاريخ:</span>
+            <span>{receipt.date}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>المتبرع:</span>
+            <span className="font-semibold">{receipt.donorName}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>المشروع:</span>
+            <span>{receipt.projectName || "—"}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>المبلغ:</span>
+            <span className="font-bold text-lg text-success">{fmtSAR(receipt.amount)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>طريقة الدفع:</span>
+            <span>{receipt.type}</span>
+          </div>
+        </div>
+        <div className="mt-8 pt-4 border-t text-center text-sm text-muted-foreground">
+          هذا إيصال رسمي صادر من جمعية ثواب الخيرية
+        </div>
+      </div>
+    </div>
+  );
+}

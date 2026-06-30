@@ -14,16 +14,16 @@
 
 ## التقنيات المستخدمة
 
-| التقنية | الإصدار |
-|---------|---------|
-| React | 19.x |
-| TanStack Start | v1 (SSR-capable) |
-| TanStack Router | File-based routing |
-| TanStack Query | v5 |
-| Tailwind CSS | v4 |
-| shadcn/ui | كامل (Radix Primitives) |
-| Vite | v8 |
-| Nitro | Node.js server preset |
+| التقنية         | الإصدار                 |
+| --------------- | ----------------------- |
+| React           | 19.x                    |
+| TanStack Start  | v1 (SSR-capable)        |
+| TanStack Router | File-based routing      |
+| TanStack Query  | v5                      |
+| Tailwind CSS    | v4                      |
+| shadcn/ui       | كامل (Radix Primitives) |
+| Vite            | v8                      |
+| Nitro           | Node.js server preset   |
 
 ## التشغيل محلياً
 

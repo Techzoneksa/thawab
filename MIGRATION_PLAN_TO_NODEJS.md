@@ -14,12 +14,14 @@
 ## المراحل
 
 ### Phase 1 — Foundation
+
 - NestJS project scaffold
 - Prisma Schema لجميع الجداول
 - PostgreSQL على Neon
 - JWT Auth (Access + Refresh Tokens)
 
 ### Phase 2 — Core Modules
+
 - Authentication (Email + OTP)
 - RBAC (Admin / Finance / Donor Mgr / Auditor / Viewer)
 - دليل الحسابات (Chart of Accounts)
@@ -27,6 +29,7 @@
 - المتبرعون والتبرعات
 
 ### Phase 3 — All Modules
+
 - المشاريع والمستفيدون
 - المشتريات والمخزون
 - المنح والأوقاف
@@ -35,6 +38,7 @@
 - التقارير
 
 ### Phase 4 — Production Hardening
+
 - Audit Logs
 - Rate Limiting
 - HTTPS/CORS/Helmet

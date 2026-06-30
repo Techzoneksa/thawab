@@ -1,5 +1,6 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
+import { useAuth } from "@/lib/api/auth";
 import {
   LayoutDashboard,
   Bell,
@@ -211,22 +212,69 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
           ))}
         </nav>
         <div className="border-t border-white/10 p-4">
-          <div className="flex items-center gap-3 rounded-lg bg-white/5 p-3">
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-white/10 font-bold">
-              س
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold truncate">سعد الغامدي</div>
-              <div className="text-[11px] text-nav-muted truncate">المدير المالي</div>
-            </div>
-            <button className="text-nav-muted hover:text-white" title="خروج">
-              <LogOut size={16} />
-            </button>
-          </div>
+          <UserProfile />
         </div>
       </aside>
     </>
   );
+}
+
+function UserProfile() {
+  const { user, isLoading, logout } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await logout();
+    window.location.href = "/login";
+  };
+
+  if (isLoading || !user) {
+    return (
+      <div className="flex items-center gap-3 rounded-lg bg-white/5 p-3">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/10 animate-pulse" />
+        <div className="min-w-0 flex-1">
+          <div className="h-4 w-24 rounded animate-pulse bg-white/10 mb-1" />
+          <div className="h-3 w-16 rounded animate-pulse bg-white/10" />
+        </div>
+      </div>
+    );
+  }
+
+  const initials = user.name ? user.name[0] : "؟";
+  const roleLabel = getRoleLabel(user.role);
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg bg-white/5 p-3">
+      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/10 font-bold">
+        {initials}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold truncate">{user.name}</div>
+        <div className="text-[11px] text-nav-muted truncate">{roleLabel}</div>
+      </div>
+      <button
+        onClick={handleLogout}
+        className="text-nav-muted hover:text-white transition-colors"
+        title="تسجيل الخروج"
+      >
+        <LogOut size={16} />
+      </button>
+    </div>
+  );
+}
+
+function getRoleLabel(role: string) {
+  const roleLabels: Record<string, string> = {
+    "مدير النظام": "مدير النظام",
+    محاسب: "محاسب",
+    مدير: "مدير",
+    "موظف تبرعات": "موظف تبرعات",
+    "منسق مشاريع": "منسق مشاريع",
+    employee: "موظف",
+    admin: "مدير",
+    manager: "مدير",
+  };
+  return roleLabels[role] || role;
 }
 
 function Topbar({ onMenu }: { onMenu: () => void }) {

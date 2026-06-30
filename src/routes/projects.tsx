@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
   Card,
@@ -14,9 +15,9 @@ import {
   MobileSearchInput,
   MobileFilterDrawer,
 } from "@/components/erp/AppShell";
-import { PROJECTS, fmtSAR, fmtNum } from "@/data/sample";
+import { fmtSAR, fmtNum } from "@/data/sample";
 import { Plus, Download, LayoutGrid, List, Filter, Eye, Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   showToast,
   ConfirmDialog,
@@ -26,6 +27,16 @@ import {
   PrintButton,
   EmptyState,
 } from "@/components/erp/actions";
+import { useAuth } from "@/lib/api/auth";
+import {
+  getProjects,
+  createProject,
+  updateProject,
+  deleteProject,
+  changeProjectStatus,
+  type Project,
+  type ProjectFilters,
+} from "@/lib/api/projects";
 
 export const Route = createFileRoute("/projects")({
   head: () => ({ meta: [{ title: "المشاريع والبرامج — ثواب" }] }),
@@ -33,100 +44,157 @@ export const Route = createFileRoute("/projects")({
 });
 
 function Page() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [view, setView] = useState<"grid" | "table">("grid");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [projects, setProjects] = useState(PROJECTS);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [statusFilter, setStatusFilter] = useState("الكل");
-  const [managerFilter, setManagerFilter] = useState("الكل");
+  const [searchQuery, setSearchQuery] = useState("");
   const [formName, setFormName] = useState("");
   const [formManager, setFormManager] = useState("");
   const [formBudget, setFormBudget] = useState("");
   const [formStart, setFormStart] = useState("");
   const [formEnd, setFormEnd] = useState("");
-  const [formStatus, setFormStatus] = useState("نشط");
+  const [formStatus, setFormStatus] = useState("مخطط");
+  const [formDescription, setFormDescription] = useState("");
 
-  const filtered = projects.filter((p) => {
-    if (statusFilter !== "الكل" && p.status !== statusFilter) return false;
-    if (managerFilter !== "الكل" && p.manager !== managerFilter) return false;
-    return true;
+  const [apiFilters, setApiFilters] = useState<ProjectFilters>({
+    search: "",
+    status: "",
+    page: 1,
+    limit: 50,
+  });
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["projects", apiFilters],
+    queryFn: () => getProjects(apiFilters),
+  });
+
+  const projects = data?.items || [];
+
+  useEffect(() => {
+    setApiFilters((f) => ({
+      ...f,
+      search: searchQuery,
+      status: statusFilter,
+    }));
+  }, [searchQuery, statusFilter]);
+
+  const createMutation = useMutation({
+    mutationFn: createProject,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      showToast("تم إضافة المشروع بنجاح", "success");
+      setAddOpen(false);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: updateProject,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      showToast("تم تحديث المشروع بنجاح", "success");
+      setAddOpen(false);
+      setEditingProject(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteProject,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      showToast("تم حذف المشروع بنجاح", "success");
+      setDeleteTarget(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: changeProjectStatus,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      showToast("تم تغيير حالة المشروع بنجاح", "success");
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
   });
 
   const openAdd = () => {
-    setEditingId(null);
+    setEditingProject(null);
     setFormName("");
     setFormManager("");
     setFormBudget("");
     setFormStart("");
     setFormEnd("");
-    setFormStatus("نشط");
+    setFormStatus("مخطط");
+    setFormDescription("");
     setAddOpen(true);
   };
 
-  const openEdit = (p: (typeof PROJECTS)[0]) => {
-    setEditingId(p.id);
+  const openEdit = (p: Project) => {
+    setEditingProject(p);
     setFormName(p.name);
     setFormManager(p.manager);
     setFormBudget(String(p.budget));
-    setFormStart(p.start);
-    setFormEnd(p.end);
+    setFormStart(p.startDate);
+    setFormEnd(p.endDate);
     setFormStatus(p.status);
+    setFormDescription(p.description || "");
     setAddOpen(true);
   };
 
   const handleSave = () => {
-    if (editingId) {
-      setProjects((prev) =>
-        prev.map((p) =>
-          p.id === editingId
-            ? {
-                ...p,
-                name: formName || p.name,
-                manager: formManager || p.manager,
-                budget: Number(formBudget) || p.budget,
-                start: formStart || p.start,
-                end: formEnd || p.end,
-                status: formStatus,
-              }
-            : p,
-        ),
-      );
-      showToast("تم تحديث المشروع بنجاح", "success");
-    } else {
-      const id = `PRJ-${String(projects.length + 22).padStart(3, "0")}`;
-      const p = {
-        id,
+    if (editingProject) {
+      updateMutation.mutate({
+        id: editingProject.id,
         name: formName,
         manager: formManager,
-        budget: Number(formBudget) || 0,
-        spent: 0,
-        donations: 0,
-        beneficiaries: 0,
-        progress: 0,
+        budget: parseFloat(formBudget) || 0,
+        startDate: formStart,
+        endDate: formEnd,
         status: formStatus,
-        start: formStart,
-        end: formEnd,
-      };
-      setProjects((prev) => [...prev, p]);
-      showToast("تم إضافة المشروع بنجاح", "success");
+        description: formDescription,
+        userId: user?.id,
+        userName: user?.name,
+      });
+    } else {
+      createMutation.mutate({
+        name: formName,
+        manager: formManager,
+        budget: parseFloat(formBudget) || 0,
+        startDate: formStart,
+        endDate: formEnd,
+        status: formStatus,
+        description: formDescription,
+        userId: user?.id,
+        userName: user?.name,
+      });
     }
-    setAddOpen(false);
   };
 
   const handleDelete = () => {
     if (deleteTarget) {
-      setProjects((prev) => prev.filter((p) => p.id !== deleteTarget));
-      showToast("تم حذف المشروع بنجاح", "success");
-      setDeleteTarget(null);
+      deleteMutation.mutate({ id: deleteTarget, userId: user?.id, userName: user?.name });
     }
   };
 
   const handleStatusChange = (id: string, newStatus: string) => {
-    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, status: newStatus } : p)));
-    showToast(`تم تغيير حالة المشروع إلى ${newStatus}`, "success");
+    statusMutation.mutate({ id, status: newStatus, userId: user?.id, userName: user?.name });
   };
+
+  const stats = [
+    { label: "إجمالي المشاريع", value: fmtNum(projects.length) },
+    { label: "مشاريع نشطة", value: projects.filter((p: Project) => p.status === "نشط").length },
+    { label: "مشاريع مكتملة", value: projects.filter((p: Project) => p.status === "مكتمل").length },
+    {
+      label: "الميزانية الكلية",
+      value: fmtSAR(projects.reduce((s: number, p: Project) => s + p.budget, 0)),
+    },
+  ];
 
   return (
     <AppShell
@@ -156,139 +224,143 @@ function Page() {
         </>
       }
     >
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-3 lg:mb-4">
+        {stats.map((s) => (
+          <Card key={s.label} className="p-3 lg:p-4">
+            <div className="text-xs text-muted-foreground truncate">{s.label}</div>
+            <div className="text-base lg:text-xl font-extrabold mt-1 tabular-nums truncate">
+              {s.value}
+            </div>
+          </Card>
+        ))}
+      </div>
+
       <FilterBar>
+        <div className="relative flex-1 min-w-[200px] hidden lg:block">
+          <Eye
+            size={14}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
+          <input
+            className="w-full rounded-lg border bg-background py-1.5 pr-9 pl-3 text-sm"
+            placeholder="بحث بالمشروع أو المدير..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
         <Select
           label="الحالة"
-          options={["الكل", "نشط", "مكتمل", "متأخر", "مقترح"]}
+          options={["الكل", "مخطط", "نشط", "متوقف", "مكتمل", "ملغي"]}
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         />
-        <Select
-          label="المدير"
-          options={["الكل", "فهد العتيبي", "سارة الزهراني", "خالد الدوسري"]}
-          value={managerFilter}
-          onChange={(e) => setManagerFilter(e.target.value)}
-        />
-        <Select label="نوع التمويل" options={["الكل", "مقيد بمشروع", "غير مقيد", "منحة", "وقف"]} />
-        <Select label="الفرع" options={["جميع الفروع", "الرياض", "جدة", "الدمام"]} />
         <Btn variant="ghost" className="lg:hidden" onClick={() => setFilterOpen(true)}>
           <Filter size={15} />
         </Btn>
       </FilterBar>
 
-      <div className="lg:hidden flex items-center justify-between mb-3">
-        <h3 className="text-base font-bold">المشاريع ({filtered.length})</h3>
-        <div className="flex items-center gap-2">
-          <Btn variant="primary" onClick={openAdd}>
-            <Plus size={15} />
-          </Btn>
-          <div className="flex rounded-lg border overflow-hidden">
-            <button
-              onClick={() => setView("grid")}
-              className={`px-3 py-2 ${view === "grid" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
-            >
-              <LayoutGrid size={15} />
-            </button>
-            <button
-              onClick={() => setView("table")}
-              className={`px-3 py-2 ${view === "table" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
-            >
-              <List size={15} />
-            </button>
-          </div>
-        </div>
+      <div className="lg:hidden flex items-center gap-2 mb-3">
+        <MobileSearchInput
+          placeholder="بحث..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
       </div>
 
-      {view === "grid" ? (
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+        </div>
+      ) : error ? (
+        <EmptyState
+          title="خطأ في تحميل البيانات"
+          description="حدث خطأ أثناء تحميل المشاريع"
+          action={
+            <Btn
+              variant="primary"
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["projects"] })}
+            >
+              إعادة المحاولة
+            </Btn>
+          }
+        />
+      ) : projects.length === 0 ? (
+        <EmptyState
+          title="لا توجد مشاريع"
+          description="ابدأ بإضافة أول مشروع"
+          action={
+            <Btn variant="primary" onClick={openAdd}>
+              إضافة مشروع
+            </Btn>
+          }
+        />
+      ) : view === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 lg:gap-4">
-          {filtered.map((p) => (
-            <div key={p.id}>
-              <Card className="p-4 lg:p-5 hover:border-primary hover:shadow-elevated transition-all active:scale-[0.98]">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[11px] text-muted-foreground font-mono">{p.id}</div>
-                    <h3 className="font-bold text-sm lg:text-base mt-0.5 truncate">{p.name}</h3>
-                    <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                      المدير: {p.manager}
-                    </div>
-                  </div>
-                  <Badge tone={statusTone(p.status)}>{p.status}</Badge>
-                </div>
-
-                <div className="mt-3 lg:mt-4">
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span>نسبة الإنجاز</span>
-                    <span className="font-bold tabular-nums">{p.progress}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-l from-primary to-info"
-                      style={{ width: `${p.progress}%` }}
-                    />
+          {projects.map((p: Project) => (
+            <Card key={p.id} className="p-4 lg:p-5 hover:border-primary transition-all">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] text-muted-foreground font-mono">{p.id}</div>
+                  <h3 className="font-bold text-sm lg:text-base mt-0.5 truncate">{p.name}</h3>
+                  <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                    المدير: {p.manager}
                   </div>
                 </div>
+                <Badge tone={statusTone(p.status)}>{p.status}</Badge>
+              </div>
 
-                <div className="grid grid-cols-3 gap-2 mt-3 lg:mt-4">
-                  <div className="rounded-lg bg-muted/60 p-2 text-center">
-                    <div className="text-[9px] lg:text-[10px] text-muted-foreground">الميزانية</div>
-                    <div className="text-[11px] lg:text-xs font-bold tabular-nums mt-0.5">
-                      {fmtSAR(p.budget)}
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-success/10 p-2 text-center">
-                    <div className="text-[9px] lg:text-[10px] text-success">التبرعات</div>
-                    <div className="text-[11px] lg:text-xs font-bold tabular-nums mt-0.5 text-success">
-                      {fmtSAR(p.donations)}
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-warning/15 p-2 text-center">
-                    <div className="text-[9px] lg:text-[10px] text-warning-foreground">المنصرف</div>
-                    <div className="text-[11px] lg:text-xs font-bold tabular-nums mt-0.5">
-                      {fmtSAR(p.spent)}
-                    </div>
+              <div className="mt-3 lg:mt-4">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span>نسبة الإنجاز</span>
+                  <span className="font-bold tabular-nums">{p.progress}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-l from-primary to-info"
+                    style={{ width: `${p.progress}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 mt-3 lg:mt-4">
+                <div className="rounded-lg bg-muted/60 p-2 text-center">
+                  <div className="text-[9px] lg:text-[10px] text-muted-foreground">الميزانية</div>
+                  <div className="text-[11px] lg:text-xs font-bold tabular-nums mt-0.5">
+                    {fmtSAR(p.budget)}
                   </div>
                 </div>
+                <div className="rounded-lg bg-success/10 p-2 text-center">
+                  <div className="text-[9px] lg:text-[10px] text-success">التبرعات</div>
+                  <div className="text-[11px] lg:text-xs font-bold tabular-nums mt-0.5 text-success">
+                    {fmtSAR(p.donations)}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-warning/15 p-2 text-center">
+                  <div className="text-[9px] lg:text-[10px] text-warning-foreground">المنصرف</div>
+                  <div className="text-[11px] lg:text-xs font-bold tabular-nums mt-0.5">
+                    {fmtSAR(p.spent)}
+                  </div>
+                </div>
+              </div>
 
-                <div className="mt-3 flex flex-wrap gap-1.5">
+              <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground border-t pt-2 lg:pt-3">
+                <span>{fmtNum(p.beneficiaryCount)} مستفيد</span>
+                <div className="flex gap-2">
                   <button
-                    onClick={() => handleStatusChange(p.id, "نشط")}
-                    className={`px-2 py-0.5 text-[10px] rounded ${p.status === "نشط" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground hover:bg-primary/10"}`}
+                    onClick={() => openEdit(p)}
+                    className="text-primary text-xs font-semibold"
                   >
-                    نشط
+                    تعديل
                   </button>
                   <button
-                    onClick={() => handleStatusChange(p.id, "متوقف")}
-                    className={`px-2 py-0.5 text-[10px] rounded ${p.status === "متوقف" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground hover:bg-destructive/10"}`}
+                    onClick={() => setDeleteTarget(p.id)}
+                    className="text-destructive text-xs font-semibold"
                   >
-                    متوقف
-                  </button>
-                  <button
-                    onClick={() => handleStatusChange(p.id, "مكتمل")}
-                    className={`px-2 py-0.5 text-[10px] rounded ${p.status === "مكتمل" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground hover:bg-success/10"}`}
-                  >
-                    مكتمل
+                    حذف
                   </button>
                 </div>
-
-                <div className="mt-3 lg:mt-4 flex items-center justify-between text-xs text-muted-foreground border-t pt-2 lg:pt-3">
-                  <span>{fmtNum(p.beneficiaries)} مستفيد</span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => openEdit(p)}
-                      className="text-primary text-xs font-semibold"
-                    >
-                      تعديل
-                    </button>
-                    <button
-                      onClick={() => setDeleteTarget(p.id)}
-                      className="text-destructive text-xs font-semibold"
-                    >
-                      حذف
-                    </button>
-                  </div>
-                </div>
-              </Card>
-            </div>
+              </div>
+            </Card>
           ))}
         </div>
       ) : (
@@ -304,8 +376,8 @@ function Page() {
             "الحالة",
             "",
           ]}
-          rows={filtered}
-          renderRow={(p) => (
+          rows={projects}
+          renderRow={(p: Project) => (
             <>
               <Td>
                 <Link
@@ -321,7 +393,7 @@ function Page() {
               <Td className="tabular-nums">{fmtSAR(p.budget)}</Td>
               <Td className="tabular-nums">{fmtSAR(p.spent)}</Td>
               <Td className="tabular-nums text-success font-semibold">{fmtSAR(p.donations)}</Td>
-              <Td className="tabular-nums">{fmtNum(p.beneficiaries)}</Td>
+              <Td className="tabular-nums">{fmtNum(p.beneficiaryCount)}</Td>
               <Td>
                 <div className="flex items-center gap-2 min-w-[140px]">
                   <div className="h-2 flex-1 rounded-full bg-muted overflow-hidden">
@@ -339,27 +411,23 @@ function Page() {
                     {
                       label: "عرض",
                       icon: Eye,
-                      onClick: () =>
-                        showToast(
-                          `${p.name} - ${p.status} - الميزانية: ${fmtSAR(p.budget)}`,
-                          "info",
-                        ),
+                      onClick: () => showToast(`${p.name} - ${p.status}`, "info"),
                     },
                     { label: "تعديل", icon: Pencil, onClick: () => openEdit(p) },
                     {
                       label: "حذف",
                       icon: Trash2,
                       onClick: () => setDeleteTarget(p.id),
-                      variant: "destructive",
+                      variant: "destructive" as const,
                     },
                   ]}
                 />
               </Td>
             </>
           )}
-          mobileCard={(p) => (
+          mobileCard={(p: Project) => (
             <Link key={p.id} to="/projects/$id" params={{ id: p.id }}>
-              <Card className="p-3 hover:border-primary transition-colors active:scale-[0.98]">
+              <Card className="p-3 hover:border-primary transition-colors">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-bold truncate">{p.name}</div>
@@ -394,7 +462,7 @@ function Page() {
                   </div>
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground flex justify-between items-center">
-                  <span>{fmtNum(p.beneficiaries)} مستفيد</span>
+                  <span>{fmtNum(p.beneficiaryCount)} مستفيد</span>
                   <div className="flex gap-2">
                     <button
                       onClick={(e) => {
@@ -424,9 +492,13 @@ function Page() {
 
       <EntityFormDrawer
         open={addOpen}
-        onClose={() => setAddOpen(false)}
-        title={editingId ? "تعديل المشروع" : "إضافة مشروع جديد"}
+        onClose={() => {
+          setAddOpen(false);
+          setEditingProject(null);
+        }}
+        title={editingProject ? "تعديل المشروع" : "إضافة مشروع جديد"}
         onSave={handleSave}
+        loading={createMutation.isPending || updateMutation.isPending}
       >
         <div>
           <label className="text-xs font-semibold text-muted-foreground">الاسم</label>
@@ -481,11 +553,22 @@ function Page() {
             value={formStatus}
             onChange={(e) => setFormStatus(e.target.value)}
           >
-            <option>نشط</option>
-            <option>متوقف</option>
-            <option>مكتمل</option>
-            <option>مقترح</option>
+            <option value="مخطط">مخطط</option>
+            <option value="نشط">نشط</option>
+            <option value="متوقف">متوقف</option>
+            <option value="مكتمل">مكتمل</option>
+            <option value="ملغي">ملغي</option>
           </select>
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-muted-foreground">الوصف</label>
+          <textarea
+            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+            rows={3}
+            value={formDescription}
+            onChange={(e) => setFormDescription(e.target.value)}
+            placeholder="وصف المشروع..."
+          />
         </div>
       </EntityFormDrawer>
 
@@ -510,23 +593,11 @@ function Page() {
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option>الكل</option>
+              <option>مخطط</option>
               <option>نشط</option>
-              <option>مكتمل</option>
               <option>متوقف</option>
-              <option>مقترح</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">المدير</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1 min-h-[44px]"
-              value={managerFilter}
-              onChange={(e) => setManagerFilter(e.target.value)}
-            >
-              <option>الكل</option>
-              <option>فهد العتيبي</option>
-              <option>سارة الزهراني</option>
-              <option>خالد الدوسري</option>
+              <option>مكتمل</option>
+              <option>ملغي</option>
             </select>
           </div>
         </div>

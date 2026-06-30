@@ -18,6 +18,7 @@ import { Route as PermissionsRouteImport } from './routes/permissions'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MembershipsRouteImport } from './routes/memberships'
 import { Route as MeetingsRouteImport } from './routes/meetings'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as HrRouteImport } from './routes/hr'
 import { Route as GrantsRouteImport } from './routes/grants'
 import { Route as EndowmentsRouteImport } from './routes/endowments'
@@ -99,6 +100,11 @@ const MembershipsRoute = MembershipsRouteImport.update({
 const MeetingsRoute = MeetingsRouteImport.update({
   id: '/meetings',
   path: '/meetings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HrRoute = HrRouteImport.update({
@@ -303,6 +309,7 @@ export interface FileRoutesByFullPath {
   '/endowments': typeof EndowmentsRoute
   '/grants': typeof GrantsRoute
   '/hr': typeof HrRoute
+  '/login': typeof LoginRoute
   '/meetings': typeof MeetingsRoute
   '/memberships': typeof MembershipsRoute
   '/notifications': typeof NotificationsRoute
@@ -351,6 +358,7 @@ export interface FileRoutesByTo {
   '/endowments': typeof EndowmentsRoute
   '/grants': typeof GrantsRoute
   '/hr': typeof HrRoute
+  '/login': typeof LoginRoute
   '/meetings': typeof MeetingsRoute
   '/memberships': typeof MembershipsRoute
   '/notifications': typeof NotificationsRoute
@@ -400,6 +408,7 @@ export interface FileRoutesById {
   '/endowments': typeof EndowmentsRoute
   '/grants': typeof GrantsRoute
   '/hr': typeof HrRoute
+  '/login': typeof LoginRoute
   '/meetings': typeof MeetingsRoute
   '/memberships': typeof MembershipsRoute
   '/notifications': typeof NotificationsRoute
@@ -450,6 +459,7 @@ export interface FileRouteTypes {
     | '/endowments'
     | '/grants'
     | '/hr'
+    | '/login'
     | '/meetings'
     | '/memberships'
     | '/notifications'
@@ -498,6 +508,7 @@ export interface FileRouteTypes {
     | '/endowments'
     | '/grants'
     | '/hr'
+    | '/login'
     | '/meetings'
     | '/memberships'
     | '/notifications'
@@ -546,6 +557,7 @@ export interface FileRouteTypes {
     | '/endowments'
     | '/grants'
     | '/hr'
+    | '/login'
     | '/meetings'
     | '/memberships'
     | '/notifications'
@@ -595,6 +607,7 @@ export interface RootRouteChildren {
   EndowmentsRoute: typeof EndowmentsRoute
   GrantsRoute: typeof GrantsRoute
   HrRoute: typeof HrRoute
+  LoginRoute: typeof LoginRoute
   MeetingsRoute: typeof MeetingsRoute
   MembershipsRoute: typeof MembershipsRoute
   NotificationsRoute: typeof NotificationsRoute
@@ -689,6 +702,13 @@ declare module '@tanstack/react-router' {
       path: '/meetings'
       fullPath: '/meetings'
       preLoaderRoute: typeof MeetingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hr': {
@@ -992,6 +1012,7 @@ const rootRouteChildren: RootRouteChildren = {
   EndowmentsRoute: EndowmentsRoute,
   GrantsRoute: GrantsRoute,
   HrRoute: HrRoute,
+  LoginRoute: LoginRoute,
   MeetingsRoute: MeetingsRoute,
   MembershipsRoute: MembershipsRoute,
   NotificationsRoute: NotificationsRoute,
