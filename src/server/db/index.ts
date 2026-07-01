@@ -100,6 +100,10 @@ export function initDB() {
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      code TEXT DEFAULT '',
+      type TEXT DEFAULT '',
+      category TEXT DEFAULT '',
+      branch TEXT DEFAULT '',
       manager TEXT NOT NULL,
       budget REAL NOT NULL DEFAULT 0,
       spent REAL NOT NULL DEFAULT 0,
@@ -110,6 +114,7 @@ export function initDB() {
       start_date TEXT DEFAULT '',
       end_date TEXT DEFAULT '',
       description TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
       created_by TEXT REFERENCES users(id),
       created_at TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL DEFAULT ''
@@ -394,13 +399,18 @@ export function initDB() {
     );
   `);
 
-  // Migration: Add missing columns to existing aid_records table
+  // Migration: Add missing columns to existing tables
   const migrations = [
     `ALTER TABLE aid_records ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
     `ALTER TABLE aid_records ADD COLUMN delivered_at TEXT`,
     `ALTER TABLE aid_records ADD COLUMN delivered_by TEXT REFERENCES users(id)`,
     `ALTER TABLE aid_records ADD COLUMN delivery_method TEXT DEFAULT ''`,
     `ALTER TABLE aid_records ADD COLUMN delivery_notes TEXT DEFAULT ''`,
+    `ALTER TABLE projects ADD COLUMN code TEXT DEFAULT ''`,
+    `ALTER TABLE projects ADD COLUMN type TEXT DEFAULT ''`,
+    `ALTER TABLE projects ADD COLUMN category TEXT DEFAULT ''`,
+    `ALTER TABLE projects ADD COLUMN branch TEXT DEFAULT ''`,
+    `ALTER TABLE projects ADD COLUMN notes TEXT DEFAULT ''`,
   ];
 
   for (const migration of migrations) {

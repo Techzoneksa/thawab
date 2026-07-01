@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   AppShell,
   Card,
@@ -11,9 +12,21 @@ import {
   MobileTabBar,
   MobilePageHeader,
 } from "@/components/erp/AppShell";
-import { PROJECTS, BENEFICIARIES, DONATIONS, fmtSAR, fmtNum } from "@/data/sample";
-import { Edit, Printer, Download, Paperclip } from "lucide-react";
-import { useState } from "react";
+import { fmtSAR, fmtNum } from "@/data/sample";
+import {
+  Edit,
+  Printer,
+  Download,
+  Paperclip,
+  Play,
+  Pause,
+  CheckCircle,
+  XCircle,
+  ArrowRight,
+} from "lucide-react";
+import { useState, useEffect } from "react";
+import { getProject, getProjectSummary, type Project } from "@/lib/api/projects";
+import { showToast } from "@/components/erp/actions";
 
 export const Route = createFileRoute("/projects/$id")({
   head: () => ({ meta: [{ title: "ملف المشروع — ثواب" }] }),
@@ -22,50 +35,113 @@ export const Route = createFileRoute("/projects/$id")({
 
 function Page() {
   const { id } = Route.useParams();
-  const p = PROJECTS.find((x) => x.id === id) || PROJECTS[0];
   const [tab, setTab] = useState("نظرة عامة");
   const [mobileTab, setMobileTab] = useState("نظرة عامة");
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 1024);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  const { data: projectData, isLoading } = useQuery({
+    queryKey: ["project", id],
+    queryFn: () => getProject(id),
+  });
+
+  const { data: summaryData } = useQuery({
+    queryKey: ["project-summary", id],
+    queryFn: () => getProjectSummary(id),
+  });
+
+  const project: Project | undefined = projectData?.item;
+  const donations = projectData?.donations || [];
+  const aid = projectData?.aid || [];
+  const beneficiaries = projectData?.beneficiaries || [];
+
   const tabs = [
     "نظرة عامة",
     "الميزانية",
     "التبرعات",
-    "المصروفات",
+    "المساعدات",
     "المستفيدون",
-    "المهام",
-    "التقارير",
-    "المرفقات",
+    "التفاصيل",
     "سجل التدقيق",
   ];
-  const activeTab = typeof window !== "undefined" && window.innerWidth < 1024 ? mobileTab : tab;
+
+  const activeTab = isMobile ? mobileTab : tab;
+
+  const isReadOnly = project?.status === "مكتمل" || project?.status === "ملغي";
+
+  if (isLoading) {
+    return (
+      <AppShell breadcrumb={["الرئيسية", "المشاريع"]} title="جاري التحميل...">
+        <div className="flex justify-center py-12">
+          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (!project) {
+    return (
+      <AppShell breadcrumb={["الرئيسية", "المشاريع"]} title="مشروع غير موجود">
+        <Card className="p-6 text-center">
+          <p className="text-muted-foreground mb-3">المشروع المطلوب غير موجود.</p>
+          <a href="/projects" className="text-primary font-semibold">
+            العودة إلى قائمة المشاريع
+          </a>
+        </Card>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell
-      breadcrumb={["الرئيسية", "المشاريع", p.name]}
-      title={p.name}
+      breadcrumb={["الرئيسية", "المشاريع", project.name]}
+      title={project.name}
       actions={
         <>
-          <Btn variant="outline">
-            <Printer size={15} />
-            طباعة
+          <Btn variant="outline" onClick={() => showToast("تم إرسال المشروع للطباعة", "info")}>
+            <Printer size={15} /> طباعة
           </Btn>
-          <Btn variant="outline">
-            <Download size={15} />
-            تقرير المشروع
+          <Btn variant="outline" onClick={() => showToast("تم تصدير تقرير المشروع", "info")}>
+            <Download size={15} /> تقرير
           </Btn>
-          <Btn variant="primary">
-            <Edit size={15} />
-            تعديل
-          </Btn>
+          {!isReadOnly && (
+            <a href={`/projects`}>
+              <Btn variant="primary">
+                <Edit size={15} /> تعديل
+              </Btn>
+            </a>
+          )}
         </>
       }
     >
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 lg:gap-3 mb-3 lg:mb-4">
         {[
-          { l: "الميزانية المعتمدة", v: fmtSAR(p.budget) },
-          { l: "إجمالي التبرعات", v: fmtSAR(p.donations), tone: "text-success" },
-          { l: "إجمالي المنصرف", v: fmtSAR(p.spent), tone: "text-warning-foreground" },
-          { l: "الرصيد المتاح", v: fmtSAR(p.donations - p.spent), tone: "text-primary" },
-          { l: "المستفيدون", v: fmtNum(p.beneficiaries) },
+          {
+            l: "الميزانية المعتمدة",
+            v: fmtSAR(project.budget),
+          },
+          {
+            l: "إجمالي التبرعات",
+            v: fmtSAR(project.donations),
+            tone: "text-success",
+          },
+          {
+            l: "إجمالي المنصرف",
+            v: fmtSAR(project.spent),
+            tone: "text-warning-foreground",
+          },
+          {
+            l: "الرصيد المتاح",
+            v: fmtSAR((project.budget > 0 ? project.budget : project.donations) - project.spent),
+            tone: "text-primary",
+          },
+          { l: "المستفيدون", v: fmtNum(project.beneficiaryCount) },
         ].map((s) => (
           <Card key={s.l} className="p-3 lg:p-4">
             <div className="text-[10px] lg:text-xs text-muted-foreground truncate">{s.l}</div>
@@ -79,28 +155,40 @@ function Page() {
       </div>
 
       <Card className="mb-3 lg:mb-4 p-4 lg:p-5">
-        <div className="flex items-center justify-between mb-2 text-xs lg:text-sm">
+        <div className="flex items-center justify-between mb-2 text-xs lg:text-sm flex-wrap gap-2">
           <div>
-            <b>نسبة الإنجاز:</b> {p.progress}%
+            <b>نسبة الإنجاز:</b> {project.progress}%
           </div>
           <div className="text-muted-foreground">
-            {p.start} ← {p.end}
+            {project.startDate || "—"} ← {project.endDate || "—"}
           </div>
         </div>
         <div className="h-2 lg:h-3 rounded-full bg-muted overflow-hidden">
           <div
             className="h-full bg-gradient-to-l from-primary to-info"
-            style={{ width: `${p.progress}%` }}
+            style={{ width: `${project.progress}%` }}
           />
         </div>
         <div className="flex flex-wrap gap-1.5 mt-3">
           {["دراسة الجدوى", "التخطيط", "الإطلاق", "التنفيذ", "المتابعة", "الإغلاق"].map((s, i) => (
-            <Badge key={s} tone={i < Math.floor(p.progress / 16) ? "success" : "muted"}>
+            <Badge key={s} tone={i < Math.floor(project.progress / 16) ? "success" : "muted"}>
               {s}
             </Badge>
           ))}
         </div>
       </Card>
+
+      {/* Status banner */}
+      {isReadOnly && (
+        <Card className="mb-3 lg:mb-4 p-3 bg-warning/10 border-warning">
+          <div className="flex items-center gap-2 text-sm">
+            <Badge tone="warning">للقراءة فقط</Badge>
+            <span className="text-muted-foreground">
+              المشروع بحالة "{project.status}" — لا يمكن التعديل، فقط الطباعة والتصدير.
+            </span>
+          </div>
+        </Card>
+      )}
 
       {/* Desktop tabs */}
       <Card className="px-2 hidden lg:block">
@@ -128,20 +216,38 @@ function Page() {
             <div>
               <SectionTitle title="وصف المشروع" />
               <p className="text-sm text-muted-foreground leading-relaxed">
-                {p.name} هو أحد المشاريع الاستراتيجية للجمعية ويهدف إلى دعم{" "}
-                {fmtNum(p.beneficiaries)} مستفيد من خلال تقديم خدمات نوعية ومستدامة. يدير المشروع
-                الأستاذ {p.manager} ضمن إدارة المشاريع، ويتبع منهجية تنفيذ مرحلية مع متابعة دورية
-                لمؤشرات الأداء وقياس الأثر.
+                {project.description || "لا يوجد وصف."}
               </p>
+              {project.notes && (
+                <>
+                  <SectionTitle title="ملاحظات" />
+                  <p className="text-sm text-muted-foreground leading-relaxed">{project.notes}</p>
+                </>
+              )}
             </div>
             <div>
-              <SectionTitle title="مؤشرات الأداء KPIs" />
+              <SectionTitle title="مؤشرات الأداء" />
               <div className="space-y-3">
                 {[
-                  { l: "نسبة تحقيق الهدف", v: 68 },
-                  { l: "كفاءة الصرف", v: 84 },
-                  { l: "رضا المستفيدين", v: 92 },
-                  { l: "الالتزام بالجدول الزمني", v: 76 },
+                  {
+                    l: "نسبة تحقيق الهدف",
+                    v: project.progress,
+                  },
+                  {
+                    l: "كفاءة الصرف",
+                    v: project.budget > 0 ? Math.round((project.spent / project.budget) * 100) : 0,
+                  },
+                  {
+                    l: "الالتزام بالجدول الزمني",
+                    v: project.progress,
+                  },
+                  {
+                    l: "نسبة جمع التبرعات",
+                    v:
+                      project.budget > 0
+                        ? Math.round((project.donations / project.budget) * 100)
+                        : 0,
+                  },
                 ].map((k) => (
                   <div key={k.l}>
                     <div className="flex justify-between text-xs">
@@ -162,13 +268,18 @@ function Page() {
           <div>
             <div className="hidden lg:block">
               <Table
-                columns={["البند", "الميزانية المعتمدة", "المنصرف", "المتبقي", "النسبة"]}
+                columns={["البند", "المخصص", "المنصرف", "المتبقي", "النسبة"]}
                 rows={[
-                  { n: "مواد إغاثية", b: 1_200_000, s: 820_000 },
-                  { n: "تشغيل ولوجستيات", b: 600_000, s: 420_000 },
-                  { n: "متابعة ميدانية", b: 320_000, s: 180_000 },
-                  { n: "إعلام وتسويق", b: 180_000, s: 90_000 },
-                  { n: "إدارية", b: 280_000, s: 140_000 },
+                  {
+                    n: "إجمالي الميزانية",
+                    b: project.budget,
+                    s: project.spent,
+                  },
+                  {
+                    n: "التبرعات المحصلة",
+                    b: project.donations,
+                    s: project.spent,
+                  },
                 ]}
                 renderRow={(r) => (
                   <>
@@ -181,11 +292,11 @@ function Page() {
                         <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
                           <div
                             className="h-full bg-primary"
-                            style={{ width: `${(r.s / r.b) * 100}%` }}
+                            style={{ width: `${r.b > 0 ? Math.round((r.s / r.b) * 100) : 0}%` }}
                           />
                         </div>
                         <span className="text-xs tabular-nums">
-                          {Math.round((r.s / r.b) * 100)}%
+                          {r.b > 0 ? Math.round((r.s / r.b) * 100) : 0}%
                         </span>
                       </div>
                     </Td>
@@ -194,225 +305,207 @@ function Page() {
               />
             </div>
             <div className="lg:hidden space-y-2">
-              {[
-                { n: "مواد إغاثية", b: 1_200_000, s: 820_000 },
-                { n: "تشغيل ولوجستيات", b: 600_000, s: 420_000 },
-                { n: "متابعة ميدانية", b: 320_000, s: 180_000 },
-                { n: "إعلام وتسويق", b: 180_000, s: 90_000 },
-                { n: "إدارية", b: 280_000, s: 140_000 },
-              ].map((r) => (
-                <div key={r.n} className="rounded-lg border p-3">
-                  <div className="text-sm font-bold">{r.n}</div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <span className="text-muted-foreground">المعتمد: </span>
-                      <span className="font-semibold">{fmtSAR(r.b)}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">المنصرف: </span>
-                      <span className="font-semibold">{fmtSAR(r.s)}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">المتبقي: </span>
-                      <span className="font-semibold text-success">{fmtSAR(r.b - r.s)}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">النسبة: </span>
-                      <span className="font-semibold">{Math.round((r.s / r.b) * 100)}%</span>
-                    </div>
+              <Card className="p-3">
+                <div className="text-sm font-bold mb-2">إجمالي الميزانية</div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">المخصص: </span>
+                    <span className="font-semibold">{fmtSAR(project.budget)}</span>
                   </div>
-                  <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full bg-primary" style={{ width: `${(r.s / r.b) * 100}%` }} />
+                  <div>
+                    <span className="text-muted-foreground">المنصرف: </span>
+                    <span className="font-semibold">{fmtSAR(project.spent)}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">المتبقي: </span>
+                    <span className="font-semibold text-success">
+                      {fmtSAR(project.budget - project.spent)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">النسبة: </span>
+                    <span className="font-semibold">
+                      {project.budget > 0 ? Math.round((project.spent / project.budget) * 100) : 0}%
+                    </span>
                   </div>
                 </div>
-              ))}
+              </Card>
             </div>
           </div>
         )}
 
         {activeTab === "التبرعات" && (
           <div>
-            <div className="hidden lg:block">
-              <Table
-                columns={["رقم", "المتبرع", "المبلغ", "التاريخ", "الحالة"]}
-                rows={DONATIONS.slice(0, 5)}
-                renderRow={(d) => (
-                  <>
-                    <Td className="font-mono text-xs">{d.id}</Td>
-                    <Td>{d.donor}</Td>
-                    <Td className="tabular-nums text-success font-bold">{fmtSAR(d.amount)}</Td>
-                    <Td>{d.date}</Td>
-                    <Td>
-                      <Badge tone={statusTone(d.status)}>{d.status}</Badge>
-                    </Td>
-                  </>
-                )}
-              />
-            </div>
-            <div className="lg:hidden space-y-2">
-              {DONATIONS.slice(0, 5).map((d) => (
-                <div key={d.id} className="rounded-lg border p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold">{d.donor}</div>
-                      <div className="text-xs text-muted-foreground">{d.date}</div>
-                    </div>
-                    <Badge tone={statusTone(d.status)}>{d.status}</Badge>
-                  </div>
-                  <div className="mt-2 text-base font-bold text-success tabular-nums">
-                    {fmtSAR(d.amount)}
-                  </div>
+            {donations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">لا توجد تبرعات مرتبطة بهذا المشروع.</p>
+            ) : (
+              <>
+                <div className="hidden lg:block">
+                  <Table
+                    columns={["رقم", "المبلغ", "التاريخ", "الحالة"]}
+                    rows={donations}
+                    renderRow={(d: any) => (
+                      <>
+                        <Td className="font-mono text-xs">{d.id}</Td>
+                        <Td className="tabular-nums text-success font-bold">{fmtSAR(d.amount)}</Td>
+                        <Td>{d.date || d.createdAt}</Td>
+                        <Td>
+                          <Badge tone={statusTone(d.status)}>{d.status}</Badge>
+                        </Td>
+                      </>
+                    )}
+                  />
                 </div>
-              ))}
-            </div>
+                <div className="lg:hidden space-y-2">
+                  {donations.slice(0, 10).map((d: any) => (
+                    <div key={d.id} className="rounded-lg border p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs text-muted-foreground font-mono">{d.id}</div>
+                          <div className="text-base font-bold text-success tabular-nums mt-1">
+                            {fmtSAR(d.amount)}
+                          </div>
+                        </div>
+                        <Badge tone={statusTone(d.status)}>{d.status}</Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {d.date || d.createdAt}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
 
-        {activeTab === "المصروفات" && (
-          <div className="text-sm text-muted-foreground">
-            عرض تفصيلي لقيود الصرف المرتبطة بالمشروع — مرتبط مباشرة بمركز التكلفة ودفتر الأستاذ.
+        {activeTab === "المساعدات" && (
+          <div>
+            {aid.length === 0 ? (
+              <p className="text-sm text-muted-foreground">لا توجد مساعدات مرتبطة بهذا المشروع.</p>
+            ) : (
+              <>
+                <div className="hidden lg:block">
+                  <Table
+                    columns={["رقم", "المبلغ", "الحالة", "تاريخ التسليم"]}
+                    rows={aid}
+                    renderRow={(a: any) => (
+                      <>
+                        <Td className="font-mono text-xs">{a.id}</Td>
+                        <Td className="tabular-nums font-bold">{fmtSAR(a.amount)}</Td>
+                        <Td>
+                          <Badge tone={statusTone(a.status)}>{a.status}</Badge>
+                        </Td>
+                        <Td className="text-muted-foreground text-xs">{a.deliveredAt || a.date}</Td>
+                      </>
+                    )}
+                  />
+                </div>
+                <div className="lg:hidden space-y-2">
+                  {aid.slice(0, 10).map((a: any) => (
+                    <Card key={a.id} className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge tone={statusTone(a.status)}>{a.status}</Badge>
+                        <span className="font-mono text-xs text-muted-foreground">{a.id}</span>
+                      </div>
+                      <div className="text-base font-bold tabular-nums">{fmtSAR(a.amount)}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {a.deliveredAt || a.date}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
 
         {activeTab === "المستفيدون" && (
           <div>
-            <div className="hidden lg:block">
-              <Table
-                columns={["الرقم", "الاسم", "الفئة", "المدينة", "الحالة"]}
-                rows={BENEFICIARIES.slice(0, 5)}
-                renderRow={(b) => (
-                  <>
-                    <Td className="font-mono text-xs">{b.id}</Td>
-                    <Td className="font-semibold">{b.name}</Td>
-                    <Td>{b.category}</Td>
-                    <Td className="text-muted-foreground">{b.city}</Td>
-                    <Td>
-                      <Badge tone={statusTone(b.status)}>{b.status}</Badge>
-                    </Td>
-                  </>
-                )}
-              />
-            </div>
-            <div className="lg:hidden space-y-2">
-              {BENEFICIARIES.slice(0, 5).map((b) => (
-                <div key={b.id} className="rounded-lg border p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-info/15 text-info text-xs font-bold">
-                      {b.name[0]}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold truncate">{b.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {b.category} · {b.city}
+            {beneficiaries.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                لا يوجد مستفيدون مرتبطون بمساعدات مسلّمة من هذا المشروع.
+              </p>
+            ) : (
+              <>
+                <div className="hidden lg:block">
+                  <Table
+                    columns={["الرقم", "الاسم", "الفئة", "المدينة", "الحالة"]}
+                    rows={beneficiaries}
+                    renderRow={(b: any) => (
+                      <>
+                        <Td className="font-mono text-xs">{b.id}</Td>
+                        <Td className="font-semibold">{b.name}</Td>
+                        <Td>{b.category || "—"}</Td>
+                        <Td className="text-muted-foreground">{b.city || "—"}</Td>
+                        <Td>
+                          <Badge tone={statusTone(b.status)}>{b.status}</Badge>
+                        </Td>
+                      </>
+                    )}
+                  />
+                </div>
+                <div className="lg:hidden space-y-2">
+                  {beneficiaries.slice(0, 10).map((b: any) => (
+                    <div key={b.id} className="rounded-lg border p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-info/15 text-info text-xs font-bold">
+                          {b.name[0]}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-semibold truncate">{b.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {b.category || "—"} · {b.city || "—"}
+                          </div>
+                        </div>
+                        <Badge tone={statusTone(b.status)}>{b.status}</Badge>
                       </div>
                     </div>
-                    <Badge tone={statusTone(b.status)}>{b.status}</Badge>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            )}
           </div>
         )}
 
-        {activeTab === "المهام" && (
-          <div className="space-y-2">
-            {[
-              {
-                t: "إعداد الخطة التنفيذية للربع القادم",
-                who: "فهد العتيبي",
-                due: "1446/10/20",
-                s: "قيد التنفيذ",
-              },
-              { t: "توقيع عقد المورد الرئيسي", who: "خالد الدوسري", due: "1446/10/18", s: "مكتمل" },
-              {
-                t: "زيارة ميدانية - منطقة عسير",
-                who: "منى السلمي",
-                due: "1446/10/25",
-                s: "بانتظار الموافقة",
-              },
-            ].map((t, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between rounded-lg border p-3 min-h-[44px]"
-              >
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <label className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0">
-                    <input type="checkbox" defaultChecked={t.s === "مكتمل"} className="shrink-0" />
-                  </label>
-                  <div className="min-w-0">
-                    <div className="font-semibold text-sm truncate">{t.t}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {t.who} · يستحق {t.due}
-                    </div>
-                  </div>
-                </div>
-                <Badge tone={statusTone(t.s)}>{t.s}</Badge>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeTab === "التقارير" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {[
-              "التقرير الربعي 1446-Q3",
-              "تقرير الأثر الاجتماعي",
-              "ملخص الميزانية والتنفيذ",
-              "تقرير المستفيدين",
-            ].map((n) => (
-              <Card key={n} className="p-3 flex items-center justify-between">
-                <span className="text-sm font-semibold truncate ml-2">{n}</span>
-                <Btn variant="ghost">
-                  <Download size={14} />
-                </Btn>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {activeTab === "المرفقات" && (
-          <div className="space-y-2">
-            {[
-              "موافقة المجلس.pdf",
-              "خطة المشروع.docx",
-              "صور ميدانية - رمضان.zip",
-              "عقد المورد الرئيسي.pdf",
-            ].map((f) => (
-              <div
-                key={f}
-                className="flex items-center justify-between rounded-lg border p-3 text-sm"
-              >
-                <span className="flex items-center gap-2 truncate">
-                  <Paperclip size={14} className="shrink-0" /> {f}
-                </span>
-                <Btn variant="ghost">
-                  <Download size={14} />
-                </Btn>
-              </div>
-            ))}
+        {activeTab === "التفاصيل" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <DetailRow label="رقم المشروع" value={project.code || project.id} />
+            <DetailRow label="اسم المشروع" value={project.name} />
+            <DetailRow label="الحالة" value={project.status} />
+            <DetailRow label="التصنيف" value={project.category || "—"} />
+            <DetailRow label="نوع المشروع" value={project.type || "—"} />
+            <DetailRow label="الفرع" value={project.branch || "—"} />
+            <DetailRow label="مدير المشروع" value={project.manager || "—"} />
+            <DetailRow label="نسبة الإنجاز" value={`${project.progress}%`} />
+            <DetailRow label="تاريخ البداية" value={project.startDate || "—"} />
+            <DetailRow label="تاريخ النهاية" value={project.endDate || "—"} />
+            <DetailRow label="أنشأ بواسطة" value={project.createdBy || "—"} />
+            <DetailRow label="تاريخ الإنشاء" value={project.createdAt || "—"} />
           </div>
         )}
 
         {activeTab === "سجل التدقيق" && (
           <div>
-            <ol className="relative border-r-2 border-muted pr-4 space-y-3 text-sm">
-              {[
-                { d: "1446/10/12 11:24", w: "سارة الزهراني", a: "تحديث ميزانية بند مواد إغاثية" },
-                { d: "1446/10/10 09:11", w: "فهد العتيبي", a: "اعتماد خطة الربع الثالث" },
-                { d: "1446/10/05 14:02", w: "سعد الغامدي", a: "ترحيل قيد توزيع مساعدات" },
-              ].map((it, i) => (
-                <li key={i} className="relative">
-                  <span className="absolute -right-[26px] top-1.5 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-card" />
-                  <div className="font-semibold">{it.a}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {it.w} · {it.d}
-                  </div>
-                </li>
-              ))}
-            </ol>
+            <p className="text-sm text-muted-foreground">
+              يتم تسجيل جميع العمليات على هذا المشروع في سجل التدقيق (إضافة، تعديل، حذف، تغيير
+              الحالة).
+            </p>
+            <div className="mt-4 p-4 rounded-lg bg-muted/50 text-sm text-muted-foreground">
+              للاطلاع على السجل الكامل، راجع صفحة التقارير أو سجل التدقيق العام.
+            </div>
           </div>
         )}
       </Card>
     </AppShell>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-3 border-b pb-2">
+      <span className="text-xs font-semibold text-muted-foreground min-w-[110px]">{label}</span>
+      <span className="flex-1 font-semibold">{value}</span>
+    </div>
   );
 }

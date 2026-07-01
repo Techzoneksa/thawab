@@ -90,6 +90,10 @@ export const campaigns = sqliteTable("campaigns", {
 export const projects = sqliteTable("projects", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  code: text("code").default(""),
+  type: text("type").default(""),
+  category: text("category").default(""),
+  branch: text("branch").default(""),
   manager: text("manager").notNull(),
   budget: real("budget").notNull().default(0),
   spent: real("spent").notNull().default(0),
@@ -100,6 +104,7 @@ export const projects = sqliteTable("projects", {
   startDate: text("start_date").default(""),
   endDate: text("end_date").default(""),
   description: text("description").default(""),
+  notes: text("notes").default(""),
   createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
   updatedAt: text("updated_at").notNull().default(""),
