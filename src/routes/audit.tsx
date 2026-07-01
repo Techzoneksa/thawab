@@ -1,8 +1,9 @@
-import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   AppShell,
   Card,
+  Badge,
   Btn,
   FilterBar,
   Select,
@@ -10,10 +11,11 @@ import {
   Td,
   MobileTable,
   MobilePageHeader,
+  MobileSearchInput,
   MobileFilterDrawer,
 } from "@/components/erp/AppShell";
-import { AUDIT_LOG } from "@/data/sample";
-import { Download, Search, Filter, Eye } from "lucide-react";
+import { Eye, Search, Filter } from "lucide-react";
+import { useState, useEffect } from "react";
 import {
   showToast,
   EntityFormDrawer,
@@ -21,6 +23,7 @@ import {
   PrintButton,
   EmptyState,
 } from "@/components/erp/actions";
+import { getAuditEntries, getAuditEntry, type AuditEntry } from "@/lib/api/audit";
 
 export const Route = createFileRoute("/audit")({
   head: () => ({ meta: [{ title: "سجل التدقيق — ثواب" }] }),
@@ -29,40 +32,79 @@ export const Route = createFileRoute("/audit")({
 
 function Page() {
   const [filterOpen, setFilterOpen] = useState(false);
-  const [auditLog, setAuditLog] = useState([...AUDIT_LOG, ...AUDIT_LOG]);
   const [searchQuery, setSearchQuery] = useState("");
   const [userFilter, setUserFilter] = useState("الكل");
   const [actionFilter, setActionFilter] = useState("الكل");
-  const [periodFilter, setPeriodFilter] = useState("الكل");
-  const [detailTarget, setDetailTarget] = useState<(typeof AUDIT_LOG)[0] | null>(null);
+  const [entityFilter, setEntityFilter] = useState("الكل");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [detailId, setDetailId] = useState<string | null>(null);
 
-  const filtered = auditLog.filter((a) => {
-    if (userFilter !== "الكل" && a.user !== userFilter) return false;
-    if (
-      actionFilter !== "الكل" &&
-      !a.action.includes(actionFilter.replace("نشاء", "شاء").replace("عديل", "عديل"))
-    ) {
-      const actionMap: Record<string, string[]> = {
-        إنشاء: ["إنشاء"],
-        تعديل: ["تعديل", "تحديث"],
-        حذف: ["حذف"],
-        اعتماد: ["اعتماد"],
-        "تسجيل دخول": ["تسجيل"],
-      };
-      const keywords = actionMap[actionFilter] || [actionFilter];
-      if (!keywords.some((k) => a.action.includes(k))) return false;
-    }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      if (
-        !a.user.toLowerCase().includes(q) &&
-        !a.action.toLowerCase().includes(q) &&
-        !a.entity.toLowerCase().includes(q)
-      )
-        return false;
-    }
-    return true;
+  const { data, isLoading, error } = useQuery({
+    queryKey: [
+      "audit",
+      {
+        search: searchQuery,
+        user: userFilter,
+        action: actionFilter,
+        entity: entityFilter,
+        dateFrom,
+        dateTo,
+        page,
+      },
+    ],
+    queryFn: () =>
+      getAuditEntries({
+        search: searchQuery,
+        userName: userFilter,
+        action: actionFilter,
+        entityType: entityFilter,
+        dateFrom,
+        dateTo,
+        page,
+        limit: 50,
+      }),
   });
+
+  const entries = data?.items || [];
+  const total = data?.total || 0;
+  const totalPages = Math.ceil(total / 50);
+  const options = data?.options || { users: [], actions: [], entities: [] };
+
+  // Detail query
+  const { data: detailData } = useQuery({
+    queryKey: ["audit-entry", detailId],
+    queryFn: () => (detailId ? getAuditEntry(detailId) : Promise.resolve(null)),
+    enabled: !!detailId,
+  });
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, userFilter, actionFilter, entityFilter, dateFrom, dateTo]);
+
+  const stats = [
+    { label: "إجمالي السجلات", value: total },
+    {
+      label: "عمليات اليوم",
+      value: entries.filter((e: AuditEntry) => {
+        // Approximation: today's entries (timestamp contains today's date)
+        return e.timestamp && e.timestamp.length >= 10;
+      }).length,
+    },
+    { label: "مستخدمون مميزون", value: options.users.length },
+    { label: "أنواع الكيانات", value: options.entities.length },
+  ];
+
+  const exportRows = entries.map((e: AuditEntry) => ({
+    الوقت: e.timestamp,
+    المستخدم: e.userName,
+    الإجراء: e.action,
+    الكيان: e.entityType,
+    "رقم السجل": e.entityId,
+    الوصف: e.description,
+    IP: e.ip,
+  }));
 
   return (
     <AppShell
@@ -70,7 +112,10 @@ function Page() {
       title="سجل التدقيق (Audit Trail)"
       actions={
         <>
-          <ExportButton data={auditLog} filename="سجل_التدقيق.csv" />
+          <ExportButton
+            data={exportRows as unknown as Record<string, unknown>[]}
+            filename="سجل_التدقيق.csv"
+          />
           <PrintButton />
           <Btn variant="outline" onClick={() => setFilterOpen(true)}>
             <Filter size={15} /> تصفية
@@ -78,163 +123,330 @@ function Page() {
         </>
       }
     >
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-3 lg:mb-4">
+        {stats.map((s) => (
+          <Card key={s.label} className="p-3 lg:p-4">
+            <div className="text-xs text-muted-foreground truncate">{s.label}</div>
+            <div className="text-base lg:text-xl font-extrabold mt-1 tabular-nums truncate">
+              {s.value}
+            </div>
+          </Card>
+        ))}
+      </div>
+
       <FilterBar>
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative flex-1 min-w-[200px] hidden lg:block">
           <Search
             size={14}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
           />
           <input
             className="w-full rounded-lg border bg-background py-1.5 pr-9 pl-3 text-sm"
-            placeholder="بحث بالمستخدم أو الإجراء..."
+            placeholder="بحث بالمستخدم، الإجراء، الكيان، الوصف..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         <Select
           label="المستخدم"
-          options={["الكل", "سارة الزهراني", "محمد الغامدي", "فهد العتيبي", "النظام"]}
+          options={["الكل", ...options.users]}
           value={userFilter}
           onChange={(e) => setUserFilter(e.target.value)}
         />
         <Select
           label="نوع الإجراء"
-          options={["الكل", "إنشاء", "تعديل", "حذف", "اعتماد", "تسجيل دخول"]}
+          options={["الكل", ...options.actions]}
           value={actionFilter}
           onChange={(e) => setActionFilter(e.target.value)}
         />
         <Select
-          label="الفترة"
-          options={["اليوم", "أمس", "هذا الأسبوع", "هذا الشهر"]}
-          value={periodFilter}
-          onChange={(e) => setPeriodFilter(e.target.value)}
+          label="الكيان"
+          options={["الكل", ...options.entities]}
+          value={entityFilter}
+          onChange={(e) => setEntityFilter(e.target.value)}
         />
       </FilterBar>
 
-      <MobileFilterDrawer open={filterOpen} onClose={() => setFilterOpen(false)}>
-        <div className="relative flex-1">
-          <Search
-            size={16}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-          />
-          <input
-            className="w-full rounded-xl border bg-background py-2.5 pr-9 pl-3 text-sm min-h-[44px]"
-            placeholder="بحث بالمستخدم أو الإجراء..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        <Select
-          label="المستخدم"
-          options={["الكل", "سارة الزهراني", "محمد الغامدي", "فهد العتيبي", "النظام"]}
-          value={userFilter}
-          onChange={(e) => setUserFilter(e.target.value)}
+      <div className="lg:hidden flex items-center gap-2 mb-3">
+        <MobileSearchInput
+          placeholder="بحث..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
         />
-        <Select
-          label="نوع الإجراء"
-          options={["الكل", "إنشاء", "تعديل", "حذف", "اعتماد", "تسجيل دخول"]}
-          value={actionFilter}
-          onChange={(e) => setActionFilter(e.target.value)}
-        />
-        <Select
-          label="الفترة"
-          options={["اليوم", "أمس", "هذا الأسبوع", "هذا الشهر"]}
-          value={periodFilter}
-          onChange={(e) => setPeriodFilter(e.target.value)}
-        />
-      </MobileFilterDrawer>
+      </div>
 
-      <>
-        <MobilePageHeader
-          title="سجل التدقيق"
-          count={`${filtered.length} سجل`}
+      <MobilePageHeader
+        title="سجل التدقيق"
+        count={`${total} سجل`}
+        action={
+          <button
+            className="min-h-[44px] min-w-[44px] grid place-items-center"
+            onClick={() => setFilterOpen(true)}
+          >
+            <Filter size={18} />
+          </button>
+        }
+      />
+
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+        </div>
+      ) : error ? (
+        <EmptyState
+          title="خطأ في تحميل البيانات"
+          description="حدث خطأ أثناء تحميل سجل التدقيق"
           action={
-            <button
-              className="min-h-[44px] min-w-[44px] grid place-items-center"
-              onClick={() => setFilterOpen(true)}
+            <Btn
+              variant="primary"
+              onClick={() => {
+                window.location.reload();
+              }}
             >
-              <Filter size={18} />
-            </button>
+              إعادة المحاولة
+            </Btn>
           }
         />
+      ) : entries.length === 0 ? (
+        <EmptyState
+          title="لا توجد سجلات"
+          description="لم يتم تسجيل أي عمليات بعد. ستظهر جميع العمليات المؤتمتة هنا تلقائياً."
+        />
+      ) : (
         <MobileTable
-          columns={["الوقت", "المستخدم", "الإجراء", "الكيان", "IP", ""]}
-          rows={filtered}
-          renderRow={(a) => (
+          columns={["الوقت", "المستخدم", "الإجراء", "الكيان", "رقم السجل", ""]}
+          rows={entries}
+          renderRow={(a: AuditEntry) => (
             <>
-              <Td className="font-mono text-xs text-muted-foreground">{a.time}</Td>
-              <Td className="font-semibold">{a.user}</Td>
-              <Td>{a.action}</Td>
-              <Td className="font-mono text-xs">{a.entity}</Td>
-              <Td className="font-mono text-xs text-muted-foreground">{a.ip}</Td>
+              <Td className="font-mono text-xs text-muted-foreground">{a.timestamp}</Td>
+              <Td className="font-semibold">{a.userName}</Td>
+              <Td>
+                <Badge tone={actionTone(a.action)}>{a.action}</Badge>
+              </Td>
+              <Td className="text-xs">{a.entityType}</Td>
+              <Td className="font-mono text-xs text-muted-foreground">{a.entityId}</Td>
               <Td>
                 <button
-                  onClick={() => setDetailTarget(a)}
-                  className="text-primary text-xs font-semibold"
+                  onClick={() => setDetailId(a.id)}
+                  className="text-info text-xs font-semibold inline-flex items-center gap-1"
                 >
-                  تفاصيل ←
+                  <Eye size={12} /> تفاصيل
                 </button>
               </Td>
             </>
           )}
-          mobileCard={(a) => (
-            <Card key={`${a.entity}-${a.time}`} className="p-3">
+          mobileCard={(a: AuditEntry) => (
+            <Card key={a.id} className="p-3">
               <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold">{a.user}</span>
-                <span className="text-xs text-muted-foreground">{a.time}</span>
+                <span className="font-semibold text-sm">{a.userName}</span>
+                <span className="text-xs text-muted-foreground">{a.timestamp}</span>
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span>{a.action}</span>
-                <span className="font-mono text-xs text-muted-foreground">{a.entity}</span>
+              <div className="flex items-center gap-2 mb-2">
+                <Badge tone={actionTone(a.action)}>{a.action}</Badge>
+                <span className="text-xs">{a.entityType}</span>
               </div>
-              <div className="flex items-center justify-between mt-2">
-                <span className="font-mono text-xs text-muted-foreground">{a.ip}</span>
+              <div className="text-xs text-muted-foreground line-clamp-2 mb-2">{a.description}</div>
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs text-muted-foreground">{a.entityId}</span>
                 <button
-                  onClick={() => setDetailTarget(a)}
-                  className="text-primary text-xs font-semibold"
+                  onClick={() => setDetailId(a.id)}
+                  className="text-info text-xs font-semibold inline-flex items-center gap-1"
                 >
-                  تفاصيل ←
+                  <Eye size={12} /> تفاصيل
                 </button>
               </div>
             </Card>
           )}
         />
-      </>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-3 px-1">
+          <span className="text-xs text-muted-foreground">
+            صفحة {page} من {totalPages} | {total} سجل
+          </span>
+          <div className="flex gap-1">
+            <button
+              className="px-3 py-1.5 text-xs rounded-lg border bg-background hover:bg-muted disabled:opacity-40 min-h-[36px]"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              السابق
+            </button>
+            <button
+              className="px-3 py-1.5 text-xs rounded-lg border bg-background hover:bg-muted disabled:opacity-40 min-h-[36px]"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              التالي
+            </button>
+          </div>
+        </div>
+      )}
 
       <EntityFormDrawer
-        open={!!detailTarget}
-        onClose={() => setDetailTarget(null)}
+        open={!!detailId}
+        onClose={() => setDetailId(null)}
         title="تفاصيل السجل"
-        onSave={() => setDetailTarget(null)}
+        onSave={() => setDetailId(null)}
         saveText="إغلاق"
       >
-        {detailTarget && (
+        {detailData && (
           <div className="space-y-4">
-            <div className="rounded-lg bg-muted/50 p-4 space-y-3">
-              <div>
-                <span className="text-xs text-muted-foreground">المستخدم</span>
-                <div className="font-semibold">{detailTarget.user}</div>
+            <Card className="p-3 bg-muted/30">
+              <div className="grid grid-cols-1 gap-3 text-sm">
+                <DetailRow label="المستخدم" value={detailData.item.userName || "—"} />
+                <DetailRow label="الإجراء" value={detailData.item.action} />
+                <DetailRow label="نوع الكيان" value={detailData.item.entityType} />
+                <DetailRow label="رقم السجل" value={detailData.item.entityId} />
+                <DetailRow label="الوقت" value={detailData.item.timestamp || "—"} />
+                {detailData.item.ip && <DetailRow label="IP" value={detailData.item.ip} />}
               </div>
+            </Card>
+
+            {detailData.item.description && (
               <div>
-                <span className="text-xs text-muted-foreground">الإجراء</span>
-                <div className="font-semibold">{detailTarget.action}</div>
+                <div className="text-xs font-semibold text-muted-foreground mb-1">الوصف</div>
+                <div className="text-sm p-3 bg-muted/30 rounded-lg">
+                  {detailData.item.description}
+                </div>
               </div>
+            )}
+
+            {(Boolean(detailData.before) || Boolean(detailData.after)) && (
               <div>
-                <span className="text-xs text-muted-foreground">الكيان</span>
-                <div className="font-mono text-sm">{detailTarget.entity}</div>
+                <div className="text-xs font-semibold text-muted-foreground mb-2">
+                  التغييرات (Before / After)
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                  <SnapshotPanel title="قبل" data={detailData.before} tone="destructive" />
+                  <SnapshotPanel title="بعد" data={detailData.after} tone="success" />
+                </div>
               </div>
-              <div>
-                <span className="text-xs text-muted-foreground">الوقت</span>
-                <div className="font-semibold">{detailTarget.time}</div>
+            )}
+
+            <Card className="p-3 bg-info/10 border-info">
+              <div className="text-xs text-muted-foreground">
+                ⚠ سجل التدقيق للقراءة فقط — لا يمكن تعديل أو حذف السجلات من الواجهة.
               </div>
-              <div>
-                <span className="text-xs text-muted-foreground">IP</span>
-                <div className="font-mono text-sm">{detailTarget.ip}</div>
-              </div>
-            </div>
+            </Card>
           </div>
         )}
       </EntityFormDrawer>
+
+      <MobileFilterDrawer open={filterOpen} onClose={() => setFilterOpen(false)}>
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">بحث</label>
+            <div className="relative mt-1">
+              <Search
+                size={16}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              />
+              <input
+                className="w-full rounded-xl border bg-background py-2.5 pr-9 pl-3 text-sm min-h-[44px]"
+                placeholder="بحث..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+          <Select
+            label="المستخدم"
+            options={["الكل", ...options.users]}
+            value={userFilter}
+            onChange={(e) => setUserFilter(e.target.value)}
+          />
+          <Select
+            label="نوع الإجراء"
+            options={["الكل", ...options.actions]}
+            value={actionFilter}
+            onChange={(e) => setActionFilter(e.target.value)}
+          />
+          <Select
+            label="الكيان"
+            options={["الكل", ...options.entities]}
+            value={entityFilter}
+            onChange={(e) => setEntityFilter(e.target.value)}
+          />
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">التاريخ من</label>
+            <input
+              type="date"
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1 min-h-[44px]"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">التاريخ إلى</label>
+            <input
+              type="date"
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1 min-h-[44px]"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
+          </div>
+        </div>
+      </MobileFilterDrawer>
     </AppShell>
   );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div className="text-sm font-semibold break-words">{value}</div>
+    </div>
+  );
+}
+
+function SnapshotPanel({
+  title,
+  data,
+  tone,
+}: {
+  title: string;
+  data: unknown;
+  tone: "success" | "destructive";
+}) {
+  return (
+    <div
+      className={`rounded-lg border p-2 ${tone === "success" ? "bg-success/10" : "bg-destructive/10"}`}
+    >
+      <div className="text-[10px] font-semibold text-muted-foreground mb-1">{title}</div>
+      {data == null ? (
+        <div className="text-xs text-muted-foreground italic">لا توجد بيانات</div>
+      ) : typeof data === "object" ? (
+        <pre className="text-[10px] font-mono whitespace-pre-wrap break-words leading-relaxed">
+          {String(JSON.stringify(data, null, 2))}
+        </pre>
+      ) : (
+        <div className="text-xs break-words">{String(data)}</div>
+      )}
+    </div>
+  );
+}
+
+function actionTone(action: string): "success" | "destructive" | "warning" | "info" | "muted" {
+  if (
+    action.includes("حذف") ||
+    action.includes("إيقاف") ||
+    action.includes("إلغاء") ||
+    action.includes("رفض")
+  )
+    return "destructive";
+  if (
+    action.includes("إضافة") ||
+    action.includes("ترحيل") ||
+    action.includes("اعتماد") ||
+    action.includes("تفعيل") ||
+    action.includes("تسليم") ||
+    action.includes("تأهيل")
+  )
+    return "success";
+  if (action.includes("تعديل") || action.includes("تحديث") || action.includes("عكس")) return "info";
+  if (action.includes("بانتظار") || action.includes("مسودة")) return "warning";
+  return "muted";
 }
