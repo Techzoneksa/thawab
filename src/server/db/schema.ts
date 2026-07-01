@@ -198,11 +198,17 @@ export const accounts = sqliteTable("accounts", {
   code: text("code").notNull(),
   name: text("name").notNull(),
   type: text("type").notNull().default("تفصيلي"),
+  level: integer("level").notNull().default(1),
   parentId: text("parent_id"),
   currency: text("currency").notNull().default("SAR"),
   balance: real("balance").notNull().default(0),
+  postable: integer("postable", { mode: "boolean" }).notNull().default(true),
   status: text("status").notNull().default("نشط"),
+  description: text("description").default(""),
+  notes: text("notes").default(""),
+  createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
 });
 
 export const journalEntries = sqliteTable("journal_entries", {
@@ -212,8 +218,9 @@ export const journalEntries = sqliteTable("journal_entries", {
   description: text("description").notNull().default(""),
   debitAccount: text("debit_account").notNull(),
   creditAccount: text("credit_account").notNull(),
-  amount: real("amount").notNull(),
+  amount: real("amount").notNull().default(0),
   fund: text("fund").notNull().default("مقيد"),
+  currency: text("currency").notNull().default("SAR"),
   projectId: text("project_id").references(() => projects.id),
   sourceType: text("source_type"),
   sourceId: text("source_id"),
@@ -222,8 +229,28 @@ export const journalEntries = sqliteTable("journal_entries", {
   postedAt: text("posted_at"),
   reversedBy: text("reversed_by"),
   reversedAt: text("reversed_at"),
+  reversedOf: text("reversed_of"),
   notes: text("notes").default(""),
   createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
+export const journalLines = sqliteTable("journal_lines", {
+  id: text("id").primaryKey(),
+  journalEntryId: text("journal_entry_id")
+    .notNull()
+    .references(() => journalEntries.id, { onDelete: "cascade" }),
+  lineNumber: integer("line_number").notNull(),
+  accountId: text("account_id")
+    .notNull()
+    .references(() => accounts.id),
+  description: text("description").default(""),
+  debit: real("debit").notNull().default(0),
+  credit: real("credit").notNull().default(0),
+  costCenterId: text("cost_center_id").references(() => costCenters.id),
+  projectId: text("project_id").references(() => projects.id),
+  notes: text("notes").default(""),
   createdAt: text("created_at").notNull().default(""),
 });
 
@@ -235,7 +262,11 @@ export const costCenters = sqliteTable("cost_centers", {
   budget: real("budget").notNull().default(0),
   spent: real("spent").notNull().default(0),
   status: text("status").notNull().default("نشط"),
+  description: text("description").default(""),
+  notes: text("notes").default(""),
+  createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
 });
 
 export const budgets = sqliteTable("budgets", {
@@ -246,6 +277,29 @@ export const budgets = sqliteTable("budgets", {
   spent: real("spent").notNull().default(0),
   department: text("department").default(""),
   status: text("status").notNull().default("مخطط"),
+  currency: text("currency").notNull().default("SAR"),
+  description: text("description").default(""),
+  notes: text("notes").default(""),
+  approvedBy: text("approved_by").references(() => users.id),
+  approvedAt: text("approved_at"),
+  lockedBy: text("locked_by").references(() => users.id),
+  lockedAt: text("locked_at"),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
+export const budgetLines = sqliteTable("budget_lines", {
+  id: text("id").primaryKey(),
+  budgetId: text("budget_id")
+    .notNull()
+    .references(() => budgets.id, { onDelete: "cascade" }),
+  lineNumber: integer("line_number").notNull(),
+  accountId: text("account_id").references(() => accounts.id),
+  costCenterId: text("cost_center_id").references(() => costCenters.id),
+  projectId: text("project_id").references(() => projects.id),
+  plannedAmount: real("planned_amount").notNull().default(0),
+  actualAmount: real("actual_amount").notNull().default(0),
   notes: text("notes").default(""),
   createdAt: text("created_at").notNull().default(""),
 });

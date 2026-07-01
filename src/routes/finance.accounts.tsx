@@ -1,152 +1,276 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
   Card,
   Badge,
+  FilterBar,
+  Select,
   Btn,
+  Table,
+  Td,
+  statusTone,
   MobilePageHeader,
   MobileSearchInput,
+  MobileFilterDrawer,
 } from "@/components/erp/AppShell";
-import { CHART_OF_ACCOUNTS, fmtSAR } from "@/data/sample";
-import { showToast, EntityFormDrawer, ActionMenu, ExportButton } from "@/components/erp/actions";
+import { fmtSAR, fmtNum } from "@/data/sample";
 import {
   Plus,
-  Download,
-  ChevronLeft,
-  ChevronDown,
   Search,
+  Filter,
   Eye,
-  Edit,
-  FolderPlus,
+  Pencil,
+  Trash2,
+  Pause,
+  Play,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import {
+  showToast,
+  ConfirmDialog,
+  EntityFormDrawer,
+  ActionMenu,
+  ExportButton,
+  EmptyState,
+} from "@/components/erp/actions";
+import { useAuth } from "@/lib/api/auth";
+import {
+  getAccounts,
+  createAccount,
+  updateAccount,
+  deleteAccount,
+  deactivateAccount,
+  activateAccount,
+  ACCOUNT_TYPES,
+  ACCOUNT_STATUSES,
+  type Account,
+  type AccountType,
+  type AccountStatus,
+} from "@/lib/api/accounts";
 
 export const Route = createFileRoute("/finance/accounts")({
   head: () => ({ meta: [{ title: "دليل الحسابات — ثواب" }] }),
   component: Page,
 });
 
-const ACCOUNT_TYPES = ["أصل", "التزام", "حقوق", "إيراد", "مصروف"];
-
 function Page() {
-  const [accounts, setAccounts] = useState(CHART_OF_ACCOUNTS);
-  const [search, setSearch] = useState("");
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState("الكل");
+  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<Account | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [statusTarget, setStatusTarget] = useState<{
+    id: string;
+    name: string;
+    action: "deactivate" | "activate";
+  } | null>(null);
+  const [view, setView] = useState<"tree" | "table">("tree");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [selectedCode, setSelectedCode] = useState("1102");
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingCode, setEditingCode] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    code: "",
-    name: "",
-    type: "أصل",
-    parent: "",
-    currency: "ر.س - SAR",
-    openingBalance: "",
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Form fields
+  const [formCode, setFormCode] = useState("");
+  const [formName, setFormName] = useState("");
+  const [formType, setFormType] = useState<AccountType>("تفصيلي");
+  const [formParent, setFormParent] = useState<string>("");
+  const [formCurrency, setFormCurrency] = useState("SAR");
+  const [formBalance, setFormBalance] = useState("0");
+  const [formPostable, setFormPostable] = useState(true);
+  const [formStatus, setFormStatus] = useState<AccountStatus>("نشط");
+  const [formDescription, setFormDescription] = useState("");
+  const [formNotes, setFormNotes] = useState("");
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["accounts", { search: searchQuery, type: typeFilter, status: statusFilter }],
+    queryFn: () => getAccounts({ search: searchQuery, type: typeFilter, status: statusFilter }),
   });
 
-  const selected = accounts.find((a) => a.code === selectedCode);
+  const accounts = data?.items || [];
+  const total = data?.total || 0;
 
-  const filtered = accounts.filter((a) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return a.name.toLowerCase().includes(q) || a.code.toLowerCase().includes(q);
+  const selectedAccount = useMemo(
+    () => accounts.find((a: Account) => a.id === selectedId) || null,
+    [accounts, selectedId],
+  );
+
+  const childrenOf = useMemo(() => {
+    const map = new Map<string, Account[]>();
+    for (const a of accounts) {
+      if (a.parentId) {
+        if (!map.has(a.parentId)) map.set(a.parentId, []);
+        map.get(a.parentId)!.push(a);
+      }
+    }
+    return map;
+  }, [accounts]);
+
+  const roots = useMemo(
+    () => accounts.filter((a: Account) => !a.parentId).sort((a, b) => a.code.localeCompare(b.code)),
+    [accounts],
+  );
+
+  // Expand all by default on first load
+  useEffect(() => {
+    if (expanded.size === 0 && roots.length > 0) {
+      const all = new Set<string>();
+      const walk = (a: Account) => {
+        all.add(a.id);
+        childrenOf.get(a.id)?.forEach(walk);
+      };
+      roots.forEach(walk);
+      setExpanded(all);
+    }
+  }, [roots, childrenOf, expanded.size]);
+
+  const openAdd = (parent?: Account | null) => {
+    setEditing(null);
+    setFormCode("");
+    setFormName("");
+    setFormType(parent ? "تفصيلي" : "رئيسي");
+    setFormParent(parent?.id || "");
+    setFormCurrency("SAR");
+    setFormBalance("0");
+    setFormPostable(!parent);
+    setFormStatus("نشط");
+    setFormDescription("");
+    setFormNotes("");
+    setAddOpen(true);
+  };
+
+  const openEdit = (a: Account) => {
+    setEditing(a);
+    setFormCode(a.code);
+    setFormName(a.name);
+    setFormType(a.type as AccountType);
+    setFormParent(a.parentId || "");
+    setFormCurrency(a.currency);
+    setFormBalance(String(a.balance));
+    setFormPostable(a.postable);
+    setFormStatus(a.status as AccountStatus);
+    setFormDescription(a.description || "");
+    setFormNotes(a.notes || "");
+    setAddOpen(true);
+  };
+
+  const createMutation = useMutation({
+    mutationFn: createAccount,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      showToast("تم إضافة الحساب بنجاح", "success");
+      setAddOpen(false);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
   });
 
-  const visibleAccounts = filtered.filter((a) => {
-    if (a.level === 1) return true;
-    if (a.level === 2) return expanded.has(a.code[0]);
-    if (a.level === 3) return expanded.has(a.code.slice(0, 2));
-    return false;
+  const updateMutation = useMutation({
+    mutationFn: updateAccount,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      showToast("تم تحديث الحساب بنجاح", "success");
+      setAddOpen(false);
+      setEditing(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
   });
 
-  const toggleExpand = (code: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(code)) next.delete(code);
-      else next.add(code);
-      return next;
-    });
-  };
+  const deleteMutation = useMutation({
+    mutationFn: deleteAccount,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      showToast("تم حذف الحساب بنجاح", "success");
+      setDeleteTarget(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
 
-  const getChildren = (code: string) => {
-    const parent = accounts.find((a) => a.code === code);
-    if (!parent) return [];
-    return accounts.filter((a) => a.code.startsWith(code) && a.level === parent.level + 1);
-  };
-
-  const hasChildren = (code: string) => getChildren(code).length > 0;
-
-  const resetForm = () => {
-    setFormData({
-      code: "",
-      name: "",
-      type: "أصل",
-      parent: "",
-      currency: "ر.س - SAR",
-      openingBalance: "",
-    });
-    setEditingCode(null);
-  };
+  const statusMutation = useMutation({
+    mutationFn: async (vars: {
+      id: string;
+      action: "deactivate" | "activate";
+      userId?: string;
+      userName?: string;
+    }) => {
+      const fn = vars.action === "deactivate" ? deactivateAccount : activateAccount;
+      return fn({ id: vars.id, userId: vars.userId, userName: vars.userName });
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      showToast(vars.action === "deactivate" ? "تم إيقاف الحساب" : "تم تفعيل الحساب", "success");
+      setStatusTarget(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
 
   const handleSave = () => {
-    if (!formData.code || !formData.name) {
-      showToast("يرجى ملء رمز الحساب واسمه", "error");
-      return;
-    }
-    if (editingCode) {
-      setAccounts((prev) =>
-        prev.map((a) =>
-          a.code === editingCode
-            ? { ...a, code: formData.code, name: formData.name, type: formData.type }
-            : a,
-        ),
-      );
-      showToast("تم تعديل الحساب بنجاح", "success");
+    if (!formCode.trim()) return showToast("يرجى إدخال رقم الحساب", "error");
+    if (!formName.trim()) return showToast("يرجى إدخال اسم الحساب", "error");
+    const payload = {
+      code: formCode,
+      name: formName,
+      type: formType,
+      parentId: formParent || null,
+      currency: formCurrency,
+      balance: parseFloat(formBalance) || 0,
+      postable: formPostable,
+      status: formStatus,
+      description: formDescription,
+      notes: formNotes,
+      userId: user?.id,
+      userName: user?.name,
+    };
+    if (editing) {
+      updateMutation.mutate({ id: editing.id, ...payload });
     } else {
-      const parent = accounts.find((a) => a.code === formData.parent);
-      const level = parent ? parent.level + 1 : 1;
-      setAccounts((prev) => [
-        ...prev,
-        {
-          code: formData.code,
-          name: formData.name,
-          level,
-          type: formData.type,
-          balance: Number(formData.openingBalance) || 0,
-        },
-      ]);
-      showToast("تم إضافة الحساب بنجاح", "success");
+      createMutation.mutate(payload);
     }
-    setFormOpen(false);
-    resetForm();
   };
 
-  const handleEdit = (code: string) => {
-    const a = accounts.find((ac) => ac.code === code);
-    if (!a) return;
-    setFormData({
-      code: a.code,
-      name: a.name,
-      type: a.type,
-      parent: "",
-      currency: "ر.س - SAR",
-      openingBalance: String(a.balance),
-    });
-    setEditingCode(code);
-    setFormOpen(true);
+  const handleDelete = () => {
+    if (deleteTarget) {
+      deleteMutation.mutate({ id: deleteTarget, userId: user?.id, userName: user?.name });
+    }
   };
 
-  const exportData = accounts.map((a) => ({
-    الرمز: a.code,
-    "اسم الحساب": a.name,
-    المستوى: a.level,
-    النوع: a.type,
-    الرصيد: a.balance,
-  }));
+  const handleStatusConfirm = () => {
+    if (statusTarget) {
+      statusMutation.mutate({
+        id: statusTarget.id,
+        action: statusTarget.action,
+        userId: user?.id,
+        userName: user?.name,
+      });
+    }
+  };
 
-  const subAccounts = selected
-    ? accounts.filter((a) => a.code.startsWith(selected.code) && a.level === selected.level + 1)
-    : [];
+  const toggleExpand = (id: string) => {
+    const next = new Set(expanded);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setExpanded(next);
+  };
+
+  const stats = [
+    { label: "إجمالي الحسابات", value: fmtNum(total) },
+    {
+      label: "حسابات نشطة",
+      value: accounts.filter((a: Account) => a.status === "نشط").length,
+    },
+    {
+      label: "قابلة للترحيل",
+      value: accounts.filter((a: Account) => a.postable).length,
+    },
+    {
+      label: "حسابات رئيسية",
+      value: accounts.filter((a: Account) => a.level === 1).length,
+    },
+  ];
 
   return (
     <AppShell
@@ -154,271 +278,652 @@ function Page() {
       title="دليل الحسابات"
       actions={
         <>
-          <ExportButton data={exportData} filename="chart-of-accounts.csv" />
-          <Btn
-            variant="primary"
-            onClick={() => {
-              resetForm();
-              setFormOpen(true);
-            }}
-          >
-            <Plus size={15} />
-            حساب جديد
+          <div className="hidden lg:flex rounded-lg border overflow-hidden">
+            <button
+              onClick={() => setView("tree")}
+              className={`px-3 py-2 ${view === "tree" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+            >
+              الشجرة
+            </button>
+            <button
+              onClick={() => setView("table")}
+              className={`px-3 py-2 ${view === "table" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+            >
+              القائمة
+            </button>
+          </div>
+          <ExportButton
+            data={accounts as unknown as Record<string, unknown>[]}
+            filename="دليل_الحسابات.csv"
+          />
+          <Btn variant="primary" onClick={() => openAdd()}>
+            <Plus size={15} /> حساب جديد
           </Btn>
         </>
       }
     >
-      <MobilePageHeader title="دليل الحسابات" count={`${accounts.length} حساب`} />
-      <MobileSearchInput
-        placeholder="بحث عن حساب..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <Card className="lg:col-span-1 p-4 hidden lg:block">
-          <div className="relative mb-3">
-            <Search
-              size={14}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-            />
-            <input
-              className="w-full rounded-lg border bg-background py-1.5 pr-9 pl-3 text-sm"
-              placeholder="بحث عن حساب..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1 text-sm">
-            {visibleAccounts.map((a) => {
-              const isExpanded = expanded.has(a.code);
-              const childCount = getChildren(a.code).length;
-              return (
-                <div key={a.code} className="flex items-center gap-1">
-                  <button
-                    className={`flex-1 text-right rounded-md py-1.5 px-2 hover:bg-muted transition-colors flex items-center gap-2 ${a.level === 1 ? "font-bold" : ""} ${selectedCode === a.code ? "bg-muted" : ""}`}
-                    style={{ paddingRight: `${a.level * 12 + 8}px` }}
-                    onClick={() => setSelectedCode(a.code)}
-                  >
-                    {hasChildren(a.code) ? (
-                      isExpanded ? (
-                        <ChevronDown size={12} className="text-muted-foreground shrink-0" />
-                      ) : (
-                        <ChevronLeft size={12} className="text-muted-foreground shrink-0" />
-                      )
-                    ) : (
-                      <span className="w-3 shrink-0" />
-                    )}
-                    <button
-                      className="p-0 text-right"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleExpand(a.code);
-                      }}
-                    >
-                      {isExpanded ? <ChevronDown size={12} /> : <ChevronLeft size={12} />}
-                    </button>
-                    <span className="font-mono text-xs text-muted-foreground">{a.code}</span>
-                    <span className="truncate">{a.name}</span>
-                  </button>
-                  <ActionMenu
-                    actions={[
-                      { label: "عرض التفاصيل", icon: Eye, onClick: () => setSelectedCode(a.code) },
-                      { label: "تعديل", icon: Edit, onClick: () => handleEdit(a.code) },
-                      {
-                        label: "إضافة حساب فرعي",
-                        icon: FolderPlus,
-                        onClick: () => {
-                          resetForm();
-                          setFormData((prev) => ({ ...prev, parent: a.code }));
-                          setFormOpen(true);
-                        },
-                      },
-                    ]}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-
-        <div className="lg:hidden">
-          <select
-            className="w-full rounded-xl border bg-background py-2.5 px-3 text-sm min-h-[44px]"
-            value={selectedCode}
-            onChange={(e) => setSelectedCode(e.target.value)}
-          >
-            {accounts.map((a) => (
-              <option key={a.code} value={a.code}>
-                {a.code} - {a.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <Card className="lg:col-span-3 p-5">
-          {selected ? (
-            <>
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div>
-                  <div className="text-xs text-muted-foreground font-mono">
-                    {selected.code} · {selected.type}
-                  </div>
-                  <h2 className="text-xl font-extrabold">{selected.name}</h2>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {selected.level === 1
-                      ? "حساب رئيسي"
-                      : selected.level === 2
-                        ? "حساب فرعي"
-                        : "حساب تفصيلي"}
-                    {selected.level > 1 &&
-                      ` تابع للحساب ${accounts.find((a) => a.code === (selected.level === 2 ? selected.code[0] : selected.code.slice(0, 2)))?.name || "—"}`}
-                  </p>
-                </div>
-                <div className="text-left">
-                  <div className="text-xs text-muted-foreground">الرصيد الحالي</div>
-                  <div className="text-2xl font-extrabold tabular-nums">
-                    {fmtSAR(selected.balance)}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-                {[
-                  { l: "نوع الحساب", v: selected.type },
-                  { l: "العملة", v: "ر.س - SAR" },
-                  { l: "مستوى الحساب", v: `المستوى ${selected.level}` },
-                  { l: "حالة الحساب", v: "نشط" },
-                ].map((s) => (
-                  <div key={s.l} className="rounded-lg bg-muted/50 p-3">
-                    <div className="text-[11px] text-muted-foreground">{s.l}</div>
-                    <div className="font-semibold text-sm mt-0.5">{s.v}</div>
-                  </div>
-                ))}
-              </div>
-
-              {subAccounts.length > 0 && (
-                <div>
-                  <h4 className="font-bold mb-2">الحسابات الفرعية</h4>
-                  <div className="overflow-x-auto rounded-lg border">
-                    <table className="min-w-full text-sm">
-                      <thead className="bg-muted/60">
-                        <tr className="text-right">
-                          <th className="px-3 py-2 font-semibold">الرمز</th>
-                          <th className="px-3 py-2 font-semibold">اسم الحساب</th>
-                          <th className="px-3 py-2 font-semibold">النوع</th>
-                          <th className="px-3 py-2 font-semibold">الرصيد</th>
-                          <th className="px-3 py-2 font-semibold">الحالة</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {subAccounts.map((sa) => (
-                          <tr key={sa.code} className="border-t hover:bg-muted/40">
-                            <td className="px-3 py-2 font-mono text-xs">{sa.code}</td>
-                            <td className="px-3 py-2 font-semibold">{sa.name}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{sa.type}</td>
-                            <td className="px-3 py-2 tabular-nums font-bold">
-                              {fmtSAR(sa.balance)}
-                            </td>
-                            <td className="px-3 py-2">
-                              <Badge tone="success">نشط</Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-center py-16 text-muted-foreground">اختر حساباً من القائمة</div>
-          )}
-        </Card>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-3 lg:mb-4">
+        {stats.map((s) => (
+          <Card key={s.label} className="p-3 lg:p-4">
+            <div className="text-xs text-muted-foreground truncate">{s.label}</div>
+            <div className="text-base lg:text-xl font-extrabold mt-1 tabular-nums truncate">
+              {s.value}
+            </div>
+          </Card>
+        ))}
       </div>
 
+      <FilterBar>
+        <div className="relative flex-1 min-w-[200px] hidden lg:block">
+          <Search
+            size={14}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
+          <input
+            className="w-full rounded-lg border bg-background py-1.5 pr-9 pl-3 text-sm"
+            placeholder="بحث بالرقم أو الاسم..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <Select
+          label="النوع"
+          options={["الكل", ...ACCOUNT_TYPES]}
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+        />
+        <Select
+          label="الحالة"
+          options={["الكل", ...ACCOUNT_STATUSES]}
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        />
+        <Btn variant="ghost" className="lg:hidden" onClick={() => setFilterOpen(true)}>
+          <Filter size={15} />
+        </Btn>
+      </FilterBar>
+
+      <div className="lg:hidden flex items-center gap-2 mb-3">
+        <MobileSearchInput
+          placeholder="بحث..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+
+      <MobilePageHeader
+        title="دليل الحسابات"
+        count={`${fmtNum(total)} حساب`}
+        action={
+          <Btn variant="primary" onClick={() => openAdd()}>
+            <Plus size={15} />
+          </Btn>
+        }
+      />
+
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+        </div>
+      ) : error ? (
+        <EmptyState
+          title="خطأ في تحميل البيانات"
+          description="حدث خطأ أثناء تحميل الحسابات"
+          action={
+            <Btn
+              variant="primary"
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["accounts"] })}
+            >
+              إعادة المحاولة
+            </Btn>
+          }
+        />
+      ) : accounts.length === 0 ? (
+        <EmptyState
+          title="لا توجد حسابات"
+          description="ابدأ بإضافة أول حساب"
+          action={
+            <Btn variant="primary" onClick={() => openAdd()}>
+              إضافة حساب
+            </Btn>
+          }
+        />
+      ) : view === "tree" ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card className="p-4">
+            <div className="space-y-1">
+              {roots.map((root: Account) => (
+                <TreeNode
+                  key={root.id}
+                  account={root}
+                  childrenOf={childrenOf}
+                  expanded={expanded}
+                  selectedId={selectedId}
+                  onToggle={toggleExpand}
+                  onSelect={setSelectedId}
+                  onAdd={(a) => openAdd(a)}
+                  onEdit={openEdit}
+                  onDelete={(id) => setDeleteTarget(id)}
+                  onDeactivate={(a) =>
+                    setStatusTarget({
+                      id: a.id,
+                      name: `${a.code} - ${a.name}`,
+                      action: "deactivate",
+                    })
+                  }
+                  onActivate={(a) =>
+                    setStatusTarget({ id: a.id, name: `${a.code} - ${a.name}`, action: "activate" })
+                  }
+                  level={0}
+                />
+              ))}
+            </div>
+          </Card>
+          <Card className="p-4 lg:p-5">
+            {selectedAccount ? (
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0">
+                    <div className="text-base lg:text-lg font-bold">
+                      {selectedAccount.code} — {selectedAccount.name}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {selectedAccount.type} · المستوى {selectedAccount.level}
+                      {selectedAccount.parentId && (
+                        <>
+                          {" "}
+                          ·{" "}
+                          <span className="font-mono">
+                            {accounts.find((a: Account) => a.id === selectedAccount.parentId)
+                              ?.code || ""}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge tone={statusTone(selectedAccount.status)}>
+                      {selectedAccount.status}
+                    </Badge>
+                    {selectedAccount.postable ? (
+                      <Badge tone="info">قابل للترحيل</Badge>
+                    ) : (
+                      <Badge tone="muted">رئيسي</Badge>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                  <Stat label="الرصيد" value={fmtSAR(selectedAccount.balance)} />
+                  <Stat label="العملة" value={selectedAccount.currency} />
+                </div>
+
+                {selectedAccount.description && (
+                  <div className="mt-4">
+                    <div className="text-xs font-semibold text-muted-foreground">الوصف</div>
+                    <div className="text-sm mt-1">{selectedAccount.description}</div>
+                  </div>
+                )}
+
+                <div className="mt-4 border-t pt-3">
+                  <div className="text-xs font-semibold text-muted-foreground mb-2">
+                    الحسابات الفرعية ({childrenOf.get(selectedAccount.id)?.length || 0})
+                  </div>
+                  {childrenOf.get(selectedAccount.id)?.length ? (
+                    <div className="space-y-1">
+                      {childrenOf.get(selectedAccount.id)!.map((c: Account) => (
+                        <div
+                          key={c.id}
+                          className="flex items-center justify-between rounded-lg border p-2 hover:bg-muted/50"
+                        >
+                          <button
+                            onClick={() => setSelectedId(c.id)}
+                            className="text-right text-sm font-semibold hover:text-primary flex-1"
+                          >
+                            <span className="font-mono">{c.code}</span> — {c.name}
+                          </button>
+                          <Badge tone={statusTone(c.status)}>{c.status}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">لا توجد حسابات فرعية</div>
+                  )}
+                </div>
+
+                <div className="mt-4 flex gap-2">
+                  <Btn variant="outline" onClick={() => openEdit(selectedAccount)}>
+                    <Pencil size={14} /> تعديل
+                  </Btn>
+                  <Btn variant="outline" onClick={() => openAdd(selectedAccount)}>
+                    <Plus size={14} /> إضافة فرعي
+                  </Btn>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                اختر حساباً من الشجرة لعرض التفاصيل
+              </div>
+            )}
+          </Card>
+        </div>
+      ) : (
+        <Card className="p-0 overflow-hidden">
+          <Table
+            columns={["الرقم", "الاسم", "النوع", "المستوى", "الأب", "الرصيد", "الحالة", ""]}
+            rows={accounts}
+            renderRow={(a: Account) => (
+              <>
+                <Td className="font-mono text-xs">{a.code}</Td>
+                <Td>
+                  <button
+                    onClick={() => setSelectedId(a.id)}
+                    className="font-semibold hover:text-primary text-right"
+                  >
+                    {a.name}
+                  </button>
+                </Td>
+                <Td>{a.type}</Td>
+                <Td className="tabular-nums">{a.level}</Td>
+                <Td className="font-mono text-xs text-muted-foreground">
+                  {a.parentId
+                    ? accounts.find((x: Account) => x.id === a.parentId)?.code || "—"
+                    : "—"}
+                </Td>
+                <Td className="tabular-nums">{fmtSAR(a.balance)}</Td>
+                <Td>
+                  <Badge tone={statusTone(a.status)}>{a.status}</Badge>
+                </Td>
+                <Td>
+                  <ActionMenu
+                    actions={getAccountActions(a, setStatusTarget, openEdit, setDeleteTarget)}
+                  />
+                </Td>
+              </>
+            )}
+          />
+        </Card>
+      )}
+
       <EntityFormDrawer
-        open={formOpen}
+        open={addOpen}
         onClose={() => {
-          setFormOpen(false);
-          resetForm();
+          setAddOpen(false);
+          setEditing(null);
         }}
-        title={editingCode ? "تعديل حساب" : "إضافة حساب"}
+        title={editing ? "تعديل الحساب" : "إضافة حساب جديد"}
         onSave={handleSave}
+        loading={createMutation.isPending || updateMutation.isPending}
       >
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-semibold mb-1">رمز الحساب</label>
-              <input
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
-                placeholder="مثال: 1104"
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">اسم الحساب</label>
-              <input
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
-                placeholder="اسم الحساب"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">رقم الحساب *</label>
+            <input
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+              value={formCode}
+              onChange={(e) => setFormCode(e.target.value)}
+              placeholder="1101"
+            />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-semibold mb-1">النوع</label>
-              <select
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-              >
-                {ACCOUNT_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">الحساب الأب</label>
-              <select
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
-                value={formData.parent}
-                onChange={(e) => setFormData({ ...formData, parent: e.target.value })}
-              >
-                <option value="">بدون (حساب رئيسي)</option>
-                {accounts.map((a) => (
-                  <option key={a.code} value={a.code}>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">الاسم *</label>
+            <input
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+              value={formName}
+              onChange={(e) => setFormName(e.target.value)}
+              placeholder="اسم الحساب"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">النوع</label>
+            <select
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+              value={formType}
+              onChange={(e) => {
+                const t = e.target.value as AccountType;
+                setFormType(t);
+                if (t === "رئيسي") setFormPostable(false);
+                else setFormPostable(true);
+              }}
+            >
+              {ACCOUNT_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">الحساب الأب</label>
+            <select
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+              value={formParent}
+              onChange={(e) => setFormParent(e.target.value)}
+            >
+              <option value="">— (حساب رئيسي)</option>
+              {accounts
+                .filter((a: Account) => a.type === "رئيسي" && a.id !== editing?.id)
+                .map((a: Account) => (
+                  <option key={a.id} value={a.id}>
                     {a.code} - {a.name}
                   </option>
                 ))}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-semibold mb-1">العملة</label>
-              <input
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
-                value={formData.currency}
-                onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">الرصيد الافتتاحي</label>
-              <input
-                type="number"
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
-                placeholder="0"
-                value={formData.openingBalance}
-                onChange={(e) => setFormData({ ...formData, openingBalance: e.target.value })}
-              />
-            </div>
+            </select>
           </div>
         </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">العملة</label>
+            <input
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+              value={formCurrency}
+              onChange={(e) => setFormCurrency(e.target.value)}
+              placeholder="SAR"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">رصيد افتتاحي</label>
+            <input
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+              type="number"
+              value={formBalance}
+              onChange={(e) => setFormBalance(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex items-center gap-2 p-3 border rounded-lg">
+            <input
+              type="checkbox"
+              checked={formPostable}
+              onChange={(e) => setFormPostable(e.target.checked)}
+            />
+            <span className="text-sm">قابل للترحيل</span>
+          </label>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">الحالة</label>
+            <select
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+              value={formStatus}
+              onChange={(e) => setFormStatus(e.target.value as AccountStatus)}
+            >
+              {ACCOUNT_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-muted-foreground">الوصف</label>
+          <textarea
+            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+            rows={2}
+            value={formDescription}
+            onChange={(e) => setFormDescription(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-muted-foreground">ملاحظات داخلية</label>
+          <textarea
+            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+            rows={2}
+            value={formNotes}
+            onChange={(e) => setFormNotes(e.target.value)}
+          />
+        </div>
       </EntityFormDrawer>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="حذف الحساب"
+        message="هل أنت متأكد من حذف هذا الحساب؟ سيتم الحذف فقط إذا لم يكن له فروع أو حركات."
+        confirmText="حذف"
+        cancelText="إلغاء"
+        variant="destructive"
+      />
+
+      <ConfirmDialog
+        open={!!statusTarget}
+        onClose={() => setStatusTarget(null)}
+        onConfirm={handleStatusConfirm}
+        title={
+          statusTarget
+            ? statusTarget.action === "deactivate"
+              ? "إيقاف الحساب"
+              : "تفعيل الحساب"
+            : ""
+        }
+        message={
+          statusTarget
+            ? `هل تريد ${statusTarget.action === "deactivate" ? "إيقاف" : "تفعيل"} الحساب "${statusTarget.name}"؟`
+            : ""
+        }
+        confirmText={statusTarget ? (statusTarget.action === "deactivate" ? "إيقاف" : "تفعيل") : ""}
+        cancelText="إلغاء"
+        variant="default"
+      />
+
+      <MobileFilterDrawer open={filterOpen} onClose={() => setFilterOpen(false)}>
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">النوع</label>
+            <select
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1 min-h-[44px]"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            >
+              <option>الكل</option>
+              {ACCOUNT_TYPES.map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">الحالة</label>
+            <select
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1 min-h-[44px]"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option>الكل</option>
+              {ACCOUNT_STATUSES.map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </MobileFilterDrawer>
     </AppShell>
   );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-muted/60 p-2">
+      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div className="text-sm font-bold tabular-nums mt-0.5">{value}</div>
+    </div>
+  );
+}
+
+function TreeNode({
+  account,
+  childrenOf,
+  expanded,
+  selectedId,
+  onToggle,
+  onSelect,
+  onAdd,
+  onEdit,
+  onDelete,
+  onDeactivate,
+  onActivate,
+  level,
+}: {
+  account: Account;
+  childrenOf: Map<string, Account[]>;
+  expanded: Set<string>;
+  selectedId: string | null;
+  onToggle: (id: string) => void;
+  onSelect: (id: string) => void;
+  onAdd: (a: Account) => void;
+  onEdit: (a: Account) => void;
+  onDelete: (id: string) => void;
+  onDeactivate: (a: Account) => void;
+  onActivate: (a: Account) => void;
+  level: number;
+}) {
+  const kids = childrenOf.get(account.id) || [];
+  const isExpanded = expanded.has(account.id);
+  const isSelected = selectedId === account.id;
+  return (
+    <div>
+      <div
+        className={`flex items-center gap-2 rounded-lg p-2 cursor-pointer ${isSelected ? "bg-primary/15 border border-primary/30" : "hover:bg-muted/50"}`}
+        style={{ paddingRight: `${level * 16 + 8}px` }}
+      >
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle(account.id);
+          }}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          {kids.length > 0 ? (
+            isExpanded ? (
+              <ChevronDown size={14} />
+            ) : (
+              <ChevronRight size={14} />
+            )
+          ) : (
+            <span className="w-[14px] inline-block" />
+          )}
+        </button>
+        <button onClick={() => onSelect(account.id)} className="flex-1 text-right">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs text-muted-foreground">{account.code}</span>
+            <span className={`text-sm ${isSelected ? "font-bold" : "font-medium"}`}>
+              {account.name}
+            </span>
+            {account.postable ? (
+              <span className="text-[10px] text-muted-foreground">قابل للترحيل</span>
+            ) : null}
+          </div>
+        </button>
+        <Badge tone={statusTone(account.status)}>{account.status}</Badge>
+        <ActionMenu
+          actions={getAccountActionsInline(
+            account,
+            onAdd,
+            onEdit,
+            onDelete,
+            onDeactivate,
+            onActivate,
+          )}
+        />
+      </div>
+      {isExpanded &&
+        kids.map((k: Account) => (
+          <TreeNode
+            key={k.id}
+            account={k}
+            childrenOf={childrenOf}
+            expanded={expanded}
+            selectedId={selectedId}
+            onToggle={onToggle}
+            onSelect={onSelect}
+            onAdd={onAdd}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onDeactivate={onDeactivate}
+            onActivate={onActivate}
+            level={level + 1}
+          />
+        ))}
+    </div>
+  );
+}
+
+function getAccountActionsInline(
+  a: Account,
+  onAdd: (a: Account) => void,
+  onEdit: (a: Account) => void,
+  onDelete: (id: string) => void,
+  onDeactivate: (a: Account) => void,
+  onActivate: (a: Account) => void,
+) {
+  const actions: Array<{
+    label: string;
+    icon: any;
+    onClick: () => void;
+    variant?: "destructive";
+  }> = [];
+
+  if (a.type === "رئيسي" || !a.postable) {
+    actions.push({ label: "إضافة حساب فرعي", icon: Plus, onClick: () => onAdd(a) });
+  }
+  actions.push({ label: "تعديل", icon: Pencil, onClick: () => onEdit(a) });
+  if (a.status === "نشط") {
+    actions.push({
+      label: "إيقاف",
+      icon: Pause,
+      onClick: () => onDeactivate(a),
+    });
+  } else if (a.status === "موقوف") {
+    actions.push({
+      label: "تفعيل",
+      icon: Play,
+      onClick: () => onActivate(a),
+    });
+  }
+  actions.push({
+    label: "حذف",
+    icon: Trash2,
+    onClick: () => onDelete(a.id),
+    variant: "destructive",
+  });
+  return actions;
+}
+
+function getAccountActions(
+  a: Account,
+  setStatusTarget: (t: { id: string; name: string; action: "deactivate" | "activate" }) => void,
+  openEdit: (a: Account) => void,
+  setDeleteTarget: (id: string) => void,
+) {
+  const actions: Array<{
+    label: string;
+    icon: any;
+    onClick: () => void;
+    variant?: "destructive";
+  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => {} }];
+  actions.push({ label: "تعديل", icon: Pencil, onClick: () => openEdit(a) });
+  if (a.status === "نشط") {
+    actions.push({
+      label: "إيقاف",
+      icon: Pause,
+      onClick: () =>
+        setStatusTarget({ id: a.id, name: `${a.code} - ${a.name}`, action: "deactivate" }),
+    });
+  } else if (a.status === "موقوف") {
+    actions.push({
+      label: "تفعيل",
+      icon: Play,
+      onClick: () =>
+        setStatusTarget({ id: a.id, name: `${a.code} - ${a.name}`, action: "activate" }),
+    });
+  }
+  actions.push({
+    label: "حذف",
+    icon: Trash2,
+    onClick: () => setDeleteTarget(a.id),
+    variant: "destructive",
+  });
+  return actions;
 }

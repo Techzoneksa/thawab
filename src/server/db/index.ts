@@ -189,11 +189,17 @@ export function initDB() {
       code TEXT NOT NULL,
       name TEXT NOT NULL,
       type TEXT NOT NULL DEFAULT 'تفصيلي',
+      level INTEGER NOT NULL DEFAULT 1,
       parent_id TEXT,
       currency TEXT NOT NULL DEFAULT 'SAR',
       balance REAL NOT NULL DEFAULT 0,
+      postable INTEGER NOT NULL DEFAULT 1,
       status TEXT NOT NULL DEFAULT 'نشط',
-      created_at TEXT NOT NULL DEFAULT ''
+      description TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS journal_entries (
@@ -201,10 +207,11 @@ export function initDB() {
       number TEXT NOT NULL UNIQUE,
       date TEXT NOT NULL DEFAULT '',
       description TEXT NOT NULL DEFAULT '',
-      debit_account TEXT NOT NULL,
-      credit_account TEXT NOT NULL,
-      amount REAL NOT NULL,
+      debit_account TEXT NOT NULL DEFAULT '',
+      credit_account TEXT NOT NULL DEFAULT '',
+      amount REAL NOT NULL DEFAULT 0,
       fund TEXT NOT NULL DEFAULT 'مقيد',
+      currency TEXT NOT NULL DEFAULT 'SAR',
       project_id TEXT REFERENCES projects(id),
       source_type TEXT,
       source_id TEXT,
@@ -213,8 +220,24 @@ export function initDB() {
       posted_at TEXT,
       reversed_by TEXT,
       reversed_at TEXT,
+      reversed_of TEXT,
       notes TEXT DEFAULT '',
       created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS journal_lines (
+      id TEXT PRIMARY KEY,
+      journal_entry_id TEXT NOT NULL REFERENCES journal_entries(id) ON DELETE CASCADE,
+      line_number INTEGER NOT NULL,
+      account_id TEXT NOT NULL REFERENCES accounts(id),
+      description TEXT DEFAULT '',
+      debit REAL NOT NULL DEFAULT 0,
+      credit REAL NOT NULL DEFAULT 0,
+      cost_center_id TEXT REFERENCES cost_centers(id),
+      project_id TEXT REFERENCES projects(id),
+      notes TEXT DEFAULT '',
       created_at TEXT NOT NULL DEFAULT ''
     );
 
@@ -226,7 +249,11 @@ export function initDB() {
       budget REAL NOT NULL DEFAULT 0,
       spent REAL NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'نشط',
-      created_at TEXT NOT NULL DEFAULT ''
+      description TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS budgets (
@@ -237,6 +264,27 @@ export function initDB() {
       spent REAL NOT NULL DEFAULT 0,
       department TEXT DEFAULT '',
       status TEXT NOT NULL DEFAULT 'مخطط',
+      currency TEXT NOT NULL DEFAULT 'SAR',
+      description TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      approved_by TEXT REFERENCES users(id),
+      approved_at TEXT,
+      locked_by TEXT REFERENCES users(id),
+      locked_at TEXT,
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS budget_lines (
+      id TEXT PRIMARY KEY,
+      budget_id TEXT NOT NULL REFERENCES budgets(id) ON DELETE CASCADE,
+      line_number INTEGER NOT NULL,
+      account_id TEXT REFERENCES accounts(id),
+      cost_center_id TEXT REFERENCES cost_centers(id),
+      project_id TEXT REFERENCES projects(id),
+      planned_amount REAL NOT NULL DEFAULT 0,
+      actual_amount REAL NOT NULL DEFAULT 0,
       notes TEXT DEFAULT '',
       created_at TEXT NOT NULL DEFAULT ''
     );
@@ -419,6 +467,27 @@ export function initDB() {
     `ALTER TABLE beneficiaries ADD COLUMN family_members INTEGER NOT NULL DEFAULT 1`,
     `ALTER TABLE beneficiaries ADD COLUMN monthly_income REAL NOT NULL DEFAULT 0`,
     `ALTER TABLE beneficiaries ADD COLUMN marital_status TEXT DEFAULT ''`,
+    `ALTER TABLE accounts ADD COLUMN level INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE accounts ADD COLUMN postable INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE accounts ADD COLUMN description TEXT DEFAULT ''`,
+    `ALTER TABLE accounts ADD COLUMN notes TEXT DEFAULT ''`,
+    `ALTER TABLE accounts ADD COLUMN created_by TEXT REFERENCES users(id)`,
+    `ALTER TABLE accounts ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE journal_entries ADD COLUMN currency TEXT NOT NULL DEFAULT 'SAR'`,
+    `ALTER TABLE journal_entries ADD COLUMN reversed_of TEXT`,
+    `ALTER TABLE journal_entries ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE cost_centers ADD COLUMN description TEXT DEFAULT ''`,
+    `ALTER TABLE cost_centers ADD COLUMN notes TEXT DEFAULT ''`,
+    `ALTER TABLE cost_centers ADD COLUMN created_by TEXT REFERENCES users(id)`,
+    `ALTER TABLE cost_centers ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE budgets ADD COLUMN currency TEXT NOT NULL DEFAULT 'SAR'`,
+    `ALTER TABLE budgets ADD COLUMN description TEXT DEFAULT ''`,
+    `ALTER TABLE budgets ADD COLUMN approved_by TEXT REFERENCES users(id)`,
+    `ALTER TABLE budgets ADD COLUMN approved_at TEXT`,
+    `ALTER TABLE budgets ADD COLUMN locked_by TEXT REFERENCES users(id)`,
+    `ALTER TABLE budgets ADD COLUMN locked_at TEXT`,
+    `ALTER TABLE budgets ADD COLUMN created_by TEXT REFERENCES users(id)`,
+    `ALTER TABLE budgets ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
   ];
 
   for (const migration of migrations) {
