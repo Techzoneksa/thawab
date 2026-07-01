@@ -140,12 +140,16 @@ export function initDB() {
     CREATE TABLE IF NOT EXISTS beneficiaries (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      file_number TEXT DEFAULT '',
       id_number TEXT DEFAULT '',
       phone TEXT,
       city TEXT DEFAULT '',
       address TEXT DEFAULT '',
       category TEXT NOT NULL DEFAULT 'أسر محتاجة',
-      status TEXT NOT NULL DEFAULT 'فعال',
+      status TEXT NOT NULL DEFAULT 'جديد',
+      family_members INTEGER NOT NULL DEFAULT 1,
+      monthly_income REAL NOT NULL DEFAULT 0,
+      marital_status TEXT DEFAULT '',
       notes TEXT DEFAULT '',
       created_by TEXT REFERENCES users(id),
       created_at TEXT NOT NULL DEFAULT '',
@@ -411,6 +415,10 @@ export function initDB() {
     `ALTER TABLE projects ADD COLUMN category TEXT DEFAULT ''`,
     `ALTER TABLE projects ADD COLUMN branch TEXT DEFAULT ''`,
     `ALTER TABLE projects ADD COLUMN notes TEXT DEFAULT ''`,
+    `ALTER TABLE beneficiaries ADD COLUMN file_number TEXT DEFAULT ''`,
+    `ALTER TABLE beneficiaries ADD COLUMN family_members INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE beneficiaries ADD COLUMN monthly_income REAL NOT NULL DEFAULT 0`,
+    `ALTER TABLE beneficiaries ADD COLUMN marital_status TEXT DEFAULT ''`,
   ];
 
   for (const migration of migrations) {

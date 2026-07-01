@@ -56,6 +56,7 @@ import { Route as FinanceClosingRouteImport } from './routes/finance.closing'
 import { Route as FinanceBudgetsRouteImport } from './routes/finance.budgets'
 import { Route as FinanceAccountsRouteImport } from './routes/finance.accounts'
 import { Route as DonorsIdRouteImport } from './routes/donors.$id'
+import { Route as BeneficiariesIdRouteImport } from './routes/beneficiaries.$id'
 
 const WorkflowsRoute = WorkflowsRouteImport.update({
   id: '/workflows',
@@ -292,6 +293,11 @@ const DonorsIdRoute = DonorsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => DonorsRoute,
 } as any)
+const BeneficiariesIdRoute = BeneficiariesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => BeneficiariesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -299,7 +305,7 @@ export interface FileRoutesByFullPath {
   '/approvals': typeof ApprovalsRoute
   '/assets': typeof AssetsRoute
   '/audit': typeof AuditRoute
-  '/beneficiaries': typeof BeneficiariesRoute
+  '/beneficiaries': typeof BeneficiariesRouteWithChildren
   '/campaigns': typeof CampaignsRoute
   '/distribution': typeof DistributionRoute
   '/donations': typeof DonationsRoute
@@ -319,6 +325,7 @@ export interface FileRoutesByFullPath {
   '/recurring': typeof RecurringRoute
   '/reports': typeof ReportsRoute
   '/workflows': typeof WorkflowsRoute
+  '/beneficiaries/$id': typeof BeneficiariesIdRoute
   '/donors/$id': typeof DonorsIdRoute
   '/finance/accounts': typeof FinanceAccountsRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
@@ -348,7 +355,7 @@ export interface FileRoutesByTo {
   '/approvals': typeof ApprovalsRoute
   '/assets': typeof AssetsRoute
   '/audit': typeof AuditRoute
-  '/beneficiaries': typeof BeneficiariesRoute
+  '/beneficiaries': typeof BeneficiariesRouteWithChildren
   '/campaigns': typeof CampaignsRoute
   '/distribution': typeof DistributionRoute
   '/donations': typeof DonationsRoute
@@ -368,6 +375,7 @@ export interface FileRoutesByTo {
   '/recurring': typeof RecurringRoute
   '/reports': typeof ReportsRoute
   '/workflows': typeof WorkflowsRoute
+  '/beneficiaries/$id': typeof BeneficiariesIdRoute
   '/donors/$id': typeof DonorsIdRoute
   '/finance/accounts': typeof FinanceAccountsRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
@@ -398,7 +406,7 @@ export interface FileRoutesById {
   '/approvals': typeof ApprovalsRoute
   '/assets': typeof AssetsRoute
   '/audit': typeof AuditRoute
-  '/beneficiaries': typeof BeneficiariesRoute
+  '/beneficiaries': typeof BeneficiariesRouteWithChildren
   '/campaigns': typeof CampaignsRoute
   '/distribution': typeof DistributionRoute
   '/donations': typeof DonationsRoute
@@ -418,6 +426,7 @@ export interface FileRoutesById {
   '/recurring': typeof RecurringRoute
   '/reports': typeof ReportsRoute
   '/workflows': typeof WorkflowsRoute
+  '/beneficiaries/$id': typeof BeneficiariesIdRoute
   '/donors/$id': typeof DonorsIdRoute
   '/finance/accounts': typeof FinanceAccountsRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
@@ -469,6 +478,7 @@ export interface FileRouteTypes {
     | '/recurring'
     | '/reports'
     | '/workflows'
+    | '/beneficiaries/$id'
     | '/donors/$id'
     | '/finance/accounts'
     | '/finance/budgets'
@@ -518,6 +528,7 @@ export interface FileRouteTypes {
     | '/recurring'
     | '/reports'
     | '/workflows'
+    | '/beneficiaries/$id'
     | '/donors/$id'
     | '/finance/accounts'
     | '/finance/budgets'
@@ -567,6 +578,7 @@ export interface FileRouteTypes {
     | '/recurring'
     | '/reports'
     | '/workflows'
+    | '/beneficiaries/$id'
     | '/donors/$id'
     | '/finance/accounts'
     | '/finance/budgets'
@@ -597,7 +609,7 @@ export interface RootRouteChildren {
   ApprovalsRoute: typeof ApprovalsRoute
   AssetsRoute: typeof AssetsRoute
   AuditRoute: typeof AuditRoute
-  BeneficiariesRoute: typeof BeneficiariesRoute
+  BeneficiariesRoute: typeof BeneficiariesRouteWithChildren
   CampaignsRoute: typeof CampaignsRoute
   DistributionRoute: typeof DistributionRoute
   DonationsRoute: typeof DonationsRoute
@@ -970,8 +982,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DonorsIdRouteImport
       parentRoute: typeof DonorsRoute
     }
+    '/beneficiaries/$id': {
+      id: '/beneficiaries/$id'
+      path: '/$id'
+      fullPath: '/beneficiaries/$id'
+      preLoaderRoute: typeof BeneficiariesIdRouteImport
+      parentRoute: typeof BeneficiariesRoute
+    }
   }
 }
+
+interface BeneficiariesRouteChildren {
+  BeneficiariesIdRoute: typeof BeneficiariesIdRoute
+}
+
+const BeneficiariesRouteChildren: BeneficiariesRouteChildren = {
+  BeneficiariesIdRoute: BeneficiariesIdRoute,
+}
+
+const BeneficiariesRouteWithChildren = BeneficiariesRoute._addFileChildren(
+  BeneficiariesRouteChildren,
+)
 
 interface DonorsRouteChildren {
   DonorsIdRoute: typeof DonorsIdRoute
@@ -1002,7 +1033,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApprovalsRoute: ApprovalsRoute,
   AssetsRoute: AssetsRoute,
   AuditRoute: AuditRoute,
-  BeneficiariesRoute: BeneficiariesRoute,
+  BeneficiariesRoute: BeneficiariesRouteWithChildren,
   CampaignsRoute: CampaignsRoute,
   DistributionRoute: DistributionRoute,
   DonationsRoute: DonationsRoute,
