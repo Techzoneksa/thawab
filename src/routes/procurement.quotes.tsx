@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppShell, Card, Btn, Badge, MobilePageHeader } from "@/components/erp/AppShell";
 import { fmtSAR } from "@/data/sample";
-import { CheckCircle2, Eye, ThumbsUp, ThumbsDown, Trash2, Plus } from "lucide-react";
+import { CheckCircle2, ThumbsUp, ThumbsDown, Trash2, Plus, Star, Eye, Pencil } from "lucide-react";
 import { useState } from "react";
 import {
   showToast,
@@ -9,261 +10,591 @@ import {
   EntityFormDrawer,
   ActionMenu,
   ExportButton,
+  EmptyState,
 } from "@/components/erp/actions";
-
-type QuoteItem = {
-  sup: string;
-  price: number;
-  delivery: string;
-  warranty: string;
-  rating: number;
-  winner: boolean;
-  status: string;
-};
+import { useAuth } from "@/lib/api/auth";
+import {
+  getQuotes,
+  createQuote,
+  updateQuote,
+  acceptQuote,
+  rejectQuote,
+  deleteQuote,
+  QUOTE_STATUSES,
+  type Quote,
+} from "@/lib/api/quotes";
+import { getPurchaseRequests, type PurchaseRequest } from "@/lib/api/purchase-requests";
+import { getSuppliers, type Supplier } from "@/lib/api/suppliers";
 
 export const Route = createFileRoute("/procurement/quotes")({
   head: () => ({ meta: [{ title: "عروض الأسعار — ثواب" }] }),
-  component: () => {
-    const [quotes, setQuotes] = useState<QuoteItem[]>([
-      {
-        sup: "شركة تموين السعودية",
-        price: 82400,
-        delivery: "5 أيام",
-        warranty: "—",
-        rating: 4.6,
-        winner: true,
-        status: "بانتظار",
-      },
-      {
-        sup: "مؤسسة العلا للتجهيزات",
-        price: 86900,
-        delivery: "4 أيام",
-        warranty: "—",
-        rating: 4.4,
-        winner: false,
-        status: "بانتظار",
-      },
-      {
-        sup: "شركة الإمداد الذهبي",
-        price: 91200,
-        delivery: "3 أيام",
-        warranty: "—",
-        rating: 4.7,
-        winner: false,
-        status: "بانتظار",
-      },
-    ]);
-    const [formOpen, setFormOpen] = useState(false);
-    const [confirmIdx, setConfirmIdx] = useState(-1);
-    const [formSup, setFormSup] = useState("");
-    const [formPrice, setFormPrice] = useState("");
-    const [formDelivery, setFormDelivery] = useState("");
+  component: Page,
+});
 
-    const handleAdd = () => {
-      if (!formSup.trim() || !formPrice.trim()) {
-        showToast("يرجى إدخال البيانات", "error");
-        return;
-      }
-      setQuotes([
-        ...quotes,
-        {
-          sup: formSup,
-          price: Number(formPrice),
-          delivery: formDelivery || "—",
-          warranty: "—",
-          rating: 0,
-          winner: false,
-          status: "بانتظار",
-        },
-      ]);
+function Page() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [requestFilter, setRequestFilter] = useState("الكل");
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Quote | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Quote | null>(null);
+  const [detailTarget, setDetailTarget] = useState<Quote | null>(null);
+
+  const [formSupplier, setFormSupplier] = useState("");
+  const [formSupplierId, setFormSupplierId] = useState("");
+  const [formRequestId, setFormRequestId] = useState("");
+  const [formPrice, setFormPrice] = useState("");
+  const [formDelivery, setFormDelivery] = useState("");
+  const [formWarranty, setFormWarranty] = useState("");
+  const [formRating, setFormRating] = useState("");
+  const [formValidUntil, setFormValidUntil] = useState("");
+  const [formNotes, setFormNotes] = useState("");
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["quotes", { search: searchQuery, status: statusFilter, requestId: requestFilter }],
+    queryFn: () =>
+      getQuotes({
+        search: searchQuery,
+        status: statusFilter,
+        requestId: requestFilter === "الكل" ? "" : requestFilter,
+      }),
+  });
+
+  const { data: requestsData } = useQuery({
+    queryKey: ["purchaseRequests-all"],
+    queryFn: () => getPurchaseRequests({}),
+  });
+
+  const { data: suppliersData } = useQuery({
+    queryKey: ["suppliers-all"],
+    queryFn: () => getSuppliers({}),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: createQuote,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quotes"] });
       showToast("تم إضافة عرض السعر بنجاح", "success");
       setFormOpen(false);
-      setFormSup("");
-      setFormPrice("");
-      setFormDelivery("");
-    };
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
 
-    const handleAccept = (idx: number) => {
-      const q = quotes.map((x, i) => ({
-        ...x,
-        winner: i === idx,
-        status: i === idx ? "مقبول" : "مرفوض",
-      }));
-      setQuotes(q);
-      showToast("تم قبول عرض السعر", "success");
-    };
+  const updateMutation = useMutation({
+    mutationFn: updateQuote,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quotes"] });
+      showToast("تم تحديث عرض السعر", "success");
+      setFormOpen(false);
+      setEditing(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
 
-    const handleDelete = () => {
-      setQuotes(quotes.filter((_, i) => i !== confirmIdx));
+  const acceptMutation = useMutation({
+    mutationFn: acceptQuote,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quotes"] });
+      showToast("تم قبول العرض وتحديده كفائز", "success");
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: rejectQuote,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quotes"] });
+      showToast("تم رفض عرض السعر", "info");
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteQuote,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quotes"] });
       showToast("تم حذف عرض السعر", "success");
-      setConfirmIdx(-1);
-    };
+      setDeleteTarget(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
 
-    return (
-      <AppShell
-        breadcrumb={["الرئيسية", "المشتريات", "عروض الأسعار"]}
-        title="مقارنة عروض الأسعار — PR-2406-0073"
-        actions={
-          <>
-            <ExportButton
-              data={quotes.map((q) => ({
-                المورد: q.sup,
-                السعر: q.price,
-                مدة_التسليم: q.delivery,
-                الضمان: q.warranty,
-                التقييم: q.rating,
-                الحالة: q.status,
-              }))}
-              filename="quotes.csv"
-            />
-            <Btn variant="primary" onClick={() => setFormOpen(true)}>
-              <Plus size={15} />
+  const openAdd = () => {
+    setEditing(null);
+    setFormSupplier("");
+    setFormSupplierId("");
+    setFormRequestId("");
+    setFormPrice("");
+    setFormDelivery("");
+    setFormWarranty("");
+    setFormRating("");
+    setFormValidUntil("");
+    setFormNotes("");
+    setFormOpen(true);
+  };
+
+  const openEdit = (q: Quote) => {
+    if (q.status !== "بانتظار") {
+      showToast("لا يمكن تعديل عرض تم البت فيه", "error");
+      return;
+    }
+    setEditing(q);
+    setFormSupplier(q.supplier);
+    setFormSupplierId(q.supplierId || "");
+    setFormRequestId(q.requestId || "");
+    setFormPrice(String(q.price || ""));
+    setFormDelivery(q.delivery || "");
+    setFormWarranty(q.warranty || "");
+    setFormRating(String(q.rating || ""));
+    setFormValidUntil(q.validUntil || "");
+    setFormNotes(q.notes || "");
+    setFormOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!formSupplier.trim()) return showToast("يرجى إدخال اسم المورد", "error");
+    const price = parseFloat(formPrice);
+    if (!price || price <= 0) return showToast("يرجى إدخال سعر صحيح", "error");
+    const payload = {
+      supplier: formSupplier,
+      supplierId: formSupplierId || undefined,
+      requestId: formRequestId || undefined,
+      price,
+      delivery: formDelivery,
+      warranty: formWarranty,
+      rating: parseFloat(formRating) || 0,
+      validUntil: formValidUntil,
+      notes: formNotes,
+      userId: user?.id,
+      userName: user?.name,
+    };
+    if (editing) {
+      updateMutation.mutate({ id: editing.id, ...payload });
+    } else {
+      createMutation.mutate(payload);
+    }
+  };
+
+  const items = data?.items || [];
+  const requests = requestsData?.items || [];
+  const suppliers = suppliersData?.items || [];
+
+  // Group by requestId
+  const groupedByRequest = items.reduce<Record<string, Quote[]>>((acc, q) => {
+    const key = q.requestId || "_none";
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(q);
+    return acc;
+  }, {});
+
+  return (
+    <AppShell
+      breadcrumb={["الرئيسية", "المشتريات", "عروض الأسعار"]}
+      title="مقارنة عروض الأسعار"
+      actions={
+        <>
+          <ExportButton
+            data={items.map((q) => ({
+              id: q.id,
+              requestId: q.requestId || "",
+              supplier: q.supplier,
+              price: q.price,
+              delivery: q.delivery,
+              warranty: q.warranty,
+              rating: q.rating,
+              winner: q.winner ? "نعم" : "لا",
+              status: q.status,
+              validUntil: q.validUntil,
+            }))}
+            filename="quotes.csv"
+          />
+          <Btn variant="primary" onClick={openAdd}>
+            <Plus size={15} />
+            إضافة عرض سعر
+          </Btn>
+        </>
+      }
+    >
+      <MobilePageHeader title="مقارنة عروض الأسعار" count={`${items.length} عرض`} />
+
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+        </div>
+      ) : error ? (
+        <EmptyState
+          title="خطأ في تحميل البيانات"
+          description="حدث خطأ أثناء جلب عروض الأسعار"
+          action={
+            <Btn
+              variant="primary"
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["quotes"] })}
+            >
+              إعادة المحاولة
+            </Btn>
+          }
+        />
+      ) : items.length === 0 ? (
+        <EmptyState
+          title="لا توجد عروض أسعار"
+          description="ابدأ بإضافة عروض الأسعار لمقارنتها واختيار الأفضل"
+          action={
+            <Btn variant="primary" onClick={openAdd}>
               إضافة عرض سعر
             </Btn>
-          </>
-        }
-      >
-        <MobilePageHeader title="مقارنة عروض الأسعار" count={`${quotes.length} عرض`} />
-        <Card className="p-5 mb-4">
-          <div className="text-sm text-muted-foreground">
-            الموضوع: <b className="text-foreground">مستلزمات سلال غذائية - 1000 سلة</b> · المشروع:
-            PRJ-017 · الميزانية المعتمدة: {fmtSAR(95_000)}
-          </div>
-        </Card>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {quotes.map((q, idx) => (
-            <Card key={q.sup} className={`p-5 ${q.winner ? "ring-2 ring-success" : ""}`}>
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="font-bold">{q.sup}</h3>
-                <ActionMenu
-                  actions={[
-                    {
-                      label: "عرض",
-                      icon: Eye,
-                      onClick: () => showToast(`المورد: ${q.sup} - ${fmtSAR(q.price)}`, "info"),
-                    },
-                    { label: "قبول", icon: ThumbsUp, onClick: () => handleAccept(idx) },
-                    {
-                      label: "رفض",
-                      icon: ThumbsDown,
-                      onClick: () => {
-                        const qq = [...quotes];
-                        qq[idx] = { ...qq[idx], status: "مرفوض" };
-                        setQuotes(qq);
-                        showToast("تم رفض عرض السعر", "info");
-                      },
-                    },
-                    {
-                      label: "حذف",
-                      icon: Trash2,
-                      variant: "destructive" as const,
-                      onClick: () => setConfirmIdx(idx),
-                    },
-                  ]}
-                />
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                {q.winner && (
-                  <Badge tone="success">
-                    <CheckCircle2 size={11} className="inline ms-1" />
-                    الموصى به
-                  </Badge>
+          }
+        />
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(groupedByRequest).map(([reqId, group]) => {
+            const request = requests.find((r) => r.id === reqId);
+            return (
+              <div key={reqId}>
+                {request && (
+                  <Card className="p-4 mb-3 bg-primary/5">
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">طلب الشراء:</span>{" "}
+                      <b className="text-foreground">{request.id}</b> ·{" "}
+                      <span>{request.subject}</span>
+                      <span className="text-muted-foreground"> · {request.department}</span>
+                    </div>
+                  </Card>
                 )}
-                <Badge
-                  tone={
-                    q.status === "مقبول"
-                      ? "success"
-                      : q.status === "مرفوض"
-                        ? "destructive"
-                        : "warning"
-                  }
-                >
-                  {q.status}
-                </Badge>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  {group.map((q) => (
+                    <Card key={q.id} className={`p-5 ${q.winner ? "ring-2 ring-success" : ""}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="font-bold truncate">{q.supplier}</h3>
+                          <div className="flex items-center gap-1 mt-1">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Star
+                                key={s}
+                                size={12}
+                                className={
+                                  s <= q.rating
+                                    ? "fill-warning text-warning"
+                                    : "text-muted-foreground"
+                                }
+                              />
+                            ))}
+                            <span className="text-xs text-muted-foreground">({q.rating}/5)</span>
+                          </div>
+                        </div>
+                        <ActionMenu
+                          actions={getQuoteActions(
+                            q,
+                            setDetailTarget,
+                            openEdit,
+                            acceptMutation,
+                            rejectMutation,
+                            setDeleteTarget,
+                          )}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 mt-3">
+                        {q.winner && (
+                          <Badge tone="success">
+                            <CheckCircle2 size={11} className="inline ms-1" />
+                            الموصى به
+                          </Badge>
+                        )}
+                        <Badge tone={quoteStatusTone(q.status)}>{q.status}</Badge>
+                      </div>
+                      <div className="text-3xl font-extrabold tabular-nums mt-3">
+                        {fmtSAR(q.price)}
+                      </div>
+                      <ul className="mt-4 space-y-2 text-sm">
+                        <li className="flex justify-between">
+                          <span className="text-muted-foreground">مدة التسليم</span>
+                          <b>{q.delivery || "—"}</b>
+                        </li>
+                        <li className="flex justify-between">
+                          <span className="text-muted-foreground">الضمان</span>
+                          <b>{q.warranty || "—"}</b>
+                        </li>
+                        {q.validUntil && (
+                          <li className="flex justify-between">
+                            <span className="text-muted-foreground">صالح حتى</span>
+                            <b>{q.validUntil}</b>
+                          </li>
+                        )}
+                      </ul>
+                      <div className="flex gap-2 mt-4">
+                        {q.status === "بانتظار" && (
+                          <>
+                            <Btn
+                              variant={q.winner ? "primary" : "outline"}
+                              className="flex-1 justify-center"
+                              onClick={() =>
+                                acceptMutation.mutate({
+                                  id: q.id,
+                                  userId: user?.id,
+                                  userName: user?.name,
+                                })
+                              }
+                            >
+                              <ThumbsUp size={14} />
+                              قبول
+                            </Btn>
+                            <Btn
+                              variant="outline"
+                              className="flex-1 justify-center"
+                              onClick={() =>
+                                rejectMutation.mutate({
+                                  id: q.id,
+                                  userId: user?.id,
+                                  userName: user?.name,
+                                })
+                              }
+                            >
+                              <ThumbsDown size={14} />
+                              رفض
+                            </Btn>
+                          </>
+                        )}
+                        {q.status !== "بانتظار" && (
+                          <Btn
+                            variant="outline"
+                            className="w-full justify-center"
+                            onClick={() => setDetailTarget(q)}
+                          >
+                            عرض التفاصيل
+                          </Btn>
+                        )}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
               </div>
-              <div className="text-3xl font-extrabold tabular-nums mt-3">{fmtSAR(q.price)}</div>
-              <ul className="mt-4 space-y-2 text-sm">
-                <li className="flex justify-between">
-                  <span className="text-muted-foreground">مدة التسليم</span>
-                  <b>{q.delivery}</b>
-                </li>
-                <li className="flex justify-between">
-                  <span className="text-muted-foreground">الضمان</span>
-                  <b>{q.warranty}</b>
-                </li>
-                <li className="flex justify-between">
-                  <span className="text-muted-foreground">تقييم المورد</span>
-                  <b>{q.rating} / 5</b>
-                </li>
-              </ul>
-              <Btn
-                variant={q.winner ? "primary" : "outline"}
-                className="w-full mt-4 justify-center"
-                onClick={() => {
-                  if (q.winner) {
-                    handleAccept(idx);
-                  } else {
-                    showToast(
-                      `${q.sup} · ${fmtSAR(q.price)} · تسليم ${q.delivery} · ضمان ${q.warranty}`,
-                      "info",
-                    );
-                  }
-                }}
-              >
-                {q.winner ? "اختيار هذا العرض" : "عرض التفاصيل"}
-              </Btn>
-            </Card>
-          ))}
+            );
+          })}
         </div>
+      )}
 
-        <EntityFormDrawer
-          open={formOpen}
-          onClose={() => setFormOpen(false)}
-          title="إضافة عرض سعر"
-          onSave={handleAdd}
-        >
+      <EntityFormDrawer
+        open={formOpen}
+        onClose={() => {
+          setFormOpen(false);
+          setEditing(null);
+        }}
+        title={editing ? "تعديل عرض سعر" : "إضافة عرض سعر جديد"}
+        onSave={handleSave}
+        loading={createMutation.isPending || updateMutation.isPending}
+      >
+        <div className="space-y-3">
           <div>
-            <label className="text-xs font-semibold text-muted-foreground">اسم المورد</label>
+            <label className="text-xs font-semibold text-muted-foreground">المورد *</label>
+            <select
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+              value={formSupplierId}
+              onChange={(e) => {
+                setFormSupplierId(e.target.value);
+                const sup = suppliers.find((s) => s.id === e.target.value);
+                if (sup) setFormSupplier(sup.name);
+              }}
+            >
+              <option value="">— مورد آخر (إدخال يدوي) —</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            {!formSupplierId && (
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={formSupplier}
+                onChange={(e) => setFormSupplier(e.target.value)}
+                placeholder="اسم المورد"
+              />
+            )}
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">طلب الشراء</label>
+            <select
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+              value={formRequestId}
+              onChange={(e) => setFormRequestId(e.target.value)}
+            >
+              <option value="">— بدون ربط —</option>
+              {requests.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.id} — {r.subject}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">السعر *</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                type="number"
+                value={formPrice}
+                onChange={(e) => setFormPrice(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">التقييم</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                type="number"
+                step="0.1"
+                min="0"
+                max="5"
+                value={formRating}
+                onChange={(e) => setFormRating(e.target.value)}
+                placeholder="0-5"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">مدة التسليم</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={formDelivery}
+                onChange={(e) => setFormDelivery(e.target.value)}
+                placeholder="مثال: 5 أيام"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">الضمان</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={formWarranty}
+                onChange={(e) => setFormWarranty(e.target.value)}
+                placeholder="مثال: سنة"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">صالح حتى</label>
             <input
               className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formSup}
-              onChange={(e) => setFormSup(e.target.value)}
-              placeholder="اسم المورد"
+              type="date"
+              value={formValidUntil}
+              onChange={(e) => setFormValidUntil(e.target.value)}
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-muted-foreground">السعر</label>
-            <input
+            <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
+            <textarea
               className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              value={formPrice}
-              onChange={(e) => setFormPrice(e.target.value)}
-              placeholder="0"
+              rows={2}
+              value={formNotes}
+              onChange={(e) => setFormNotes(e.target.value)}
             />
           </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">مدة التسليم</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formDelivery}
-              onChange={(e) => setFormDelivery(e.target.value)}
-              placeholder="مثال: 5 أيام"
-            />
-          </div>
-        </EntityFormDrawer>
+        </div>
+      </EntityFormDrawer>
 
-        {confirmIdx >= 0 && (
-          <ConfirmDialog
-            open
-            onClose={() => setConfirmIdx(-1)}
-            onConfirm={handleDelete}
-            title="تأكيد الحذف"
-            message="هل أنت متأكد من حذف عرض السعر؟"
-            confirmText="حذف"
-            variant="destructive"
-          />
+      <EntityFormDrawer
+        open={!!detailTarget && !formOpen}
+        onClose={() => setDetailTarget(null)}
+        title={`تفاصيل عرض السعر: ${detailTarget?.supplier || ""}`}
+        onSave={() => setDetailTarget(null)}
+        saveText="إغلاق"
+      >
+        {detailTarget && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <DetailRow label="الحالة" value={detailTarget.status} />
+              <DetailRow label="الموصى به" value={detailTarget.winner ? "نعم" : "لا"} />
+              <DetailRow label="السعر" value={fmtSAR(detailTarget.price)} />
+              <DetailRow label="التقييم" value={`${detailTarget.rating} / 5`} />
+              <DetailRow label="مدة التسليم" value={detailTarget.delivery || "—"} />
+              <DetailRow label="الضمان" value={detailTarget.warranty || "—"} />
+              {detailTarget.validUntil && (
+                <DetailRow label="صالح حتى" value={detailTarget.validUntil} />
+              )}
+            </div>
+            {detailTarget.notes && (
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground mb-1">ملاحظات</div>
+                <div className="text-sm">{detailTarget.notes}</div>
+              </div>
+            )}
+          </div>
         )}
-      </AppShell>
-    );
-  },
-});
+      </EntityFormDrawer>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteMutation.mutate({
+              id: deleteTarget.id,
+              userId: user?.id,
+              userName: user?.name,
+            });
+          }
+        }}
+        title="تأكيد الحذف"
+        message={deleteTarget ? `هل تريد حذف عرض السعر من "${deleteTarget.supplier}"؟` : ""}
+        confirmText="حذف"
+        cancelText="إلغاء"
+        variant="destructive"
+      />
+    </AppShell>
+  );
+}
+
+function quoteStatusTone(s: string): "success" | "destructive" | "warning" | "muted" {
+  if (s === "مقبول") return "success";
+  if (s === "مرفوض") return "destructive";
+  return "warning";
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border-b pb-1">
+      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div className="text-sm font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function getQuoteActions(
+  q: Quote,
+  setDetailTarget: (q: Quote) => void,
+  openEdit: (q: Quote) => void,
+  acceptMutation: { mutate: (o: { id: string; userId?: string; userName?: string }) => void },
+  rejectMutation: { mutate: (o: { id: string; userId?: string; userName?: string }) => void },
+  setDeleteTarget: (q: Quote) => void,
+) {
+  const actions: Array<{
+    label: string;
+    icon: typeof Eye;
+    onClick: () => void;
+    variant?: "destructive";
+  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailTarget(q) }];
+
+  if (q.status === "بانتظار") {
+    actions.push({ label: "تعديل", icon: Pencil, onClick: () => openEdit(q) });
+    actions.push({
+      label: "قبول",
+      icon: ThumbsUp,
+      onClick: () => acceptMutation.mutate({ id: q.id }),
+    });
+    actions.push({
+      label: "رفض",
+      icon: ThumbsDown,
+      onClick: () => rejectMutation.mutate({ id: q.id }),
+    });
+  }
+
+  actions.push({
+    label: "حذف",
+    icon: Trash2,
+    variant: "destructive",
+    onClick: () => setDeleteTarget(q),
+  });
+
+  return actions;
+}

@@ -328,8 +328,15 @@ export function initDB() {
       phone TEXT,
       email TEXT,
       tax_number TEXT DEFAULT '',
+      contact_person TEXT DEFAULT '',
+      address TEXT DEFAULT '',
+      rating REAL NOT NULL DEFAULT 0,
+      balance REAL NOT NULL DEFAULT 0,
+      notes TEXT DEFAULT '',
       status TEXT NOT NULL DEFAULT 'نشط',
-      created_at TEXT NOT NULL DEFAULT ''
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS purchase_requests (
@@ -337,29 +344,50 @@ export function initDB() {
       subject TEXT NOT NULL,
       department TEXT NOT NULL,
       priority TEXT NOT NULL DEFAULT 'متوسطة',
-      status TEXT NOT NULL DEFAULT 'طلب جديد',
+      status TEXT NOT NULL DEFAULT 'مسودة',
+      requester TEXT DEFAULT '',
+      amount REAL NOT NULL DEFAULT 0,
       delivery_date TEXT DEFAULT '',
       notes TEXT DEFAULT '',
       created_by TEXT REFERENCES users(id),
-      created_at TEXT NOT NULL DEFAULT ''
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS purchase_orders (
       id TEXT PRIMARY KEY,
       supplier_id TEXT REFERENCES suppliers(id),
+      request_id TEXT REFERENCES purchase_requests(id),
       subject TEXT NOT NULL,
       date TEXT NOT NULL DEFAULT '',
       delivery_date TEXT DEFAULT '',
-      status TEXT NOT NULL DEFAULT 'جديد',
+      status TEXT NOT NULL DEFAULT 'مسودة',
       total REAL NOT NULL DEFAULT 0,
+      received_amount REAL NOT NULL DEFAULT 0,
       notes TEXT DEFAULT '',
       created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS purchase_order_lines (
+      id TEXT PRIMARY KEY,
+      order_id TEXT NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+      line_number INTEGER NOT NULL,
+      item_id TEXT REFERENCES inventory_items(id),
+      description TEXT NOT NULL DEFAULT '',
+      quantity REAL NOT NULL DEFAULT 0,
+      unit_price REAL NOT NULL DEFAULT 0,
+      received_quantity REAL NOT NULL DEFAULT 0,
+      unit TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
       created_at TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS quotes (
       id TEXT PRIMARY KEY,
       request_id TEXT REFERENCES purchase_requests(id),
+      supplier_id TEXT REFERENCES suppliers(id),
       supplier TEXT NOT NULL,
       price REAL NOT NULL DEFAULT 0,
       delivery TEXT DEFAULT '',
@@ -367,7 +395,11 @@ export function initDB() {
       rating REAL NOT NULL DEFAULT 0,
       winner INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'بانتظار',
-      created_at TEXT NOT NULL DEFAULT ''
+      valid_until TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS inventory_items (
@@ -380,8 +412,11 @@ export function initDB() {
       quantity REAL NOT NULL DEFAULT 0,
       min_quantity REAL NOT NULL DEFAULT 0,
       price REAL NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'متوفر',
-      created_at TEXT NOT NULL DEFAULT ''
+      status TEXT NOT NULL DEFAULT 'نشط',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS warehouses (
@@ -389,8 +424,55 @@ export function initDB() {
       name TEXT NOT NULL,
       location TEXT DEFAULT '',
       manager TEXT DEFAULT '',
-      capacity TEXT DEFAULT '',
+      capacity REAL NOT NULL DEFAULT 0,
+      occupancy REAL NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'نشط',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS stock_movements (
+      id TEXT PRIMARY KEY,
+      item_id TEXT NOT NULL REFERENCES inventory_items(id),
+      warehouse_id TEXT REFERENCES warehouses(id),
+      type TEXT NOT NULL,
+      quantity REAL NOT NULL DEFAULT 0,
+      balance_after REAL NOT NULL DEFAULT 0,
+      related_warehouse_id TEXT REFERENCES warehouses(id),
+      related_stocktake_id TEXT,
+      source_type TEXT,
+      source_id TEXT,
+      reference TEXT DEFAULT '',
+      date TEXT NOT NULL DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS stocktakes (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      warehouse_id TEXT REFERENCES warehouses(id),
+      date TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'مسودة',
+      approved_by TEXT REFERENCES users(id),
+      approved_at TEXT,
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS stocktake_lines (
+      id TEXT PRIMARY KEY,
+      stocktake_id TEXT NOT NULL REFERENCES stocktakes(id) ON DELETE CASCADE,
+      item_id TEXT NOT NULL REFERENCES inventory_items(id),
+      system_quantity REAL NOT NULL DEFAULT 0,
+      counted_quantity REAL NOT NULL DEFAULT 0,
+      difference REAL NOT NULL DEFAULT 0,
+      notes TEXT DEFAULT '',
       created_at TEXT NOT NULL DEFAULT ''
     );
 
@@ -459,12 +541,57 @@ export function initDB() {
     CREATE TABLE IF NOT EXISTS fixed_assets (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      code TEXT DEFAULT '',
       category TEXT DEFAULT '',
       location TEXT DEFAULT '',
       cost REAL NOT NULL DEFAULT 0,
+      salvage_value REAL NOT NULL DEFAULT 0,
+      useful_life_months INTEGER NOT NULL DEFAULT 60,
       accumulated_depreciation REAL NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'تشغيل',
+      depreciation_method TEXT NOT NULL DEFAULT 'قسط ثابت',
+      status TEXT NOT NULL DEFAULT 'نشط',
+      condition TEXT DEFAULT 'جيد',
       purchase_date TEXT DEFAULT '',
+      supplier_id TEXT REFERENCES suppliers(id),
+      serial_number TEXT DEFAULT '',
+      responsible_person TEXT DEFAULT '',
+      source_type TEXT,
+      source_id TEXT,
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS asset_depreciations (
+      id TEXT PRIMARY KEY,
+      asset_id TEXT NOT NULL REFERENCES fixed_assets(id) ON DELETE CASCADE,
+      date TEXT NOT NULL DEFAULT '',
+      amount REAL NOT NULL DEFAULT 0,
+      book_value_after REAL NOT NULL DEFAULT 0,
+      method TEXT NOT NULL DEFAULT 'قسط ثابت',
+      notes TEXT DEFAULT '',
+      source_type TEXT,
+      source_id TEXT,
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS asset_movements (
+      id TEXT PRIMARY KEY,
+      asset_id TEXT NOT NULL REFERENCES fixed_assets(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      from_location TEXT DEFAULT '',
+      to_location TEXT DEFAULT '',
+      from_responsible TEXT DEFAULT '',
+      to_responsible TEXT DEFAULT '',
+      cost REAL NOT NULL DEFAULT 0,
+      date TEXT NOT NULL DEFAULT '',
+      reason TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      source_type TEXT,
+      source_id TEXT,
+      created_by TEXT REFERENCES users(id),
       created_at TEXT NOT NULL DEFAULT ''
     );
   `);
@@ -506,6 +633,46 @@ export function initDB() {
     `ALTER TABLE budgets ADD COLUMN locked_at TEXT`,
     `ALTER TABLE budgets ADD COLUMN created_by TEXT REFERENCES users(id)`,
     `ALTER TABLE budgets ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+    // Phase 3D — Procurement / Inventory / Assets
+    `ALTER TABLE suppliers ADD COLUMN contact_person TEXT DEFAULT ''`,
+    `ALTER TABLE suppliers ADD COLUMN address TEXT DEFAULT ''`,
+    `ALTER TABLE suppliers ADD COLUMN rating REAL NOT NULL DEFAULT 0`,
+    `ALTER TABLE suppliers ADD COLUMN balance REAL NOT NULL DEFAULT 0`,
+    `ALTER TABLE suppliers ADD COLUMN notes TEXT DEFAULT ''`,
+    `ALTER TABLE suppliers ADD COLUMN created_by TEXT REFERENCES users(id)`,
+    `ALTER TABLE suppliers ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE purchase_requests ADD COLUMN requester TEXT DEFAULT ''`,
+    `ALTER TABLE purchase_requests ADD COLUMN amount REAL NOT NULL DEFAULT 0`,
+    `ALTER TABLE purchase_requests ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE purchase_orders ADD COLUMN request_id TEXT REFERENCES purchase_requests(id)`,
+    `ALTER TABLE purchase_orders ADD COLUMN received_amount REAL NOT NULL DEFAULT 0`,
+    `ALTER TABLE purchase_orders ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE quotes ADD COLUMN supplier_id TEXT REFERENCES suppliers(id)`,
+    `ALTER TABLE quotes ADD COLUMN valid_until TEXT DEFAULT ''`,
+    `ALTER TABLE quotes ADD COLUMN notes TEXT DEFAULT ''`,
+    `ALTER TABLE quotes ADD COLUMN created_by TEXT REFERENCES users(id)`,
+    `ALTER TABLE quotes ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE inventory_items ADD COLUMN notes TEXT DEFAULT ''`,
+    `ALTER TABLE inventory_items ADD COLUMN created_by TEXT REFERENCES users(id)`,
+    `ALTER TABLE inventory_items ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE warehouses ADD COLUMN capacity REAL NOT NULL DEFAULT 0`,
+    `ALTER TABLE warehouses ADD COLUMN occupancy REAL NOT NULL DEFAULT 0`,
+    `ALTER TABLE warehouses ADD COLUMN notes TEXT DEFAULT ''`,
+    `ALTER TABLE warehouses ADD COLUMN created_by TEXT REFERENCES users(id)`,
+    `ALTER TABLE warehouses ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE fixed_assets ADD COLUMN code TEXT DEFAULT ''`,
+    `ALTER TABLE fixed_assets ADD COLUMN salvage_value REAL NOT NULL DEFAULT 0`,
+    `ALTER TABLE fixed_assets ADD COLUMN useful_life_months INTEGER NOT NULL DEFAULT 60`,
+    `ALTER TABLE fixed_assets ADD COLUMN depreciation_method TEXT NOT NULL DEFAULT 'قسط ثابت'`,
+    `ALTER TABLE fixed_assets ADD COLUMN condition TEXT DEFAULT 'جيد'`,
+    `ALTER TABLE fixed_assets ADD COLUMN supplier_id TEXT REFERENCES suppliers(id)`,
+    `ALTER TABLE fixed_assets ADD COLUMN serial_number TEXT DEFAULT ''`,
+    `ALTER TABLE fixed_assets ADD COLUMN responsible_person TEXT DEFAULT ''`,
+    `ALTER TABLE fixed_assets ADD COLUMN source_type TEXT`,
+    `ALTER TABLE fixed_assets ADD COLUMN source_id TEXT`,
+    `ALTER TABLE fixed_assets ADD COLUMN notes TEXT DEFAULT ''`,
+    `ALTER TABLE fixed_assets ADD COLUMN created_by TEXT REFERENCES users(id)`,
+    `ALTER TABLE fixed_assets ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
   ];
 
   for (const migration of migrations) {

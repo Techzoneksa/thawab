@@ -349,8 +349,15 @@ export const suppliers = sqliteTable("suppliers", {
   phone: text("phone"),
   email: text("email"),
   taxNumber: text("tax_number").default(""),
+  contactPerson: text("contact_person").default(""),
+  address: text("address").default(""),
+  rating: real("rating").notNull().default(0),
+  balance: real("balance").notNull().default(0),
+  notes: text("notes").default(""),
   status: text("status").notNull().default("نشط"),
+  createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
 });
 
 // ============ PURCHASES ============
@@ -360,29 +367,52 @@ export const purchaseRequests = sqliteTable("purchase_requests", {
   subject: text("subject").notNull(),
   department: text("department").notNull(),
   priority: text("priority").notNull().default("متوسطة"),
-  status: text("status").notNull().default("طلب جديد"),
+  status: text("status").notNull().default("مسودة"),
+  requester: text("requester").default(""),
+  amount: real("amount").notNull().default(0),
   deliveryDate: text("delivery_date").default(""),
   notes: text("notes").default(""),
   createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
 });
 
 export const purchaseOrders = sqliteTable("purchase_orders", {
   id: text("id").primaryKey(),
   supplierId: text("supplier_id").references(() => suppliers.id),
+  requestId: text("request_id").references(() => purchaseRequests.id),
   subject: text("subject").notNull(),
   date: text("date").notNull().default(""),
   deliveryDate: text("delivery_date").default(""),
-  status: text("status").notNull().default("جديد"),
+  status: text("status").notNull().default("مسودة"),
   total: real("total").notNull().default(0),
+  receivedAmount: real("received_amount").notNull().default(0),
   notes: text("notes").default(""),
   createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
+export const purchaseOrderLines = sqliteTable("purchase_order_lines", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id")
+    .notNull()
+    .references(() => purchaseOrders.id, { onDelete: "cascade" }),
+  lineNumber: integer("line_number").notNull(),
+  itemId: text("item_id").references(() => inventoryItems.id),
+  description: text("description").notNull().default(""),
+  quantity: real("quantity").notNull().default(0),
+  unitPrice: real("unit_price").notNull().default(0),
+  receivedQuantity: real("received_quantity").notNull().default(0),
+  unit: text("unit").default(""),
+  notes: text("notes").default(""),
   createdAt: text("created_at").notNull().default(""),
 });
 
 export const quotes = sqliteTable("quotes", {
   id: text("id").primaryKey(),
   requestId: text("request_id").references(() => purchaseRequests.id),
+  supplierId: text("supplier_id").references(() => suppliers.id),
   supplier: text("supplier").notNull(),
   price: real("price").notNull().default(0),
   delivery: text("delivery").default(""),
@@ -390,7 +420,11 @@ export const quotes = sqliteTable("quotes", {
   rating: real("rating").notNull().default(0),
   winner: integer("winner", { mode: "boolean" }).notNull().default(false),
   status: text("status").notNull().default("بانتظار"),
+  validUntil: text("valid_until").default(""),
+  notes: text("notes").default(""),
+  createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
 });
 
 // ============ INVENTORY ============
@@ -405,8 +439,11 @@ export const inventoryItems = sqliteTable("inventory_items", {
   quantity: real("quantity").notNull().default(0),
   minQuantity: real("min_quantity").notNull().default(0),
   price: real("price").notNull().default(0),
-  status: text("status").notNull().default("متوفر"),
+  status: text("status").notNull().default("نشط"),
+  notes: text("notes").default(""),
+  createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
 });
 
 export const warehouses = sqliteTable("warehouses", {
@@ -414,8 +451,65 @@ export const warehouses = sqliteTable("warehouses", {
   name: text("name").notNull(),
   location: text("location").default(""),
   manager: text("manager").default(""),
-  capacity: text("capacity").default(""),
+  capacity: real("capacity").notNull().default(0),
+  occupancy: real("occupancy").notNull().default(0),
   status: text("status").notNull().default("نشط"),
+  notes: text("notes").default(""),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
+// ============ STOCK MOVEMENTS ============
+
+export const stockMovements = sqliteTable("stock_movements", {
+  id: text("id").primaryKey(),
+  itemId: text("item_id")
+    .notNull()
+    .references(() => inventoryItems.id),
+  warehouseId: text("warehouse_id").references(() => warehouses.id),
+  type: text("type").notNull(),
+  quantity: real("quantity").notNull().default(0),
+  balanceAfter: real("balance_after").notNull().default(0),
+  relatedWarehouseId: text("related_warehouse_id").references(() => warehouses.id),
+  relatedStocktakeId: text("related_stocktake_id"),
+  sourceType: text("source_type"),
+  sourceId: text("source_id"),
+  reference: text("reference").default(""),
+  date: text("date").notNull().default(""),
+  notes: text("notes").default(""),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+});
+
+// ============ STOCKTAKES ============
+
+export const stocktakes = sqliteTable("stocktakes", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  warehouseId: text("warehouse_id").references(() => warehouses.id),
+  date: text("date").notNull().default(""),
+  status: text("status").notNull().default("مسودة"),
+  approvedBy: text("approved_by").references(() => users.id),
+  approvedAt: text("approved_at"),
+  notes: text("notes").default(""),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
+export const stocktakeLines = sqliteTable("stocktake_lines", {
+  id: text("id").primaryKey(),
+  stocktakeId: text("stocktake_id")
+    .notNull()
+    .references(() => stocktakes.id, { onDelete: "cascade" }),
+  itemId: text("item_id")
+    .notNull()
+    .references(() => inventoryItems.id),
+  systemQuantity: real("system_quantity").notNull().default(0),
+  countedQuantity: real("counted_quantity").notNull().default(0),
+  difference: real("difference").notNull().default(0),
+  notes: text("notes").default(""),
   createdAt: text("created_at").notNull().default(""),
 });
 
@@ -494,11 +588,60 @@ export const auditLog = sqliteTable("audit_log", {
 export const fixedAssets = sqliteTable("fixed_assets", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  code: text("code").default(""),
   category: text("category").default(""),
   location: text("location").default(""),
   cost: real("cost").notNull().default(0),
+  salvageValue: real("salvage_value").notNull().default(0),
+  usefulLifeMonths: integer("useful_life_months").notNull().default(60),
   accumulatedDepreciation: real("accumulated_depreciation").notNull().default(0),
-  status: text("status").notNull().default("تشغيل"),
+  depreciationMethod: text("depreciation_method").notNull().default("قسط ثابت"),
+  status: text("status").notNull().default("نشط"),
+  condition: text("condition").default("جيد"),
   purchaseDate: text("purchase_date").default(""),
+  supplierId: text("supplier_id").references(() => suppliers.id),
+  serialNumber: text("serial_number").default(""),
+  responsiblePerson: text("responsible_person").default(""),
+  sourceType: text("source_type"),
+  sourceId: text("source_id"),
+  notes: text("notes").default(""),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
+export const assetDepreciations = sqliteTable("asset_depreciations", {
+  id: text("id").primaryKey(),
+  assetId: text("asset_id")
+    .notNull()
+    .references(() => fixedAssets.id, { onDelete: "cascade" }),
+  date: text("date").notNull().default(""),
+  amount: real("amount").notNull().default(0),
+  bookValueAfter: real("book_value_after").notNull().default(0),
+  method: text("method").notNull().default("قسط ثابت"),
+  notes: text("notes").default(""),
+  sourceType: text("source_type"),
+  sourceId: text("source_id"),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+});
+
+export const assetMovements = sqliteTable("asset_movements", {
+  id: text("id").primaryKey(),
+  assetId: text("asset_id")
+    .notNull()
+    .references(() => fixedAssets.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  fromLocation: text("from_location").default(""),
+  toLocation: text("to_location").default(""),
+  fromResponsible: text("from_responsible").default(""),
+  toResponsible: text("to_responsible").default(""),
+  cost: real("cost").notNull().default(0),
+  date: text("date").notNull().default(""),
+  reason: text("reason").default(""),
+  notes: text("notes").default(""),
+  sourceType: text("source_type"),
+  sourceId: text("source_id"),
+  createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
 });

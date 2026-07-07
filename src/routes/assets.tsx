@@ -1,17 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
   Card,
   Btn,
   Badge,
-  Table,
   Td,
   statusTone,
   MobileTable,
   MobilePageHeader,
+  MobileSearchInput,
 } from "@/components/erp/AppShell";
-import { ASSETS, fmtSAR } from "@/data/sample";
-import { Plus, Edit, Trash2, Eye } from "lucide-react";
+import { fmtSAR } from "@/data/sample";
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Eye,
+  Wrench,
+  ArrowRight,
+  XCircle,
+  TrendingDown,
+  Search,
+} from "lucide-react";
 import { useState } from "react";
 import {
   showToast,
@@ -19,224 +30,541 @@ import {
   EntityFormDrawer,
   ActionMenu,
   ExportButton,
+  EmptyState,
 } from "@/components/erp/actions";
-
-type AssetItem = {
-  id: string;
-  name: string;
-  category: string;
-  location: string;
-  cost: number;
-  depYear: number;
-  status: string;
-  project: string;
-};
+import { useAuth } from "@/lib/api/auth";
+import {
+  getFixedAssets,
+  createFixedAsset,
+  updateFixedAsset,
+  transferFixedAsset,
+  maintainFixedAsset,
+  returnFromMaintenance,
+  depreciateFixedAsset,
+  disposeFixedAsset,
+  sellFixedAsset,
+  deleteFixedAsset,
+  ASSET_STATUSES,
+  ASSET_CONDITIONS,
+  ASSET_DEPRECIATION_METHODS,
+  type FixedAsset,
+} from "@/lib/api/assets";
+import { getSuppliers, type Supplier } from "@/lib/api/suppliers";
 
 export const Route = createFileRoute("/assets")({
   head: () => ({ meta: [{ title: "الأصول الثابتة — ثواب" }] }),
-  component: () => {
-    const [data, setData] = useState<AssetItem[]>(ASSETS as AssetItem[]);
-    const [formOpen, setFormOpen] = useState(false);
-    const [depFormOpen, setDepFormOpen] = useState(false);
-    const [editIdx, setEditIdx] = useState(-1);
-    const [confirmIdx, setConfirmIdx] = useState(-1);
-    const [formName, setFormName] = useState("");
-    const [formCategory, setFormCategory] = useState("");
-    const [formLocation, setFormLocation] = useState("");
-    const [formCost, setFormCost] = useState("");
-    const [formStatus, setFormStatus] = useState("تشغيل");
-    const [depAmount, setDepAmount] = useState("");
+  component: Page,
+});
 
-    const nextId = () => `AST-${String(data.length + 1).padStart(3, "0")}`;
+interface DepreciationDraft {
+  amount: string;
+  date: string;
+  notes: string;
+}
 
-    const handleSave = () => {
-      if (!formName.trim()) {
-        showToast("يرجى إدخال اسم الأصل", "error");
-        return;
-      }
-      if (editIdx >= 0) {
-        const d = [...data];
-        d[editIdx] = {
-          ...d[editIdx],
-          name: formName,
-          category: formCategory,
-          location: formLocation,
-          cost: Number(formCost) || 0,
-          status: formStatus,
-        };
-        setData(d);
-        showToast("تم تعديل الأصل بنجاح", "success");
-      } else {
-        setData([
-          {
-            id: nextId(),
-            name: formName,
-            category: formCategory || "أجهزة مكتبية",
-            location: formLocation,
-            cost: Number(formCost) || 0,
-            depYear: 0,
-            status: formStatus,
-            project: "—",
-          },
-          ...data,
-        ]);
-        showToast("تم إضافة الأصل بنجاح", "success");
-      }
+function Page() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [categoryFilter, setCategoryFilter] = useState("الكل");
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<FixedAsset | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FixedAsset | null>(null);
+  const [actionTarget, setActionTarget] = useState<{
+    asset: FixedAsset;
+    action: "depreciate" | "transfer" | "maintain" | "returnMaintenance" | "dispose" | "sell";
+  } | null>(null);
+
+  const [formName, setFormName] = useState("");
+  const [formCode, setFormCode] = useState("");
+  const [formCategory, setFormCategory] = useState("");
+  const [formLocation, setFormLocation] = useState("");
+  const [formCost, setFormCost] = useState("");
+  const [formSalvage, setFormSalvage] = useState("0");
+  const [formLife, setFormLife] = useState("60");
+  const [formMethod, setFormMethod] = useState("قسط ثابت");
+  const [formCondition, setFormCondition] = useState("جيد");
+  const [formPurchaseDate, setFormPurchaseDate] = useState("");
+  const [formSupplierId, setFormSupplierId] = useState("");
+  const [formSerial, setFormSerial] = useState("");
+  const [formResponsible, setFormResponsible] = useState("");
+  const [formNotes, setFormNotes] = useState("");
+
+  const [depDraft, setDepDraft] = useState<DepreciationDraft>({
+    amount: "",
+    date: new Date().toISOString().split("T")[0],
+    notes: "",
+  });
+  const [transferDraft, setTransferDraft] = useState({
+    toLocation: "",
+    toResponsible: "",
+    reason: "",
+    notes: "",
+  });
+  const [maintainDraft, setMaintainDraft] = useState({
+    cost: "",
+    reason: "",
+    notes: "",
+  });
+  const [sellDraft, setSellDraft] = useState({
+    salePrice: "",
+    buyer: "",
+    notes: "",
+  });
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: [
+      "fixedAssets",
+      { search: searchQuery, status: statusFilter, category: categoryFilter },
+    ],
+    queryFn: () =>
+      getFixedAssets({ search: searchQuery, status: statusFilter, category: categoryFilter }),
+  });
+
+  const { data: suppliersData } = useQuery({
+    queryKey: ["suppliers-all"],
+    queryFn: () => getSuppliers({}),
+  });
+
+  const detailQuery = useQuery({
+    queryKey: ["fixedAssetDetail", detailId],
+    queryFn: async () =>
+      detailId ? await fetch(`/api/assets?id=${detailId}`).then((r) => r.json()) : null,
+    enabled: !!detailId,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: createFixedAsset,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
+      showToast("تم إضافة الأصل بنجاح", "success");
       setFormOpen(false);
-    };
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
 
-    const handleAddDep = () => {
-      showToast(`تم إضافة إهلاك بقيمة ${fmtSAR(Number(depAmount) || 0)}`, "success");
-      setDepFormOpen(false);
-      setDepAmount("");
-    };
+  const updateMutation = useMutation({
+    mutationFn: updateFixedAsset,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
+      queryClient.invalidateQueries({ queryKey: ["fixedAssetDetail"] });
+      showToast("تم تحديث الأصل بنجاح", "success");
+      setFormOpen(false);
+      setEditing(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
 
-    const handleDelete = () => {
-      setData(data.filter((_, i) => i !== confirmIdx));
+  const transferMutation = useMutation({
+    mutationFn: transferFixedAsset,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
+      queryClient.invalidateQueries({ queryKey: ["fixedAssetDetail"] });
+      showToast("تم نقل الأصل بنجاح", "success");
+      setActionTarget(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
+
+  const maintainMutation = useMutation({
+    mutationFn: maintainFixedAsset,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
+      queryClient.invalidateQueries({ queryKey: ["fixedAssetDetail"] });
+      showToast("تم تسجيل الصيانة", "success");
+      setActionTarget(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
+
+  const returnMaintenanceMutation = useMutation({
+    mutationFn: returnFromMaintenance,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
+      queryClient.invalidateQueries({ queryKey: ["fixedAssetDetail"] });
+      showToast("تم إنهاء الصيانة وإعادة الأصل للعمل", "success");
+      setActionTarget(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
+
+  const depreciateMutation = useMutation({
+    mutationFn: depreciateFixedAsset,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
+      queryClient.invalidateQueries({ queryKey: ["fixedAssetDetail"] });
+      showToast("تم تسجيل الإهلاك بنجاح", "success");
+      setActionTarget(null);
+      setDepDraft({ amount: "", date: new Date().toISOString().split("T")[0], notes: "" });
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
+
+  const disposeMutation = useMutation({
+    mutationFn: disposeFixedAsset,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
+      queryClient.invalidateQueries({ queryKey: ["fixedAssetDetail"] });
+      showToast("تم استبعاد الأصل", "success");
+      setActionTarget(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
+
+  const sellMutation = useMutation({
+    mutationFn: sellFixedAsset,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
+      queryClient.invalidateQueries({ queryKey: ["fixedAssetDetail"] });
+      showToast("تم تسجيل بيع الأصل", "success");
+      setActionTarget(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteFixedAsset,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
       showToast("تم حذف الأصل", "success");
-      setConfirmIdx(-1);
-    };
+      setDeleteTarget(null);
+    },
+    onError: (err: Error) => showToast(err.message, "error"),
+  });
 
-    return (
-      <>
-        <AppShell
-          breadcrumb={["الرئيسية", "الموارد", "الأصول الثابتة"]}
-          title="الأصول الثابتة"
-          actions={
-            <>
-              <ExportButton data={data} filename="assets.csv" />
-              <Btn variant="outline" onClick={() => setDepFormOpen(true)}>
-                إضافة إهلاك
-              </Btn>
-              <Btn
-                variant="primary"
-                onClick={() => {
-                  setEditIdx(-1);
-                  setFormName("");
-                  setFormCategory("");
-                  setFormLocation("");
-                  setFormCost("");
-                  setFormStatus("تشغيل");
-                  setFormOpen(true);
-                }}
-              >
-                <Plus size={15} /> إضافة أصل ثابت
-              </Btn>
-            </>
-          }
+  const openAdd = () => {
+    setEditing(null);
+    setFormName("");
+    setFormCode("");
+    setFormCategory("");
+    setFormLocation("");
+    setFormCost("");
+    setFormSalvage("0");
+    setFormLife("60");
+    setFormMethod("قسط ثابت");
+    setFormCondition("جيد");
+    setFormPurchaseDate("");
+    setFormSupplierId("");
+    setFormSerial("");
+    setFormResponsible("");
+    setFormNotes("");
+    setFormOpen(true);
+  };
+
+  const openEdit = (a: FixedAsset) => {
+    if (["مستبعد", "مباع", "ملغي"].includes(a.status)) {
+      showToast(`لا يمكن تعديل أصل في حالة ${a.status}`, "error");
+      return;
+    }
+    setEditing(a);
+    setFormName(a.name);
+    setFormCode(a.code || "");
+    setFormCategory(a.category || "");
+    setFormLocation(a.location || "");
+    setFormCost(String(a.cost || 0));
+    setFormSalvage(String(a.salvageValue || 0));
+    setFormLife(String(a.usefulLifeMonths || 60));
+    setFormMethod(a.depreciationMethod || "قسط ثابت");
+    setFormCondition(a.condition || "جيد");
+    setFormPurchaseDate(a.purchaseDate || "");
+    setFormSupplierId(a.supplierId || "");
+    setFormSerial(a.serialNumber || "");
+    setFormResponsible(a.responsiblePerson || "");
+    setFormNotes(a.notes || "");
+    setFormOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!formName.trim()) return showToast("يرجى إدخال اسم الأصل", "error");
+    const payload = {
+      name: formName,
+      code: formCode,
+      category: formCategory,
+      location: formLocation,
+      cost: parseFloat(formCost) || 0,
+      salvageValue: parseFloat(formSalvage) || 0,
+      usefulLifeMonths: parseInt(formLife) || 60,
+      depreciationMethod: formMethod,
+      condition: formCondition,
+      purchaseDate: formPurchaseDate,
+      supplierId: formSupplierId || undefined,
+      serialNumber: formSerial,
+      responsiblePerson: formResponsible,
+      notes: formNotes,
+      userId: user?.id,
+      userName: user?.name,
+    };
+    if (editing) {
+      updateMutation.mutate({ id: editing.id, ...payload });
+    } else {
+      createFixedAsset(payload)
+        .then((a) => {
+          queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
+          showToast("تم إضافة الأصل بنجاح", "success");
+          setFormOpen(false);
+        })
+        .catch((err: Error) => showToast(err.message, "error"));
+    }
+  };
+
+  const items = data?.items || [];
+  const total = data?.total || 0;
+  const suppliers = suppliersData?.items || [];
+
+  const stats = {
+    active: items.filter((a) => a.status === "نشط").length,
+    maintenance: items.filter((a) => a.status === "تحت الصيانة").length,
+    disposed: items.filter((a) => ["مستبعد", "مباع", "ملغي"].includes(a.status)).length,
+    totalCost: items.reduce((s, a) => s + (a.cost || 0), 0),
+    totalDepreciation: items.reduce((s, a) => s + (a.accumulatedDepreciation || 0), 0),
+    totalBookValue: items.reduce(
+      (s, a) => s + ((a.cost || 0) - (a.accumulatedDepreciation || 0)),
+      0,
+    ),
+    total,
+  };
+
+  return (
+    <AppShell
+      breadcrumb={["الرئيسية", "الأصول"]}
+      title="الأصول الثابتة"
+      actions={
+        <>
+          <ExportButton
+            data={items.map((a) => ({
+              id: a.id,
+              code: a.code,
+              name: a.name,
+              category: a.category,
+              location: a.location,
+              cost: a.cost,
+              accumulatedDepreciation: a.accumulatedDepreciation,
+              bookValue: a.cost - a.accumulatedDepreciation,
+              status: a.status,
+              condition: a.condition,
+              purchaseDate: a.purchaseDate,
+              responsiblePerson: a.responsiblePerson,
+            }))}
+            filename="fixed-assets.csv"
+          />
+          <Btn variant="primary" onClick={openAdd}>
+            <Plus size={15} />
+            إضافة أصل
+          </Btn>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-3 lg:mb-4">
+        <Card className="p-3 lg:p-4">
+          <div className="text-xs text-muted-foreground mb-1">إجمالي الأصول</div>
+          <div className="text-base lg:text-xl font-extrabold tabular-nums">
+            {fmtSAR(stats.total)}
+          </div>
+        </Card>
+        <Card className="p-3 lg:p-4">
+          <div className="text-xs text-muted-foreground mb-1">التكلفة الإجمالية</div>
+          <div className="text-base lg:text-xl font-extrabold text-primary tabular-nums">
+            {fmtSAR(stats.totalCost)}
+          </div>
+        </Card>
+        <Card className="p-3 lg:p-4">
+          <div className="text-xs text-muted-foreground mb-1">إجمالي الإهلاك</div>
+          <div className="text-base lg:text-xl font-extrabold text-warning tabular-nums">
+            {fmtSAR(stats.totalDepreciation)}
+          </div>
+        </Card>
+        <Card className="p-3 lg:p-4">
+          <div className="text-xs text-muted-foreground mb-1">القيمة الدفترية</div>
+          <div className="text-base lg:text-xl font-extrabold text-success tabular-nums">
+            {fmtSAR(stats.totalBookValue)}
+          </div>
+        </Card>
+      </div>
+
+      <div className="lg:flex items-center gap-2 mb-3 hidden">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search
+            size={14}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
+          <input
+            className="w-full rounded-lg border bg-background py-1.5 pr-9 pl-3 text-sm"
+            placeholder="بحث..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <select
+          className="rounded-lg border bg-background py-1.5 px-3 text-sm"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
         >
-          <>
-            <MobilePageHeader title="الأصول الثابتة" count={`${data.length} أصل`} />
-            <MobileTable
-              columns={[
-                "الرقم",
-                "الأصل",
-                "الفئة",
-                "الموقع",
-                "التكلفة",
-                "الإهلاك السنوي",
-                "الحالة",
-                "",
-              ]}
-              rows={data}
-              renderRow={(a, idx) => (
-                <>
-                  <Td className="font-mono text-xs">{a.id}</Td>
-                  <Td className="font-semibold">{a.name}</Td>
-                  <Td>
-                    <Badge tone="info">{a.category}</Badge>
-                  </Td>
-                  <Td className="text-muted-foreground">{a.location}</Td>
-                  <Td className="tabular-nums font-bold">{fmtSAR(a.cost)}</Td>
-                  <Td className="tabular-nums">{fmtSAR(a.depYear)}</Td>
-                  <Td>
-                    <Badge tone={statusTone(a.status)}>{a.status}</Badge>
-                  </Td>
-                  <Td>
-                    <ActionMenu
-                      actions={[
-                        {
-                          label: "عرض",
-                          icon: Eye,
-                          onClick: () => showToast(`${a.name} - تكلفة: ${fmtSAR(a.cost)}`, "info"),
-                        },
-                        {
-                          label: "تعديل",
-                          icon: Edit,
-                          onClick: () => {
-                            setEditIdx(idx);
-                            setFormName(a.name);
-                            setFormCategory(a.category);
-                            setFormLocation(a.location);
-                            setFormCost(String(a.cost));
-                            setFormStatus(a.status);
-                            setFormOpen(true);
-                          },
-                        },
-                        {
-                          label: "حذف",
-                          icon: Trash2,
-                          variant: "destructive" as const,
-                          onClick: () => setConfirmIdx(idx),
-                        },
-                      ]}
-                    />
-                  </Td>
-                </>
-              )}
-              mobileCard={(a, idx) => (
-                <Card key={a.id} className="p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <Badge tone={statusTone(a.status)}>{a.status}</Badge>
-                    <span className="font-mono text-xs text-muted-foreground">{a.id}</span>
+          <option>الكل</option>
+          {ASSET_STATUSES.map((s) => (
+            <option key={s}>{s}</option>
+          ))}
+        </select>
+        <select
+          className="rounded-lg border bg-background py-1.5 px-3 text-sm"
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+        >
+          <option>الكل</option>
+          <option>أجهزة مكتبية</option>
+          <option>أجهزة حاسب</option>
+          <option>معدات</option>
+          <option>سيارات</option>
+          <option>أثاث</option>
+          <option>مباني</option>
+        </select>
+      </div>
+
+      <div className="lg:hidden flex items-center gap-2 mb-3">
+        <MobileSearchInput
+          placeholder="بحث..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+
+      <MobilePageHeader title="الأصول الثابتة" count={`${total} أصل`} />
+
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+        </div>
+      ) : error ? (
+        <EmptyState
+          title="خطأ في تحميل البيانات"
+          description="حدث خطأ أثناء جلب الأصول"
+          action={
+            <Btn
+              variant="primary"
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["fixedAssets"] })}
+            >
+              إعادة المحاولة
+            </Btn>
+          }
+        />
+      ) : items.length === 0 ? (
+        <EmptyState
+          title="لا توجد أصول"
+          description="ابدأ بإضافة أول أصل ثابت لمتابعة إهلاكه وصيانته"
+          action={
+            <Btn variant="primary" onClick={openAdd}>
+              إضافة أصل
+            </Btn>
+          }
+        />
+      ) : (
+        <MobileTable
+          columns={["الاسم", "الفئة", "التكلفة", "القيمة الدفترية", "الحالة", ""]}
+          rows={items}
+          renderRow={(a) => {
+            const bookValue = (a.cost || 0) - (a.accumulatedDepreciation || 0);
+            return (
+              <>
+                <Td>
+                  <button
+                    onClick={() => setDetailId(a.id)}
+                    className="font-semibold hover:text-primary text-right"
+                  >
+                    {a.name}
+                  </button>
+                  <div className="text-xs text-muted-foreground font-mono">{a.code || a.id}</div>
+                </Td>
+                <Td>{a.category ? <Badge tone="info">{a.category}</Badge> : "—"}</Td>
+                <Td className="tabular-nums">{fmtSAR(a.cost)}</Td>
+                <Td className="tabular-nums font-bold">{fmtSAR(bookValue)}</Td>
+                <Td>
+                  <Badge tone={statusTone(a.status)}>{a.status}</Badge>
+                </Td>
+                <Td>
+                  <ActionMenu
+                    actions={getAssetActions(
+                      a,
+                      setDetailId,
+                      openEdit,
+                      setActionTarget,
+                      setDeleteTarget,
+                    )}
+                  />
+                </Td>
+              </>
+            );
+          }}
+          mobileCard={(a) => {
+            const bookValue = (a.cost || 0) - (a.accumulatedDepreciation || 0);
+            return (
+              <Card key={a.id} className="p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <Badge tone={statusTone(a.status)}>{a.status}</Badge>
+                  <span className="font-mono text-xs text-muted-foreground">{a.code || a.id}</span>
+                </div>
+                <button
+                  onClick={() => setDetailId(a.id)}
+                  className="font-semibold text-right hover:text-primary"
+                >
+                  {a.name}
+                </button>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {a.location || "—"} · {a.responsiblePerson || "بدون مسؤول"}
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
+                  <div>
+                    <div className="text-muted-foreground">التكلفة</div>
+                    <div className="font-bold tabular-nums">{fmtSAR(a.cost)}</div>
                   </div>
-                  <div className="font-semibold">{a.name}</div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge tone="info">{a.category}</Badge>
-                    <span className="text-xs text-muted-foreground">{a.location}</span>
+                  <div>
+                    <div className="text-muted-foreground">القيمة الدفترية</div>
+                    <div className="font-bold text-success tabular-nums">{fmtSAR(bookValue)}</div>
                   </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="tabular-nums font-bold">{fmtSAR(a.cost)}</span>
-                    <span className="text-xs text-muted-foreground">
-                      إهلاك: {fmtSAR(a.depYear)}
-                    </span>
+                  <div>
+                    <div className="text-muted-foreground">الإهلاك المتراكم</div>
+                    <div className="tabular-nums">{fmtSAR(a.accumulatedDepreciation)}</div>
                   </div>
-                  <div className="flex gap-2 mt-2">
+                  <div>
+                    <div className="text-muted-foreground">الحالة</div>
+                    <div>{a.condition || "—"}</div>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px]"
+                    onClick={() => setDetailId(a.id)}
+                  >
+                    تفاصيل
+                  </button>
+                  {a.status === "نشط" && (
                     <button
-                      className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px]"
-                      onClick={() => {
-                        setEditIdx(idx);
-                        setFormName(a.name);
-                        setFormCategory(a.category);
-                        setFormLocation(a.location);
-                        setFormCost(String(a.cost));
-                        setFormStatus(a.status);
-                        setFormOpen(true);
-                      }}
-                    >
-                      تعديل
-                    </button>
-                    <button
-                      className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px]"
-                      onClick={() => setDepFormOpen(true)}
+                      className="flex-1 rounded-lg bg-warning/15 text-warning text-xs font-semibold py-2 min-h-[36px]"
+                      onClick={() => setActionTarget({ asset: a, action: "depreciate" })}
                     >
                       إهلاك
                     </button>
-                  </div>
-                </Card>
-              )}
-            />
-          </>
-        </AppShell>
+                  )}
+                </div>
+              </Card>
+            );
+          }}
+        />
+      )}
 
-        <EntityFormDrawer
-          open={formOpen}
-          onClose={() => setFormOpen(false)}
-          title={editIdx >= 0 ? "تعديل أصل" : "إضافة أصل ثابت"}
-          onSave={handleSave}
-        >
+      <EntityFormDrawer
+        open={formOpen}
+        onClose={() => {
+          setFormOpen(false);
+          setEditing(null);
+        }}
+        title={editing ? "تعديل أصل" : "إضافة أصل جديد"}
+        onSave={handleSave}
+        loading={createMutation.isPending || updateMutation.isPending}
+      >
+        <div className="space-y-3">
           <div>
-            <label className="text-xs font-semibold text-muted-foreground">الاسم</label>
+            <label className="text-xs font-semibold text-muted-foreground">الاسم *</label>
             <input
               className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
               value={formName}
@@ -244,79 +572,622 @@ export const Route = createFileRoute("/assets")({
               placeholder="اسم الأصل"
             />
           </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الفئة</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formCategory}
-              onChange={(e) => setFormCategory(e.target.value)}
-              placeholder="مركبات/أجهزة مكتبية..."
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">الرمز</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={formCode}
+                onChange={(e) => setFormCode(e.target.value)}
+                placeholder="AST-001"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">الفئة</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={formCategory}
+                onChange={(e) => setFormCategory(e.target.value)}
+                placeholder="مثال: أجهزة مكتبية"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">الموقع</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={formLocation}
+                onChange={(e) => setFormLocation(e.target.value)}
+                placeholder="الموقع الحالي"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">المسؤول</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={formResponsible}
+                onChange={(e) => setFormResponsible(e.target.value)}
+                placeholder="اسم المسؤول"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">التكلفة *</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                type="number"
+                value={formCost}
+                onChange={(e) => setFormCost(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">القيمة المتبقية</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                type="number"
+                value={formSalvage}
+                onChange={(e) => setFormSalvage(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">العمر (شهر)</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                type="number"
+                value={formLife}
+                onChange={(e) => setFormLife(e.target.value)}
+                placeholder="60"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">طريقة الإهلاك</label>
+              <select
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={formMethod}
+                onChange={(e) => setFormMethod(e.target.value)}
+              >
+                {ASSET_DEPRECIATION_METHODS.map((m) => (
+                  <option key={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">الحالة الفنية</label>
+              <select
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={formCondition}
+                onChange={(e) => setFormCondition(e.target.value)}
+              >
+                {ASSET_CONDITIONS.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">تاريخ الشراء</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                type="date"
+                value={formPurchaseDate}
+                onChange={(e) => setFormPurchaseDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">الرقم التسلسلي</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={formSerial}
+                onChange={(e) => setFormSerial(e.target.value)}
+              />
+            </div>
           </div>
           <div>
-            <label className="text-xs font-semibold text-muted-foreground">الموقع</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formLocation}
-              onChange={(e) => setFormLocation(e.target.value)}
-              placeholder="الموقع"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">التكلفة</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              value={formCost}
-              onChange={(e) => setFormCost(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الحالة</label>
+            <label className="text-xs font-semibold text-muted-foreground">المورد</label>
             <select
               className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formStatus}
-              onChange={(e) => setFormStatus(e.target.value)}
+              value={formSupplierId}
+              onChange={(e) => setFormSupplierId(e.target.value)}
             >
-              <option>تشغيل</option>
-              <option>صيانة</option>
-              <option>وقف</option>
-              <option>مستبعد</option>
+              <option value="">— بدون مورد —</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
             </select>
           </div>
-        </EntityFormDrawer>
-
-        <EntityFormDrawer
-          open={depFormOpen}
-          onClose={() => setDepFormOpen(false)}
-          title="إضافة إهلاك"
-          onSave={handleAddDep}
-          saveText="إضافة"
-        >
           <div>
-            <label className="text-xs font-semibold text-muted-foreground">قيمة الإهلاك</label>
-            <input
+            <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
+            <textarea
               className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              value={depAmount}
-              onChange={(e) => setDepAmount(e.target.value)}
-              placeholder="0"
+              rows={2}
+              value={formNotes}
+              onChange={(e) => setFormNotes(e.target.value)}
             />
           </div>
-        </EntityFormDrawer>
+        </div>
+      </EntityFormDrawer>
 
-        {confirmIdx >= 0 && (
-          <ConfirmDialog
-            open
-            onClose={() => setConfirmIdx(-1)}
-            onConfirm={handleDelete}
-            title="تأكيد الحذف"
-            message="هل أنت متأكد من حذف الأصل؟"
-            confirmText="حذف"
-            variant="destructive"
-          />
+      <EntityFormDrawer
+        open={!!detailId && !formOpen && !actionTarget}
+        onClose={() => setDetailId(null)}
+        title={`تفاصيل الأصل: ${detailQuery.data?.item?.name || ""}`}
+        onSave={() => setDetailId(null)}
+        saveText="إغلاق"
+      >
+        {detailQuery.data && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <DetailRow label="الرمز" value={detailQuery.data.item.code || "—"} />
+              <DetailRow label="الفئة" value={detailQuery.data.item.category || "—"} />
+              <DetailRow label="الحالة" value={detailQuery.data.item.status} />
+              <DetailRow label="الحالة الفنية" value={detailQuery.data.item.condition || "—"} />
+              <DetailRow label="الموقع" value={detailQuery.data.item.location || "—"} />
+              <DetailRow label="المسؤول" value={detailQuery.data.item.responsiblePerson || "—"} />
+              <DetailRow label="التكلفة" value={fmtSAR(detailQuery.data.item.cost)} />
+              <DetailRow
+                label="الإهلاك المتراكم"
+                value={fmtSAR(detailQuery.data.item.accumulatedDepreciation)}
+              />
+              <DetailRow label="القيمة الدفترية" value={fmtSAR(detailQuery.data.bookValue)} />
+              <DetailRow
+                label="العمر الإنتاجي"
+                value={`${detailQuery.data.item.usefulLifeMonths} شهر`}
+              />
+              <DetailRow
+                label="القيمة المتبقية"
+                value={fmtSAR(detailQuery.data.item.salvageValue)}
+              />
+              <DetailRow label="طريقة الإهلاك" value={detailQuery.data.item.depreciationMethod} />
+              <DetailRow label="تاريخ الشراء" value={detailQuery.data.item.purchaseDate || "—"} />
+              <DetailRow
+                label="المورد"
+                value={
+                  suppliers.find((s) => s.id === detailQuery.data.item.supplierId)?.name || "—"
+                }
+              />
+            </div>
+            <Card className="p-3 bg-primary/10">
+              <div className="text-xs font-semibold text-muted-foreground mb-1">سجل الأصل</div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="text-center">
+                  <div className="text-muted-foreground">قيود الإهلاك</div>
+                  <div className="font-bold text-base">
+                    {fmtSAR(detailQuery.data.depreciationCount)}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-muted-foreground">حركات/تحويلات</div>
+                  <div className="font-bold text-base">
+                    {fmtSAR(detailQuery.data.movementCount)}
+                  </div>
+                </div>
+              </div>
+            </Card>
+            {detailQuery.data.item.notes && (
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground mb-1">ملاحظات</div>
+                <div className="text-sm">{detailQuery.data.item.notes}</div>
+              </div>
+            )}
+          </div>
         )}
-      </>
-    );
-  },
-});
+      </EntityFormDrawer>
+
+      <EntityFormDrawer
+        open={!!actionTarget && actionTarget.action === "depreciate"}
+        onClose={() => setActionTarget(null)}
+        title={`إهلاك الأصل: ${actionTarget?.asset.name || ""}`}
+        onSave={() => {
+          if (actionTarget) {
+            const amt = parseFloat(depDraft.amount) || 0;
+            if (amt <= 0) return showToast("يرجى إدخال مبلغ إهلاك صحيح", "error");
+            depreciateMutation.mutate({
+              id: actionTarget.asset.id,
+              amount: amt,
+              date: depDraft.date,
+              notes: depDraft.notes,
+              userId: user?.id,
+              userName: user?.name,
+            });
+          }
+        }}
+        loading={depreciateMutation.isPending}
+        saveText="تأكيد الإهلاك"
+      >
+        {actionTarget && (
+          <div className="space-y-3">
+            <Card className="p-3 bg-warning/10">
+              <div className="text-xs font-bold text-warning mb-1">معلومات الإهلاك</div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  التكلفة: <b>{fmtSAR(actionTarget.asset.cost)}</b>
+                </div>
+                <div>
+                  الإهلاك المتراكم: <b>{fmtSAR(actionTarget.asset.accumulatedDepreciation)}</b>
+                </div>
+                <div>
+                  القيمة الدفترية:{" "}
+                  <b className="text-success">
+                    {fmtSAR(actionTarget.asset.cost - actionTarget.asset.accumulatedDepreciation)}
+                  </b>
+                </div>
+                <div>
+                  القيمة المتبقية: <b>{fmtSAR(actionTarget.asset.salvageValue)}</b>
+                </div>
+                <div className="col-span-2">
+                  الحد الأقصى للإهلاك المتبقي:{" "}
+                  <b>
+                    {fmtSAR(
+                      actionTarget.asset.cost -
+                        actionTarget.asset.accumulatedDepreciation -
+                        (actionTarget.asset.salvageValue || 0),
+                    )}
+                  </b>
+                </div>
+              </div>
+            </Card>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">مبلغ الإهلاك *</label>
+              <input
+                type="number"
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={depDraft.amount}
+                onChange={(e) => setDepDraft({ ...depDraft, amount: e.target.value })}
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">تاريخ الإهلاك</label>
+              <input
+                type="date"
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={depDraft.date}
+                onChange={(e) => setDepDraft({ ...depDraft, date: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
+              <textarea
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                rows={2}
+                value={depDraft.notes}
+                onChange={(e) => setDepDraft({ ...depDraft, notes: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
+      </EntityFormDrawer>
+
+      <EntityFormDrawer
+        open={!!actionTarget && actionTarget.action === "transfer"}
+        onClose={() => setActionTarget(null)}
+        title={`نقل الأصل: ${actionTarget?.asset.name || ""}`}
+        onSave={() => {
+          if (actionTarget) {
+            transferMutation.mutate({
+              id: actionTarget.asset.id,
+              toLocation: transferDraft.toLocation,
+              toResponsible: transferDraft.toResponsible,
+              reason: transferDraft.reason,
+              notes: transferDraft.notes,
+              userId: user?.id,
+              userName: user?.name,
+            });
+          }
+        }}
+        loading={transferMutation.isPending}
+        saveText="تأكيد النقل"
+      >
+        {actionTarget && (
+          <div className="space-y-3">
+            <Card className="p-3 bg-info/10 text-xs">
+              <div className="font-bold text-info mb-1">الموقع الحالي</div>
+              <div>الموقع: {actionTarget.asset.location || "—"}</div>
+              <div>المسؤول: {actionTarget.asset.responsiblePerson || "—"}</div>
+            </Card>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">الموقع الجديد</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={transferDraft.toLocation}
+                onChange={(e) => setTransferDraft({ ...transferDraft, toLocation: e.target.value })}
+                placeholder="الموقع الجديد"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">المسؤول الجديد</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={transferDraft.toResponsible}
+                onChange={(e) =>
+                  setTransferDraft({ ...transferDraft, toResponsible: e.target.value })
+                }
+                placeholder="اسم المسؤول الجديد"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">سبب النقل</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={transferDraft.reason}
+                onChange={(e) => setTransferDraft({ ...transferDraft, reason: e.target.value })}
+                placeholder="سبب النقل"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
+              <textarea
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                rows={2}
+                value={transferDraft.notes}
+                onChange={(e) => setTransferDraft({ ...transferDraft, notes: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
+      </EntityFormDrawer>
+
+      <EntityFormDrawer
+        open={!!actionTarget && actionTarget.action === "maintain"}
+        onClose={() => setActionTarget(null)}
+        title={`صيانة الأصل: ${actionTarget?.asset.name || ""}`}
+        onSave={() => {
+          if (actionTarget) {
+            maintainMutation.mutate({
+              id: actionTarget.asset.id,
+              cost: parseFloat(maintainDraft.cost) || 0,
+              reason: maintainDraft.reason,
+              notes: maintainDraft.notes,
+              userId: user?.id,
+              userName: user?.name,
+            });
+          }
+        }}
+        loading={maintainMutation.isPending}
+        saveText="تسجيل الصيانة"
+      >
+        {actionTarget && (
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">تكلفة الصيانة</label>
+              <input
+                type="number"
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={maintainDraft.cost}
+                onChange={(e) => setMaintainDraft({ ...maintainDraft, cost: e.target.value })}
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">سبب/وصف الصيانة</label>
+              <textarea
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                rows={2}
+                value={maintainDraft.reason}
+                onChange={(e) => setMaintainDraft({ ...maintainDraft, reason: e.target.value })}
+                placeholder="مثال: صيانة دورية، إصلاح عطل..."
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
+              <textarea
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                rows={2}
+                value={maintainDraft.notes}
+                onChange={(e) => setMaintainDraft({ ...maintainDraft, notes: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
+      </EntityFormDrawer>
+
+      <ConfirmDialog
+        open={!!actionTarget && actionTarget.action === "returnMaintenance"}
+        onClose={() => setActionTarget(null)}
+        onConfirm={() => {
+          if (actionTarget) {
+            returnMaintenanceMutation.mutate({
+              id: actionTarget.asset.id,
+              condition: detailQuery.data?.item?.condition,
+              userId: user?.id,
+              userName: user?.name,
+            });
+          }
+        }}
+        title="إنهاء الصيانة"
+        message={`هل تريد إعادة الأصل "${actionTarget?.asset.name}" للعمل بعد الصيانة؟`}
+        confirmText="إعادة للعمل"
+        cancelText="إلغاء"
+      />
+
+      <EntityFormDrawer
+        open={!!actionTarget && actionTarget.action === "sell"}
+        onClose={() => setActionTarget(null)}
+        title={`بيع الأصل: ${actionTarget?.asset.name || ""}`}
+        onSave={() => {
+          if (actionTarget) {
+            sellMutation.mutate({
+              id: actionTarget.asset.id,
+              salePrice: parseFloat(sellDraft.salePrice) || 0,
+              buyer: sellDraft.buyer,
+              notes: sellDraft.notes,
+              userId: user?.id,
+              userName: user?.name,
+            });
+          }
+        }}
+        loading={sellMutation.isPending}
+        saveText="تأكيد البيع"
+      >
+        {actionTarget && (
+          <div className="space-y-3">
+            <Card className="p-3 bg-warning/10 text-xs">
+              <div>
+                القيمة الدفترية الحالية:{" "}
+                <b>
+                  {fmtSAR(actionTarget.asset.cost - actionTarget.asset.accumulatedDepreciation)}
+                </b>
+              </div>
+            </Card>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">سعر البيع</label>
+              <input
+                type="number"
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={sellDraft.salePrice}
+                onChange={(e) => setSellDraft({ ...sellDraft, salePrice: e.target.value })}
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">المشتري</label>
+              <input
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                value={sellDraft.buyer}
+                onChange={(e) => setSellDraft({ ...sellDraft, buyer: e.target.value })}
+                placeholder="اسم المشتري"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
+              <textarea
+                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+                rows={2}
+                value={sellDraft.notes}
+                onChange={(e) => setSellDraft({ ...sellDraft, notes: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
+      </EntityFormDrawer>
+
+      <ConfirmDialog
+        open={!!actionTarget && actionTarget.action === "dispose"}
+        onClose={() => setActionTarget(null)}
+        onConfirm={() => {
+          if (actionTarget) {
+            disposeMutation.mutate({
+              id: actionTarget.asset.id,
+              userId: user?.id,
+              userName: user?.name,
+            });
+          }
+        }}
+        title="استبعاد الأصل"
+        message={`هل تريد استبعاد الأصل "${actionTarget?.asset.name}"؟ سيصبح read-only ويحتفظ به النظام للسجل التاريخي.`}
+        confirmText="استبعاد"
+        cancelText="تراجع"
+        variant="destructive"
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteMutation.mutate({
+              id: deleteTarget.id,
+              userId: user?.id,
+              userName: user?.name,
+            });
+          }
+        }}
+        title="تأكيد الحذف"
+        message={
+          deleteTarget
+            ? `هل تريد حذف الأصل "${deleteTarget.name}"؟ لا يمكن الحذف إذا كان مرتبطاً بحركات أو إهلاك.`
+            : ""
+        }
+        confirmText="حذف"
+        cancelText="إلغاء"
+        variant="destructive"
+      />
+    </AppShell>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border-b pb-1">
+      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div className="text-sm font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function getAssetActions(
+  a: FixedAsset,
+  setDetailId: (id: string) => void,
+  openEdit: (a: FixedAsset) => void,
+  setActionTarget: (t: {
+    asset: FixedAsset;
+    action: "depreciate" | "transfer" | "maintain" | "returnMaintenance" | "dispose" | "sell";
+  }) => void,
+  setDeleteTarget: (a: FixedAsset) => void,
+) {
+  const actions: Array<{
+    label: string;
+    icon: typeof Eye;
+    onClick: () => void;
+    variant?: "destructive";
+  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(a.id) }];
+
+  const readOnly = ["مستبعد", "مباع", "ملغي"].includes(a.status);
+
+  if (!readOnly) {
+    actions.push({ label: "تعديل", icon: Edit, onClick: () => openEdit(a) });
+    actions.push({
+      label: "تسجيل إهلاك",
+      icon: TrendingDown,
+      onClick: () => setActionTarget({ asset: a, action: "depreciate" }),
+    });
+    actions.push({
+      label: "نقل",
+      icon: ArrowRight,
+      onClick: () => setActionTarget({ asset: a, action: "transfer" }),
+    });
+    if (a.status !== "تحت الصيانة") {
+      actions.push({
+        label: "تسجيل صيانة",
+        icon: Wrench,
+        onClick: () => setActionTarget({ asset: a, action: "maintain" }),
+      });
+    } else {
+      actions.push({
+        label: "إنهاء الصيانة",
+        icon: Wrench,
+        onClick: () => setActionTarget({ asset: a, action: "returnMaintenance" }),
+      });
+    }
+    actions.push({
+      label: "بيع",
+      icon: TrendingDown,
+      onClick: () => setActionTarget({ asset: a, action: "sell" }),
+    });
+    actions.push({
+      label: "استبعاد",
+      icon: XCircle,
+      onClick: () => setActionTarget({ asset: a, action: "dispose" }),
+    });
+  }
+
+  if (!readOnly && !a.accumulatedDepreciation) {
+    actions.push({
+      label: "حذف",
+      icon: Trash2,
+      variant: "destructive",
+      onClick: () => setDeleteTarget(a),
+    });
+  }
+
+  return actions;
+}
