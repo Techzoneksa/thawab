@@ -132,15 +132,18 @@ export function EntityFormDrawer({
     >
       <SheetContent
         side={isMobile ? "bottom" : "right"}
+        showClose={false}
         className={cn(
-          "flex flex-col p-0",
-          isMobile ? "max-h-[85vh] rounded-t-2xl pb-safe" : "w-full max-w-xl",
+          "flex flex-col p-0 gap-0",
+          isMobile
+            ? "max-h-[90dvh] rounded-t-2xl pb-safe [&_[data-radix-dialog-content]]:rounded-t-2xl"
+            : "w-full max-w-xl start-0",
         )}
       >
-        <SheetHeader className="flex flex-row items-center justify-between border-b px-5 py-4 shrink-0 relative">
-          <SheetTitle className="text-base">{title}</SheetTitle>
-          <SheetClose className="text-muted-foreground hover:text-foreground transition-colors">
-            <X size={18} />
+        <SheetHeader className="flex flex-row items-center justify-between border-b px-4 sm:px-5 py-3 sm:py-4 shrink-0 relative safe-area-top">
+          <SheetTitle className="text-base truncate">{title}</SheetTitle>
+          <SheetClose className="grid h-11 w-11 place-items-center rounded-lg text-muted-foreground hover:bg-muted active:bg-muted/80 transition-colors shrink-0">
+            <X size={22} />
           </SheetClose>
         </SheetHeader>
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">{children}</div>

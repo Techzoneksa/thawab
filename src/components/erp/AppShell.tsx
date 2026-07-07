@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "@/lib/api/auth";
 import {
   LayoutDashboard,
@@ -55,6 +55,7 @@ import {
   ChevronRight,
   MoreHorizontal,
   ArrowLeft,
+  Send,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -161,13 +162,38 @@ const BOTTOM_NAV_ITEMS = [
   { to: "#more", label: "المزيد", icon: MoreHorizontal },
 ];
 
+function useBodyScrollLock(locked: boolean) {
+  useEffect(() => {
+    if (!locked) return;
+    const prev = document.body.style.overflow;
+    const prevPadRight = document.body.style.paddingRight;
+    const scrollbar = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = "hidden";
+    if (scrollbar > 0) document.body.style.paddingRight = `${scrollbar}px`;
+    return () => {
+      document.body.style.overflow = prev;
+      document.body.style.paddingRight = prevPadRight;
+    };
+  }, [locked]);
+}
+
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useBodyScrollLock(open);
   return (
     <>
-      {open && <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={onClose} />}
+      <div
+        className={`fixed inset-0 z-30 bg-black/55 backdrop-blur-sm transition-opacity duration-200 lg:hidden ${
+          open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+        onClick={onClose}
+        aria-hidden="true"
+      />
       <aside
-        className={`fixed lg:sticky top-0 right-0 z-40 h-screen w-72 shrink-0 bg-nav text-nav-foreground flex flex-col transition-transform ${open ? "translate-x-0" : "translate-x-full lg:translate-x-0"}`}
+        aria-label="القائمة الرئيسية"
+        className={`fixed top-0 right-0 z-40 h-[100dvh] w-[85vw] max-w-[320px] shrink-0 bg-nav text-nav-foreground flex flex-col transition-transform duration-300 ease-out will-change-transform lg:sticky lg:top-0 lg:h-screen lg:w-72 lg:max-w-none lg:translate-x-0 lg:transition-none ${
+          open ? "translate-x-0" : "translate-x-full lg:translate-x-0"
+        }`}
       >
         <div className="flex items-center justify-between gap-3 px-5 py-5 border-b border-white/10">
           <div className="flex items-center gap-3 min-w-0">
@@ -179,11 +205,15 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
               <div className="text-[11px] text-nav-muted truncate">نظام إدارة الجمعيات الخيرية</div>
             </div>
           </div>
-          <button className="lg:hidden text-nav-muted" onClick={onClose} aria-label="إغلاق">
-            <X size={20} />
+          <button
+            className="grid h-11 w-11 place-items-center rounded-lg text-nav-muted hover:bg-white/10 active:bg-white/20 transition-colors lg:hidden"
+            onClick={onClose}
+            aria-label="إغلاق القائمة"
+          >
+            <X size={22} />
           </button>
         </div>
-        <nav className="flex-1 overflow-y-auto scrollbar-thin px-3 py-4 space-y-5">
+        <nav className="flex-1 overflow-y-auto scrollbar-thin overscroll-contain px-3 py-4 space-y-5">
           {NAV.map((group) => (
             <div key={group.label}>
               <div className="px-3 pb-2 text-[11px] font-bold tracking-wide text-nav-muted uppercase">
@@ -199,7 +229,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
                       <Link
                         to={it.to}
                         onClick={onClose}
-                        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors min-h-[44px] lg:min-h-0 ${active ? "bg-nav-active text-white font-semibold shadow-sm" : "text-nav-foreground/90 hover:bg-nav-hover"}`}
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors min-h-[44px] ${active ? "bg-nav-active text-white font-semibold shadow-sm" : "text-nav-foreground/90 hover:bg-nav-hover active:bg-white/10"}`}
                       >
                         <Icon size={17} className="shrink-0 opacity-90" />
                         <span className="truncate">{it.label}</span>
@@ -211,7 +241,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
             </div>
           ))}
         </nav>
-        <div className="border-t border-white/10 p-4">
+        <div className="border-t border-white/10 p-4 safe-area-bottom">
           <UserProfile />
         </div>
       </aside>
@@ -254,8 +284,9 @@ function UserProfile() {
       </div>
       <button
         onClick={handleLogout}
-        className="text-nav-muted hover:text-white transition-colors"
+        className="grid h-10 w-10 place-items-center rounded-lg text-nav-muted hover:text-white hover:bg-white/10 transition-colors"
         title="تسجيل الخروج"
+        aria-label="تسجيل الخروج"
       >
         <LogOut size={16} />
       </button>
@@ -277,8 +308,15 @@ function getRoleLabel(role: string) {
   return roleLabels[role] || role;
 }
 
-function Topbar({ onMenu }: { onMenu: () => void }) {
-  const [aiOpen, setAiOpen] = useState(false);
+function Topbar({
+  onMenu,
+  aiOpen,
+  setAiOpen,
+}: {
+  onMenu: () => void;
+  aiOpen: boolean;
+  setAiOpen: (v: boolean) => void;
+}) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const pageTitle =
     pathname === "/"
@@ -309,20 +347,23 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
 
   return (
     <>
-      {/* Desktop header */}
       <header className="hidden lg:flex sticky top-0 z-20 items-center gap-3 border-b bg-surface/80 backdrop-blur px-4 lg:px-6 h-16">
-        <button className="text-foreground" onClick={onMenu} aria-label="القائمة">
+        <button
+          className="grid h-11 w-11 place-items-center rounded-lg text-foreground hover:bg-muted transition-colors"
+          onClick={onMenu}
+          aria-label="القائمة"
+        >
           <Menu size={22} />
         </button>
         <div className="flex-1 max-w-xl">
           <div className="relative">
             <Search
               size={16}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
             />
             <input
               placeholder="بحث ذكي عن متبرع، مستفيد، مشروع، قيد..."
-              className="w-full rounded-lg border bg-background py-2 pr-9 pl-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-lg border bg-background py-2 pr-9 pl-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring min-h-[40px]"
             />
           </div>
         </div>
@@ -331,19 +372,22 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
         </div>
         <button
           onClick={() => setAiOpen(true)}
-          className="hidden sm:inline-flex items-center gap-2 rounded-lg bg-gradient-to-l from-primary to-info px-3 py-2 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-95"
+          className="hidden sm:inline-flex items-center gap-2 rounded-lg bg-gradient-to-l from-primary to-info px-3 py-2 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-95 min-h-[40px]"
         >
           <Sparkles size={16} /> المساعد الذكي
         </button>
-        <button className="relative rounded-lg border p-2 hover:bg-muted" aria-label="إشعارات">
+        <button
+          className="relative grid h-11 w-11 place-items-center rounded-lg border hover:bg-muted transition-colors"
+          aria-label="إشعارات"
+        >
           <Bell size={18} />
-          <span className="absolute -top-1 -left-1 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+          <span className="absolute top-1 left-1 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
             7
           </span>
         </button>
         <button
           onClick={onMenu}
-          className="flex items-center gap-2 rounded-lg border p-1.5 pr-2 hover:bg-muted transition-colors"
+          className="flex items-center gap-2 rounded-lg border p-1.5 pr-2 hover:bg-muted transition-colors min-h-[40px]"
           aria-label="حسابي"
         >
           <div className="grid h-7 w-7 place-items-center rounded-full bg-gradient-to-br from-primary to-info text-white text-[10px] font-bold">
@@ -355,44 +399,57 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
         </button>
       </header>
 
-      {/* Mobile header */}
-      <header className="lg:hidden sticky top-0 z-20 flex items-center gap-2 border-b bg-surface/95 backdrop-blur px-3 h-14 safe-area-top">
+      <header className="lg:hidden sticky top-0 z-20 flex items-center gap-1 border-b bg-surface/95 backdrop-blur px-2 h-14 safe-area-top">
         <button
           onClick={onMenu}
-          className="flex items-center justify-center h-11 w-11 -mr-1.5 rounded-lg hover:bg-muted active:bg-muted/80 transition-colors"
+          className="grid h-11 w-11 place-items-center rounded-lg hover:bg-muted active:bg-muted/80 transition-colors shrink-0"
           aria-label="القائمة"
         >
           <Menu size={22} />
         </button>
-        <h1 className="flex-1 text-base font-bold truncate">{pageTitle || "ثواب"}</h1>
+        <h1 className="flex-1 text-base font-bold truncate px-1 min-w-0">{pageTitle || "ثواب"}</h1>
         <button
-          className="flex items-center justify-center h-11 w-11 rounded-lg hover:bg-muted active:bg-muted/80 transition-colors"
-          aria-label="بحث"
+          onClick={() => setAiOpen(true)}
+          className="grid h-11 w-11 place-items-center rounded-lg text-primary hover:bg-primary/10 active:bg-primary/20 transition-colors shrink-0"
+          aria-label="المساعد الذكي"
+          title="المساعد الذكي"
         >
-          <Search size={20} />
+          <Sparkles size={20} />
         </button>
         <button
-          className="relative flex items-center justify-center h-11 w-11 rounded-lg hover:bg-muted active:bg-muted/80 transition-colors"
+          className="relative grid h-11 w-11 place-items-center rounded-lg hover:bg-muted active:bg-muted/80 transition-colors shrink-0"
           aria-label="إشعارات"
         >
           <Bell size={20} />
-          <span className="absolute top-2.5 right-2.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-surface" />
+          <span className="absolute top-2 left-2 h-2 w-2 rounded-full bg-destructive ring-2 ring-surface" />
         </button>
         <button
           onClick={onMenu}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-info text-white text-xs font-bold shadow-sm active:scale-95 transition-transform"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-info text-white text-xs font-bold shadow-sm active:scale-95 transition-transform"
           aria-label="حسابي"
         >
           س
         </button>
       </header>
-
-      <AiPanel open={aiOpen} onClose={() => setAiOpen(false)} />
     </>
   );
 }
 
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    setIsDesktop(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isDesktop;
+}
+
 function AiPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [query, setQuery] = useState("");
+  const isDesktop = useIsDesktop();
   const suggestions = [
     "ما إجمالي التبرعات لمشروع كفالة الأيتام هذا الشهر؟",
     "توقّع التدفق النقدي للربع القادم",
@@ -400,29 +457,70 @@ function AiPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
     "اكتشف المعاملات المالية غير الاعتيادية",
     "اقترح إعادة توزيع الميزانية بين المشاريع النشطة",
   ];
+
+  useBodyScrollLock(open);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  const transformStyle = isDesktop
+    ? open
+      ? "translateX(0)"
+      : "translateX(100%)"
+    : open
+      ? "translateY(0)"
+      : "translateY(100%)";
+
+  const positionClasses = isDesktop
+    ? "inset-y-0 start-0 top-0 bottom-auto h-screen w-[420px] max-w-[85vw]"
+    : "inset-0";
+
   return (
     <>
-      {open && <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />}
+      <div
+        className={`fixed inset-0 z-[55] bg-black/55 backdrop-blur-sm transition-opacity duration-200 ${
+          open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+        onClick={onClose}
+        aria-hidden="true"
+      />
       <aside
-        className={`fixed top-0 left-0 z-50 h-screen w-full sm:w-[420px] bg-surface border-l shadow-elevated transition-transform ${open ? "translate-x-0" : "-translate-x-full"}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="المساعد الذكي"
+        style={{ transform: transformStyle }}
+        className={`fixed z-[60] bg-surface shadow-elevated flex flex-col transition-transform duration-300 ease-out will-change-transform ${positionClasses} ${
+          open ? "pointer-events-auto" : "pointer-events-none"
+        }`}
       >
-        <div className="flex items-center justify-between border-b px-5 py-4">
-          <div className="flex items-center gap-2">
-            <div className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-primary to-info text-white">
+        <div className="flex items-center justify-between gap-2 border-b px-4 sm:px-5 py-3 sm:py-4 shrink-0 safe-area-top">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-primary to-info text-white">
               <Sparkles size={18} />
             </div>
-            <div>
-              <div className="font-bold">المساعد الذكي</div>
-              <div className="text-[11px] text-muted-foreground">
+            <div className="min-w-0">
+              <div className="font-bold truncate">المساعد الذكي</div>
+              <div className="text-[11px] text-muted-foreground truncate">
                 مدعوم بنماذج ذكاء اصطناعي عربية
               </div>
             </div>
           </div>
-          <button onClick={onClose} aria-label="إغلاق" className="text-muted-foreground">
-            <X size={18} />
+          <button
+            onClick={onClose}
+            aria-label="إغلاق"
+            className="grid h-11 w-11 place-items-center rounded-lg text-muted-foreground hover:bg-muted active:bg-muted/80 transition-colors shrink-0"
+          >
+            <X size={22} />
           </button>
         </div>
-        <div className="p-5 space-y-4 overflow-y-auto h-[calc(100vh-64px)]">
+
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-5 py-4 space-y-4">
           <div className="rounded-xl bg-gradient-to-bl from-primary/10 to-info/10 p-4 text-sm leading-relaxed">
             <p className="font-semibold mb-1">مرحباً سعد،</p>
             <p>
@@ -437,19 +535,29 @@ function AiPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
               {suggestions.map((s) => (
                 <button
                   key={s}
-                  className="w-full text-right rounded-lg border bg-background px-3 py-2 text-sm hover:border-primary hover:bg-muted/50"
+                  onClick={() => setQuery(s)}
+                  className="w-full text-right rounded-lg border bg-background px-3 py-2.5 text-sm hover:border-primary hover:bg-muted/50 active:bg-muted transition-colors min-h-[40px]"
                 >
                   {s}
                 </button>
               ))}
             </div>
           </div>
-          <div className="relative pt-2">
+        </div>
+
+        <div className="border-t bg-surface px-3 sm:px-4 py-3 shrink-0 safe-area-bottom">
+          <div className="relative">
             <input
-              className="w-full rounded-xl border bg-background py-3 pr-4 pl-12 text-sm"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="w-full rounded-xl border bg-background py-3 pr-4 pl-14 text-sm focus:outline-none focus:ring-2 focus:ring-ring min-h-[48px]"
               placeholder="اسأل المساعد..."
             />
-            <button className="absolute left-2 top-1/2 -translate-y-1/2 mt-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+            <button
+              className="absolute left-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground min-h-[40px] hover:opacity-90 active:opacity-80 transition-opacity"
+              aria-label="إرسال"
+            >
+              <Send size={14} />
               إرسال
             </button>
           </div>
@@ -459,10 +567,26 @@ function AiPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   );
 }
 
+function AiFab({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label="فتح المساعد الذكي"
+      title="المساعد الذكي"
+      className="lg:hidden fixed bottom-20 right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-primary to-info text-white shadow-elevated active:scale-95 transition-transform"
+    >
+      <Sparkles size={22} />
+    </button>
+  );
+}
+
 function BottomNav({ onMore }: { onMore: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
-    <nav className="fixed bottom-0 right-0 left-0 z-30 border-t bg-surface/95 backdrop-blur-xl safe-area-bottom lg:hidden shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
+    <nav
+      aria-label="التنقل السفلي"
+      className="fixed bottom-0 right-0 left-0 z-30 border-t bg-surface/95 backdrop-blur-xl safe-area-bottom lg:hidden shadow-[0_-1px_3px_rgba(0,0,0,0.05)]"
+    >
       <div className="flex items-center justify-around h-16">
         {BOTTOM_NAV_ITEMS.map((item) => {
           const active =
@@ -475,7 +599,7 @@ function BottomNav({ onMore }: { onMore: () => void }) {
               <button
                 key={item.label}
                 onClick={onMore}
-                className="flex flex-col items-center justify-center gap-0.5 h-full min-w-[64px] px-1 rounded-lg text-muted-foreground hover:text-foreground transition-colors active:scale-95"
+                className="flex flex-col items-center justify-center gap-0.5 h-full min-w-[64px] px-1 rounded-lg text-muted-foreground hover:text-foreground active:bg-muted/50 transition-colors active:scale-95"
                 aria-label="القائمة الكاملة"
               >
                 <Icon size={22} className={active ? "text-primary" : ""} />
@@ -487,7 +611,7 @@ function BottomNav({ onMore }: { onMore: () => void }) {
             <Link
               key={item.label}
               to={item.to}
-              className={`flex flex-col items-center justify-center gap-0.5 h-full min-w-[64px] px-1 rounded-lg transition-colors active:scale-95 ${active ? "text-primary font-semibold" : "text-muted-foreground hover:text-foreground"}`}
+              className={`flex flex-col items-center justify-center gap-0.5 h-full min-w-[64px] px-1 rounded-lg transition-colors active:bg-muted/50 active:scale-95 ${active ? "text-primary font-semibold" : "text-muted-foreground hover:text-foreground"}`}
               aria-label={item.label}
             >
               <Icon size={22} />
@@ -512,19 +636,21 @@ export function AppShell({
   actions?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+
   return (
-    <div className="min-h-screen flex w-full bg-background mobile-container" dir="rtl">
+    <div className="min-h-[100dvh] flex w-full max-w-full bg-background mobile-container" dir="rtl">
       <Sidebar open={open} onClose={() => setOpen(false)} />
-      <div className="flex-1 flex flex-col min-w-0 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pb-0">
-        <Topbar onMenu={() => setOpen(true)} />
+      <div className="flex-1 flex flex-col min-w-0 max-w-full pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pb-0 overflow-x-hidden">
+        <Topbar onMenu={() => setOpen(true)} aiOpen={aiOpen} setAiOpen={setAiOpen} />
         {(title || breadcrumb || actions) && (
-          <div className="border-b bg-surface px-4 lg:px-8 py-3 lg:py-4">
-            <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="border-b bg-surface px-3 sm:px-4 lg:px-8 py-3 lg:py-4">
+            <div className="flex flex-wrap items-end justify-between gap-2 lg:gap-3">
               <div className="min-w-0 flex-1">
                 {breadcrumb && (
-                  <nav className="flex items-center gap-1 text-xs text-muted-foreground mb-0.5">
+                  <nav className="flex items-center gap-1 text-xs text-muted-foreground mb-0.5 overflow-x-auto no-scrollbar">
                     {breadcrumb.map((b, i) => (
-                      <span key={i} className="flex items-center gap-1 whitespace-nowrap">
+                      <span key={i} className="flex items-center gap-1 whitespace-nowrap shrink-0">
                         <span className="truncate max-w-[80px] sm:max-w-none">{b}</span>
                         {i < breadcrumb.length - 1 && (
                           <ChevronLeft size={12} className="shrink-0" />
@@ -534,7 +660,7 @@ export function AppShell({
                   </nav>
                 )}
                 {title && (
-                  <h1 className="text-xl lg:text-2xl font-extrabold tracking-tight truncate">
+                  <h1 className="text-lg sm:text-xl lg:text-2xl font-extrabold tracking-tight truncate">
                     {title}
                   </h1>
                 )}
@@ -545,7 +671,7 @@ export function AppShell({
             </div>
           </div>
         )}
-        <main className="flex-1 px-3 sm:px-4 lg:px-8 py-4 lg:py-6 overflow-x-hidden">
+        <main className="flex-1 px-3 sm:px-4 lg:px-8 py-4 lg:py-6 overflow-x-hidden max-w-full">
           {children}
         </main>
         <footer className="hidden lg:flex border-t bg-surface px-6 py-3 text-[11px] text-muted-foreground flex-wrap items-center justify-between gap-2">
@@ -554,6 +680,8 @@ export function AppShell({
         </footer>
       </div>
       <BottomNav onMore={() => setOpen(true)} />
+      <AiFab onClick={() => setAiOpen(true)} />
+      <AiPanel open={aiOpen} onClose={() => setAiOpen(false)} />
     </div>
   );
 }
@@ -779,24 +907,43 @@ export function MobileFilterDrawer({
   onClose: () => void;
   children: ReactNode;
 }) {
+  useBodyScrollLock(open);
   return (
     <>
-      {open && <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={onClose} />}
+      <div
+        className={`fixed inset-0 z-[55] bg-black/55 backdrop-blur-sm transition-opacity duration-200 lg:hidden ${
+          open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+        onClick={onClose}
+        aria-hidden="true"
+      />
       <aside
-        className={`fixed bottom-0 right-0 left-0 z-50 bg-surface rounded-t-2xl border shadow-elevated transition-transform lg:hidden pb-safe ${open ? "translate-y-0" : "translate-y-full"}`}
-        style={{ maxHeight: "70vh" }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="التصفية"
+        className={`fixed bottom-0 right-0 left-0 z-[60] bg-surface rounded-t-2xl border shadow-elevated transition-transform duration-300 ease-out lg:hidden pb-safe will-change-transform ${
+          open ? "translate-y-0" : "translate-y-full"
+        }`}
+        style={{ maxHeight: "85dvh" }}
       >
-        <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b sticky top-0 bg-surface rounded-t-2xl">
+        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b sticky top-0 bg-surface rounded-t-2xl safe-area-top">
           <span className="font-bold text-base">تصفية</span>
-          <button onClick={onClose} className="text-muted-foreground">
-            <X size={20} />
+          <button
+            onClick={onClose}
+            aria-label="إغلاق"
+            className="grid h-11 w-11 place-items-center rounded-lg text-muted-foreground hover:bg-muted active:bg-muted/80 transition-colors"
+          >
+            <X size={22} />
           </button>
         </div>
-        <div className="overflow-y-auto p-5 space-y-4" style={{ maxHeight: "calc(70vh - 52px)" }}>
+        <div
+          className="overflow-y-auto overscroll-contain p-5 space-y-4"
+          style={{ maxHeight: "calc(85dvh - 64px)" }}
+        >
           {children}
           <button
             onClick={onClose}
-            className="w-full rounded-lg bg-primary text-primary-foreground py-3 font-semibold text-sm min-h-[44px]"
+            className="w-full rounded-lg bg-primary text-primary-foreground py-3 font-semibold text-sm min-h-[48px] hover:opacity-90 active:opacity-80 transition-opacity"
           >
             تطبيق التصفية
           </button>
@@ -848,10 +995,10 @@ export function MobileSearchInput({
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
-    <div className="relative flex-1">
+    <div className="relative flex-1 min-w-0">
       <Search
         size={16}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
       />
       <input
         className="w-full rounded-xl border bg-background py-2.5 pr-9 pl-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring min-h-[44px]"
@@ -873,10 +1020,10 @@ export function MobilePageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="lg:hidden flex items-center justify-between mb-3">
-      <div>
-        <h2 className="text-base font-bold">{title}</h2>
-        {count && <p className="text-xs text-muted-foreground">{count}</p>}
+    <div className="lg:hidden flex items-center justify-between mb-3 gap-2">
+      <div className="min-w-0 flex-1">
+        <h2 className="text-base font-bold truncate">{title}</h2>
+        {count && <p className="text-xs text-muted-foreground truncate">{count}</p>}
       </div>
       {action}
     </div>
@@ -898,7 +1045,7 @@ export function MobileTabBar({
         <button
           key={t}
           onClick={() => onChange(t)}
-          className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors min-h-[36px] ${
+          className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors min-h-[36px] shrink-0 ${
             t === active
               ? "bg-primary text-primary-foreground shadow-sm"
               : "bg-muted text-muted-foreground hover:bg-muted/80"
