@@ -289,6 +289,24 @@ export function initDB() {
       created_at TEXT NOT NULL DEFAULT ''
     );
 
+    CREATE TABLE IF NOT EXISTS fiscal_periods (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      start_date TEXT NOT NULL DEFAULT '',
+      end_date TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'مفتوحة',
+      closed_at TEXT,
+      closed_by_id TEXT,
+      closed_by_name TEXT,
+      reopened_at TEXT,
+      reopened_by_id TEXT,
+      reopened_by_name TEXT,
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
     CREATE TABLE IF NOT EXISTS approvals (
       id TEXT PRIMARY KEY,
       type TEXT NOT NULL,

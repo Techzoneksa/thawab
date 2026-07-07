@@ -304,6 +304,26 @@ export const budgetLines = sqliteTable("budget_lines", {
   createdAt: text("created_at").notNull().default(""),
 });
 
+// ============ FISCAL PERIODS ============
+
+export const fiscalPeriods = sqliteTable("fiscal_periods", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  startDate: text("start_date").notNull().default(""),
+  endDate: text("end_date").notNull().default(""),
+  status: text("status").notNull().default("مفتوحة"),
+  closedAt: text("closed_at"),
+  closedById: text("closed_by_id"),
+  closedByName: text("closed_by_name"),
+  reopenedAt: text("reopened_at"),
+  reopenedById: text("reopened_by_id"),
+  reopenedByName: text("reopened_by_name"),
+  notes: text("notes").default(""),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
 // ============ APPROVALS ============
 
 export const approvals = sqliteTable("approvals", {
