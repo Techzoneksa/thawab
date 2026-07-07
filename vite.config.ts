@@ -12,5 +12,20 @@ export default defineConfig({
   },
   nitro: {
     preset: "node-server",
+    // Keep the canonical `.output/server/index.mjs` layout produced by
+    // TanStack Start + Nitro v3. The TanStack Start / Nitro convention is
+    // to ship the SSR bundle under `.output/server/` and the static
+    // assets under `.output/public/`, and `.output/nitro.json` exposes
+    // `serverEntry: "server/index.mjs"` (relative to `.output/`).
+    //
+    // `npm run postbuild` (see `scripts/postbuild.mjs`) then mirrors the
+    // Nitro output into `./server/index.mjs` and `./public/` at the repo
+    // root, so Node.js hosts that auto-detect the conventional entry
+    // point (`node server/index.mjs` — Hostinger Node.js preset,
+    // Render, Railway, Fly.io, a plain systemd unit, etc.) can boot the
+    // app without a wrapper shim. The postbuild step is run by npm
+    // automatically after `vite build` finishes, so the repo-root
+    // `server/index.mjs` is regenerated on every build rather than
+    // hand-authored.
   },
 });
