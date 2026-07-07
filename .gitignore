@@ -20,10 +20,10 @@ dist-ssr
 # `scripts/postbuild.mjs` after `vite build` so the conventional
 # `node server/index.mjs` entry works on self-hosting Node.js hosts
 # without needing them to read `.output/nitro.json`.
-server/
+/server/
 
 # Mirror of the Nitro static public assets at the repo root.
-public/
+/public/
 *.local
 .env
 .env.local

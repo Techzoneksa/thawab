@@ -1,0 +1,1313 @@
+// Schema bootstrap — programmatic CREATE TABLE + ALTER TABLE migrations
+// Both SQLite (local dev) and PostgreSQL (production) dialects.
+
+// ============ SQLITE DDL ============
+
+export const SQLITE_DDL = `
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL,
+      phone TEXT,
+      role TEXT NOT NULL DEFAULT 'employee',
+      branch_id TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      avatar TEXT,
+      created_at TEXT NOT NULL DEFAULT '',
+      last_login TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS roles (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      permissions TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      token TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS branches (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      city TEXT NOT NULL,
+      manager TEXT,
+      phone TEXT,
+      email TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS donors (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'فرد',
+      email TEXT,
+      phone TEXT,
+      city TEXT DEFAULT '',
+      address TEXT DEFAULT '',
+      tag TEXT DEFAULT 'برونزي',
+      total_donations REAL NOT NULL DEFAULT 0,
+      donation_count INTEGER NOT NULL DEFAULT 0,
+      last_donation TEXT,
+      recurring INTEGER NOT NULL DEFAULT 0,
+      notes TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'نشط',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS campaigns (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      goal REAL NOT NULL DEFAULT 0,
+      raised REAL NOT NULL DEFAULT 0,
+      start_date TEXT DEFAULT '',
+      end_date TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'مخطط',
+      description TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      code TEXT DEFAULT '',
+      type TEXT DEFAULT '',
+      category TEXT DEFAULT '',
+      branch TEXT DEFAULT '',
+      manager TEXT NOT NULL,
+      budget REAL NOT NULL DEFAULT 0,
+      spent REAL NOT NULL DEFAULT 0,
+      donations REAL NOT NULL DEFAULT 0,
+      beneficiary_count INTEGER NOT NULL DEFAULT 0,
+      progress INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'مخطط',
+      start_date TEXT DEFAULT '',
+      end_date TEXT DEFAULT '',
+      description TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS donations (
+      id TEXT PRIMARY KEY,
+      donor_id TEXT NOT NULL REFERENCES donors(id),
+      project_id TEXT REFERENCES projects(id),
+      campaign_id TEXT REFERENCES campaigns(id),
+      amount REAL NOT NULL,
+      method TEXT NOT NULL DEFAULT 'نقدي',
+      channel TEXT NOT NULL DEFAULT 'مباشر',
+      status TEXT NOT NULL DEFAULT 'مسودة',
+      receipt_id TEXT,
+      notes TEXT DEFAULT '',
+      date TEXT NOT NULL DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS beneficiaries (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      file_number TEXT DEFAULT '',
+      id_number TEXT DEFAULT '',
+      phone TEXT,
+      city TEXT DEFAULT '',
+      address TEXT DEFAULT '',
+      category TEXT NOT NULL DEFAULT 'أسر محتاجة',
+      status TEXT NOT NULL DEFAULT 'جديد',
+      family_members INTEGER NOT NULL DEFAULT 1,
+      monthly_income REAL NOT NULL DEFAULT 0,
+      marital_status TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS aid_records (
+      id TEXT PRIMARY KEY,
+      beneficiary_id TEXT NOT NULL REFERENCES beneficiaries(id),
+      project_id TEXT REFERENCES projects(id),
+      type TEXT NOT NULL DEFAULT 'مساعدة عاجلة',
+      amount REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'بانتظار الموافقة',
+      date TEXT NOT NULL DEFAULT '',
+      approved_by TEXT REFERENCES users(id),
+      approved_at TEXT,
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS receipts (
+      id TEXT PRIMARY KEY,
+      donation_id TEXT REFERENCES donations(id),
+      number TEXT NOT NULL UNIQUE,
+      amount REAL NOT NULL,
+      date TEXT NOT NULL DEFAULT '',
+      type TEXT NOT NULL DEFAULT 'تبرع',
+      status TEXT NOT NULL DEFAULT 'مرحّل',
+      printed INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS accounts (
+      id TEXT PRIMARY KEY,
+      code TEXT NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'تفصيلي',
+      level INTEGER NOT NULL DEFAULT 1,
+      parent_id TEXT,
+      currency TEXT NOT NULL DEFAULT 'SAR',
+      balance REAL NOT NULL DEFAULT 0,
+      postable INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL DEFAULT 'نشط',
+      description TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS journal_entries (
+      id TEXT PRIMARY KEY,
+      number TEXT NOT NULL UNIQUE,
+      date TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      debit_account TEXT NOT NULL DEFAULT '',
+      credit_account TEXT NOT NULL DEFAULT '',
+      amount REAL NOT NULL DEFAULT 0,
+      fund TEXT NOT NULL DEFAULT 'مقيد',
+      currency TEXT NOT NULL DEFAULT 'SAR',
+      project_id TEXT REFERENCES projects(id),
+      source_type TEXT,
+      source_id TEXT,
+      status TEXT NOT NULL DEFAULT 'مسودة',
+      posted_by TEXT REFERENCES users(id),
+      posted_at TEXT,
+      reversed_by TEXT,
+      reversed_at TEXT,
+      reversed_of TEXT,
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS journal_lines (
+      id TEXT PRIMARY KEY,
+      journal_entry_id TEXT NOT NULL REFERENCES journal_entries(id) ON DELETE CASCADE,
+      line_number INTEGER NOT NULL,
+      account_id TEXT NOT NULL REFERENCES accounts(id),
+      description TEXT DEFAULT '',
+      debit REAL NOT NULL DEFAULT 0,
+      credit REAL NOT NULL DEFAULT 0,
+      cost_center_id TEXT REFERENCES cost_centers(id),
+      project_id TEXT REFERENCES projects(id),
+      notes TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS cost_centers (
+      id TEXT PRIMARY KEY,
+      code TEXT NOT NULL,
+      name TEXT NOT NULL,
+      manager TEXT DEFAULT '',
+      budget REAL NOT NULL DEFAULT 0,
+      spent REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'نشط',
+      description TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS budgets (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      year TEXT NOT NULL,
+      amount REAL NOT NULL,
+      spent REAL NOT NULL DEFAULT 0,
+      department TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'مخطط',
+      currency TEXT NOT NULL DEFAULT 'SAR',
+      description TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      approved_by TEXT REFERENCES users(id),
+      approved_at TEXT,
+      locked_by TEXT REFERENCES users(id),
+      locked_at TEXT,
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS budget_lines (
+      id TEXT PRIMARY KEY,
+      budget_id TEXT NOT NULL REFERENCES budgets(id) ON DELETE CASCADE,
+      line_number INTEGER NOT NULL,
+      account_id TEXT REFERENCES accounts(id),
+      cost_center_id TEXT REFERENCES cost_centers(id),
+      project_id TEXT REFERENCES projects(id),
+      planned_amount REAL NOT NULL DEFAULT 0,
+      actual_amount REAL NOT NULL DEFAULT 0,
+      notes TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS fiscal_periods (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      start_date TEXT NOT NULL DEFAULT '',
+      end_date TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'مفتوحة',
+      closed_at TEXT,
+      closed_by_id TEXT,
+      closed_by_name TEXT,
+      reopened_at TEXT,
+      reopened_by_id TEXT,
+      reopened_by_name TEXT,
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS approvals (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      requester TEXT NOT NULL,
+      amount REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'بانتظار موافقتي',
+      priority TEXT NOT NULL DEFAULT 'متوسطة',
+      level INTEGER NOT NULL DEFAULT 1,
+      project_id TEXT REFERENCES projects(id),
+      notes TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS suppliers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      activity TEXT DEFAULT '',
+      phone TEXT,
+      email TEXT,
+      tax_number TEXT DEFAULT '',
+      contact_person TEXT DEFAULT '',
+      address TEXT DEFAULT '',
+      rating REAL NOT NULL DEFAULT 0,
+      balance REAL NOT NULL DEFAULT 0,
+      notes TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'نشط',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS purchase_requests (
+      id TEXT PRIMARY KEY,
+      subject TEXT NOT NULL,
+      department TEXT NOT NULL,
+      priority TEXT NOT NULL DEFAULT 'متوسطة',
+      status TEXT NOT NULL DEFAULT 'مسودة',
+      requester TEXT DEFAULT '',
+      amount REAL NOT NULL DEFAULT 0,
+      delivery_date TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS purchase_orders (
+      id TEXT PRIMARY KEY,
+      supplier_id TEXT REFERENCES suppliers(id),
+      request_id TEXT REFERENCES purchase_requests(id),
+      subject TEXT NOT NULL,
+      date TEXT NOT NULL DEFAULT '',
+      delivery_date TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'مسودة',
+      total REAL NOT NULL DEFAULT 0,
+      received_amount REAL NOT NULL DEFAULT 0,
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS purchase_order_lines (
+      id TEXT PRIMARY KEY,
+      order_id TEXT NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+      line_number INTEGER NOT NULL,
+      item_id TEXT REFERENCES inventory_items(id),
+      description TEXT NOT NULL DEFAULT '',
+      quantity REAL NOT NULL DEFAULT 0,
+      unit_price REAL NOT NULL DEFAULT 0,
+      received_quantity REAL NOT NULL DEFAULT 0,
+      unit TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS quotes (
+      id TEXT PRIMARY KEY,
+      request_id TEXT REFERENCES purchase_requests(id),
+      supplier_id TEXT REFERENCES suppliers(id),
+      supplier TEXT NOT NULL,
+      price REAL NOT NULL DEFAULT 0,
+      delivery TEXT DEFAULT '',
+      warranty TEXT DEFAULT '',
+      rating REAL NOT NULL DEFAULT 0,
+      winner INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'بانتظار',
+      valid_until TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_items (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      sku TEXT DEFAULT '',
+      unit TEXT NOT NULL DEFAULT 'قطعة',
+      category TEXT DEFAULT '',
+      warehouse_id TEXT,
+      quantity REAL NOT NULL DEFAULT 0,
+      min_quantity REAL NOT NULL DEFAULT 0,
+      price REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'نشط',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS warehouses (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      location TEXT DEFAULT '',
+      manager TEXT DEFAULT '',
+      capacity REAL NOT NULL DEFAULT 0,
+      occupancy REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'نشط',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS stock_movements (
+      id TEXT PRIMARY KEY,
+      item_id TEXT NOT NULL REFERENCES inventory_items(id),
+      warehouse_id TEXT REFERENCES warehouses(id),
+      type TEXT NOT NULL,
+      quantity REAL NOT NULL DEFAULT 0,
+      balance_after REAL NOT NULL DEFAULT 0,
+      related_warehouse_id TEXT REFERENCES warehouses(id),
+      related_stocktake_id TEXT,
+      source_type TEXT,
+      source_id TEXT,
+      reference TEXT DEFAULT '',
+      date TEXT NOT NULL DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS stocktakes (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      warehouse_id TEXT REFERENCES warehouses(id),
+      date TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'مسودة',
+      approved_by TEXT REFERENCES users(id),
+      approved_at TEXT,
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS stocktake_lines (
+      id TEXT PRIMARY KEY,
+      stocktake_id TEXT NOT NULL REFERENCES stocktakes(id) ON DELETE CASCADE,
+      item_id TEXT NOT NULL REFERENCES inventory_items(id),
+      system_quantity REAL NOT NULL DEFAULT 0,
+      counted_quantity REAL NOT NULL DEFAULT 0,
+      difference REAL NOT NULL DEFAULT 0,
+      notes TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS grants (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      donor TEXT NOT NULL,
+      amount REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'معلق',
+      start_date TEXT DEFAULT '',
+      end_date TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS endowments (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'وقف عام',
+      value REAL NOT NULL DEFAULT 0,
+      returns REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'نشط',
+      notes TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS memberships (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'عضو',
+      type TEXT NOT NULL DEFAULT 'مجلس إدارة',
+      phone TEXT,
+      email TEXT,
+      status TEXT NOT NULL DEFAULT 'نشط',
+      joined_at TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS meetings (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      date TEXT NOT NULL DEFAULT '',
+      location TEXT DEFAULT '',
+      attendees TEXT DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'مجدول',
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id),
+      user_name TEXT NOT NULL DEFAULT '',
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      before TEXT,
+      after TEXT,
+      ip TEXT DEFAULT '',
+      timestamp TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS fixed_assets (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      code TEXT DEFAULT '',
+      category TEXT DEFAULT '',
+      location TEXT DEFAULT '',
+      cost REAL NOT NULL DEFAULT 0,
+      salvage_value REAL NOT NULL DEFAULT 0,
+      useful_life_months INTEGER NOT NULL DEFAULT 60,
+      accumulated_depreciation REAL NOT NULL DEFAULT 0,
+      depreciation_method TEXT NOT NULL DEFAULT 'قسط ثابت',
+      status TEXT NOT NULL DEFAULT 'نشط',
+      condition TEXT DEFAULT 'جيد',
+      purchase_date TEXT DEFAULT '',
+      supplier_id TEXT REFERENCES suppliers(id),
+      serial_number TEXT DEFAULT '',
+      responsible_person TEXT DEFAULT '',
+      source_type TEXT,
+      source_id TEXT,
+      notes TEXT DEFAULT '',
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS asset_depreciations (
+      id TEXT PRIMARY KEY,
+      asset_id TEXT NOT NULL REFERENCES fixed_assets(id) ON DELETE CASCADE,
+      date TEXT NOT NULL DEFAULT '',
+      amount REAL NOT NULL DEFAULT 0,
+      book_value_after REAL NOT NULL DEFAULT 0,
+      method TEXT NOT NULL DEFAULT 'قسط ثابت',
+      notes TEXT DEFAULT '',
+      source_type TEXT,
+      source_id TEXT,
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS asset_movements (
+      id TEXT PRIMARY KEY,
+      asset_id TEXT NOT NULL REFERENCES fixed_assets(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      from_location TEXT DEFAULT '',
+      to_location TEXT DEFAULT '',
+      from_responsible TEXT DEFAULT '',
+      to_responsible TEXT DEFAULT '',
+      cost REAL NOT NULL DEFAULT 0,
+      date TEXT NOT NULL DEFAULT '',
+      reason TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      source_type TEXT,
+      source_id TEXT,
+      created_by TEXT REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT ''
+    );
+`;
+
+export const SQLITE_MIGRATIONS = [
+  `ALTER TABLE aid_records ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE aid_records ADD COLUMN delivered_at TEXT`,
+  `ALTER TABLE aid_records ADD COLUMN delivered_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE aid_records ADD COLUMN delivery_method TEXT DEFAULT ''`,
+  `ALTER TABLE aid_records ADD COLUMN delivery_notes TEXT DEFAULT ''`,
+  `ALTER TABLE projects ADD COLUMN code TEXT DEFAULT ''`,
+  `ALTER TABLE projects ADD COLUMN type TEXT DEFAULT ''`,
+  `ALTER TABLE projects ADD COLUMN category TEXT DEFAULT ''`,
+  `ALTER TABLE projects ADD COLUMN branch TEXT DEFAULT ''`,
+  `ALTER TABLE projects ADD COLUMN notes TEXT DEFAULT ''`,
+  `ALTER TABLE beneficiaries ADD COLUMN file_number TEXT DEFAULT ''`,
+  `ALTER TABLE beneficiaries ADD COLUMN family_members INTEGER NOT NULL DEFAULT 1`,
+  `ALTER TABLE beneficiaries ADD COLUMN monthly_income REAL NOT NULL DEFAULT 0`,
+  `ALTER TABLE beneficiaries ADD COLUMN marital_status TEXT DEFAULT ''`,
+  `ALTER TABLE accounts ADD COLUMN level INTEGER NOT NULL DEFAULT 1`,
+  `ALTER TABLE accounts ADD COLUMN postable INTEGER NOT NULL DEFAULT 1`,
+  `ALTER TABLE accounts ADD COLUMN description TEXT DEFAULT ''`,
+  `ALTER TABLE accounts ADD COLUMN notes TEXT DEFAULT ''`,
+  `ALTER TABLE accounts ADD COLUMN created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE accounts ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE journal_entries ADD COLUMN currency TEXT NOT NULL DEFAULT 'SAR'`,
+  `ALTER TABLE journal_entries ADD COLUMN reversed_of TEXT`,
+  `ALTER TABLE journal_entries ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE cost_centers ADD COLUMN description TEXT DEFAULT ''`,
+  `ALTER TABLE cost_centers ADD COLUMN notes TEXT DEFAULT ''`,
+  `ALTER TABLE cost_centers ADD COLUMN created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE cost_centers ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE budgets ADD COLUMN currency TEXT NOT NULL DEFAULT 'SAR'`,
+  `ALTER TABLE budgets ADD COLUMN description TEXT DEFAULT ''`,
+  `ALTER TABLE budgets ADD COLUMN approved_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE budgets ADD COLUMN approved_at TEXT`,
+  `ALTER TABLE budgets ADD COLUMN locked_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE budgets ADD COLUMN locked_at TEXT`,
+  `ALTER TABLE budgets ADD COLUMN created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE budgets ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE suppliers ADD COLUMN contact_person TEXT DEFAULT ''`,
+  `ALTER TABLE suppliers ADD COLUMN address TEXT DEFAULT ''`,
+  `ALTER TABLE suppliers ADD COLUMN rating REAL NOT NULL DEFAULT 0`,
+  `ALTER TABLE suppliers ADD COLUMN balance REAL NOT NULL DEFAULT 0`,
+  `ALTER TABLE suppliers ADD COLUMN notes TEXT DEFAULT ''`,
+  `ALTER TABLE suppliers ADD COLUMN created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE suppliers ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE purchase_requests ADD COLUMN requester TEXT DEFAULT ''`,
+  `ALTER TABLE purchase_requests ADD COLUMN amount REAL NOT NULL DEFAULT 0`,
+  `ALTER TABLE purchase_requests ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE purchase_orders ADD COLUMN request_id TEXT REFERENCES purchase_requests(id)`,
+  `ALTER TABLE purchase_orders ADD COLUMN received_amount REAL NOT NULL DEFAULT 0`,
+  `ALTER TABLE purchase_orders ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE quotes ADD COLUMN supplier_id TEXT REFERENCES suppliers(id)`,
+  `ALTER TABLE quotes ADD COLUMN valid_until TEXT DEFAULT ''`,
+  `ALTER TABLE quotes ADD COLUMN notes TEXT DEFAULT ''`,
+  `ALTER TABLE quotes ADD COLUMN created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE quotes ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE inventory_items ADD COLUMN notes TEXT DEFAULT ''`,
+  `ALTER TABLE inventory_items ADD COLUMN created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE inventory_items ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE warehouses ADD COLUMN capacity REAL NOT NULL DEFAULT 0`,
+  `ALTER TABLE warehouses ADD COLUMN occupancy REAL NOT NULL DEFAULT 0`,
+  `ALTER TABLE warehouses ADD COLUMN notes TEXT DEFAULT ''`,
+  `ALTER TABLE warehouses ADD COLUMN created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE warehouses ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE fixed_assets ADD COLUMN code TEXT DEFAULT ''`,
+  `ALTER TABLE fixed_assets ADD COLUMN salvage_value REAL NOT NULL DEFAULT 0`,
+  `ALTER TABLE fixed_assets ADD COLUMN useful_life_months INTEGER NOT NULL DEFAULT 60`,
+  `ALTER TABLE fixed_assets ADD COLUMN depreciation_method TEXT NOT NULL DEFAULT 'قسط ثابت'`,
+  `ALTER TABLE fixed_assets ADD COLUMN condition TEXT DEFAULT 'جيد'`,
+  `ALTER TABLE fixed_assets ADD COLUMN supplier_id TEXT REFERENCES suppliers(id)`,
+  `ALTER TABLE fixed_assets ADD COLUMN serial_number TEXT DEFAULT ''`,
+  `ALTER TABLE fixed_assets ADD COLUMN responsible_person TEXT DEFAULT ''`,
+  `ALTER TABLE fixed_assets ADD COLUMN source_type TEXT`,
+  `ALTER TABLE fixed_assets ADD COLUMN source_id TEXT`,
+  `ALTER TABLE fixed_assets ADD COLUMN notes TEXT DEFAULT ''`,
+  `ALTER TABLE fixed_assets ADD COLUMN created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE fixed_assets ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+];
+
+// ============ POSTGRES DDL ============
+
+export const PG_DDL = `
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    phone TEXT,
+    role TEXT NOT NULL DEFAULT 'employee',
+    branch_id TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    avatar TEXT,
+    created_at TEXT NOT NULL DEFAULT '',
+    last_login TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS roles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    permissions TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    token TEXT NOT NULL UNIQUE,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS branches (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    city TEXT NOT NULL,
+    manager TEXT,
+    phone TEXT,
+    email TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS donors (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'فرد',
+    email TEXT,
+    phone TEXT,
+    city TEXT DEFAULT '',
+    address TEXT DEFAULT '',
+    tag TEXT DEFAULT 'برونزي',
+    total_donations DOUBLE PRECISION NOT NULL DEFAULT 0,
+    donation_count INTEGER NOT NULL DEFAULT 0,
+    last_donation TEXT,
+    recurring BOOLEAN NOT NULL DEFAULT FALSE,
+    notes TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'نشط',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS campaigns (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    goal DOUBLE PRECISION NOT NULL DEFAULT 0,
+    raised DOUBLE PRECISION NOT NULL DEFAULT 0,
+    start_date TEXT DEFAULT '',
+    end_date TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'مخطط',
+    description TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    code TEXT DEFAULT '',
+    type TEXT DEFAULT '',
+    category TEXT DEFAULT '',
+    branch TEXT DEFAULT '',
+    manager TEXT NOT NULL,
+    budget DOUBLE PRECISION NOT NULL DEFAULT 0,
+    spent DOUBLE PRECISION NOT NULL DEFAULT 0,
+    donations DOUBLE PRECISION NOT NULL DEFAULT 0,
+    beneficiary_count INTEGER NOT NULL DEFAULT 0,
+    progress INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'مخطط',
+    start_date TEXT DEFAULT '',
+    end_date TEXT DEFAULT '',
+    description TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS donations (
+    id TEXT PRIMARY KEY,
+    donor_id TEXT NOT NULL REFERENCES donors(id),
+    project_id TEXT REFERENCES projects(id),
+    campaign_id TEXT REFERENCES campaigns(id),
+    amount DOUBLE PRECISION NOT NULL,
+    method TEXT NOT NULL DEFAULT 'نقدي',
+    channel TEXT NOT NULL DEFAULT 'مباشر',
+    status TEXT NOT NULL DEFAULT 'مسودة',
+    receipt_id TEXT,
+    notes TEXT DEFAULT '',
+    date TEXT NOT NULL DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS beneficiaries (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    file_number TEXT DEFAULT '',
+    id_number TEXT DEFAULT '',
+    phone TEXT,
+    city TEXT DEFAULT '',
+    address TEXT DEFAULT '',
+    category TEXT NOT NULL DEFAULT 'أسر محتاجة',
+    status TEXT NOT NULL DEFAULT 'جديد',
+    family_members INTEGER NOT NULL DEFAULT 1,
+    monthly_income DOUBLE PRECISION NOT NULL DEFAULT 0,
+    marital_status TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS aid_records (
+    id TEXT PRIMARY KEY,
+    beneficiary_id TEXT NOT NULL REFERENCES beneficiaries(id),
+    project_id TEXT REFERENCES projects(id),
+    type TEXT NOT NULL DEFAULT 'مساعدة عاجلة',
+    amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'بانتظار الموافقة',
+    date TEXT NOT NULL DEFAULT '',
+    approved_by TEXT REFERENCES users(id),
+    approved_at TEXT,
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT '',
+    delivered_at TEXT,
+    delivered_by TEXT REFERENCES users(id),
+    delivery_method TEXT DEFAULT '',
+    delivery_notes TEXT DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS receipts (
+    id TEXT PRIMARY KEY,
+    donation_id TEXT REFERENCES donations(id),
+    number TEXT NOT NULL UNIQUE,
+    amount DOUBLE PRECISION NOT NULL,
+    date TEXT NOT NULL DEFAULT '',
+    type TEXT NOT NULL DEFAULT 'تبرع',
+    status TEXT NOT NULL DEFAULT 'مرحّل',
+    printed BOOLEAN NOT NULL DEFAULT FALSE,
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS accounts (
+    id TEXT PRIMARY KEY,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'تفصيلي',
+    level INTEGER NOT NULL DEFAULT 1,
+    parent_id TEXT,
+    currency TEXT NOT NULL DEFAULT 'SAR',
+    balance DOUBLE PRECISION NOT NULL DEFAULT 0,
+    postable BOOLEAN NOT NULL DEFAULT TRUE,
+    status TEXT NOT NULL DEFAULT 'نشط',
+    description TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS journal_entries (
+    id TEXT PRIMARY KEY,
+    number TEXT NOT NULL UNIQUE,
+    date TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    debit_account TEXT NOT NULL DEFAULT '',
+    credit_account TEXT NOT NULL DEFAULT '',
+    amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+    fund TEXT NOT NULL DEFAULT 'مقيد',
+    currency TEXT NOT NULL DEFAULT 'SAR',
+    project_id TEXT REFERENCES projects(id),
+    source_type TEXT,
+    source_id TEXT,
+    status TEXT NOT NULL DEFAULT 'مسودة',
+    posted_by TEXT REFERENCES users(id),
+    posted_at TEXT,
+    reversed_by TEXT,
+    reversed_at TEXT,
+    reversed_of TEXT,
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS journal_lines (
+    id TEXT PRIMARY KEY,
+    journal_entry_id TEXT NOT NULL REFERENCES journal_entries(id) ON DELETE CASCADE,
+    line_number INTEGER NOT NULL,
+    account_id TEXT NOT NULL REFERENCES accounts(id),
+    description TEXT DEFAULT '',
+    debit DOUBLE PRECISION NOT NULL DEFAULT 0,
+    credit DOUBLE PRECISION NOT NULL DEFAULT 0,
+    cost_center_id TEXT REFERENCES cost_centers(id),
+    project_id TEXT REFERENCES projects(id),
+    notes TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS cost_centers (
+    id TEXT PRIMARY KEY,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    manager TEXT DEFAULT '',
+    budget DOUBLE PRECISION NOT NULL DEFAULT 0,
+    spent DOUBLE PRECISION NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'نشط',
+    description TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS budgets (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    year TEXT NOT NULL,
+    amount DOUBLE PRECISION NOT NULL,
+    spent DOUBLE PRECISION NOT NULL DEFAULT 0,
+    department TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'مخطط',
+    currency TEXT NOT NULL DEFAULT 'SAR',
+    description TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    approved_by TEXT REFERENCES users(id),
+    approved_at TEXT,
+    locked_by TEXT REFERENCES users(id),
+    locked_at TEXT,
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS budget_lines (
+    id TEXT PRIMARY KEY,
+    budget_id TEXT NOT NULL REFERENCES budgets(id) ON DELETE CASCADE,
+    line_number INTEGER NOT NULL,
+    account_id TEXT REFERENCES accounts(id),
+    cost_center_id TEXT REFERENCES cost_centers(id),
+    project_id TEXT REFERENCES projects(id),
+    planned_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+    actual_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+    notes TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS fiscal_periods (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    start_date TEXT NOT NULL DEFAULT '',
+    end_date TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'مفتوحة',
+    closed_at TEXT,
+    closed_by_id TEXT,
+    closed_by_name TEXT,
+    reopened_at TEXT,
+    reopened_by_id TEXT,
+    reopened_by_name TEXT,
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS approvals (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    requester TEXT NOT NULL,
+    amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'بانتظار موافقتي',
+    priority TEXT NOT NULL DEFAULT 'متوسطة',
+    level INTEGER NOT NULL DEFAULT 1,
+    project_id TEXT REFERENCES projects(id),
+    notes TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS suppliers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    activity TEXT DEFAULT '',
+    phone TEXT,
+    email TEXT,
+    tax_number TEXT DEFAULT '',
+    contact_person TEXT DEFAULT '',
+    address TEXT DEFAULT '',
+    rating DOUBLE PRECISION NOT NULL DEFAULT 0,
+    balance DOUBLE PRECISION NOT NULL DEFAULT 0,
+    notes TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'نشط',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS purchase_requests (
+    id TEXT PRIMARY KEY,
+    subject TEXT NOT NULL,
+    department TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'متوسطة',
+    status TEXT NOT NULL DEFAULT 'مسودة',
+    requester TEXT DEFAULT '',
+    amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+    delivery_date TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS purchase_orders (
+    id TEXT PRIMARY KEY,
+    supplier_id TEXT REFERENCES suppliers(id),
+    request_id TEXT REFERENCES purchase_requests(id),
+    subject TEXT NOT NULL,
+    date TEXT NOT NULL DEFAULT '',
+    delivery_date TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'مسودة',
+    total DOUBLE PRECISION NOT NULL DEFAULT 0,
+    received_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS purchase_order_lines (
+    id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+    line_number INTEGER NOT NULL,
+    item_id TEXT REFERENCES inventory_items(id),
+    description TEXT NOT NULL DEFAULT '',
+    quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
+    unit_price DOUBLE PRECISION NOT NULL DEFAULT 0,
+    received_quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
+    unit TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS quotes (
+    id TEXT PRIMARY KEY,
+    request_id TEXT REFERENCES purchase_requests(id),
+    supplier_id TEXT REFERENCES suppliers(id),
+    supplier TEXT NOT NULL,
+    price DOUBLE PRECISION NOT NULL DEFAULT 0,
+    delivery TEXT DEFAULT '',
+    warranty TEXT DEFAULT '',
+    rating DOUBLE PRECISION NOT NULL DEFAULT 0,
+    winner BOOLEAN NOT NULL DEFAULT FALSE,
+    status TEXT NOT NULL DEFAULT 'بانتظار',
+    valid_until TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS inventory_items (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    sku TEXT DEFAULT '',
+    unit TEXT NOT NULL DEFAULT 'قطعة',
+    category TEXT DEFAULT '',
+    warehouse_id TEXT,
+    quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
+    min_quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
+    price DOUBLE PRECISION NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'نشط',
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS warehouses (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    location TEXT DEFAULT '',
+    manager TEXT DEFAULT '',
+    capacity DOUBLE PRECISION NOT NULL DEFAULT 0,
+    occupancy DOUBLE PRECISION NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'نشط',
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS stock_movements (
+    id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL REFERENCES inventory_items(id),
+    warehouse_id TEXT REFERENCES warehouses(id),
+    type TEXT NOT NULL,
+    quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
+    balance_after DOUBLE PRECISION NOT NULL DEFAULT 0,
+    related_warehouse_id TEXT REFERENCES warehouses(id),
+    related_stocktake_id TEXT,
+    source_type TEXT,
+    source_id TEXT,
+    reference TEXT DEFAULT '',
+    date TEXT NOT NULL DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS stocktakes (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    warehouse_id TEXT REFERENCES warehouses(id),
+    date TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'مسودة',
+    approved_by TEXT REFERENCES users(id),
+    approved_at TEXT,
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS stocktake_lines (
+    id TEXT PRIMARY KEY,
+    stocktake_id TEXT NOT NULL REFERENCES stocktakes(id) ON DELETE CASCADE,
+    item_id TEXT NOT NULL REFERENCES inventory_items(id),
+    system_quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
+    counted_quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
+    difference DOUBLE PRECISION NOT NULL DEFAULT 0,
+    notes TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS grants (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    donor TEXT NOT NULL,
+    amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'معلق',
+    start_date TEXT DEFAULT '',
+    end_date TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS endowments (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'وقف عام',
+    value DOUBLE PRECISION NOT NULL DEFAULT 0,
+    returns DOUBLE PRECISION NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'نشط',
+    notes TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS memberships (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'عضو',
+    type TEXT NOT NULL DEFAULT 'مجلس إدارة',
+    phone TEXT,
+    email TEXT,
+    status TEXT NOT NULL DEFAULT 'نشط',
+    joined_at TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS meetings (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    date TEXT NOT NULL DEFAULT '',
+    location TEXT DEFAULT '',
+    attendees TEXT DEFAULT '[]',
+    status TEXT NOT NULL DEFAULT 'مجدول',
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES users(id),
+    user_name TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    before TEXT,
+    after TEXT,
+    ip TEXT DEFAULT '',
+    timestamp TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS fixed_assets (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    code TEXT DEFAULT '',
+    category TEXT DEFAULT '',
+    location TEXT DEFAULT '',
+    cost DOUBLE PRECISION NOT NULL DEFAULT 0,
+    salvage_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+    useful_life_months INTEGER NOT NULL DEFAULT 60,
+    accumulated_depreciation DOUBLE PRECISION NOT NULL DEFAULT 0,
+    depreciation_method TEXT NOT NULL DEFAULT 'قسط ثابت',
+    status TEXT NOT NULL DEFAULT 'نشط',
+    condition TEXT DEFAULT 'جيد',
+    purchase_date TEXT DEFAULT '',
+    supplier_id TEXT REFERENCES suppliers(id),
+    serial_number TEXT DEFAULT '',
+    responsible_person TEXT DEFAULT '',
+    source_type TEXT,
+    source_id TEXT,
+    notes TEXT DEFAULT '',
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS asset_depreciations (
+    id TEXT PRIMARY KEY,
+    asset_id TEXT NOT NULL REFERENCES fixed_assets(id) ON DELETE CASCADE,
+    date TEXT NOT NULL DEFAULT '',
+    amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+    book_value_after DOUBLE PRECISION NOT NULL DEFAULT 0,
+    method TEXT NOT NULL DEFAULT 'قسط ثابت',
+    notes TEXT DEFAULT '',
+    source_type TEXT,
+    source_id TEXT,
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS asset_movements (
+    id TEXT PRIMARY KEY,
+    asset_id TEXT NOT NULL REFERENCES fixed_assets(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    from_location TEXT DEFAULT '',
+    to_location TEXT DEFAULT '',
+    from_responsible TEXT DEFAULT '',
+    to_responsible TEXT DEFAULT '',
+    cost DOUBLE PRECISION NOT NULL DEFAULT 0,
+    date TEXT NOT NULL DEFAULT '',
+    reason TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    source_type TEXT,
+    source_id TEXT,
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT ''
+  );
+`;
+
+export const PG_MIGRATIONS = [
+  `ALTER TABLE aid_records ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE aid_records ADD COLUMN IF NOT EXISTS delivered_at TEXT`,
+  `ALTER TABLE aid_records ADD COLUMN IF NOT EXISTS delivered_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE aid_records ADD COLUMN IF NOT EXISTS delivery_method TEXT DEFAULT ''`,
+  `ALTER TABLE aid_records ADD COLUMN IF NOT EXISTS delivery_notes TEXT DEFAULT ''`,
+  `ALTER TABLE projects ADD COLUMN IF NOT EXISTS code TEXT DEFAULT ''`,
+  `ALTER TABLE projects ADD COLUMN IF NOT EXISTS type TEXT DEFAULT ''`,
+  `ALTER TABLE projects ADD COLUMN IF NOT EXISTS category TEXT DEFAULT ''`,
+  `ALTER TABLE projects ADD COLUMN IF NOT EXISTS branch TEXT DEFAULT ''`,
+  `ALTER TABLE projects ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT ''`,
+  `ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS file_number TEXT DEFAULT ''`,
+  `ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS family_members INTEGER NOT NULL DEFAULT 1`,
+  `ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS monthly_income DOUBLE PRECISION NOT NULL DEFAULT 0`,
+  `ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS marital_status TEXT DEFAULT ''`,
+  `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS level INTEGER NOT NULL DEFAULT 1`,
+  `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS postable BOOLEAN NOT NULL DEFAULT TRUE`,
+  `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''`,
+  `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT ''`,
+  `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'SAR'`,
+  `ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS reversed_of TEXT`,
+  `ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE cost_centers ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''`,
+  `ALTER TABLE cost_centers ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT ''`,
+  `ALTER TABLE cost_centers ADD COLUMN IF NOT EXISTS created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE cost_centers ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE budgets ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'SAR'`,
+  `ALTER TABLE budgets ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''`,
+  `ALTER TABLE budgets ADD COLUMN IF NOT EXISTS approved_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE budgets ADD COLUMN IF NOT EXISTS approved_at TEXT`,
+  `ALTER TABLE budgets ADD COLUMN IF NOT EXISTS locked_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE budgets ADD COLUMN IF NOT EXISTS locked_at TEXT`,
+  `ALTER TABLE budgets ADD COLUMN IF NOT EXISTS created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE budgets ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS contact_person TEXT DEFAULT ''`,
+  `ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''`,
+  `ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS rating DOUBLE PRECISION NOT NULL DEFAULT 0`,
+  `ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS balance DOUBLE PRECISION NOT NULL DEFAULT 0`,
+  `ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT ''`,
+  `ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS requester TEXT DEFAULT ''`,
+  `ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS amount DOUBLE PRECISION NOT NULL DEFAULT 0`,
+  `ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS request_id TEXT REFERENCES purchase_requests(id)`,
+  `ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS received_amount DOUBLE PRECISION NOT NULL DEFAULT 0`,
+  `ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE quotes ADD COLUMN IF NOT EXISTS supplier_id TEXT REFERENCES suppliers(id)`,
+  `ALTER TABLE quotes ADD COLUMN IF NOT EXISTS valid_until TEXT DEFAULT ''`,
+  `ALTER TABLE quotes ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT ''`,
+  `ALTER TABLE quotes ADD COLUMN IF NOT EXISTS created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE quotes ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT ''`,
+  `ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS capacity DOUBLE PRECISION NOT NULL DEFAULT 0`,
+  `ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS occupancy DOUBLE PRECISION NOT NULL DEFAULT 0`,
+  `ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT ''`,
+  `ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS code TEXT DEFAULT ''`,
+  `ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS salvage_value DOUBLE PRECISION NOT NULL DEFAULT 0`,
+  `ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS useful_life_months INTEGER NOT NULL DEFAULT 60`,
+  `ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS depreciation_method TEXT NOT NULL DEFAULT 'قسط ثابت'`,
+  `ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS condition TEXT DEFAULT 'جيد'`,
+  `ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS supplier_id TEXT REFERENCES suppliers(id)`,
+  `ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS serial_number TEXT DEFAULT ''`,
+  `ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS responsible_person TEXT DEFAULT ''`,
+  `ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS source_type TEXT`,
+  `ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS source_id TEXT`,
+  `ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT ''`,
+  `ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS created_by TEXT REFERENCES users(id)`,
+  `ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT ''`,
+];
