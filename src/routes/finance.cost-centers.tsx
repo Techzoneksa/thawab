@@ -543,7 +543,13 @@ function getCostCenterActions(
     icon: any;
     onClick: () => void;
     variant?: "destructive";
-  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => {} }];
+  }> = [
+    {
+      label: "عرض التفاصيل",
+      icon: Eye,
+      onClick: () => showToast(`${c.code} - ${c.name}`, "info"),
+    },
+  ];
   actions.push({ label: "تعديل", icon: Pencil, onClick: () => openEdit(c) });
   if (c.status === "نشط") {
     actions.push({

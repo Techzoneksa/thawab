@@ -11,7 +11,7 @@ import {
   MobilePageHeader,
 } from "@/components/erp/AppShell";
 import { fmtSAR } from "@/data/sample";
-import { Plus, Eye, Printer, Download, XCircle, PackageCheck } from "lucide-react";
+import { Plus, Eye, Printer, XCircle, PackageCheck, Trash2 } from "lucide-react";
 import { useState } from "react";
 import {
   showToast,
@@ -189,7 +189,7 @@ export const Route = createFileRoute("/procurement/orders")({
                         },
                         {
                           label: "حذف",
-                          icon: Download,
+                          icon: Trash2,
                           variant: "destructive" as const,
                           onClick: () => {
                             setConfirmIdx(idx);

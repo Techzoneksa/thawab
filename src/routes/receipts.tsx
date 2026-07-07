@@ -284,7 +284,10 @@ function Page() {
                     >
                       <Printer size={13} /> طباعة
                     </button>
-                    <button className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px] flex items-center justify-center gap-1">
+                    <button
+                      onClick={() => handlePrint(r)}
+                      className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px] flex items-center justify-center gap-1"
+                    >
                       <FileText size={13} /> PDF
                     </button>
                   </div>

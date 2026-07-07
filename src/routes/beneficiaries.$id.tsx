@@ -111,11 +111,12 @@ function Page() {
           <Btn variant="outline" onClick={() => showToast("تم تصدير تقرير المستفيد", "info")}>
             <Download size={15} /> تقرير
           </Btn>
-          <Link to="/beneficiaries">
-            <Btn variant="primary">
-              <Edit size={15} /> تعديل
-            </Btn>
-          </Link>
+          <Btn
+            variant="primary"
+            onClick={() => showToast("سيتم فتح نموذج تعديل المستفيد قريباً", "info")}
+          >
+            <Edit size={15} /> تعديل
+          </Btn>
         </>
       }
     >

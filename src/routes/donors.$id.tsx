@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   AppShell,
   Card,
@@ -11,7 +12,7 @@ import {
   MobileTabBar,
   MobilePageHeader,
 } from "@/components/erp/AppShell";
-import { DONORS, DONATIONS, fmtSAR } from "@/data/sample";
+import { fmtSAR } from "@/data/sample";
 import {
   Phone,
   Mail,
@@ -31,22 +32,35 @@ import {
   EntityFormDrawer,
   PrintButton,
   PrintStyle,
+  EmptyState,
 } from "@/components/erp/actions";
+import { getDonor, type Donor } from "@/lib/api/donors";
 
 export const Route = createFileRoute("/donors/$id")({
   head: () => ({ meta: [{ title: "ملف المتبرع — ثواب" }] }),
   component: Page,
 });
 
+function tagTone(t: string) {
+  return t === "ذهبي" ? "warning" : t === "فضي" ? "info" : "muted";
+}
+
 function Page() {
   const { id } = Route.useParams();
-  const donor = DONORS.find((d) => d.id === id) || DONORS[0];
+
+  const {
+    data: donor,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["donor", id],
+    queryFn: () => getDonor(id),
+  });
+
   const [tab, setTab] = useState("نظرة عامة");
   const [mobileTab, setMobileTab] = useState("نظرة عامة");
   const [editOpen, setEditOpen] = useState(false);
-  const [notesValue, setNotesValue] = useState(
-    "متبرع منتظم منذ 1443هـ، يفضل التواصل عبر WhatsApp ودعم مشاريع الأيتام بشكل خاص. تم تكريمه في الحفل السنوي 1445.",
-  );
+  const [notesValue, setNotesValue] = useState("");
   const [tasks, setTasks] = useState([
     { t: "إرسال رسالة شكر على التبرع الأخير", done: false },
     { t: "جدولة مكالمة شكر شخصية", done: true },
@@ -78,6 +92,40 @@ function Page() {
     showToast("تم حفظ الملاحظات بنجاح", "success");
   };
 
+  if (isLoading) {
+    return (
+      <AppShell breadcrumb={["الرئيسية", "المتبرعون", "..."]} title="..." actions={<></>}>
+        <div className="flex justify-center py-12">
+          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (error || !donor) {
+    return (
+      <AppShell
+        breadcrumb={["الرئيسية", "المتبرعون", "غير موجود"]}
+        title="غير موجود"
+        actions={
+          <Link to="/donors">
+            <Btn variant="outline">العودة للمتبرعين</Btn>
+          </Link>
+        }
+      >
+        <EmptyState
+          title="المتبرع غير موجود"
+          description="لم يتم العثور على المتبرع المطلوب"
+          action={
+            <Link to="/donors">
+              <Btn variant="primary">العودة للمتبرعين</Btn>
+            </Link>
+          }
+        />
+      </AppShell>
+    );
+  }
+
   return (
     <>
       <AppShell
@@ -86,7 +134,10 @@ function Page() {
         actions={
           <>
             <PrintButton label="طباعة" />
-            <Btn variant="outline">
+            <Btn
+              variant="outline"
+              onClick={() => showToast("فتح محادثة جديدة مع المتبرع...", "info")}
+            >
               <MessageCircle size={15} />
               تواصل
             </Btn>
@@ -98,7 +149,6 @@ function Page() {
         }
       >
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 lg:gap-4">
-          {/* Profile Card */}
           <Card className="p-4 lg:p-5 lg:col-span-1">
             <div className="flex lg:flex-col items-center lg:text-center gap-4 lg:gap-0">
               <div className="grid h-14 w-14 lg:h-20 lg:w-20 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-info text-white text-lg lg:text-2xl font-extrabold">
@@ -109,47 +159,45 @@ function Page() {
                 <div className="text-xs text-muted-foreground font-mono">{donor.id}</div>
                 <div className="mt-1.5 flex gap-1.5 flex-wrap lg:justify-center">
                   <Badge tone="info">{donor.type}</Badge>
-                  <Badge tone={donor.tag === "ذهبي" ? "warning" : "muted"}>{donor.tag}</Badge>
+                  <Badge tone={tagTone(donor.tag)}>{donor.tag}</Badge>
                   {donor.recurring && <Badge tone="success">متكرر</Badge>}
                 </div>
               </div>
             </div>
             <div className="mt-4 lg:mt-5 space-y-2 text-sm">
               <div className="flex items-center gap-2 text-muted-foreground">
-                <Phone size={14} /> {donor.phone}
+                <Phone size={14} /> {donor.phone || "غير محدد"}
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
-                <Mail size={14} /> donor@example.sa
+                <Mail size={14} /> {donor.email || "غير محدد"}
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
-                <MapPin size={14} /> {donor.city}، المملكة العربية السعودية
+                <MapPin size={14} /> {donor.city || "غير محدد"}، المملكة العربية السعودية
               </div>
             </div>
             <div className="mt-4 lg:mt-5 grid grid-cols-2 gap-3 border-t pt-4">
               <div>
                 <div className="text-xs text-muted-foreground">إجمالي التبرعات</div>
                 <div className="font-bold tabular-nums text-base lg:text-lg">
-                  {fmtSAR(donor.total)}
+                  {fmtSAR(donor.totalDonations)}
                 </div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">عدد العمليات</div>
-                <div className="font-bold text-base lg:text-lg">{donor.donations}</div>
+                <div className="font-bold text-base lg:text-lg">{donor.donationCount}</div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">أول تبرع</div>
-                <div className="font-semibold text-sm">1443/05/12</div>
+                <div className="font-semibold text-sm">{donor.lastDonation || "—"}</div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">آخر تبرع</div>
-                <div className="font-semibold text-sm">1446/10/12</div>
+                <div className="font-semibold text-sm">{donor.lastDonation || "—"}</div>
               </div>
             </div>
           </Card>
 
-          {/* Tabs Section */}
           <div className="lg:col-span-3 space-y-3 lg:space-y-4">
-            {/* Desktop tabs */}
             <Card className="px-2 hidden lg:block">
               <div className="flex flex-wrap gap-1 border-b px-2">
                 {tabs.map((t) => (
@@ -164,10 +212,8 @@ function Page() {
               </div>
             </Card>
 
-            {/* Mobile header */}
             <MobilePageHeader title={donor.name} />
 
-            {/* Mobile tabs */}
             <div className="lg:hidden">
               <MobileTabBar tabs={tabs.slice(0, 4)} active={mobileTab} onChange={setMobileTab} />
             </div>
@@ -177,10 +223,16 @@ function Page() {
                 <div>
                   <div className="grid grid-cols-2 gap-3 lg:gap-4">
                     {[
-                      { l: "تبرعات هذا العام", v: fmtSAR(620_000) },
-                      { l: "متوسط التبرع", v: fmtSAR(Math.round(donor.total / donor.donations)) },
-                      { l: "أعلى تبرع", v: fmtSAR(600_000) },
-                      { l: "حملات مدعومة", v: "4 حملات" },
+                      { l: "تبرعات هذا العام", v: fmtSAR(donor.totalDonations) },
+                      {
+                        l: "متوسط التبرع",
+                        v:
+                          donor.donationCount > 0
+                            ? fmtSAR(Math.round(donor.totalDonations / donor.donationCount))
+                            : fmtSAR(0),
+                      },
+                      { l: "أعلى تبرع", v: fmtSAR(donor.totalDonations) },
+                      { l: "حملات مدعومة", v: "—" },
                     ].map((s) => (
                       <div key={s.l} className="rounded-lg border p-3">
                         <div className="text-xs text-muted-foreground">{s.l}</div>
@@ -204,75 +256,17 @@ function Page() {
               )}
 
               {activeTab === "التبرعات" && (
-                <div>
-                  <div className="hidden lg:block">
-                    <Table
-                      columns={["رقم", "التاريخ", "المشروع", "المبلغ", "الطريقة", "الحالة"]}
-                      rows={DONATIONS.slice(0, 6)}
-                      renderRow={(d) => (
-                        <>
-                          <Td className="font-mono text-xs">{d.id}</Td>
-                          <Td>{d.date}</Td>
-                          <Td>{d.project}</Td>
-                          <Td className="tabular-nums font-bold">{fmtSAR(d.amount)}</Td>
-                          <Td>{d.method}</Td>
-                          <Td>
-                            <Badge tone={statusTone(d.status)}>{d.status}</Badge>
-                          </Td>
-                        </>
-                      )}
-                    />
-                  </div>
-                  <div className="lg:hidden space-y-2">
-                    {DONATIONS.slice(0, 6).map((d) => (
-                      <div key={d.id} className="rounded-lg border p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-semibold">{d.project}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {d.date} · {d.method}
-                            </div>
-                          </div>
-                          <Badge tone={statusTone(d.status)}>{d.status}</Badge>
-                        </div>
-                        <div className="mt-2 text-base font-bold text-success tabular-nums">
-                          {fmtSAR(d.amount)}
-                        </div>
-                      </div>
-                    ))}
-                    <Link
-                      to="/donations"
-                      className="block text-center text-sm text-primary font-semibold py-2 min-h-[44px]"
-                    >
-                      عرض الكل
-                    </Link>
-                  </div>
-                </div>
+                <EmptyState
+                  title="لا توجد تبرعات"
+                  description="التبرعات المرتبطة بهذا المتبرع ستظهر هنا"
+                />
               )}
 
               {activeTab === "الإيصالات" && (
-                <div className="space-y-2">
-                  {[1, 2, 3, 4].map((n) => (
-                    <div
-                      key={n}
-                      className="flex flex-col lg:flex-row lg:items-center justify-between rounded-lg border p-3 gap-2"
-                    >
-                      <div>
-                        <div className="font-semibold">إيصال رقم RCT-2406-0{n}88</div>
-                        <div className="text-xs text-muted-foreground">
-                          صادر بتاريخ 1446/10/{12 - n} · بمبلغ {fmtSAR(250_000 - n * 10000)}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Btn variant="outline">
-                          <Printer size={14} />
-                          طباعة
-                        </Btn>
-                        <Btn variant="ghost">تنزيل PDF</Btn>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <EmptyState
+                  title="لا توجد إيصالات"
+                  description="الإيصالات المرتبطة بهذا المتبرع ستظهر هنا"
+                />
               )}
 
               {activeTab === "المهام" && (
@@ -326,7 +320,10 @@ function Page() {
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">{a.s}</span>
-                        <Btn variant="ghost" size="sm">
+                        <Btn
+                          variant="ghost"
+                          onClick={() => showToast(`جاري تجهيز ${a.n} للطباعة`, "info")}
+                        >
                           <Printer size={12} />
                         </Btn>
                       </div>
@@ -335,6 +332,22 @@ function Page() {
                   <Btn variant="outline" className="w-full mt-2" onClick={handleAddAttachment}>
                     <Upload size={15} /> رفع مرفق
                   </Btn>
+                </div>
+              )}
+
+              {activeTab === "ملاحظات" && (
+                <div className="space-y-3">
+                  <textarea
+                    className="w-full rounded-lg border bg-background p-3 text-sm min-h-[100px]"
+                    placeholder="ملاحظات إضافية..."
+                    value={notesValue}
+                    onChange={(e) => setNotesValue(e.target.value)}
+                  />
+                  <div className="flex justify-end">
+                    <Btn variant="primary" onClick={handleSaveNotes}>
+                      حفظ الملاحظات
+                    </Btn>
+                  </div>
                 </div>
               )}
             </Card>
@@ -362,21 +375,21 @@ function Page() {
           <label className="text-xs font-semibold text-muted-foreground">الجوال</label>
           <input
             className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            defaultValue={donor.phone}
+            defaultValue={donor.phone || ""}
           />
         </div>
         <div>
           <label className="text-xs font-semibold text-muted-foreground">البريد الإلكتروني</label>
           <input
             className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            defaultValue="donor@example.sa"
+            defaultValue={donor.email || ""}
           />
         </div>
         <div>
           <label className="text-xs font-semibold text-muted-foreground">المدينة</label>
           <input
             className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            defaultValue={donor.city}
+            defaultValue={donor.city || ""}
           />
         </div>
         <div>

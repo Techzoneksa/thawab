@@ -29,33 +29,68 @@ export const Route = createFileRoute("/memberships")({
     const [formOpen, setFormOpen] = useState(false);
     const [subFormOpen, setSubFormOpen] = useState(false);
     const [confirmIdx, setConfirmIdx] = useState(-1);
+    const [editingIdx, setEditingIdx] = useState(-1);
     const [formName, setFormName] = useState("");
     const [formRole, setFormRole] = useState("");
     const [formPhone, setFormPhone] = useState("");
     const [subName, setSubName] = useState("");
     const [subType, setSubType] = useState("سنوي");
 
+    const openAddMember = () => {
+      setEditingIdx(-1);
+      setFormName("");
+      setFormRole("");
+      setFormPhone("");
+      setFormOpen(true);
+    };
+
+    const openEditMember = (idx: number) => {
+      const m = data[idx];
+      setEditingIdx(idx);
+      setFormName(m.name);
+      setFormRole(m.role);
+      setFormPhone(m.phone);
+      setFormOpen(true);
+    };
+
+    const closeMemberForm = () => {
+      setFormOpen(false);
+      setEditingIdx(-1);
+      setFormName("");
+      setFormRole("");
+      setFormPhone("");
+    };
+
     const handleAddMember = () => {
       if (!formName.trim()) {
         showToast("يرجى إدخال اسم العضو", "error");
         return;
       }
-      setData([
-        {
+      if (editingIdx >= 0) {
+        const updated = [...data];
+        updated[editingIdx] = {
+          ...updated[editingIdx],
           name: formName,
-          role: formRole || "عضو",
-          since: "1446",
-          attendance: 0,
+          role: formRole || updated[editingIdx].role,
           phone: formPhone,
-          active: true,
-        },
-        ...data,
-      ]);
-      showToast("تم إضافة العضو بنجاح", "success");
-      setFormOpen(false);
-      setFormName("");
-      setFormRole("");
-      setFormPhone("");
+        };
+        setData(updated);
+        showToast("تم تحديث بيانات العضو بنجاح", "success");
+      } else {
+        setData([
+          {
+            name: formName,
+            role: formRole || "عضو",
+            since: "1446",
+            attendance: 0,
+            phone: formPhone,
+            active: true,
+          },
+          ...data,
+        ]);
+        showToast("تم إضافة العضو بنجاح", "success");
+      }
+      closeMemberForm();
     };
 
     const handleAddSub = () => {
@@ -92,15 +127,7 @@ export const Route = createFileRoute("/memberships")({
             >
               <UserPlus size={15} /> إضافة اشتراك
             </Btn>
-            <Btn
-              variant="primary"
-              onClick={() => {
-                setFormName("");
-                setFormRole("");
-                setFormPhone("");
-                setFormOpen(true);
-              }}
-            >
+            <Btn variant="primary" onClick={openAddMember}>
               <Plus size={15} /> إضافة عضو
             </Btn>
           </>
@@ -146,12 +173,7 @@ export const Route = createFileRoute("/memberships")({
                       {
                         label: "تعديل",
                         icon: Edit,
-                        onClick: () => {
-                          setFormName(m.name);
-                          setFormRole(m.role);
-                          setFormPhone(m.phone);
-                          setFormOpen(true);
-                        },
+                        onClick: () => openEditMember(idx),
                       },
                       {
                         label: "حذف",
@@ -169,8 +191,8 @@ export const Route = createFileRoute("/memberships")({
 
         <EntityFormDrawer
           open={formOpen}
-          onClose={() => setFormOpen(false)}
-          title="إضافة عضو"
+          onClose={closeMemberForm}
+          title={editingIdx >= 0 ? "تعديل عضو" : "إضافة عضو"}
           onSave={handleAddMember}
         >
           <div>

@@ -199,9 +199,18 @@ export const Route = createFileRoute("/procurement/quotes")({
               <Btn
                 variant={q.winner ? "primary" : "outline"}
                 className="w-full mt-4 justify-center"
-                onClick={() => handleAccept(idx)}
+                onClick={() => {
+                  if (q.winner) {
+                    handleAccept(idx);
+                  } else {
+                    showToast(
+                      `${q.sup} · ${fmtSAR(q.price)} · تسليم ${q.delivery} · ضمان ${q.warranty}`,
+                      "info",
+                    );
+                  }
+                }}
               >
-                {q.winner ? "اختيار" : "عرض التفاصيل"}
+                {q.winner ? "اختيار هذا العرض" : "عرض التفاصيل"}
               </Btn>
             </Card>
           ))}

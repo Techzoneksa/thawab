@@ -871,7 +871,13 @@ function getProjectActions(
   openEdit: (p: Project) => void,
   setDeleteTarget: (id: string) => void,
 ) {
-  const actions: any[] = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => {} }];
+  const actions: any[] = [
+    {
+      label: "عرض التفاصيل",
+      icon: Eye,
+      onClick: () => showToast(`مشروع: ${p.name} · ${p.status}`, "info"),
+    },
+  ];
 
   if (p.status !== "مكتمل" && p.status !== "ملغي") {
     actions.push({ label: "تعديل", icon: Pencil, onClick: () => openEdit(p) });

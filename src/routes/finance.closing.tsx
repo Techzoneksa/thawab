@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell, Card, Btn, Badge, MobilePageHeader } from "@/components/erp/AppShell";
 import { CheckCircle2, Lock, Calendar, GitBranch } from "lucide-react";
+import { showToast } from "@/components/erp/actions";
 
 export const Route = createFileRoute("/finance/closing")({
   head: () => ({ meta: [{ title: "الإقفال المالي — ثواب" }] }),
@@ -9,7 +10,10 @@ export const Route = createFileRoute("/finance/closing")({
       breadcrumb={["الرئيسية", "المالية", "الإقفال المالي"]}
       title="الإقفال الشهري والسنوي"
       actions={
-        <Btn variant="primary">
+        <Btn
+          variant="primary"
+          onClick={() => showToast("بدء إجراء إقفال شهر شوال 1446هـ...", "info")}
+        >
           <Lock size={15} />
           بدء إقفال شهر شوال
         </Btn>

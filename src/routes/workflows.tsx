@@ -9,6 +9,7 @@ import {
 } from "@/components/erp/AppShell";
 import { WORKFLOWS } from "@/data/sample";
 import { GitBranch, Plus, ChevronLeft } from "lucide-react";
+import { showToast } from "@/components/erp/actions";
 
 export const Route = createFileRoute("/workflows")({
   head: () => ({ meta: [{ title: "سير العمل — ثواب" }] }),
@@ -21,7 +22,7 @@ function Page() {
       breadcrumb={["الرئيسية", "التقارير والحوكمة", "سير العمل"]}
       title="محرّك سير العمل والاعتمادات"
       actions={
-        <Btn variant="primary">
+        <Btn variant="primary" onClick={() => showToast("إنشاء سير عمل جديد قريباً", "info")}>
           <Plus size={15} />
           سير عمل جديد
         </Btn>
@@ -51,11 +52,13 @@ function Page() {
               ))}
             </div>
             <div className="mt-4 flex gap-2">
-              <Btn variant="outline">
+              <Btn variant="outline" onClick={() => showToast(`تعديل سير عمل "${w.name}"`, "info")}>
                 <GitBranch size={14} />
                 تعديل
               </Btn>
-              <Btn variant="ghost">عرض السجل</Btn>
+              <Btn variant="ghost" onClick={() => showToast(`عرض سجل "${w.name}"`, "info")}>
+                عرض السجل
+              </Btn>
             </div>
           </Card>
         ))}

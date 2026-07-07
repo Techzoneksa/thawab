@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import type React from "react";
 import {
   AppShell,
@@ -45,6 +45,7 @@ import {
   FileBarChart,
   Printer,
 } from "lucide-react";
+import { showToast } from "@/components/erp/actions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -166,19 +167,43 @@ const alertIcon = {
 } as const;
 
 function Dashboard() {
+  const navigate = useNavigate();
+  const exportDashboard = () => {
+    const rows = KPIS.map((k) => ({
+      المؤشر: k.label,
+      القيمة: k.value,
+      الوحدة: k.unit,
+      التغيير: `${k.delta >= 0 ? "+" : ""}${k.delta}%`,
+    }));
+    const csv = [
+      "المؤشر,القيمة,الوحدة,التغيير",
+      ...rows.map((r) => [r.المؤشر, r.القيمة, r.الوحدة, r.التغيير].join(",")),
+    ].join("\r\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;bom" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "لوحة-المعلومات.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("تم تصدير لوحة المعلومات", "success");
+  };
+
   return (
     <AppShell
       breadcrumb={["الرئيسية", "لوحة المعلومات التنفيذية"]}
       title="لوحة المعلومات التنفيذية"
       actions={
         <>
-          <Btn variant="outline">
+          <Btn variant="outline" onClick={() => showToast("فتح مرشحات لوحة المعلومات...", "info")}>
             <Filter size={15} /> تصفية
           </Btn>
-          <Btn variant="outline">
+          <Btn variant="outline" onClick={exportDashboard}>
             <Download size={15} /> تصدير
           </Btn>
-          <Btn variant="primary">
+          <Btn variant="primary" onClick={() => showToast("اختر إجراءً سريعاً من القائمة", "info")}>
             <Plus size={15} /> إجراء سريع
           </Btn>
         </>
@@ -187,11 +212,19 @@ function Dashboard() {
       {/* Mobile quick action chips */}
       <MobileActionChips
         items={[
-          { label: "تبرع جديد", icon: Plus },
-          { label: "مشروع جديد", icon: FolderKanban },
-          { label: "قيد يومية", icon: FileBarChart },
-          { label: "تقرير سريع", icon: Eye },
-          { label: "طباعة", icon: Printer },
+          { label: "تبرع جديد", icon: Plus, onClick: () => navigate({ to: "/donations" }) },
+          {
+            label: "مشروع جديد",
+            icon: FolderKanban,
+            onClick: () => navigate({ to: "/projects" }),
+          },
+          {
+            label: "قيد يومية",
+            icon: FileBarChart,
+            onClick: () => navigate({ to: "/finance/journal" }),
+          },
+          { label: "تقرير سريع", icon: Eye, onClick: () => navigate({ to: "/reports" }) },
+          { label: "طباعة", icon: Printer, onClick: () => window.print() },
         ]}
       />
 
@@ -207,7 +240,7 @@ function Dashboard() {
             title="التدفق النقدي"
             hint="واردات مقابل مصروفات"
             action={
-              <Btn variant="ghost">
+              <Btn variant="ghost" onClick={exportDashboard}>
                 <Download size={14} /> تصدير
               </Btn>
             }
@@ -227,7 +260,11 @@ function Dashboard() {
             <SectionTitle
               title="آخر العمليات المالية"
               hint="آخر القيود المرحلة"
-              action={<Btn variant="ghost">عرض الكل</Btn>}
+              action={
+                <Btn variant="ghost" onClick={() => navigate({ to: "/finance/journal" })}>
+                  عرض الكل
+                </Btn>
+              }
             />
 
             {/* Desktop Table */}
@@ -325,10 +362,16 @@ function Dashboard() {
                     {fmtSAR(a.amount)}
                   </span>
                   <div className="flex gap-1">
-                    <button className="rounded-md bg-success/15 text-success px-3 py-1.5 text-xs font-semibold min-h-[32px]">
+                    <button
+                      onClick={() => showToast(`تم اعتماد الطلب "${a.subject}" بنجاح`, "success")}
+                      className="rounded-md bg-success/15 text-success px-3 py-1.5 text-xs font-semibold min-h-[32px]"
+                    >
                       اعتماد
                     </button>
-                    <button className="rounded-md bg-destructive/15 text-destructive px-3 py-1.5 text-xs font-semibold min-h-[32px]">
+                    <button
+                      onClick={() => showToast(`تم رفض الطلب "${a.subject}"`, "info")}
+                      className="rounded-md bg-destructive/15 text-destructive px-3 py-1.5 text-xs font-semibold min-h-[32px]"
+                    >
                       رفض
                     </button>
                   </div>
@@ -361,7 +404,11 @@ function Dashboard() {
           <SectionTitle
             title="أكبر المتبرعين"
             hint="هذا العام"
-            action={<Btn variant="ghost">الكل</Btn>}
+            action={
+              <Btn variant="ghost" onClick={() => navigate({ to: "/donors" })}>
+                الكل
+              </Btn>
+            }
           />
           <ul className="space-y-2">
             {TOP_DONORS.map((d, i) => (
@@ -418,7 +465,11 @@ function Dashboard() {
           <SectionTitle
             title="حالة المشاريع"
             hint="نسبة الإنجاز وتنفيذ الميزانية"
-            action={<Btn variant="ghost">عرض جميع المشاريع</Btn>}
+            action={
+              <Btn variant="ghost" onClick={() => navigate({ to: "/projects" })}>
+                عرض جميع المشاريع
+              </Btn>
+            }
           />
 
           {/* Desktop Table */}

@@ -111,11 +111,12 @@ function Page() {
             <Download size={15} /> تقرير
           </Btn>
           {!isReadOnly && (
-            <a href={`/projects`}>
-              <Btn variant="primary">
-                <Edit size={15} /> تعديل
-              </Btn>
-            </a>
+            <Btn
+              variant="primary"
+              onClick={() => showToast("سيتم فتح نموذج تعديل المشروع قريباً", "info")}
+            >
+              <Edit size={15} /> تعديل
+            </Btn>
           )}
         </>
       }

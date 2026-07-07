@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppShell, Card, SectionTitle, Btn, MobilePageHeader } from "@/components/erp/AppShell";
+import { AppShell, Card, SectionTitle, MobilePageHeader } from "@/components/erp/AppShell";
 import { fmtNum, fmtSAR } from "@/data/sample";
-import { Download, MapPin, Plus } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { useState } from "react";
-import { showToast, ExportButton } from "@/components/erp/actions";
+import { ExportButton } from "@/components/erp/actions";
 
 type RegionItem = { n: string; b: number; v: number };
 
@@ -32,14 +32,7 @@ export const Route = createFileRoute("/distribution")({
       <AppShell
         breadcrumb={["الرئيسية", "المشاريع والمستفيدون", "تقارير التوزيع"]}
         title="تقارير التوزيع الجغرافي"
-        actions={
-          <>
-            <ExportButton data={exportData} filename="distribution.csv" />
-            <Btn variant="outline" onClick={() => showToast("تم تصدير التقرير", "success")}>
-              <Download size={15} /> تصدير تقرير
-            </Btn>
-          </>
-        }
+        actions={<ExportButton data={exportData} filename="distribution.csv" />}
       >
         <MobilePageHeader title="تقارير التوزيع الجغرافي" count={`${regions.length} منطقة`} />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
