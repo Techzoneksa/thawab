@@ -62,6 +62,8 @@ import type { LucideIcon } from "lucide-react";
 type NavItem = { to: string; label: string; icon: LucideIcon };
 type NavGroup = { label: string; items: NavItem[] };
 
+const AI_ASSISTANT_ENABLED = false;
+
 const NAV: NavGroup[] = [
   {
     label: "الرئيسية",
@@ -258,37 +260,29 @@ function UserProfile() {
     window.location.href = "/login";
   };
 
-  if (isLoading || !user) {
-    return (
-      <div className="flex items-center gap-3 rounded-lg bg-white/5 p-3">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/10 animate-pulse" />
-        <div className="min-w-0 flex-1">
-          <div className="h-4 w-24 rounded animate-pulse bg-white/10 mb-1" />
-          <div className="h-3 w-16 rounded animate-pulse bg-white/10" />
-        </div>
-      </div>
-    );
-  }
-
-  const initials = user.name ? user.name[0] : "؟";
-  const roleLabel = getRoleLabel(user.role);
+  const initials = user?.name ? user.name[0] : "؟";
+  const roleLabel = user ? getRoleLabel(user.role) : "";
+  const name = user?.name || (isLoading ? "..." : "مستخدم");
 
   return (
-    <div className="flex items-center gap-3 rounded-lg bg-white/5 p-3">
-      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/10 font-bold">
-        {initials}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-semibold truncate">{user.name}</div>
-        <div className="text-[11px] text-nav-muted truncate">{roleLabel}</div>
+    <div className="flex flex-col gap-2 rounded-lg bg-white/5 p-3">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/10 font-bold">
+          {isLoading ? <span className="animate-pulse">…</span> : initials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold truncate">{name}</div>
+          <div className="text-[11px] text-nav-muted truncate">{roleLabel || "—"}</div>
+        </div>
       </div>
       <button
         onClick={handleLogout}
-        className="grid h-10 w-10 place-items-center rounded-lg text-nav-muted hover:text-white hover:bg-white/10 transition-colors"
+        className="flex items-center justify-center gap-2 rounded-lg bg-white/10 hover:bg-white/20 active:bg-white/30 transition-colors px-3 py-2 text-sm font-semibold text-white min-h-[40px] w-full"
         title="تسجيل الخروج"
         aria-label="تسجيل الخروج"
       >
         <LogOut size={16} />
+        <span>تسجيل الخروج</span>
       </button>
     </div>
   );
@@ -370,12 +364,14 @@ function Topbar({
         <div className="hidden md:flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-xs text-muted-foreground">
           <Globe size={14} /> جمعية البر الخيرية · الفرع الرئيسي · 1446هـ
         </div>
-        <button
-          onClick={() => setAiOpen(true)}
-          className="hidden sm:inline-flex items-center gap-2 rounded-lg bg-gradient-to-l from-primary to-info px-3 py-2 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-95 min-h-[40px]"
-        >
-          <Sparkles size={16} /> المساعد الذكي
-        </button>
+        {AI_ASSISTANT_ENABLED && (
+          <button
+            onClick={() => setAiOpen(true)}
+            className="hidden sm:inline-flex items-center gap-2 rounded-lg bg-gradient-to-l from-primary to-info px-3 py-2 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-95 min-h-[40px]"
+          >
+            <Sparkles size={16} /> المساعد الذكي
+          </button>
+        )}
         <button
           className="relative grid h-11 w-11 place-items-center rounded-lg border hover:bg-muted transition-colors"
           aria-label="إشعارات"
@@ -408,14 +404,16 @@ function Topbar({
           <Menu size={22} />
         </button>
         <h1 className="flex-1 text-base font-bold truncate px-1 min-w-0">{pageTitle || "ثواب"}</h1>
-        <button
-          onClick={() => setAiOpen(true)}
-          className="grid h-11 w-11 place-items-center rounded-lg text-primary hover:bg-primary/10 active:bg-primary/20 transition-colors shrink-0"
-          aria-label="المساعد الذكي"
-          title="المساعد الذكي"
-        >
-          <Sparkles size={20} />
-        </button>
+        {AI_ASSISTANT_ENABLED && (
+          <button
+            onClick={() => setAiOpen(true)}
+            className="grid h-11 w-11 place-items-center rounded-lg text-primary hover:bg-primary/10 active:bg-primary/20 transition-colors shrink-0"
+            aria-label="المساعد الذكي"
+            title="المساعد الذكي"
+          >
+            <Sparkles size={20} />
+          </button>
+        )}
         <button
           className="relative grid h-11 w-11 place-items-center rounded-lg hover:bg-muted active:bg-muted/80 transition-colors shrink-0"
           aria-label="إشعارات"
@@ -680,8 +678,12 @@ export function AppShell({
         </footer>
       </div>
       <BottomNav onMore={() => setOpen(true)} />
-      <AiFab onClick={() => setAiOpen(true)} />
-      <AiPanel open={aiOpen} onClose={() => setAiOpen(false)} />
+      {AI_ASSISTANT_ENABLED && (
+        <>
+          <AiFab onClick={() => setAiOpen(true)} />
+          <AiPanel open={aiOpen} onClose={() => setAiOpen(false)} />
+        </>
+      )}
     </div>
   );
 }
