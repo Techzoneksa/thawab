@@ -1,10 +1,13 @@
 // Database client adapter
 // Detects DATABASE_URL and routes to either:
 //   - PostgreSQL via synckit worker bridge (production)
-//   - better-sqlite3 direct (local dev, when DATABASE_URL is missing or starts with `file:`)
-import { drizzle as drizzleSqlite } from "drizzle-orm/better-sqlite3";
+//   - SQLite via @libsql/client worker bridge (local dev, when DATABASE_URL is missing or starts with `file:`)
+// Both backends are async at the driver level, so we run each one in a separate
+// thread (synckit) and expose a sync API to the rest of the app via Drizzle's
+// SQL compilation. This keeps the 21+ route files unchanged.
 import { drizzle as drizzlePg } from "drizzle-orm/postgres-js";
-import Database from "better-sqlite3";
+import { drizzle as drizzleLibsql } from "drizzle-orm/libsql";
+import { createClient } from "@libsql/client";
 import postgres from "postgres";
 import { createSyncFn } from "synckit";
 import { existsSync, mkdirSync } from "fs";
@@ -16,6 +19,7 @@ const DB_PATH = "./data/thawab.db";
 const DATABASE_URL = process.env.DATABASE_URL;
 
 type PgExec = (text: string, params?: any[]) => Promise<any[]>;
+type LibSqlExec = (text: string, params?: any[]) => Promise<any[]>;
 
 function isPgUrl(url: string | undefined): boolean {
   if (!url) return false;
@@ -32,39 +36,39 @@ function isFileUrl(url: string | undefined): boolean {
   return url.startsWith("file:");
 }
 
-type SqliteDb = ReturnType<typeof drizzleSqlite<typeof sqliteSchema>>;
-
 let _dialect: "postgres" | "sqlite";
-let _db: SqliteDb;
-let _sqliteRaw: Database.Database | null = null;
+let _db: any;
 let _pgExecSync: ((text: string, params?: any[]) => any[]) | null = null;
+let _libsqlExecSync: ((text: string, params?: any[]) => any[]) | null = null;
+
+function createPgSyncDb() {
+  _pgExecSync = createSyncFn<PgExec>(
+    new URL("./pg-worker.mjs", import.meta.url),
+  );
+  const realDb = drizzlePg(
+    postgres(DATABASE_URL!, { max: 1, prepare: false }),
+    { schema: pgSchema },
+  );
+  return wrapSync(realDb);
+}
 
 function createSqliteDb() {
   const dir = dirname(DB_PATH);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
-  const sqlite = new Database(DB_PATH);
-  sqlite.pragma("journal_mode = WAL");
-  sqlite.pragma("foreign_keys = ON");
-  _sqliteRaw = sqlite;
-  return drizzleSqlite(sqlite, { schema: sqliteSchema });
-}
-
-function createPgSyncDb() {
-  _pgExecSync = createSyncFn<PgExec>(
-    new URL("./pg-worker.mjs", import.meta.url),
+  _libsqlExecSync = createSyncFn<LibSqlExec>(
+    new URL("./libsql-worker.mjs", import.meta.url),
   );
-
-  const realDb = drizzlePg(
-    postgres(DATABASE_URL, { max: 1, prepare: false }),
-    { schema: pgSchema },
-  );
-
+  // libsql drizzle is async — we only use it for SQL compilation via toSQL().
+  const realDb = drizzleLibsql(createClient({ url: `file:${DB_PATH}` }), {
+    schema: sqliteSchema,
+  });
   return wrapSync(realDb);
 }
 
 function wrapSync(realDb: any) {
+  const execSync = _pgExecSync ?? _libsqlExecSync;
   const wrap = (qb: any) => {
     if (!qb || typeof qb !== "object" || typeof qb.toSQL !== "function") {
       return qb;
@@ -74,20 +78,20 @@ function wrapSync(realDb: any) {
         if (prop === "all") {
           return () => {
             const compiled = target.toSQL();
-            const result = _pgExecSync!(compiled.sql, compiled.params ?? []);
+            const result = execSync!(compiled.sql, compiled.params ?? []);
             return Array.isArray(result) ? result : [];
           };
         }
         if (prop === "run") {
           return () => {
             const compiled = target.toSQL();
-            _pgExecSync!(compiled.sql, compiled.params ?? []);
+            execSync!(compiled.sql, compiled.params ?? []);
           };
         }
         if (prop === "get") {
           return () => {
             const compiled = target.toSQL();
-            const result = _pgExecSync!(compiled.sql, compiled.params ?? []);
+            const result = execSync!(compiled.sql, compiled.params ?? []);
             return Array.isArray(result) ? result[0] : undefined;
           };
         }
@@ -136,8 +140,8 @@ export const db = _db;
 
 export function runRawSql(sql: string) {
   if (_dialect === "sqlite") {
-    if (!_sqliteRaw) throw new Error("sqlite connection not initialized");
-    _sqliteRaw.exec(sql);
+    if (!_libsqlExecSync) throw new Error("libsql synckit not initialized");
+    _libsqlExecSync(sql);
   } else if (_dialect === "postgres") {
     if (!_pgExecSync) throw new Error("pg synckit not initialized");
     _pgExecSync(sql);
