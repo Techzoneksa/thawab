@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -16,7 +16,6 @@ import { useState } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   EmptyState,
@@ -24,12 +23,9 @@ import {
 import { useAuth } from "@/lib/api/auth";
 import {
   getSuppliers,
-  createSupplier,
-  updateSupplier,
   activateSupplier,
   deactivateSupplier,
   deleteSupplier,
-  SUPPLIER_STATUSES,
   type Supplier,
 } from "@/lib/api/suppliers";
 
@@ -41,31 +37,14 @@ export const Route = createFileRoute("/procurement/suppliers")({
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Supplier | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-
-  const [formName, setFormName] = useState("");
-  const [formActivity, setFormActivity] = useState("");
-  const [formPhone, setFormPhone] = useState("");
-  const [formEmail, setFormEmail] = useState("");
-  const [formTaxNo, setFormTaxNo] = useState("");
-  const [formContact, setFormContact] = useState("");
-  const [formAddress, setFormAddress] = useState("");
-  const [formNotes, setFormNotes] = useState("");
-  const [formStatus, setFormStatus] = useState<string>("نشط");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["suppliers", { search: searchQuery }],
     queryFn: () => getSuppliers({ search: searchQuery }),
-  });
-
-  const { data: detailData } = useQuery({
-    queryKey: ["supplier", detailId],
-    queryFn: () => (detailId ? getSuppliers() : Promise.resolve(null)),
-    enabled: false,
   });
 
   const detailQuery = useQuery({
@@ -75,28 +54,6 @@ function Page() {
         ? await fetch(`/api/procurement/suppliers?id=${detailId}`).then((r) => r.json())
         : null,
     enabled: !!detailId,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: createSupplier,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      showToast("تم إضافة المورد بنجاح", "success");
-      setFormOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateSupplier,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      queryClient.invalidateQueries({ queryKey: ["supplierDetail"] });
-      showToast("تم تحديث المورد بنجاح", "success");
-      setFormOpen(false);
-      setEditing(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
   });
 
   const deleteMutation = useMutation({
@@ -128,53 +85,11 @@ function Page() {
   });
 
   const openAdd = () => {
-    setEditing(null);
-    setFormName("");
-    setFormActivity("");
-    setFormPhone("");
-    setFormEmail("");
-    setFormTaxNo("");
-    setFormContact("");
-    setFormAddress("");
-    setFormNotes("");
-    setFormStatus("نشط");
-    setFormOpen(true);
+    navigate({ to: "/procurement/suppliers/new" });
   };
 
   const openEdit = (s: Supplier) => {
-    setEditing(s);
-    setFormName(s.name);
-    setFormActivity(s.activity || "");
-    setFormPhone(s.phone || "");
-    setFormEmail(s.email || "");
-    setFormTaxNo(s.taxNumber || "");
-    setFormContact(s.contactPerson || "");
-    setFormAddress(s.address || "");
-    setFormNotes(s.notes || "");
-    setFormStatus(s.status || "نشط");
-    setFormOpen(true);
-  };
-
-  const handleSave = () => {
-    if (!formName.trim()) return showToast("يرجى إدخال اسم المورد", "error");
-    const payload = {
-      name: formName,
-      activity: formActivity,
-      phone: formPhone,
-      email: formEmail,
-      taxNumber: formTaxNo,
-      contactPerson: formContact,
-      address: formAddress,
-      notes: formNotes,
-      status: formStatus,
-      userId: user?.id,
-      userName: user?.name,
-    };
-    if (editing) {
-      updateMutation.mutate({ id: editing.id, ...payload });
-    } else {
-      createMutation.mutate(payload);
-    }
+    navigate({ to: "/procurement/suppliers/$id/edit", params: { id: s.id } });
   };
 
   const handleDelete = () => {
@@ -291,7 +206,9 @@ function Page() {
               <Td className="font-mono text-xs">{s.id}</Td>
               <Td>
                 <button
-                  onClick={() => setDetailId(s.id)}
+                  onClick={() =>
+                    navigate({ to: "/procurement/suppliers/$id/edit", params: { id: s.id } })
+                  }
                   className="font-semibold hover:text-primary text-right"
                 >
                   {s.name}
@@ -325,7 +242,9 @@ function Page() {
                 <span className="font-mono text-xs text-muted-foreground">{s.id}</span>
               </div>
               <button
-                onClick={() => setDetailId(s.id)}
+                onClick={() =>
+                  navigate({ to: "/procurement/suppliers/$id/edit", params: { id: s.id } })
+                }
                 className="font-semibold text-right hover:text-primary"
               >
                 {s.name}
@@ -352,110 +271,7 @@ function Page() {
       )}
 
       <EntityFormDrawer
-        open={formOpen}
-        onClose={() => {
-          setFormOpen(false);
-          setEditing(null);
-        }}
-        title={editing ? "تعديل مورد" : "إضافة مورد جديد"}
-        onSave={handleSave}
-        loading={createMutation.isPending || updateMutation.isPending}
-      >
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الاسم *</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              placeholder="اسم المورد"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">النشاط</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formActivity}
-              onChange={(e) => setFormActivity(e.target.value)}
-              placeholder="مثال: مواد غذائية"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">الجوال</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formPhone}
-                onChange={(e) => setFormPhone(e.target.value)}
-                placeholder="05xxxxxxxx"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">
-                البريد الإلكتروني
-              </label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                type="email"
-                value={formEmail}
-                onChange={(e) => setFormEmail(e.target.value)}
-                placeholder="supplier@example.com"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الرقم الضريبي</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formTaxNo}
-              onChange={(e) => setFormTaxNo(e.target.value)}
-              placeholder="1234567890"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الشخص المسؤول</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formContact}
-              onChange={(e) => setFormContact(e.target.value)}
-              placeholder="اسم الشخص المسؤول"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">العنوان</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formAddress}
-              onChange={(e) => setFormAddress(e.target.value)}
-              placeholder="المدينة، الحي"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الحالة</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formStatus}
-              onChange={(e) => setFormStatus(e.target.value)}
-            >
-              {SUPPLIER_STATUSES.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-            <textarea
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              rows={2}
-              value={formNotes}
-              onChange={(e) => setFormNotes(e.target.value)}
-            />
-          </div>
-        </div>
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
-        open={!!detailId && !formOpen}
+        open={!!detailId}
         onClose={() => setDetailId(null)}
         title={`تفاصيل المورد: ${detailQuery.data?.item?.name || ""}`}
         onSave={() => setDetailId(null)}

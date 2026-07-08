@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -27,7 +27,6 @@ import { useState } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   EmptyState,
@@ -35,8 +34,6 @@ import {
 import { useAuth } from "@/lib/api/auth";
 import {
   getFixedAssets,
-  createFixedAsset,
-  updateFixedAsset,
   transferFixedAsset,
   maintainFixedAsset,
   returnFromMaintenance,
@@ -45,8 +42,6 @@ import {
   sellFixedAsset,
   deleteFixedAsset,
   ASSET_STATUSES,
-  ASSET_CONDITIONS,
-  ASSET_DEPRECIATION_METHODS,
   type FixedAsset,
 } from "@/lib/api/assets";
 import { getSuppliers, type Supplier } from "@/lib/api/suppliers";
@@ -65,32 +60,16 @@ interface DepreciationDraft {
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("الكل");
   const [categoryFilter, setCategoryFilter] = useState("الكل");
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<FixedAsset | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FixedAsset | null>(null);
   const [actionTarget, setActionTarget] = useState<{
     asset: FixedAsset;
     action: "depreciate" | "transfer" | "maintain" | "returnMaintenance" | "dispose" | "sell";
   } | null>(null);
-
-  const [formName, setFormName] = useState("");
-  const [formCode, setFormCode] = useState("");
-  const [formCategory, setFormCategory] = useState("");
-  const [formLocation, setFormLocation] = useState("");
-  const [formCost, setFormCost] = useState("");
-  const [formSalvage, setFormSalvage] = useState("0");
-  const [formLife, setFormLife] = useState("60");
-  const [formMethod, setFormMethod] = useState("قسط ثابت");
-  const [formCondition, setFormCondition] = useState("جيد");
-  const [formPurchaseDate, setFormPurchaseDate] = useState("");
-  const [formSupplierId, setFormSupplierId] = useState("");
-  const [formSerial, setFormSerial] = useState("");
-  const [formResponsible, setFormResponsible] = useState("");
-  const [formNotes, setFormNotes] = useState("");
 
   const [depDraft, setDepDraft] = useState<DepreciationDraft>({
     amount: "",
@@ -133,28 +112,6 @@ function Page() {
     queryFn: async () =>
       detailId ? await fetch(`/api/assets?id=${detailId}`).then((r) => r.json()) : null,
     enabled: !!detailId,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: createFixedAsset,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
-      showToast("تم إضافة الأصل بنجاح", "success");
-      setFormOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateFixedAsset,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
-      queryClient.invalidateQueries({ queryKey: ["fixedAssetDetail"] });
-      showToast("تم تحديث الأصل بنجاح", "success");
-      setFormOpen(false);
-      setEditing(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
   });
 
   const transferMutation = useMutation({
@@ -235,22 +192,7 @@ function Page() {
   });
 
   const openAdd = () => {
-    setEditing(null);
-    setFormName("");
-    setFormCode("");
-    setFormCategory("");
-    setFormLocation("");
-    setFormCost("");
-    setFormSalvage("0");
-    setFormLife("60");
-    setFormMethod("قسط ثابت");
-    setFormCondition("جيد");
-    setFormPurchaseDate("");
-    setFormSupplierId("");
-    setFormSerial("");
-    setFormResponsible("");
-    setFormNotes("");
-    setFormOpen(true);
+    navigate({ to: "/assets/new" });
   };
 
   const openEdit = (a: FixedAsset) => {
@@ -258,55 +200,7 @@ function Page() {
       showToast(`لا يمكن تعديل أصل في حالة ${a.status}`, "error");
       return;
     }
-    setEditing(a);
-    setFormName(a.name);
-    setFormCode(a.code || "");
-    setFormCategory(a.category || "");
-    setFormLocation(a.location || "");
-    setFormCost(String(a.cost || 0));
-    setFormSalvage(String(a.salvageValue || 0));
-    setFormLife(String(a.usefulLifeMonths || 60));
-    setFormMethod(a.depreciationMethod || "قسط ثابت");
-    setFormCondition(a.condition || "جيد");
-    setFormPurchaseDate(a.purchaseDate || "");
-    setFormSupplierId(a.supplierId || "");
-    setFormSerial(a.serialNumber || "");
-    setFormResponsible(a.responsiblePerson || "");
-    setFormNotes(a.notes || "");
-    setFormOpen(true);
-  };
-
-  const handleSave = () => {
-    if (!formName.trim()) return showToast("يرجى إدخال اسم الأصل", "error");
-    const payload = {
-      name: formName,
-      code: formCode,
-      category: formCategory,
-      location: formLocation,
-      cost: parseFloat(formCost) || 0,
-      salvageValue: parseFloat(formSalvage) || 0,
-      usefulLifeMonths: parseInt(formLife) || 60,
-      depreciationMethod: formMethod,
-      condition: formCondition,
-      purchaseDate: formPurchaseDate,
-      supplierId: formSupplierId || undefined,
-      serialNumber: formSerial,
-      responsiblePerson: formResponsible,
-      notes: formNotes,
-      userId: user?.id,
-      userName: user?.name,
-    };
-    if (editing) {
-      updateMutation.mutate({ id: editing.id, ...payload });
-    } else {
-      createFixedAsset(payload)
-        .then((a) => {
-          queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
-          showToast("تم إضافة الأصل بنجاح", "success");
-          setFormOpen(false);
-        })
-        .catch((err: Error) => showToast(err.message, "error"));
-    }
+    navigate({ to: "/assets/$id/edit", params: { id: a.id } });
   };
 
   const items = data?.items || [];
@@ -468,7 +362,7 @@ function Page() {
               <>
                 <Td>
                   <button
-                    onClick={() => setDetailId(a.id)}
+                    onClick={() => navigate({ to: "/assets/$id/edit", params: { id: a.id } })}
                     className="font-semibold hover:text-primary text-right"
                   >
                     {a.name}
@@ -485,7 +379,7 @@ function Page() {
                   <ActionMenu
                     actions={getAssetActions(
                       a,
-                      setDetailId,
+                      navigate,
                       openEdit,
                       setActionTarget,
                       setDeleteTarget,
@@ -504,7 +398,7 @@ function Page() {
                   <span className="font-mono text-xs text-muted-foreground">{a.code || a.id}</span>
                 </div>
                 <button
-                  onClick={() => setDetailId(a.id)}
+                  onClick={() => navigate({ to: "/assets/$id/edit", params: { id: a.id } })}
                   className="font-semibold text-right hover:text-primary"
                 >
                   {a.name}
@@ -533,7 +427,7 @@ function Page() {
                 <div className="flex gap-2 mt-2">
                   <button
                     className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px]"
-                    onClick={() => setDetailId(a.id)}
+                    onClick={() => navigate({ to: "/assets/$id/edit", params: { id: a.id } })}
                   >
                     تفاصيل
                   </button>
@@ -553,171 +447,7 @@ function Page() {
       )}
 
       <EntityFormDrawer
-        open={formOpen}
-        onClose={() => {
-          setFormOpen(false);
-          setEditing(null);
-        }}
-        title={editing ? "تعديل أصل" : "إضافة أصل جديد"}
-        onSave={handleSave}
-        loading={createMutation.isPending || updateMutation.isPending}
-      >
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الاسم *</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              placeholder="اسم الأصل"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">الرمز</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formCode}
-                onChange={(e) => setFormCode(e.target.value)}
-                placeholder="AST-001"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">الفئة</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formCategory}
-                onChange={(e) => setFormCategory(e.target.value)}
-                placeholder="مثال: أجهزة مكتبية"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">الموقع</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formLocation}
-                onChange={(e) => setFormLocation(e.target.value)}
-                placeholder="الموقع الحالي"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">المسؤول</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formResponsible}
-                onChange={(e) => setFormResponsible(e.target.value)}
-                placeholder="اسم المسؤول"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">التكلفة *</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                type="number"
-                value={formCost}
-                onChange={(e) => setFormCost(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">القيمة المتبقية</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                type="number"
-                value={formSalvage}
-                onChange={(e) => setFormSalvage(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">العمر (شهر)</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                type="number"
-                value={formLife}
-                onChange={(e) => setFormLife(e.target.value)}
-                placeholder="60"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">طريقة الإهلاك</label>
-              <select
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formMethod}
-                onChange={(e) => setFormMethod(e.target.value)}
-              >
-                {ASSET_DEPRECIATION_METHODS.map((m) => (
-                  <option key={m}>{m}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">الحالة الفنية</label>
-              <select
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formCondition}
-                onChange={(e) => setFormCondition(e.target.value)}
-              >
-                {ASSET_CONDITIONS.map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">تاريخ الشراء</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                type="date"
-                value={formPurchaseDate}
-                onChange={(e) => setFormPurchaseDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">الرقم التسلسلي</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formSerial}
-                onChange={(e) => setFormSerial(e.target.value)}
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">المورد</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formSupplierId}
-              onChange={(e) => setFormSupplierId(e.target.value)}
-            >
-              <option value="">— بدون مورد —</option>
-              {suppliers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-            <textarea
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              rows={2}
-              value={formNotes}
-              onChange={(e) => setFormNotes(e.target.value)}
-            />
-          </div>
-        </div>
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
-        open={!!detailId && !formOpen && !actionTarget}
+        open={!!detailId && !actionTarget}
         onClose={() => setDetailId(null)}
         title={`تفاصيل الأصل: ${detailQuery.data?.item?.name || ""}`}
         onSave={() => setDetailId(null)}
@@ -1126,7 +856,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 function getAssetActions(
   a: FixedAsset,
-  setDetailId: (id: string) => void,
+  navigate: (opts: { to: string; params: { id: string } }) => void,
   openEdit: (a: FixedAsset) => void,
   setActionTarget: (t: {
     asset: FixedAsset;
@@ -1139,7 +869,13 @@ function getAssetActions(
     icon: typeof Eye;
     onClick: () => void;
     variant?: "destructive";
-  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(a.id) }];
+  }> = [
+    {
+      label: "عرض التفاصيل",
+      icon: Eye,
+      onClick: () => navigate({ to: "/assets/$id/edit", params: { id: a.id } }),
+    },
+  ];
 
   const readOnly = ["مستبعد", "مباع", "ملغي"].includes(a.status);
 

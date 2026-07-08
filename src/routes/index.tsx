@@ -216,7 +216,7 @@ function Dashboard() {
                 <Plus size={15} /> إجراء سريع
               </Btn>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[220px]">
+            <DropdownMenuContent align="end" className="min-w-[240px]">
               <DropdownMenuItem onSelect={() => navigate({ to: "/donations/new" })}>
                 <Plus size={14} /> تسجيل تبرع جديد
               </DropdownMenuItem>
@@ -239,6 +239,24 @@ function Dashboard() {
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => navigate({ to: "/aid/new" })}>
                 <Plus size={14} /> صرف مساعدة
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => navigate({ to: "/procurement/requests/new" })}>
+                <Plus size={14} /> طلب شراء جديد
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => navigate({ to: "/procurement/orders/new" })}>
+                <Plus size={14} /> أمر شراء جديد
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => navigate({ to: "/inventory/items/new" })}>
+                <Plus size={14} /> إضافة صنف
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => navigate({ to: "/inventory/stocktake/new" })}>
+                <Plus size={14} /> جرد جديد
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => navigate({ to: "/assets/new" })}>
+                <Plus size={14} /> تسجيل أصل ثابت
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

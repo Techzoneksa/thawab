@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -26,7 +26,6 @@ import { useState } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   PrintButton,
@@ -35,7 +34,6 @@ import {
 import { useAuth } from "@/lib/api/auth";
 import {
   getPurchaseOrders,
-  createPurchaseOrder,
   approvePurchaseOrder,
   cancelPurchaseOrder,
   receivePurchaseOrder,
@@ -53,18 +51,11 @@ export const Route = createFileRoute("/procurement/orders")({
   component: Page,
 });
 
-interface LineDraft {
-  description: string;
-  quantity: string;
-  unitPrice: string;
-  unit: string;
-}
-
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [formOpen, setFormOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [receiveTarget, setReceiveTarget] = useState<PurchaseOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null);
@@ -72,16 +63,6 @@ function Page() {
     order: PurchaseOrder;
     action: "approve" | "cancel" | "close";
   } | null>(null);
-
-  const [formSubject, setFormSubject] = useState("");
-  const [formSupplierId, setFormSupplierId] = useState("");
-  const [formRequestId, setFormRequestId] = useState("");
-  const [formDate, setFormDate] = useState("");
-  const [formDelivery, setFormDelivery] = useState("");
-  const [formNotes, setFormNotes] = useState("");
-  const [formLines, setFormLines] = useState<LineDraft[]>([
-    { description: "", quantity: "", unitPrice: "", unit: "" },
-  ]);
 
   const [receiveLines, setReceiveLines] = useState<Record<string, string>>({});
 
@@ -105,17 +86,6 @@ function Page() {
     queryFn: async () =>
       detailId ? await fetch(`/api/procurement/orders?id=${detailId}`).then((r) => r.json()) : null,
     enabled: !!detailId,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: createPurchaseOrder,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] });
-      queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] });
-      showToast("تم إنشاء أمر الشراء بنجاح", "success");
-      setFormOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
   });
 
   const approveMutation = useMutation({
@@ -174,40 +144,7 @@ function Page() {
   });
 
   const openAdd = () => {
-    setFormSubject("");
-    setFormSupplierId("");
-    setFormRequestId("");
-    setFormDate("");
-    setFormDelivery("");
-    setFormNotes("");
-    setFormLines([{ description: "", quantity: "", unitPrice: "", unit: "" }]);
-    setFormOpen(true);
-  };
-
-  const handleSave = () => {
-    if (!formSubject.trim()) return showToast("يرجى إدخال موضوع الأمر", "error");
-    const validLines = formLines.filter(
-      (l) => l.description.trim() && parseFloat(l.quantity) > 0 && parseFloat(l.unitPrice) >= 0,
-    );
-    if (validLines.length === 0) {
-      return showToast("يرجى إضافة سطر واحد على الأقل ببيانات صحيحة", "error");
-    }
-    createMutation.mutate({
-      supplierId: formSupplierId || undefined,
-      requestId: formRequestId || undefined,
-      subject: formSubject,
-      date: formDate || undefined,
-      deliveryDate: formDelivery || undefined,
-      notes: formNotes,
-      lines: validLines.map((l) => ({
-        description: l.description,
-        quantity: parseFloat(l.quantity),
-        unitPrice: parseFloat(l.unitPrice),
-        unit: l.unit,
-      })),
-      userId: user?.id,
-      userName: user?.name,
-    });
+    navigate({ to: "/procurement/orders/new" });
   };
 
   const openReceive = (o: PurchaseOrder) => {
@@ -369,7 +306,9 @@ function Page() {
               <Td className="font-mono text-xs">{o.id}</Td>
               <Td>
                 <button
-                  onClick={() => setDetailId(o.id)}
+                  onClick={() =>
+                    navigate({ to: "/procurement/orders/$id/edit", params: { id: o.id } })
+                  }
                   className="font-semibold hover:text-primary text-right"
                 >
                   {o.subject}
@@ -387,7 +326,7 @@ function Page() {
                 <ActionMenu
                   actions={getOrderActions(
                     o,
-                    setDetailId,
+                    navigate,
                     setActionTarget,
                     openReceive,
                     setDeleteTarget,
@@ -403,7 +342,9 @@ function Page() {
                 <span className="font-mono text-xs text-muted-foreground">{o.id}</span>
               </div>
               <button
-                onClick={() => setDetailId(o.id)}
+                onClick={() =>
+                  navigate({ to: "/procurement/orders/$id/edit", params: { id: o.id } })
+                }
                 className="font-semibold text-right hover:text-primary"
               >
                 {o.subject}
@@ -420,7 +361,9 @@ function Page() {
               <div className="flex gap-2 mt-2">
                 <button
                   className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px]"
-                  onClick={() => setDetailId(o.id)}
+                  onClick={() =>
+                    navigate({ to: "/procurement/orders/$id/edit", params: { id: o.id } })
+                  }
                 >
                   تفاصيل
                 </button>
@@ -439,170 +382,7 @@ function Page() {
       )}
 
       <EntityFormDrawer
-        open={formOpen}
-        onClose={() => setFormOpen(false)}
-        title="إنشاء أمر شراء جديد"
-        onSave={handleSave}
-        loading={createMutation.isPending}
-      >
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الموضوع *</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formSubject}
-              onChange={(e) => setFormSubject(e.target.value)}
-              placeholder="مثال: سلال غذائية × 1000"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">المورد</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formSupplierId}
-              onChange={(e) => setFormSupplierId(e.target.value)}
-            >
-              <option value="">— بدون مورد —</option>
-              {suppliers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">من طلب شراء معتمد</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formRequestId}
-              onChange={(e) => setFormRequestId(e.target.value)}
-            >
-              <option value="">— بدون ربط —</option>
-              {approvedRequests.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.id} — {r.subject}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">تاريخ الأمر</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                type="date"
-                value={formDate}
-                onChange={(e) => setFormDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">تاريخ التوريد</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                type="date"
-                value={formDelivery}
-                onChange={(e) => setFormDelivery(e.target.value)}
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-2 block">
-              السطور *
-            </label>
-            {formLines.map((l, i) => (
-              <Card key={i} className="p-3 mb-2 bg-muted/30">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold">سطر {i + 1}</span>
-                  {formLines.length > 1 && (
-                    <button
-                      type="button"
-                      className="text-xs text-destructive"
-                      onClick={() => setFormLines(formLines.filter((_, idx) => idx !== i))}
-                    >
-                      إزالة
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <input
-                    className="w-full rounded-lg border bg-background p-2 text-sm"
-                    value={l.description}
-                    onChange={(e) => {
-                      const newLines = [...formLines];
-                      newLines[i] = { ...l, description: e.target.value };
-                      setFormLines(newLines);
-                    }}
-                    placeholder="وصف الصنف"
-                  />
-                  <div className="grid grid-cols-3 gap-2">
-                    <input
-                      className="w-full rounded-lg border bg-background p-2 text-sm"
-                      type="number"
-                      value={l.quantity}
-                      onChange={(e) => {
-                        const newLines = [...formLines];
-                        newLines[i] = { ...l, quantity: e.target.value };
-                        setFormLines(newLines);
-                      }}
-                      placeholder="الكمية"
-                    />
-                    <input
-                      className="w-full rounded-lg border bg-background p-2 text-sm"
-                      value={l.unit}
-                      onChange={(e) => {
-                        const newLines = [...formLines];
-                        newLines[i] = { ...l, unit: e.target.value };
-                        setFormLines(newLines);
-                      }}
-                      placeholder="الوحدة"
-                    />
-                    <input
-                      className="w-full rounded-lg border bg-background p-2 text-sm"
-                      type="number"
-                      value={l.unitPrice}
-                      onChange={(e) => {
-                        const newLines = [...formLines];
-                        newLines[i] = { ...l, unitPrice: e.target.value };
-                        setFormLines(newLines);
-                      }}
-                      placeholder="السعر"
-                    />
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    الإجمالي:{" "}
-                    {fmtSAR((parseFloat(l.quantity) || 0) * (parseFloat(l.unitPrice) || 0))}
-                  </div>
-                </div>
-              </Card>
-            ))}
-            <Btn
-              variant="outline"
-              className="w-full"
-              onClick={() =>
-                setFormLines([
-                  ...formLines,
-                  { description: "", quantity: "", unitPrice: "", unit: "" },
-                ])
-              }
-            >
-              <Plus size={14} />
-              إضافة سطر
-            </Btn>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-            <textarea
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              rows={2}
-              value={formNotes}
-              onChange={(e) => setFormNotes(e.target.value)}
-            />
-          </div>
-        </div>
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
-        open={!!detailId && !formOpen && !receiveTarget}
+        open={!!detailId && !receiveTarget}
         onClose={() => setDetailId(null)}
         title={`تفاصيل أمر الشراء: ${detailQuery.data?.item?.subject || ""}`}
         onSave={() => setDetailId(null)}
@@ -798,7 +578,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 function getOrderActions(
   o: PurchaseOrder,
-  setDetailId: (id: string) => void,
+  navigate: (opts: { to: string; params: { id: string } }) => void,
   setActionTarget: (t: { order: PurchaseOrder; action: "approve" | "cancel" | "close" }) => void,
   openReceive: (o: PurchaseOrder) => void,
   setDeleteTarget: (o: PurchaseOrder) => void,
@@ -809,7 +589,11 @@ function getOrderActions(
     onClick: () => void;
     variant?: "destructive";
   }> = [
-    { label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(o.id) },
+    {
+      label: "عرض التفاصيل",
+      icon: Eye,
+      onClick: () => navigate({ to: "/procurement/orders/$id/edit", params: { id: o.id } }),
+    },
     { label: "طباعة", icon: Printer, onClick: () => window.print() },
   ];
 

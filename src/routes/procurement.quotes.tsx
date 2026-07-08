@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppShell, Card, Btn, Badge, MobilePageHeader } from "@/components/erp/AppShell";
 import { fmtSAR } from "@/data/sample";
@@ -7,7 +7,6 @@ import { useState } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   EmptyState,
@@ -15,8 +14,6 @@ import {
 import { useAuth } from "@/lib/api/auth";
 import {
   getQuotes,
-  createQuote,
-  updateQuote,
   acceptQuote,
   rejectQuote,
   deleteQuote,
@@ -34,23 +31,12 @@ export const Route = createFileRoute("/procurement/quotes")({
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("الكل");
   const [requestFilter, setRequestFilter] = useState("الكل");
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Quote | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Quote | null>(null);
   const [detailTarget, setDetailTarget] = useState<Quote | null>(null);
-
-  const [formSupplier, setFormSupplier] = useState("");
-  const [formSupplierId, setFormSupplierId] = useState("");
-  const [formRequestId, setFormRequestId] = useState("");
-  const [formPrice, setFormPrice] = useState("");
-  const [formDelivery, setFormDelivery] = useState("");
-  const [formWarranty, setFormWarranty] = useState("");
-  const [formRating, setFormRating] = useState("");
-  const [formValidUntil, setFormValidUntil] = useState("");
-  const [formNotes, setFormNotes] = useState("");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["quotes", { search: searchQuery, status: statusFilter, requestId: requestFilter }],
@@ -70,27 +56,6 @@ function Page() {
   const { data: suppliersData } = useQuery({
     queryKey: ["suppliers-all"],
     queryFn: () => getSuppliers({}),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: createQuote,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["quotes"] });
-      showToast("تم إضافة عرض السعر بنجاح", "success");
-      setFormOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateQuote,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["quotes"] });
-      showToast("تم تحديث عرض السعر", "success");
-      setFormOpen(false);
-      setEditing(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
   });
 
   const acceptMutation = useMutation({
@@ -122,17 +87,7 @@ function Page() {
   });
 
   const openAdd = () => {
-    setEditing(null);
-    setFormSupplier("");
-    setFormSupplierId("");
-    setFormRequestId("");
-    setFormPrice("");
-    setFormDelivery("");
-    setFormWarranty("");
-    setFormRating("");
-    setFormValidUntil("");
-    setFormNotes("");
-    setFormOpen(true);
+    navigate({ to: "/procurement/quotes/new" });
   };
 
   const openEdit = (q: Quote) => {
@@ -140,41 +95,7 @@ function Page() {
       showToast("لا يمكن تعديل عرض تم البت فيه", "error");
       return;
     }
-    setEditing(q);
-    setFormSupplier(q.supplier);
-    setFormSupplierId(q.supplierId || "");
-    setFormRequestId(q.requestId || "");
-    setFormPrice(String(q.price || ""));
-    setFormDelivery(q.delivery || "");
-    setFormWarranty(q.warranty || "");
-    setFormRating(String(q.rating || ""));
-    setFormValidUntil(q.validUntil || "");
-    setFormNotes(q.notes || "");
-    setFormOpen(true);
-  };
-
-  const handleSave = () => {
-    if (!formSupplier.trim()) return showToast("يرجى إدخال اسم المورد", "error");
-    const price = parseFloat(formPrice);
-    if (!price || price <= 0) return showToast("يرجى إدخال سعر صحيح", "error");
-    const payload = {
-      supplier: formSupplier,
-      supplierId: formSupplierId || undefined,
-      requestId: formRequestId || undefined,
-      price,
-      delivery: formDelivery,
-      warranty: formWarranty,
-      rating: parseFloat(formRating) || 0,
-      validUntil: formValidUntil,
-      notes: formNotes,
-      userId: user?.id,
-      userName: user?.name,
-    };
-    if (editing) {
-      updateMutation.mutate({ id: editing.id, ...payload });
-    } else {
-      createMutation.mutate(payload);
-    }
+    navigate({ to: "/procurement/quotes/$id/edit", params: { id: q.id } });
   };
 
   const items = data?.items || [];
@@ -375,126 +296,7 @@ function Page() {
       )}
 
       <EntityFormDrawer
-        open={formOpen}
-        onClose={() => {
-          setFormOpen(false);
-          setEditing(null);
-        }}
-        title={editing ? "تعديل عرض سعر" : "إضافة عرض سعر جديد"}
-        onSave={handleSave}
-        loading={createMutation.isPending || updateMutation.isPending}
-      >
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">المورد *</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formSupplierId}
-              onChange={(e) => {
-                setFormSupplierId(e.target.value);
-                const sup = suppliers.find((s) => s.id === e.target.value);
-                if (sup) setFormSupplier(sup.name);
-              }}
-            >
-              <option value="">— مورد آخر (إدخال يدوي) —</option>
-              {suppliers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            {!formSupplierId && (
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formSupplier}
-                onChange={(e) => setFormSupplier(e.target.value)}
-                placeholder="اسم المورد"
-              />
-            )}
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">طلب الشراء</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formRequestId}
-              onChange={(e) => setFormRequestId(e.target.value)}
-            >
-              <option value="">— بدون ربط —</option>
-              {requests.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.id} — {r.subject}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">السعر *</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                type="number"
-                value={formPrice}
-                onChange={(e) => setFormPrice(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">التقييم</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                type="number"
-                step="0.1"
-                min="0"
-                max="5"
-                value={formRating}
-                onChange={(e) => setFormRating(e.target.value)}
-                placeholder="0-5"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">مدة التسليم</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formDelivery}
-                onChange={(e) => setFormDelivery(e.target.value)}
-                placeholder="مثال: 5 أيام"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">الضمان</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formWarranty}
-                onChange={(e) => setFormWarranty(e.target.value)}
-                placeholder="مثال: سنة"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">صالح حتى</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="date"
-              value={formValidUntil}
-              onChange={(e) => setFormValidUntil(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-            <textarea
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              rows={2}
-              value={formNotes}
-              onChange={(e) => setFormNotes(e.target.value)}
-            />
-          </div>
-        </div>
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
-        open={!!detailTarget && !formOpen}
+        open={!!detailTarget}
         onClose={() => setDetailTarget(null)}
         title={`تفاصيل عرض السعر: ${detailTarget?.supplier || ""}`}
         onSave={() => setDetailTarget(null)}

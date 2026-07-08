@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -17,7 +17,6 @@ import { useState } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   EmptyState,
@@ -25,7 +24,6 @@ import {
 import { useAuth } from "@/lib/api/auth";
 import {
   getStocktakes,
-  createStocktake,
   submitStocktake,
   approveStocktake,
   closeStocktake,
@@ -41,32 +39,18 @@ export const Route = createFileRoute("/inventory/stocktake")({
   component: Page,
 });
 
-interface StocktakeLineDraft {
-  itemId: string;
-  countedQuantity: string;
-  notes: string;
-}
-
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("الكل");
-  const [formOpen, setFormOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Stocktake | null>(null);
   const [actionTarget, setActionTarget] = useState<{
     st: Stocktake;
     action: "submit" | "approve" | "close";
   } | null>(null);
-
-  const [formName, setFormName] = useState("");
-  const [formWarehouseId, setFormWarehouseId] = useState("");
-  const [formDate, setFormDate] = useState(new Date().toISOString().split("T")[0]);
-  const [formNotes, setFormNotes] = useState("");
-  const [formLines, setFormLines] = useState<StocktakeLineDraft[]>([
-    { itemId: "", countedQuantity: "", notes: "" },
-  ]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["stocktakes", { search: searchQuery, status: statusFilter }],
@@ -90,16 +74,6 @@ function Page() {
         ? await fetch(`/api/inventory/stocktake?id=${detailId}`).then((r) => r.json())
         : null,
     enabled: !!detailId,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: createStocktake,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["stocktakes"] });
-      showToast("تم إضافة الجرد بنجاح", "success");
-      setFormOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
   });
 
   const submitMutation = useMutation({
@@ -143,34 +117,7 @@ function Page() {
   });
 
   const openAdd = () => {
-    setFormName("");
-    setFormWarehouseId("");
-    setFormDate(new Date().toISOString().split("T")[0]);
-    setFormNotes("");
-    setFormLines([{ itemId: "", countedQuantity: "", notes: "" }]);
-    setFormOpen(true);
-  };
-
-  const handleSave = () => {
-    if (!formName.trim()) return showToast("يرجى إدخال اسم الجرد", "error");
-    if (!formDate.trim()) return showToast("يرجى تحديد تاريخ الجرد", "error");
-    const validLines = formLines.filter((l) => l.itemId && parseFloat(l.countedQuantity) >= 0);
-    if (validLines.length === 0) {
-      return showToast("يرجى إضافة صنف واحد على الأقل", "error");
-    }
-    createMutation.mutate({
-      name: formName,
-      warehouseId: formWarehouseId || undefined,
-      date: formDate,
-      notes: formNotes,
-      lines: validLines.map((l) => ({
-        itemId: l.itemId,
-        countedQuantity: parseFloat(l.countedQuantity) || 0,
-        notes: l.notes,
-      })),
-      userId: user?.id,
-      userName: user?.name,
-    });
+    navigate({ to: "/inventory/stocktake/new" });
   };
 
   const items = data?.items || [];
@@ -308,7 +255,9 @@ function Page() {
             <>
               <Td>
                 <button
-                  onClick={() => setDetailId(s.id)}
+                  onClick={() =>
+                    navigate({ to: "/inventory/stocktake/$id/edit", params: { id: s.id } })
+                  }
                   className="font-semibold hover:text-primary text-right"
                 >
                   <PackageSearch size={13} className="inline ms-1 text-primary" />
@@ -325,7 +274,7 @@ function Page() {
               </Td>
               <Td>
                 <ActionMenu
-                  actions={getStocktakeActions(s, setDetailId, setActionTarget, setDeleteTarget)}
+                  actions={getStocktakeActions(s, navigate, setActionTarget, setDeleteTarget)}
                 />
               </Td>
             </>
@@ -337,7 +286,9 @@ function Page() {
                 <span className="font-mono text-xs text-muted-foreground">{s.id}</span>
               </div>
               <button
-                onClick={() => setDetailId(s.id)}
+                onClick={() =>
+                  navigate({ to: "/inventory/stocktake/$id/edit", params: { id: s.id } })
+                }
                 className="font-semibold text-right hover:text-primary"
               >
                 {s.name}
@@ -348,7 +299,9 @@ function Page() {
               <div className="flex gap-2 mt-2">
                 <button
                   className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px]"
-                  onClick={() => setDetailId(s.id)}
+                  onClick={() =>
+                    navigate({ to: "/inventory/stocktake/$id/edit", params: { id: s.id } })
+                  }
                 >
                   تفاصيل
                 </button>
@@ -381,133 +334,7 @@ function Page() {
       )}
 
       <EntityFormDrawer
-        open={formOpen}
-        onClose={() => setFormOpen(false)}
-        title="جرد جديد"
-        onSave={handleSave}
-        loading={createMutation.isPending}
-      >
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">اسم الجرد *</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              placeholder="مثال: جرد شهري - المستودع الرئيسي"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">المستودع</label>
-              <select
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formWarehouseId}
-                onChange={(e) => setFormWarehouseId(e.target.value)}
-              >
-                <option value="">— كل المستودعات —</option>
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">تاريخ الجرد *</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                type="date"
-                value={formDate}
-                onChange={(e) => setFormDate(e.target.value)}
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-2 block">
-              الأصناف المُعدودة *
-            </label>
-            {formLines.map((l, i) => (
-              <Card key={i} className="p-3 mb-2 bg-muted/30">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold">سطر {i + 1}</span>
-                  {formLines.length > 1 && (
-                    <button
-                      type="button"
-                      className="text-xs text-destructive"
-                      onClick={() => setFormLines(formLines.filter((_, idx) => idx !== i))}
-                    >
-                      إزالة
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <select
-                    className="w-full rounded-lg border bg-background p-2 text-sm"
-                    value={l.itemId}
-                    onChange={(e) => {
-                      const newLines = [...formLines];
-                      newLines[i] = { ...l, itemId: e.target.value };
-                      setFormLines(newLines);
-                    }}
-                  >
-                    <option value="">— اختر الصنف —</option>
-                    {inventoryItems.map((it) => (
-                      <option key={it.id} value={it.id}>
-                        {it.name} ({it.sku || it.id})
-                        {it.warehouseId && formWarehouseId && it.warehouseId !== formWarehouseId
-                          ? ` ⚠ مستودع آخر`
-                          : ""}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="flex gap-2 items-center">
-                    <input
-                      className="flex-1 rounded-lg border bg-background p-2 text-sm"
-                      type="number"
-                      value={l.countedQuantity}
-                      onChange={(e) => {
-                        const newLines = [...formLines];
-                        newLines[i] = { ...l, countedQuantity: e.target.value };
-                        setFormLines(newLines);
-                      }}
-                      placeholder="الكمية المعدودة"
-                    />
-                    {l.itemId && (
-                      <span className="text-xs text-muted-foreground">
-                        بالنظام:{" "}
-                        {fmtSAR(inventoryItems.find((it) => it.id === l.itemId)?.quantity || 0)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            ))}
-            <Btn
-              variant="outline"
-              className="w-full"
-              onClick={() =>
-                setFormLines([...formLines, { itemId: "", countedQuantity: "", notes: "" }])
-              }
-            >
-              <Plus size={14} />
-              إضافة سطر
-            </Btn>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-            <textarea
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              rows={2}
-              value={formNotes}
-              onChange={(e) => setFormNotes(e.target.value)}
-            />
-          </div>
-        </div>
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
-        open={!!detailId && !formOpen}
+        open={!!detailId}
         onClose={() => setDetailId(null)}
         title={`تفاصيل الجرد: ${detailQuery.data?.item?.name || ""}`}
         onSave={() => setDetailId(null)}
@@ -674,7 +501,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 function getStocktakeActions(
   s: Stocktake,
-  setDetailId: (id: string) => void,
+  navigate: (opts: { to: string; params: { id: string } }) => void,
   setActionTarget: (t: { st: Stocktake; action: "submit" | "approve" | "close" }) => void,
   setDeleteTarget: (s: Stocktake) => void,
 ) {
@@ -683,7 +510,13 @@ function getStocktakeActions(
     icon: typeof Eye;
     onClick: () => void;
     variant?: "destructive";
-  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(s.id) }];
+  }> = [
+    {
+      label: "عرض التفاصيل",
+      icon: Eye,
+      onClick: () => navigate({ to: "/inventory/stocktake/$id/edit", params: { id: s.id } }),
+    },
+  ];
 
   if (s.status === "مسودة") {
     actions.push({

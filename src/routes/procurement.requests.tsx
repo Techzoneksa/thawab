@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import {
   AppShell,
   Card,
@@ -32,7 +33,6 @@ import { useState } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   EmptyState,
@@ -40,8 +40,6 @@ import {
 import { useAuth } from "@/lib/api/auth";
 import {
   getPurchaseRequests,
-  createPurchaseRequest,
-  updatePurchaseRequest,
   submitPurchaseRequest,
   approvePurchaseRequest,
   rejectPurchaseRequest,
@@ -60,28 +58,18 @@ export const Route = createFileRoute("/procurement/requests")({
 
 function Page() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("الكل");
   const [departmentFilter, setDepartmentFilter] = useState("الكل");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<PurchaseRequest | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PurchaseRequest | null>(null);
-  const [detailId, setDetailId] = useState<string | null>(null);
   const [actionTarget, setActionTarget] = useState<{
     req: PurchaseRequest;
     action: "reject" | "return" | "cancel";
   } | null>(null);
   const [rejectReason, setRejectReason] = useState("");
-
-  const [formSubject, setFormSubject] = useState("");
-  const [formDepartment, setFormDepartment] = useState("إدارة المساعدات");
-  const [formPriority, setFormPriority] = useState("متوسطة");
-  const [formRequester, setFormRequester] = useState("");
-  const [formAmount, setFormAmount] = useState("");
-  const [formDelivery, setFormDelivery] = useState("");
-  const [formNotes, setFormNotes] = useState("");
 
   const { data, isLoading, error } = useQuery({
     queryKey: [
@@ -94,37 +82,6 @@ function Page() {
         status: statusFilter,
         department: departmentFilter,
       }),
-  });
-
-  const detailQuery = useQuery({
-    queryKey: ["purchaseRequestDetail", detailId],
-    queryFn: async () =>
-      detailId
-        ? await fetch(`/api/procurement/requests?id=${detailId}`).then((r) => r.json())
-        : null,
-    enabled: !!detailId,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: createPurchaseRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] });
-      showToast("تم إنشاء طلب الشراء بنجاح", "success");
-      setFormOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updatePurchaseRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] });
-      queryClient.invalidateQueries({ queryKey: ["purchaseRequestDetail"] });
-      showToast("تم تعديل طلب الشراء بنجاح", "success");
-      setFormOpen(false);
-      setEditing(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
   });
 
   const submitMutation = useMutation({
@@ -184,53 +141,14 @@ function Page() {
     onError: (err: Error) => showToast(err.message, "error"),
   });
 
-  const openAdd = () => {
-    setEditing(null);
-    setFormSubject("");
-    setFormDepartment("إدارة المساعدات");
-    setFormPriority("متوسطة");
-    setFormRequester("");
-    setFormAmount("");
-    setFormDelivery("");
-    setFormNotes("");
-    setFormOpen(true);
-  };
+  const openAdd = () => navigate({ to: "/procurement/requests/new" });
 
   const openEdit = (r: PurchaseRequest) => {
     if (r.status !== "مسودة" && r.status !== "مرفوض") {
       showToast("لا يمكن تعديل طلب في حالة حالية. أعده إلى المسودة أولاً.", "error");
       return;
     }
-    setEditing(r);
-    setFormSubject(r.subject);
-    setFormDepartment(r.department);
-    setFormPriority(r.priority || "متوسطة");
-    setFormRequester(r.requester || "");
-    setFormAmount(String(r.amount || ""));
-    setFormDelivery(r.deliveryDate || "");
-    setFormNotes(r.notes || "");
-    setFormOpen(true);
-  };
-
-  const handleSave = () => {
-    if (!formSubject.trim()) return showToast("يرجى إدخال موضوع الطلب", "error");
-    if (!formDepartment.trim()) return showToast("يرجى إدخال القسم", "error");
-    const payload = {
-      subject: formSubject,
-      department: formDepartment,
-      priority: formPriority,
-      requester: formRequester,
-      amount: parseFloat(formAmount) || 0,
-      deliveryDate: formDelivery,
-      notes: formNotes,
-      userId: user?.id,
-      userName: user?.name,
-    };
-    if (editing) {
-      updateMutation.mutate({ id: editing.id, ...payload });
-    } else {
-      createMutation.mutate(payload);
-    }
+    navigate({ to: "/procurement/requests/$id/edit", params: { id: r.id } });
   };
 
   const items = data?.items || [];
@@ -465,99 +383,7 @@ function Page() {
       )}
 
       <EntityFormDrawer
-        open={formOpen}
-        onClose={() => {
-          setFormOpen(false);
-          setEditing(null);
-        }}
-        title={editing ? "تعديل طلب شراء" : "إنشاء طلب شراء جديد"}
-        onSave={handleSave}
-        loading={createMutation.isPending || updateMutation.isPending}
-      >
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">موضوع الطلب *</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formSubject}
-              onChange={(e) => setFormSubject(e.target.value)}
-              placeholder="مثال: مستلزمات سلال غذائية"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">القسم *</label>
-              <select
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formDepartment}
-                onChange={(e) => setFormDepartment(e.target.value)}
-              >
-                <option>إدارة المساعدات</option>
-                <option>تقنية المعلومات</option>
-                <option>إدارة المشاريع</option>
-                <option>الإدارة المالية</option>
-                <option>المشتريات</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">الأولوية</label>
-              <select
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formPriority}
-                onChange={(e) => setFormPriority(e.target.value)}
-              >
-                {REQUEST_PRIORITIES.map((p) => (
-                  <option key={p}>{p}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">مقدم الطلب</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formRequester}
-                onChange={(e) => setFormRequester(e.target.value)}
-                placeholder="اسم مقدم الطلب"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">المبلغ التقديري</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                type="number"
-                value={formAmount}
-                onChange={(e) => setFormAmount(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">
-              تاريخ التوريد المطلوب
-            </label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="date"
-              value={formDelivery}
-              onChange={(e) => setFormDelivery(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-            <textarea
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              rows={2}
-              value={formNotes}
-              onChange={(e) => setFormNotes(e.target.value)}
-            />
-          </div>
-        </div>
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
-        open={!!detailId && !formOpen}
+        open={!!detailId}
         onClose={() => setDetailId(null)}
         title={`تفاصيل الطلب: ${detailQuery.data?.item?.subject || ""}`}
         onSave={() => setDetailId(null)}

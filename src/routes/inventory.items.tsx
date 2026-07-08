@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -28,7 +28,6 @@ import { useState } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   EmptyState,
@@ -36,8 +35,6 @@ import {
 import { useAuth } from "@/lib/api/auth";
 import {
   getInventoryItems,
-  createInventoryItem,
-  updateInventoryItem,
   activateInventoryItem,
   deactivateInventoryItem,
   receiveInventoryItem,
@@ -66,11 +63,10 @@ interface MoveDraft {
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("الكل");
   const [statusFilter, setStatusFilter] = useState("الكل");
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<InventoryItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InventoryItem | null>(null);
   const [moveTarget, setMoveTarget] = useState<InventoryItem | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -81,17 +77,6 @@ function Page() {
     toWarehouseId: "",
     notes: "",
   });
-
-  const [formName, setFormName] = useState("");
-  const [formSku, setFormSku] = useState("");
-  const [formUnit, setFormUnit] = useState("قطعة");
-  const [formCategory, setFormCategory] = useState("");
-  const [formWarehouseId, setFormWarehouseId] = useState("");
-  const [formQty, setFormQty] = useState("");
-  const [formMin, setFormMin] = useState("");
-  const [formPrice, setFormPrice] = useState("");
-  const [formNotes, setFormNotes] = useState("");
-  const [formStatus, setFormStatus] = useState("نشط");
 
   const { data, isLoading, error } = useQuery({
     queryKey: [
@@ -112,28 +97,6 @@ function Page() {
     queryFn: async () =>
       detailId ? await fetch(`/api/inventory/items?id=${detailId}`).then((r) => r.json()) : null,
     enabled: !!detailId,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: createInventoryItem,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventoryItems"] });
-      showToast("تم إضافة الصنف بنجاح", "success");
-      setFormOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateInventoryItem,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventoryItems"] });
-      queryClient.invalidateQueries({ queryKey: ["inventoryItemDetail"] });
-      showToast("تم تحديث الصنف بنجاح", "success");
-      setFormOpen(false);
-      setEditing(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
   });
 
   const activateMutation = useMutation({
@@ -209,58 +172,11 @@ function Page() {
   });
 
   const openAdd = () => {
-    setEditing(null);
-    setFormName("");
-    setFormSku("");
-    setFormUnit("قطعة");
-    setFormCategory("");
-    setFormWarehouseId("");
-    setFormQty("0");
-    setFormMin("0");
-    setFormPrice("0");
-    setFormNotes("");
-    setFormStatus("نشط");
-    setFormOpen(true);
+    navigate({ to: "/inventory/items/new" });
   };
 
   const openEdit = (i: InventoryItem) => {
-    setEditing(i);
-    setFormName(i.name);
-    setFormSku(i.sku || "");
-    setFormUnit(i.unit);
-    setFormCategory(i.category || "");
-    setFormWarehouseId(i.warehouseId || "");
-    setFormMin(String(i.minQuantity || 0));
-    setFormPrice(String(i.price || 0));
-    setFormNotes(i.notes || "");
-    setFormStatus(i.status || "نشط");
-    setFormOpen(true);
-  };
-
-  const handleSave = () => {
-    if (!formName.trim()) return showToast("يرجى إدخال اسم الصنف", "error");
-    if (!formUnit.trim()) return showToast("يرجى إدخال الوحدة", "error");
-    const payload = {
-      name: formName,
-      sku: formSku,
-      unit: formUnit,
-      category: formCategory,
-      warehouseId: formWarehouseId || undefined,
-      minQuantity: parseFloat(formMin) || 0,
-      price: parseFloat(formPrice) || 0,
-      notes: formNotes,
-      status: formStatus,
-      userId: user?.id,
-      userName: user?.name,
-    };
-    if (editing) {
-      updateMutation.mutate({ id: editing.id, ...payload });
-    } else {
-      createMutation.mutate({
-        ...payload,
-        quantity: parseFloat(formQty) || 0,
-      });
-    }
+    navigate({ to: "/inventory/items/$id/edit", params: { id: i.id } });
   };
 
   const openMove = (i: InventoryItem, type: MoveDraft["type"]) => {
@@ -455,7 +371,7 @@ function Page() {
               <Td className="font-mono text-xs">{i.sku || i.id}</Td>
               <Td>
                 <button
-                  onClick={() => setDetailId(i.id)}
+                  onClick={() => navigate({ to: "/inventory/items/$id/edit", params: { id: i.id } })}
                   className="font-semibold hover:text-primary text-right"
                 >
                   {i.name}
@@ -502,7 +418,7 @@ function Page() {
                 <span className="font-mono text-xs text-muted-foreground">{i.sku || i.id}</span>
               </div>
               <button
-                onClick={() => setDetailId(i.id)}
+                onClick={() => navigate({ to: "/inventory/items/$id/edit", params: { id: i.id } })}
                 className="font-semibold text-right hover:text-primary"
               >
                 {i.name}
@@ -544,152 +460,7 @@ function Page() {
       )}
 
       <EntityFormDrawer
-        open={formOpen}
-        onClose={() => {
-          setFormOpen(false);
-          setEditing(null);
-        }}
-        title={editing ? "تعديل صنف" : "إضافة صنف جديد"}
-        onSave={handleSave}
-        loading={createMutation.isPending || updateMutation.isPending}
-      >
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الاسم *</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              placeholder="اسم الصنف"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">SKU</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formSku}
-                onChange={(e) => setFormSku(e.target.value)}
-                placeholder="مثال: FOOD-001"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">الوحدة *</label>
-              <select
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formUnit}
-                onChange={(e) => setFormUnit(e.target.value)}
-              >
-                <option>قطعة</option>
-                <option>كرتون</option>
-                <option>كيلو</option>
-                <option>لتر</option>
-                <option>متر</option>
-                <option>صندوق</option>
-                <option>عبوة</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">الفئة</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formCategory}
-                onChange={(e) => setFormCategory(e.target.value)}
-                placeholder="مثال: مساعدات"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">المستودع</label>
-              <select
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formWarehouseId}
-                onChange={(e) => setFormWarehouseId(e.target.value)}
-              >
-                <option value="">— بدون مستودع —</option>
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          {!editing && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground">
-                  الرصيد الافتتاحي
-                </label>
-                <input
-                  className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                  type="number"
-                  value={formQty}
-                  onChange={(e) => setFormQty(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground">السعر</label>
-                <input
-                  className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                  type="number"
-                  value={formPrice}
-                  onChange={(e) => setFormPrice(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
-            </div>
-          )}
-          {editing && (
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">السعر</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                type="number"
-                value={formPrice}
-                onChange={(e) => setFormPrice(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-          )}
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الحد الأدنى</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              value={formMin}
-              onChange={(e) => setFormMin(e.target.value)}
-              placeholder="0"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الحالة</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formStatus}
-              onChange={(e) => setFormStatus(e.target.value)}
-            >
-              {ITEM_STATUSES.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-            <textarea
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              rows={2}
-              value={formNotes}
-              onChange={(e) => setFormNotes(e.target.value)}
-            />
-          </div>
-        </div>
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
-        open={!!detailId && !formOpen && !moveTarget}
+        open={!!detailId && !moveTarget}
         onClose={() => setDetailId(null)}
         title={`تفاصيل الصنف: ${detailQuery.data?.item?.name || ""}`}
         onSave={() => setDetailId(null)}

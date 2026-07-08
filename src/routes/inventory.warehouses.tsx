@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -26,7 +26,6 @@ import { useState } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   EmptyState,
@@ -34,8 +33,6 @@ import {
 import { useAuth } from "@/lib/api/auth";
 import {
   getWarehouses,
-  createWarehouse,
-  updateWarehouse,
   activateWarehouse,
   deactivateWarehouse,
   deleteWarehouse,
@@ -51,19 +48,11 @@ export const Route = createFileRoute("/inventory/warehouses")({
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("الكل");
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Warehouse | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Warehouse | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-
-  const [formName, setFormName] = useState("");
-  const [formLocation, setFormLocation] = useState("");
-  const [formManager, setFormManager] = useState("");
-  const [formCapacity, setFormCapacity] = useState("");
-  const [formNotes, setFormNotes] = useState("");
-  const [formStatus, setFormStatus] = useState("نشط");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["warehouses", { search: searchQuery, status: statusFilter }],
@@ -77,28 +66,6 @@ function Page() {
         ? await fetch(`/api/inventory/warehouses?id=${detailId}`).then((r) => r.json())
         : null,
     enabled: !!detailId,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: createWarehouse,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["warehouses"] });
-      showToast("تم إضافة المستودع بنجاح", "success");
-      setFormOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateWarehouse,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["warehouses"] });
-      queryClient.invalidateQueries({ queryKey: ["warehouseDetail"] });
-      showToast("تم تحديث المستودع بنجاح", "success");
-      setFormOpen(false);
-      setEditing(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
   });
 
   const activateMutation = useMutation({
@@ -130,44 +97,11 @@ function Page() {
   });
 
   const openAdd = () => {
-    setEditing(null);
-    setFormName("");
-    setFormLocation("");
-    setFormManager("");
-    setFormCapacity("0");
-    setFormNotes("");
-    setFormStatus("نشط");
-    setFormOpen(true);
+    navigate({ to: "/inventory/warehouses/new" });
   };
 
   const openEdit = (w: Warehouse) => {
-    setEditing(w);
-    setFormName(w.name);
-    setFormLocation(w.location || "");
-    setFormManager(w.manager || "");
-    setFormCapacity(String(w.capacity || 0));
-    setFormNotes(w.notes || "");
-    setFormStatus(w.status || "نشط");
-    setFormOpen(true);
-  };
-
-  const handleSave = () => {
-    if (!formName.trim()) return showToast("يرجى إدخال اسم المستودع", "error");
-    const payload = {
-      name: formName,
-      location: formLocation,
-      manager: formManager,
-      capacity: parseFloat(formCapacity) || 0,
-      notes: formNotes,
-      status: formStatus,
-      userId: user?.id,
-      userName: user?.name,
-    };
-    if (editing) {
-      updateMutation.mutate({ id: editing.id, ...payload });
-    } else {
-      createMutation.mutate(payload);
-    }
+    navigate({ to: "/inventory/warehouses/$id/edit", params: { id: w.id } });
   };
 
   const handleToggle = (w: Warehouse) => {
@@ -309,7 +243,9 @@ function Page() {
             <>
               <Td>
                 <button
-                  onClick={() => setDetailId(w.id)}
+                  onClick={() =>
+                    navigate({ to: "/inventory/warehouses/$id/edit", params: { id: w.id } })
+                  }
                   className="font-semibold hover:text-primary text-right"
                 >
                   <WarehouseIcon size={13} className="inline ms-1 text-primary" />
@@ -342,7 +278,9 @@ function Page() {
                 <span className="text-xs text-muted-foreground">السعة: {fmtSAR(w.capacity)}</span>
               </div>
               <button
-                onClick={() => setDetailId(w.id)}
+                onClick={() =>
+                  navigate({ to: "/inventory/warehouses/$id/edit", params: { id: w.id } })
+                }
                 className="font-semibold text-right hover:text-primary"
               >
                 {w.name}
@@ -370,81 +308,7 @@ function Page() {
       )}
 
       <EntityFormDrawer
-        open={formOpen}
-        onClose={() => {
-          setFormOpen(false);
-          setEditing(null);
-        }}
-        title={editing ? "تعديل مستودع" : "إضافة مستودع جديد"}
-        onSave={handleSave}
-        loading={createMutation.isPending || updateMutation.isPending}
-      >
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الاسم *</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              placeholder="اسم المستودع"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">الموقع</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formLocation}
-                onChange={(e) => setFormLocation(e.target.value)}
-                placeholder="المدينة، الحي"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">المسؤول</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formManager}
-                onChange={(e) => setFormManager(e.target.value)}
-                placeholder="اسم المسؤول"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">السعة</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              value={formCapacity}
-              onChange={(e) => setFormCapacity(e.target.value)}
-              placeholder="0"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الحالة</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formStatus}
-              onChange={(e) => setFormStatus(e.target.value)}
-            >
-              {WAREHOUSE_STATUSES.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-            <textarea
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              rows={2}
-              value={formNotes}
-              onChange={(e) => setFormNotes(e.target.value)}
-            />
-          </div>
-        </div>
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
-        open={!!detailId && !formOpen}
+        open={!!detailId}
         onClose={() => setDetailId(null)}
         title={`تفاصيل المستودع: ${detailQuery.data?.item?.name || ""}`}
         onSave={() => setDetailId(null)}
