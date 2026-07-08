@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -36,7 +36,6 @@ import { useState, useEffect } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   PrintButton,
@@ -45,8 +44,6 @@ import {
 import { useAuth } from "@/lib/api/auth";
 import {
   getBeneficiaries,
-  createBeneficiary,
-  updateBeneficiary,
   deleteBeneficiary,
   reviewBeneficiary,
   qualifyBeneficiary,
@@ -54,7 +51,6 @@ import {
   suspendBeneficiary,
   reactivateBeneficiary,
   ELIGIBILITY_STATUSES,
-  MARITAL_STATUSES,
   type Beneficiary,
   type EligibilityStatus,
   type BeneficiaryFilters,
@@ -73,35 +69,20 @@ type WorkflowAction = "review" | "qualify" | "disqualify" | "suspend" | "reactiv
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [view, setView] = useState<"grid" | "table">("grid");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [workflowTarget, setWorkflowTarget] = useState<{
     id: string;
     name: string;
     action: WorkflowAction;
   } | null>(null);
-  const [editingBeneficiary, setEditingBeneficiary] = useState<Beneficiary | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("الكل");
   const [statusFilter, setStatusFilter] = useState("الكل");
   const [cityFilter, setCityFilter] = useState("الكل");
   const [page, setPage] = useState(1);
-
-  // Form state
-  const [formName, setFormName] = useState("");
-  const [formFileNumber, setFormFileNumber] = useState("");
-  const [formIdNumber, setFormIdNumber] = useState("");
-  const [formPhone, setFormPhone] = useState("");
-  const [formCity, setFormCity] = useState("");
-  const [formAddress, setFormAddress] = useState("");
-  const [formCategory, setFormCategory] = useState("أسر محتاجة");
-  const [formStatus, setFormStatus] = useState<EligibilityStatus>("جديد");
-  const [formFamilyMembers, setFormFamilyMembers] = useState("1");
-  const [formMonthlyIncome, setFormMonthlyIncome] = useState("0");
-  const [formMaritalStatus, setFormMaritalStatus] = useState("");
-  const [formNotes, setFormNotes] = useState("");
 
   const [apiFilters, setApiFilters] = useState<BeneficiaryFilters>({
     search: "",
@@ -136,28 +117,6 @@ function Page() {
   useEffect(() => {
     setApiFilters((f) => ({ ...f, page }));
   }, [page]);
-
-  const createMutation = useMutation({
-    mutationFn: createBeneficiary,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["beneficiaries"] });
-      showToast("تم إضافة المستفيد بنجاح", "success");
-      setAddOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateBeneficiary,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["beneficiaries"] });
-      queryClient.invalidateQueries({ queryKey: ["beneficiary"] });
-      showToast("تم تحديث بيانات المستفيد بنجاح", "success");
-      setAddOpen(false);
-      setEditingBeneficiary(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
 
   const deleteMutation = useMutation({
     mutationFn: deleteBeneficiary,
@@ -202,67 +161,10 @@ function Page() {
     onError: (err: Error) => showToast(err.message, "error"),
   });
 
-  const openAdd = () => {
-    setEditingBeneficiary(null);
-    setFormName("");
-    setFormFileNumber("");
-    setFormIdNumber("");
-    setFormPhone("");
-    setFormCity("");
-    setFormAddress("");
-    setFormCategory("أسر محتاجة");
-    setFormStatus("جديد");
-    setFormFamilyMembers("1");
-    setFormMonthlyIncome("0");
-    setFormMaritalStatus("");
-    setFormNotes("");
-    setAddOpen(true);
-  };
+  const openAdd = () => navigate({ to: "/beneficiaries/new" });
 
-  const openEdit = (b: Beneficiary) => {
-    setEditingBeneficiary(b);
-    setFormName(b.name);
-    setFormFileNumber(b.fileNumber || "");
-    setFormIdNumber(b.idNumber || "");
-    setFormPhone(b.phone || "");
-    setFormCity(b.city);
-    setFormAddress(b.address || "");
-    setFormCategory(b.category);
-    setFormStatus(b.status);
-    setFormFamilyMembers(String(b.familyMembers ?? 1));
-    setFormMonthlyIncome(String(b.monthlyIncome ?? 0));
-    setFormMaritalStatus(b.maritalStatus || "");
-    setFormNotes(b.notes || "");
-    setAddOpen(true);
-  };
-
-  const handleSave = () => {
-    if (!formName.trim()) {
-      showToast("يرجى إدخال اسم المستفيد", "error");
-      return;
-    }
-    const payload = {
-      name: formName,
-      fileNumber: formFileNumber,
-      idNumber: formIdNumber,
-      phone: formPhone || undefined,
-      city: formCity,
-      address: formAddress,
-      category: formCategory,
-      status: formStatus,
-      familyMembers: parseInt(formFamilyMembers) || 1,
-      monthlyIncome: parseFloat(formMonthlyIncome) || 0,
-      maritalStatus: formMaritalStatus,
-      notes: formNotes,
-      userId: user?.id,
-      userName: user?.name,
-    };
-    if (editingBeneficiary) {
-      updateMutation.mutate({ id: editingBeneficiary.id, ...payload });
-    } else {
-      createMutation.mutate(payload);
-    }
-  };
+  const openEdit = (b: Beneficiary) =>
+    navigate({ to: "/beneficiaries/$id/edit", params: { id: b.id } });
 
   const handleDelete = () => {
     if (deleteTarget) {
@@ -598,162 +500,6 @@ function Page() {
           </div>
         </div>
       )}
-
-      <EntityFormDrawer
-        open={addOpen}
-        onClose={() => {
-          setAddOpen(false);
-          setEditingBeneficiary(null);
-        }}
-        title={editingBeneficiary ? "تعديل المستفيد" : "إضافة مستفيد جديد"}
-        onSave={handleSave}
-        loading={createMutation.isPending || updateMutation.isPending}
-      >
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الاسم *</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formName}
-            onChange={(e) => setFormName(e.target.value)}
-            placeholder="اسم المستفيد"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">رقم الملف</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formFileNumber}
-              onChange={(e) => setFormFileNumber(e.target.value)}
-              placeholder="BEN-001"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">رقم الهوية</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formIdNumber}
-              onChange={(e) => setFormIdNumber(e.target.value)}
-              placeholder="رقم الهوية أو الإقامة"
-            />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الجوال</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formPhone}
-              onChange={(e) => setFormPhone(e.target.value)}
-              placeholder="05xxxxxxxx"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">المدينة</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formCity}
-              onChange={(e) => setFormCity(e.target.value)}
-            >
-              <option value="">اختر المدينة</option>
-              <option>الرياض</option>
-              <option>جدة</option>
-              <option>الدمام</option>
-              <option>أبها</option>
-              <option>الطائف</option>
-              <option>المدينة المنورة</option>
-            </select>
-          </div>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">العنوان</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formAddress}
-            onChange={(e) => setFormAddress(e.target.value)}
-            placeholder="الحي، الشارع..."
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الفئة</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formCategory}
-              onChange={(e) => setFormCategory(e.target.value)}
-            >
-              <option>أيتام</option>
-              <option>أرامل</option>
-              <option>أسر محتاجة</option>
-              <option>مرضى</option>
-              <option>أسر منتجة</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الحالة</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formStatus}
-              onChange={(e) => setFormStatus(e.target.value as EligibilityStatus)}
-            >
-              {ELIGIBILITY_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">عدد الأفراد</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              min={1}
-              value={formFamilyMembers}
-              onChange={(e) => setFormFamilyMembers(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">
-              الدخل الشهري (ر.س)
-            </label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              min={0}
-              value={formMonthlyIncome}
-              onChange={(e) => setFormMonthlyIncome(e.target.value)}
-            />
-          </div>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الحالة الاجتماعية</label>
-          <select
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formMaritalStatus}
-            onChange={(e) => setFormMaritalStatus(e.target.value)}
-          >
-            <option value="">—</option>
-            {MARITAL_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-          <textarea
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            rows={3}
-            value={formNotes}
-            onChange={(e) => setFormNotes(e.target.value)}
-            placeholder="ملاحظات..."
-          />
-        </div>
-      </EntityFormDrawer>
 
       <ConfirmDialog
         open={!!deleteTarget}

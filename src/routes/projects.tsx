@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -33,7 +33,6 @@ import { useState, useEffect } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   PrintButton,
@@ -42,8 +41,6 @@ import {
 import { useAuth } from "@/lib/api/auth";
 import {
   getProjects,
-  createProject,
-  updateProject,
   deleteProject,
   activateProject,
   pauseProject,
@@ -65,35 +62,20 @@ const PROJECT_TYPES = ["الكل", "برنامج موسمي", "مشروع مست
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [view, setView] = useState<"grid" | "table">("grid");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [statusTarget, setStatusTarget] = useState<{
     id: string;
     name: string;
     action: "activate" | "pause" | "complete" | "cancel";
   } | null>(null);
-  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("الكل");
   const [categoryFilter, setCategoryFilter] = useState("الكل");
   const [branchFilter, setBranchFilter] = useState("الكل");
   const [page, setPage] = useState(1);
-
-  const [formName, setFormName] = useState("");
-  const [formCode, setFormCode] = useState("");
-  const [formType, setFormType] = useState("");
-  const [formCategory, setFormCategory] = useState("");
-  const [formBranch, setFormBranch] = useState("");
-  const [formManager, setFormManager] = useState("");
-  const [formBudget, setFormBudget] = useState("");
-  const [formStart, setFormStart] = useState("");
-  const [formEnd, setFormEnd] = useState("");
-  const [formStatus, setFormStatus] = useState("مخطط");
-  const [formProgress, setFormProgress] = useState("0");
-  const [formDescription, setFormDescription] = useState("");
-  const [formNotes, setFormNotes] = useState("");
 
   const [apiFilters, setApiFilters] = useState<ProjectFilters>({
     search: "",
@@ -128,27 +110,6 @@ function Page() {
   useEffect(() => {
     setApiFilters((f) => ({ ...f, page }));
   }, [page]);
-
-  const createMutation = useMutation({
-    mutationFn: createProject,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      showToast("تم إضافة المشروع بنجاح", "success");
-      setAddOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateProject,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      showToast("تم تحديث المشروع بنجاح", "success");
-      setAddOpen(false);
-      setEditingProject(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
 
   const deleteMutation = useMutation({
     mutationFn: deleteProject,
@@ -189,70 +150,10 @@ function Page() {
     onError: (err: Error) => showToast(err.message, "error"),
   });
 
-  const openAdd = () => {
-    setEditingProject(null);
-    setFormName("");
-    setFormCode("");
-    setFormType("");
-    setFormCategory("");
-    setFormBranch("");
-    setFormManager("");
-    setFormBudget("");
-    setFormStart("");
-    setFormEnd("");
-    setFormStatus("مخطط");
-    setFormProgress("0");
-    setFormDescription("");
-    setFormNotes("");
-    setAddOpen(true);
-  };
+  const openAdd = () => navigate({ to: "/projects/new" });
 
-  const openEdit = (p: Project) => {
-    setEditingProject(p);
-    setFormName(p.name);
-    setFormCode(p.code || "");
-    setFormType(p.type || "");
-    setFormCategory(p.category || "");
-    setFormBranch(p.branch || "");
-    setFormManager(p.manager);
-    setFormBudget(String(p.budget));
-    setFormStart(p.startDate);
-    setFormEnd(p.endDate);
-    setFormStatus(p.status);
-    setFormProgress(String(p.progress));
-    setFormDescription(p.description || "");
-    setFormNotes(p.notes || "");
-    setAddOpen(true);
-  };
-
-  const handleSave = () => {
-    if (!formName.trim()) {
-      showToast("يرجى إدخال اسم المشروع", "error");
-      return;
-    }
-    const payload = {
-      name: formName,
-      code: formCode,
-      type: formType,
-      category: formCategory,
-      branch: formBranch,
-      manager: formManager,
-      budget: parseFloat(formBudget) || 0,
-      startDate: formStart,
-      endDate: formEnd,
-      status: formStatus,
-      progress: parseInt(formProgress) || 0,
-      description: formDescription,
-      notes: formNotes,
-      userId: user?.id,
-      userName: user?.name,
-    };
-    if (editingProject) {
-      updateMutation.mutate({ id: editingProject.id, ...payload });
-    } else {
-      createMutation.mutate(payload);
-    }
-  };
+  const openEdit = (p: Project) =>
+    navigate({ to: "/projects/$id/edit", params: { id: p.id } });
 
   const handleDelete = () => {
     if (deleteTarget) {
@@ -624,173 +525,6 @@ function Page() {
           </div>
         </div>
       )}
-
-      <EntityFormDrawer
-        open={addOpen}
-        onClose={() => {
-          setAddOpen(false);
-          setEditingProject(null);
-        }}
-        title={editingProject ? "تعديل المشروع" : "إضافة مشروع جديد"}
-        onSave={handleSave}
-        loading={createMutation.isPending || updateMutation.isPending}
-      >
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">رقم المشروع</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formCode}
-              onChange={(e) => setFormCode(e.target.value)}
-              placeholder="PRJ-001"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الاسم *</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              placeholder="اسم المشروع"
-            />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">نوع المشروع</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formType}
-              onChange={(e) => setFormType(e.target.value)}
-            >
-              <option value="">—</option>
-              {PROJECT_TYPES.filter((t) => t !== "الكل").map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">التصنيف</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formCategory}
-              onChange={(e) => setFormCategory(e.target.value)}
-            >
-              <option value="">—</option>
-              {PROJECT_CATEGORIES.filter((c) => c !== "الكل").map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الفرع</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formBranch}
-              onChange={(e) => setFormBranch(e.target.value)}
-            >
-              <option value="">—</option>
-              {PROJECT_BRANCHES.filter((b) => b !== "الكل").map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">المدير</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formManager}
-              onChange={(e) => setFormManager(e.target.value)}
-              placeholder="مدير المشروع"
-            />
-          </div>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الميزانية (ر.س)</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            type="number"
-            value={formBudget}
-            onChange={(e) => setFormBudget(e.target.value)}
-            placeholder="0"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">تاريخ البدء</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formStart}
-              onChange={(e) => setFormStart(e.target.value)}
-              placeholder="1446/01/01"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">تاريخ النهاية</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formEnd}
-              onChange={(e) => setFormEnd(e.target.value)}
-              placeholder="1446/12/30"
-            />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الحالة</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formStatus}
-              onChange={(e) => setFormStatus(e.target.value)}
-            >
-              <option value="مخطط">مخطط</option>
-              <option value="نشط">نشط</option>
-              <option value="متوقف">متوقف</option>
-              <option value="مكتمل">مكتمل</option>
-              <option value="ملغي">ملغي</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">نسبة الإنجاز (%)</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              min={0}
-              max={100}
-              value={formProgress}
-              onChange={(e) => setFormProgress(e.target.value)}
-            />
-          </div>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الوصف</label>
-          <textarea
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            rows={3}
-            value={formDescription}
-            onChange={(e) => setFormDescription(e.target.value)}
-            placeholder="وصف المشروع..."
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-          <textarea
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            rows={2}
-            value={formNotes}
-            onChange={(e) => setFormNotes(e.target.value)}
-            placeholder="ملاحظات داخلية..."
-          />
-        </div>
-      </EntityFormDrawer>
 
       <ConfirmDialog
         open={!!deleteTarget}

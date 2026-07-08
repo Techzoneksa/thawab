@@ -22,13 +22,20 @@ function Page() {
       breadcrumb={["الرئيسية", "التقارير والحوكمة", "سير العمل"]}
       title="محرّك سير العمل والاعتمادات"
       actions={
-        <Btn variant="primary" onClick={() => showToast("إنشاء سير عمل جديد قريباً", "info")}>
+        <Btn
+          variant="primary"
+          disabled
+          title="إنشاء/تعديل سير عمل — متاح في المرحلة 3D (الحوكمة المتقدمة)"
+        >
           <Plus size={15} />
           سير عمل جديد
         </Btn>
       }
     >
       <MobilePageHeader title="محرّك سير العمل والاعتمادات" count={`${WORKFLOWS.length} سير عمل`} />
+      <div className="rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info-foreground mb-3">
+        محرّك سير العمل للعرض فقط في هذه المرحلة. التحكم الكامل (إنشاء/تعديل/تشغيل) متاح في المرحلة 3D.
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {WORKFLOWS.map((w) => (
           <Card key={w.name} className="p-5">
@@ -52,11 +59,11 @@ function Page() {
               ))}
             </div>
             <div className="mt-4 flex gap-2">
-              <Btn variant="outline" onClick={() => showToast(`تعديل سير عمل "${w.name}"`, "info")}>
+              <Btn variant="outline" disabled title="متاح في المرحلة 3D">
                 <GitBranch size={14} />
                 تعديل
               </Btn>
-              <Btn variant="ghost" onClick={() => showToast(`عرض سجل "${w.name}"`, "info")}>
+              <Btn variant="ghost" onClick={() => showToast(`عرض سجل "${w.name}" — سجل الاعتمادات متاح في المرحلة 3D`, "info")}>
                 عرض السجل
               </Btn>
             </div>

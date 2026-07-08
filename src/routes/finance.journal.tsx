@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -31,7 +31,6 @@ import { useState, useEffect } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   PrintButton,
@@ -43,8 +42,6 @@ import { getCostCenters, type CostCenter } from "@/lib/api/cost-centers";
 import {
   getJournalEntries,
   getJournalEntry,
-  createJournalEntry,
-  updateJournalEntry,
   deleteJournalEntry,
   postJournalEntry,
   reverseJournalEntry,
@@ -73,14 +70,12 @@ interface DraftLine {
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("الكل");
   const [fundFilter, setFundFilter] = useState("الكل");
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const [addOpen, setAddOpen] = useState(false);
-  const [editing, setEditing] = useState<JournalEntry | null>(null);
-  const [editLines, setEditLines] = useState<JournalLine[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [actionTarget, setActionTarget] = useState<{
     id: string;
@@ -88,16 +83,6 @@ function Page() {
     action: "post" | "reverse" | "cancel";
   } | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-
-  // Form fields
-  const [formDate, setFormDate] = useState("");
-  const [formDescription, setFormDescription] = useState("");
-  const [formFund, setFormFund] = useState<JournalFund>("مقيد");
-  const [formNotes, setFormNotes] = useState("");
-  const [formLines, setFormLines] = useState<DraftLine[]>([
-    { accountId: "", description: "", debit: "0", credit: "0", costCenterId: "", notes: "" },
-    { accountId: "", description: "", debit: "0", credit: "0", costCenterId: "", notes: "" },
-  ]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["journal", { search: searchQuery, status: statusFilter, fund: fundFilter, page }],
@@ -122,86 +107,19 @@ function Page() {
     enabled: !!detailId,
   });
 
-  // Account lookup for form
-  const { data: accountsData } = useQuery({
-    queryKey: ["accounts", { search: "" }],
-    queryFn: () => getAccounts({}),
-  });
-  const accountsList: Account[] = accountsData?.items || [];
-
-  const { data: ccData } = useQuery({
-    queryKey: ["cost-centers", { search: "" }],
-    queryFn: () => getCostCenters({}),
-  });
-  const ccList: CostCenter[] = ccData?.items || [];
-
   useEffect(() => {
     setPage(1);
   }, [searchQuery, statusFilter, fundFilter]);
 
-  const postableAccounts = accountsList.filter((a: Account) => a.postable && a.status === "نشط");
+  const openAdd = () => navigate({ to: "/finance/journal/new" });
 
-  const openAdd = () => {
-    setEditing(null);
-    setEditLines([]);
-    setFormDate("");
-    setFormDescription("");
-    setFormFund("مقيد");
-    setFormNotes("");
-    setFormLines([
-      { accountId: "", description: "", debit: "0", credit: "0", costCenterId: "", notes: "" },
-      { accountId: "", description: "", debit: "0", credit: "0", costCenterId: "", notes: "" },
-    ]);
-    setAddOpen(true);
-  };
-
-  const openEdit = async (e: JournalEntry) => {
+  const openEdit = (e: JournalEntry) => {
     if (e.status !== "مسودة" && e.status !== "بانتظار الاعتماد") {
-      showToast("لا يمكن تعديل قيد مرحّل أو معكوس", "error");
+      showToast("لا يمكن تعديل قيد مرحّل أو معكوس. افتح التفاصيل لعرض السجل أو عكسه.", "error");
       return;
     }
-    const d = await getJournalEntry(e.id);
-    setEditing(e);
-    setEditLines(d.lines);
-    setFormDate(e.date);
-    setFormDescription(e.description);
-    setFormFund(e.fund as JournalFund);
-    setFormNotes(e.notes || "");
-    setFormLines(
-      d.lines.map((l: JournalLine) => ({
-        accountId: l.accountId,
-        description: l.description,
-        debit: String(l.debit),
-        credit: String(l.credit),
-        costCenterId: l.costCenterId || "",
-        notes: l.notes || "",
-      })),
-    );
-    setAddOpen(true);
+    navigate({ to: "/finance/journal/$id/edit", params: { id: e.id } });
   };
-
-  const createMutation = useMutation({
-    mutationFn: createJournalEntry,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["journal"] });
-      queryClient.invalidateQueries({ queryKey: ["journal-entry"] });
-      showToast("تم إضافة القيد بنجاح", "success");
-      setAddOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateJournalEntry,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["journal"] });
-      queryClient.invalidateQueries({ queryKey: ["journal-entry"] });
-      showToast("تم تحديث القيد بنجاح", "success");
-      setAddOpen(false);
-      setEditing(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
 
   const deleteMutation = useMutation({
     mutationFn: deleteJournalEntry,
@@ -240,60 +158,6 @@ function Page() {
     },
     onError: (err: Error) => showToast(err.message, "error"),
   });
-
-  const addLine = () => {
-    setFormLines([
-      ...formLines,
-      { accountId: "", description: "", debit: "0", credit: "0", costCenterId: "", notes: "" },
-    ]);
-  };
-  const removeLine = (idx: number) => {
-    if (formLines.length <= 2) return;
-    setFormLines(formLines.filter((_, i) => i !== idx));
-  };
-  const updateLine = (idx: number, field: keyof DraftLine, value: string) => {
-    setFormLines(formLines.map((l, i) => (i === idx ? { ...l, [field]: value } : l)));
-  };
-
-  const totalDebit = formLines.reduce((s, l) => s + (parseFloat(l.debit) || 0), 0);
-  const totalCredit = formLines.reduce((s, l) => s + (parseFloat(l.credit) || 0), 0);
-  const balanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0;
-
-  const handleSave = () => {
-    if (!formDescription.trim()) return showToast("يرجى إدخال وصف القيد", "error");
-    if (formLines.length < 2) return showToast("القيد يحتاج سطرين على الأقل", "error");
-    if (totalDebit === 0 && totalCredit === 0) return showToast("لا يوجد مبالغ في القيد", "error");
-    if (!balanced)
-      return showToast(
-        `القيد غير متوازن: مدين ${totalDebit.toFixed(2)} ≠ دائن ${totalCredit.toFixed(2)}`,
-        "error",
-      );
-
-    const linesPayload = formLines.map((l) => ({
-      accountId: l.accountId,
-      description: l.description,
-      debit: parseFloat(l.debit) || 0,
-      credit: parseFloat(l.credit) || 0,
-      costCenterId: l.costCenterId || null,
-      notes: l.notes,
-    }));
-
-    const basePayload = {
-      date: formDate,
-      description: formDescription,
-      fund: formFund,
-      notes: formNotes,
-      lines: linesPayload,
-      userId: user?.id,
-      userName: user?.name,
-    };
-
-    if (editing) {
-      updateMutation.mutate({ id: editing.id, ...basePayload });
-    } else {
-      createMutation.mutate(basePayload);
-    }
-  };
 
   const handleDelete = () => {
     if (deleteTarget) {
@@ -533,152 +397,7 @@ function Page() {
       )}
 
       <EntityFormDrawer
-        open={addOpen}
-        onClose={() => {
-          setAddOpen(false);
-          setEditing(null);
-        }}
-        title={editing ? "تعديل القيد" : "إضافة قيد يومية جديد"}
-        onSave={handleSave}
-        loading={createMutation.isPending || updateMutation.isPending}
-      >
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الوصف *</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formDescription}
-            onChange={(e) => setFormDescription(e.target.value)}
-            placeholder="وصف القيد..."
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">التاريخ</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formDate}
-              onChange={(e) => setFormDate(e.target.value)}
-              placeholder="1446/01/01"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الصندوق</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formFund}
-              onChange={(e) => setFormFund(e.target.value as JournalFund)}
-            >
-              {JOURNAL_FUNDS.map((f) => (
-                <option key={f}>{f}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-semibold text-muted-foreground">سطور القيد *</label>
-            <button type="button" onClick={addLine} className="text-xs text-primary font-semibold">
-              + إضافة سطر
-            </button>
-          </div>
-          <div className="space-y-2">
-            {formLines.map((line, idx) => (
-              <Card key={idx} className="p-2 bg-muted/30">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-bold text-muted-foreground">سطر {idx + 1}</span>
-                  {formLines.length > 2 && (
-                    <button
-                      type="button"
-                      onClick={() => removeLine(idx)}
-                      className="text-destructive text-xs"
-                    >
-                      حذف
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-12">
-                    <select
-                      className="w-full rounded-lg border bg-background p-2 text-xs"
-                      value={line.accountId}
-                      onChange={(e) => updateLine(idx, "accountId", e.target.value)}
-                    >
-                      <option value="">اختر حساباً قابلاً للترحيل</option>
-                      {postableAccounts.map((a: Account) => (
-                        <option key={a.id} value={a.id}>
-                          {a.code} - {a.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-span-6">
-                    <input
-                      className="w-full rounded-lg border bg-background p-2 text-xs"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={line.debit}
-                      onChange={(e) => updateLine(idx, "debit", e.target.value)}
-                      placeholder="مدين"
-                    />
-                  </div>
-                  <div className="col-span-6">
-                    <input
-                      className="w-full rounded-lg border bg-background p-2 text-xs"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={line.credit}
-                      onChange={(e) => updateLine(idx, "credit", e.target.value)}
-                      placeholder="دائن"
-                    />
-                  </div>
-                  <div className="col-span-12">
-                    <select
-                      className="w-full rounded-lg border bg-background p-2 text-xs"
-                      value={line.costCenterId}
-                      onChange={(e) => updateLine(idx, "costCenterId", e.target.value)}
-                    >
-                      <option value="">— (بدون مركز تكلفة)</option>
-                      {ccList
-                        .filter((c: CostCenter) => c.status === "نشط")
-                        .map((c: CostCenter) => (
-                          <option key={c.id} value={c.id}>
-                            {c.code} - {c.name}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-          <div
-            className={`mt-2 rounded-lg p-2 text-xs flex justify-between items-center ${balanced ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}
-          >
-            <span>
-              مدين: {fmtSAR(totalDebit)} | دائن: {fmtSAR(totalCredit)}
-            </span>
-            <Badge tone={balanced ? "success" : "destructive"}>
-              {balanced ? "✓ متوازن" : "✗ غير متوازن"}
-            </Badge>
-          </div>
-        </div>
-
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-          <textarea
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            rows={2}
-            value={formNotes}
-            onChange={(e) => setFormNotes(e.target.value)}
-          />
-        </div>
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
-        open={!!detailId && !addOpen}
+        open={!!detailId}
         onClose={() => setDetailId(null)}
         title={`القيد: ${detailData?.item?.number || ""}`}
         onSave={() => setDetailId(null)}

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   AppShell,
@@ -35,6 +35,7 @@ export const Route = createFileRoute("/projects/$id")({
 
 function Page() {
   const { id } = Route.useParams();
+  const navigate = useNavigate();
   const [tab, setTab] = useState("نظرة عامة");
   const [mobileTab, setMobileTab] = useState("نظرة عامة");
   const [isMobile, setIsMobile] = useState(false);
@@ -113,7 +114,7 @@ function Page() {
           {!isReadOnly && (
             <Btn
               variant="primary"
-              onClick={() => showToast("سيتم فتح نموذج تعديل المشروع قريباً", "info")}
+              onClick={() => navigate({ to: "/projects/$id/edit", params: { id } })}
             >
               <Edit size={15} /> تعديل
             </Btn>

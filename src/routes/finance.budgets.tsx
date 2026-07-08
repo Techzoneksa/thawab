@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -21,7 +21,6 @@ import { useState, useEffect } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   PrintButton,
@@ -33,15 +32,11 @@ import { getCostCenters, type CostCenter } from "@/lib/api/cost-centers";
 import {
   getBudgets,
   getBudget,
-  createBudget,
-  updateBudget,
   deleteBudget,
   approveBudget,
   lockBudget,
   unlockBudget,
-  BUDGET_STATUSES,
   type Budget,
-  type BudgetLine,
 } from "@/lib/api/budgets";
 
 export const Route = createFileRoute("/finance/budgets")({
@@ -59,12 +54,11 @@ interface DraftLine {
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("الكل");
   const [yearFilter, setYearFilter] = useState("الكل");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
-  const [editing, setEditing] = useState<Budget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [actionTarget, setActionTarget] = useState<{
     id: string;
@@ -72,17 +66,6 @@ function Page() {
     action: "approve" | "lock" | "unlock";
   } | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-
-  // Form
-  const [formName, setFormName] = useState("");
-  const [formYear, setFormYear] = useState("");
-  const [formAmount, setFormAmount] = useState("0");
-  const [formDepartment, setFormDepartment] = useState("");
-  const [formDescription, setFormDescription] = useState("");
-  const [formNotes, setFormNotes] = useState("");
-  const [formLines, setFormLines] = useState<DraftLine[]>([
-    { accountId: "", costCenterId: "", plannedAmount: "0", notes: "" },
-  ]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["budgets", { search: searchQuery, status: statusFilter, year: yearFilter }],
@@ -98,82 +81,19 @@ function Page() {
     enabled: !!detailId,
   });
 
-  const { data: accountsData } = useQuery({
-    queryKey: ["accounts", { search: "" }],
-    queryFn: () => getAccounts({}),
-  });
-  const accountsList: Account[] = accountsData?.items || [];
-
-  const { data: ccData } = useQuery({
-    queryKey: ["cost-centers", { search: "" }],
-    queryFn: () => getCostCenters({}),
-  });
-  const ccList: CostCenter[] = ccData?.items || [];
-
   // Derive available years from data + a few defaults
   const years = Array.from(new Set(budgets.map((b: Budget) => b.year))).sort();
   const yearOptions = ["الكل", ...(years.length ? years : ["1446", "1447", "1448"])];
 
-  const openAdd = () => {
-    setEditing(null);
-    setFormName("");
-    setFormYear("1447");
-    setFormAmount("0");
-    setFormDepartment("");
-    setFormDescription("");
-    setFormNotes("");
-    setFormLines([{ accountId: "", costCenterId: "", plannedAmount: "0", notes: "" }]);
-    setAddOpen(true);
-  };
+  const openAdd = () => navigate({ to: "/finance/budgets/new" });
 
-  const openEdit = async (b: Budget) => {
+  const openEdit = (b: Budget) => {
     if (b.status !== "مسودة") {
-      showToast("لا يمكن تعديل موازنة معتمدة أو مقفلة", "error");
+      showToast("لا يمكن تعديل موازنة معتمدة أو مقفلة. افتح التفاصيل لعرض السجل أو تنفيذ إجراء.", "error");
       return;
     }
-    const d = await getBudget(b.id);
-    setEditing(b);
-    setFormName(b.name);
-    setFormYear(b.year);
-    setFormAmount(String(b.amount));
-    setFormDepartment(b.department);
-    setFormDescription(b.description || "");
-    setFormNotes(b.notes || "");
-    setFormLines(
-      d.lines.length
-        ? d.lines.map((l: BudgetLine) => ({
-            accountId: l.accountId || "",
-            costCenterId: l.costCenterId || "",
-            plannedAmount: String(l.plannedAmount),
-            notes: l.notes || "",
-          }))
-        : [{ accountId: "", costCenterId: "", plannedAmount: "0", notes: "" }],
-    );
-    setAddOpen(true);
+    navigate({ to: "/finance/budgets/$id/edit", params: { id: b.id } });
   };
-
-  const createMutation = useMutation({
-    mutationFn: createBudget,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["budgets"] });
-      queryClient.invalidateQueries({ queryKey: ["budget"] });
-      showToast("تم إضافة الموازنة بنجاح", "success");
-      setAddOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateBudget,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["budgets"] });
-      queryClient.invalidateQueries({ queryKey: ["budget"] });
-      showToast("تم تحديث الموازنة بنجاح", "success");
-      setAddOpen(false);
-      setEditing(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
 
   const deleteMutation = useMutation({
     mutationFn: deleteBudget,
@@ -212,54 +132,6 @@ function Page() {
     },
     onError: (err: Error) => showToast(err.message, "error"),
   });
-
-  const addLine = () => {
-    setFormLines([
-      ...formLines,
-      { accountId: "", costCenterId: "", plannedAmount: "0", notes: "" },
-    ]);
-  };
-  const removeLine = (idx: number) => {
-    if (formLines.length <= 1) return;
-    setFormLines(formLines.filter((_, i) => i !== idx));
-  };
-  const updateLine = (idx: number, field: keyof DraftLine, value: string) => {
-    setFormLines(formLines.map((l, i) => (i === idx ? { ...l, [field]: value } : l)));
-  };
-
-  const totalPlanned = formLines.reduce((s, l) => s + (parseFloat(l.plannedAmount) || 0), 0);
-
-  const handleSave = () => {
-    if (!formName.trim()) return showToast("يرجى إدخال اسم الموازنة", "error");
-    if (!formYear.trim()) return showToast("يرجى إدخال سنة الموازنة", "error");
-    if (formLines.length === 0) return showToast("أضف سطراً واحداً على الأقل", "error");
-
-    const linesPayload = formLines
-      .filter((l) => parseFloat(l.plannedAmount) > 0)
-      .map((l) => ({
-        accountId: l.accountId || null,
-        costCenterId: l.costCenterId || null,
-        plannedAmount: parseFloat(l.plannedAmount) || 0,
-        notes: l.notes,
-      }));
-
-    const basePayload = {
-      name: formName,
-      year: formYear,
-      amount: totalPlanned,
-      department: formDepartment,
-      description: formDescription,
-      notes: formNotes,
-      lines: linesPayload,
-      userId: user?.id,
-      userName: user?.name,
-    };
-    if (editing) {
-      updateMutation.mutate({ id: editing.id, ...basePayload });
-    } else {
-      createMutation.mutate(basePayload);
-    }
-  };
 
   const handleDelete = () => {
     if (deleteTarget) {
@@ -482,142 +354,7 @@ function Page() {
       )}
 
       <EntityFormDrawer
-        open={addOpen}
-        onClose={() => {
-          setAddOpen(false);
-          setEditing(null);
-        }}
-        title={editing ? "تعديل الموازنة" : "إضافة موازنة جديدة"}
-        onSave={handleSave}
-        loading={createMutation.isPending || updateMutation.isPending}
-      >
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الاسم *</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">السنة *</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formYear}
-              onChange={(e) => setFormYear(e.target.value)}
-              placeholder="1447"
-            />
-          </div>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">القسم</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formDepartment}
-            onChange={(e) => setFormDepartment(e.target.value)}
-            placeholder="إدارة المشاريع"
-          />
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-semibold text-muted-foreground">سطور الموازنة</label>
-            <button type="button" onClick={addLine} className="text-xs text-primary font-semibold">
-              + إضافة سطر
-            </button>
-          </div>
-          <div className="space-y-2">
-            {formLines.map((line, idx) => (
-              <Card key={idx} className="p-2 bg-muted/30">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-bold text-muted-foreground">سطر {idx + 1}</span>
-                  {formLines.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeLine(idx)}
-                      className="text-destructive text-xs"
-                    >
-                      حذف
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-12">
-                    <select
-                      className="w-full rounded-lg border bg-background p-2 text-xs"
-                      value={line.accountId}
-                      onChange={(e) => updateLine(idx, "accountId", e.target.value)}
-                    >
-                      <option value="">اختر حساباً</option>
-                      {accountsList
-                        .filter((a: Account) => a.status === "نشط")
-                        .map((a: Account) => (
-                          <option key={a.id} value={a.id}>
-                            {a.code} - {a.name}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  <div className="col-span-6">
-                    <select
-                      className="w-full rounded-lg border bg-background p-2 text-xs"
-                      value={line.costCenterId}
-                      onChange={(e) => updateLine(idx, "costCenterId", e.target.value)}
-                    >
-                      <option value="">— مركز التكلفة</option>
-                      {ccList
-                        .filter((c: CostCenter) => c.status === "نشط")
-                        .map((c: CostCenter) => (
-                          <option key={c.id} value={c.id}>
-                            {c.code} - {c.name}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  <div className="col-span-6">
-                    <input
-                      className="w-full rounded-lg border bg-background p-2 text-xs"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={line.plannedAmount}
-                      onChange={(e) => updateLine(idx, "plannedAmount", e.target.value)}
-                      placeholder="المبلغ"
-                    />
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-          <div className="mt-2 rounded-lg bg-primary/10 p-2 text-xs flex justify-between items-center">
-            <span>إجمالي المخطط: {fmtSAR(totalPlanned)}</span>
-            <Badge tone="info">{formLines.length} سطر</Badge>
-          </div>
-        </div>
-
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الوصف</label>
-          <textarea
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            rows={2}
-            value={formDescription}
-            onChange={(e) => setFormDescription(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-          <textarea
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            rows={2}
-            value={formNotes}
-            onChange={(e) => setFormNotes(e.target.value)}
-          />
-        </div>
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
-        open={!!detailId && !addOpen}
+        open={!!detailId}
         onClose={() => setDetailId(null)}
         title={`الموازنة: ${detailData?.item?.name || ""}`}
         onSave={() => setDetailId(null)}

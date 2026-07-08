@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -30,7 +30,6 @@ import { useState, useEffect } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   EmptyState,
@@ -39,8 +38,6 @@ import { useAuth } from "@/lib/api/auth";
 import { getBeneficiaries, type Beneficiary } from "@/lib/api/beneficiaries";
 import {
   getAidRecords,
-  createAidRecord,
-  updateAidRecord,
   deleteAidRecord,
   approveAidRecord,
   rejectAidRecord,
@@ -66,21 +63,16 @@ function statusToneLocal(s: string) {
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [filterOpen, setFilterOpen] = useState(false);
-  const [formOpen, setFormOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [approveTarget, setApproveTarget] = useState<AidRecord | null>(null);
   const [rejectTarget, setRejectTarget] = useState<AidRecord | null>(null);
   const [deliverTarget, setDeliverTarget] = useState<AidRecord | null>(null);
   const [returnTarget, setReturnTarget] = useState<AidRecord | null>(null);
-  const [editingRecord, setEditingRecord] = useState<AidRecord | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("الكل");
   const [typeFilter, setTypeFilter] = useState("الكل");
-  const [formBeneficiaryId, setFormBeneficiaryId] = useState("");
-  const [formType, setFormType] = useState("مساعدة عاجلة");
-  const [formAmount, setFormAmount] = useState("");
-  const [formNotes, setFormNotes] = useState("");
 
   const [page, setPage] = useState(1);
 
@@ -121,27 +113,6 @@ function Page() {
   useEffect(() => {
     setApiFilters((f) => ({ ...f, page }));
   }, [page]);
-
-  const createMutation = useMutation({
-    mutationFn: createAidRecord,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["aid"] });
-      showToast("تم إضافة المساعدة بنجاح", "success");
-      setFormOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateAidRecord,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["aid"] });
-      showToast("تم تحديث المساعدة بنجاح", "success");
-      setFormOpen(false);
-      setEditingRecord(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
 
   const deleteMutation = useMutation({
     mutationFn: deleteAidRecord,
@@ -194,55 +165,10 @@ function Page() {
     onError: (err: Error) => showToast(err.message, "error"),
   });
 
-  const openAdd = () => {
-    setEditingRecord(null);
-    setFormBeneficiaryId("");
-    setFormType("مساعدة عاجلة");
-    setFormAmount("");
-    setFormNotes("");
-    setFormOpen(true);
-  };
+  const openAdd = () => navigate({ to: "/aid/new" });
 
-  const openEdit = (r: AidRecord) => {
-    setEditingRecord(r);
-    setFormBeneficiaryId(r.beneficiaryId);
-    setFormType(r.type);
-    setFormAmount(String(r.amount));
-    setFormNotes(r.notes || "");
-    setFormOpen(true);
-  };
-
-  const handleSave = () => {
-    if (!formBeneficiaryId) {
-      showToast("يرجى اختيار المستفيد", "error");
-      return;
-    }
-    if (!formAmount) {
-      showToast("يرجى إدخال المبلغ", "error");
-      return;
-    }
-
-    if (editingRecord) {
-      updateMutation.mutate({
-        id: editingRecord.id,
-        beneficiaryId: formBeneficiaryId,
-        type: formType,
-        amount: parseFloat(formAmount),
-        notes: formNotes,
-        userId: user?.id,
-        userName: user?.name,
-      });
-    } else {
-      createMutation.mutate({
-        beneficiaryId: formBeneficiaryId,
-        type: formType,
-        amount: parseFloat(formAmount),
-        notes: formNotes,
-        userId: user?.id,
-        userName: user?.name,
-      });
-    }
-  };
+  const openEdit = (r: AidRecord) =>
+    navigate({ to: "/aid/$id/edit", params: { id: r.id } });
 
   const handleDelete = () => {
     if (deleteTarget) {
@@ -456,67 +382,6 @@ function Page() {
           )}
         </>
       )}
-
-      <EntityFormDrawer
-        open={formOpen}
-        onClose={() => {
-          setFormOpen(false);
-          setEditingRecord(null);
-        }}
-        title={editingRecord ? "تعديل المساعدة" : "إضافة مساعدة"}
-        onSave={handleSave}
-        loading={createMutation.isPending || updateMutation.isPending}
-      >
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">المستفيد (مؤهل فقط)</label>
-          <select
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formBeneficiaryId}
-            onChange={(e) => setFormBeneficiaryId(e.target.value)}
-          >
-            <option value="">اختر المستفيد...</option>
-            {beneficiaries.map((b: Beneficiary) => (
-              <option key={b.id} value={b.id}>
-                {b.name} - {b.city}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">النوع</label>
-          <select
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formType}
-            onChange={(e) => setFormType(e.target.value)}
-          >
-            <option>مساعدة عاجلة</option>
-            <option>مساعدة شهرية</option>
-            <option>سلة غذائية</option>
-            <option>علاج</option>
-            <option>كسوة شتوية</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">المبلغ (ر.س)</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            type="number"
-            value={formAmount}
-            onChange={(e) => setFormAmount(e.target.value)}
-            placeholder="0"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-          <textarea
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            rows={3}
-            value={formNotes}
-            onChange={(e) => setFormNotes(e.target.value)}
-            placeholder="ملاحظات..."
-          />
-        </div>
-      </EntityFormDrawer>
 
       <ConfirmDialog
         open={!!deleteTarget}

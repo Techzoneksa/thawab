@@ -40,6 +40,7 @@ import { Route as SettingsOrgRouteImport } from './routes/settings.org'
 import { Route as SettingsIntegrationsRouteImport } from './routes/settings.integrations'
 import { Route as SettingsBranchesRouteImport } from './routes/settings.branches'
 import { Route as SettingsBackupRouteImport } from './routes/settings.backup'
+import { Route as ProjectsNewRouteImport } from './routes/projects.new'
 import { Route as ProjectsIdRouteImport } from './routes/projects.$id'
 import { Route as ProcurementSuppliersRouteImport } from './routes/procurement.suppliers'
 import { Route as ProcurementRequestsRouteImport } from './routes/procurement.requests'
@@ -55,8 +56,23 @@ import { Route as FinanceCostCentersRouteImport } from './routes/finance.cost-ce
 import { Route as FinanceClosingRouteImport } from './routes/finance.closing'
 import { Route as FinanceBudgetsRouteImport } from './routes/finance.budgets'
 import { Route as FinanceAccountsRouteImport } from './routes/finance.accounts'
+import { Route as DonorsNewRouteImport } from './routes/donors.new'
 import { Route as DonorsIdRouteImport } from './routes/donors.$id'
+import { Route as DonationsNewRouteImport } from './routes/donations.new'
+import { Route as BeneficiariesNewRouteImport } from './routes/beneficiaries.new'
 import { Route as BeneficiariesIdRouteImport } from './routes/beneficiaries.$id'
+import { Route as AidNewRouteImport } from './routes/aid.new'
+import { Route as ProjectsIdEditRouteImport } from './routes/projects.$id.edit'
+import { Route as FinanceJournalNewRouteImport } from './routes/finance.journal.new'
+import { Route as FinanceBudgetsNewRouteImport } from './routes/finance.budgets.new'
+import { Route as FinanceAccountsNewRouteImport } from './routes/finance.accounts.new'
+import { Route as DonorsIdEditRouteImport } from './routes/donors.$id.edit'
+import { Route as DonationsIdEditRouteImport } from './routes/donations.$id.edit'
+import { Route as BeneficiariesIdEditRouteImport } from './routes/beneficiaries.$id.edit'
+import { Route as AidIdEditRouteImport } from './routes/aid.$id.edit'
+import { Route as FinanceJournalIdEditRouteImport } from './routes/finance.journal.$id.edit'
+import { Route as FinanceBudgetsIdEditRouteImport } from './routes/finance.budgets.$id.edit'
+import { Route as FinanceAccountsIdEditRouteImport } from './routes/finance.accounts.$id.edit'
 
 const WorkflowsRoute = WorkflowsRouteImport.update({
   id: '/workflows',
@@ -213,6 +229,11 @@ const SettingsBackupRoute = SettingsBackupRouteImport.update({
   path: '/settings/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectsNewRoute = ProjectsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => ProjectsRoute,
+} as any)
 const ProjectsIdRoute = ProjectsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -288,27 +309,102 @@ const FinanceAccountsRoute = FinanceAccountsRouteImport.update({
   path: '/finance/accounts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DonorsNewRoute = DonorsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => DonorsRoute,
+} as any)
 const DonorsIdRoute = DonorsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => DonorsRoute,
+} as any)
+const DonationsNewRoute = DonationsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => DonationsRoute,
+} as any)
+const BeneficiariesNewRoute = BeneficiariesNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => BeneficiariesRoute,
 } as any)
 const BeneficiariesIdRoute = BeneficiariesIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => BeneficiariesRoute,
 } as any)
+const AidNewRoute = AidNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AidRoute,
+} as any)
+const ProjectsIdEditRoute = ProjectsIdEditRouteImport.update({
+  id: '/edit',
+  path: '/edit',
+  getParentRoute: () => ProjectsIdRoute,
+} as any)
+const FinanceJournalNewRoute = FinanceJournalNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => FinanceJournalRoute,
+} as any)
+const FinanceBudgetsNewRoute = FinanceBudgetsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => FinanceBudgetsRoute,
+} as any)
+const FinanceAccountsNewRoute = FinanceAccountsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => FinanceAccountsRoute,
+} as any)
+const DonorsIdEditRoute = DonorsIdEditRouteImport.update({
+  id: '/edit',
+  path: '/edit',
+  getParentRoute: () => DonorsIdRoute,
+} as any)
+const DonationsIdEditRoute = DonationsIdEditRouteImport.update({
+  id: '/$id/edit',
+  path: '/$id/edit',
+  getParentRoute: () => DonationsRoute,
+} as any)
+const BeneficiariesIdEditRoute = BeneficiariesIdEditRouteImport.update({
+  id: '/edit',
+  path: '/edit',
+  getParentRoute: () => BeneficiariesIdRoute,
+} as any)
+const AidIdEditRoute = AidIdEditRouteImport.update({
+  id: '/$id/edit',
+  path: '/$id/edit',
+  getParentRoute: () => AidRoute,
+} as any)
+const FinanceJournalIdEditRoute = FinanceJournalIdEditRouteImport.update({
+  id: '/$id/edit',
+  path: '/$id/edit',
+  getParentRoute: () => FinanceJournalRoute,
+} as any)
+const FinanceBudgetsIdEditRoute = FinanceBudgetsIdEditRouteImport.update({
+  id: '/$id/edit',
+  path: '/$id/edit',
+  getParentRoute: () => FinanceBudgetsRoute,
+} as any)
+const FinanceAccountsIdEditRoute = FinanceAccountsIdEditRouteImport.update({
+  id: '/$id/edit',
+  path: '/$id/edit',
+  getParentRoute: () => FinanceAccountsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/aid': typeof AidRoute
+  '/aid': typeof AidRouteWithChildren
   '/approvals': typeof ApprovalsRoute
   '/assets': typeof AssetsRoute
   '/audit': typeof AuditRoute
   '/beneficiaries': typeof BeneficiariesRouteWithChildren
   '/campaigns': typeof CampaignsRoute
   '/distribution': typeof DistributionRoute
-  '/donations': typeof DonationsRoute
+  '/donations': typeof DonationsRouteWithChildren
   '/donor-orgs': typeof DonorOrgsRoute
   '/donors': typeof DonorsRouteWithChildren
   '/endowment-returns': typeof EndowmentReturnsRoute
@@ -325,13 +421,17 @@ export interface FileRoutesByFullPath {
   '/recurring': typeof RecurringRoute
   '/reports': typeof ReportsRoute
   '/workflows': typeof WorkflowsRoute
-  '/beneficiaries/$id': typeof BeneficiariesIdRoute
-  '/donors/$id': typeof DonorsIdRoute
-  '/finance/accounts': typeof FinanceAccountsRoute
-  '/finance/budgets': typeof FinanceBudgetsRoute
+  '/aid/new': typeof AidNewRoute
+  '/beneficiaries/$id': typeof BeneficiariesIdRouteWithChildren
+  '/beneficiaries/new': typeof BeneficiariesNewRoute
+  '/donations/new': typeof DonationsNewRoute
+  '/donors/$id': typeof DonorsIdRouteWithChildren
+  '/donors/new': typeof DonorsNewRoute
+  '/finance/accounts': typeof FinanceAccountsRouteWithChildren
+  '/finance/budgets': typeof FinanceBudgetsRouteWithChildren
   '/finance/closing': typeof FinanceClosingRoute
   '/finance/cost-centers': typeof FinanceCostCentersRoute
-  '/finance/journal': typeof FinanceJournalRoute
+  '/finance/journal': typeof FinanceJournalRouteWithChildren
   '/finance/ledger': typeof FinanceLedgerRoute
   '/finance/statements': typeof FinanceStatementsRoute
   '/inventory/items': typeof InventoryItemsRoute
@@ -341,24 +441,36 @@ export interface FileRoutesByFullPath {
   '/procurement/quotes': typeof ProcurementQuotesRoute
   '/procurement/requests': typeof ProcurementRequestsRoute
   '/procurement/suppliers': typeof ProcurementSuppliersRoute
-  '/projects/$id': typeof ProjectsIdRoute
+  '/projects/$id': typeof ProjectsIdRouteWithChildren
+  '/projects/new': typeof ProjectsNewRoute
   '/settings/backup': typeof SettingsBackupRoute
   '/settings/branches': typeof SettingsBranchesRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/org': typeof SettingsOrgRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/aid/$id/edit': typeof AidIdEditRoute
+  '/beneficiaries/$id/edit': typeof BeneficiariesIdEditRoute
+  '/donations/$id/edit': typeof DonationsIdEditRoute
+  '/donors/$id/edit': typeof DonorsIdEditRoute
+  '/finance/accounts/new': typeof FinanceAccountsNewRoute
+  '/finance/budgets/new': typeof FinanceBudgetsNewRoute
+  '/finance/journal/new': typeof FinanceJournalNewRoute
+  '/projects/$id/edit': typeof ProjectsIdEditRoute
+  '/finance/accounts/$id/edit': typeof FinanceAccountsIdEditRoute
+  '/finance/budgets/$id/edit': typeof FinanceBudgetsIdEditRoute
+  '/finance/journal/$id/edit': typeof FinanceJournalIdEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/aid': typeof AidRoute
+  '/aid': typeof AidRouteWithChildren
   '/approvals': typeof ApprovalsRoute
   '/assets': typeof AssetsRoute
   '/audit': typeof AuditRoute
   '/beneficiaries': typeof BeneficiariesRouteWithChildren
   '/campaigns': typeof CampaignsRoute
   '/distribution': typeof DistributionRoute
-  '/donations': typeof DonationsRoute
+  '/donations': typeof DonationsRouteWithChildren
   '/donor-orgs': typeof DonorOrgsRoute
   '/donors': typeof DonorsRouteWithChildren
   '/endowment-returns': typeof EndowmentReturnsRoute
@@ -375,13 +487,17 @@ export interface FileRoutesByTo {
   '/recurring': typeof RecurringRoute
   '/reports': typeof ReportsRoute
   '/workflows': typeof WorkflowsRoute
-  '/beneficiaries/$id': typeof BeneficiariesIdRoute
-  '/donors/$id': typeof DonorsIdRoute
-  '/finance/accounts': typeof FinanceAccountsRoute
-  '/finance/budgets': typeof FinanceBudgetsRoute
+  '/aid/new': typeof AidNewRoute
+  '/beneficiaries/$id': typeof BeneficiariesIdRouteWithChildren
+  '/beneficiaries/new': typeof BeneficiariesNewRoute
+  '/donations/new': typeof DonationsNewRoute
+  '/donors/$id': typeof DonorsIdRouteWithChildren
+  '/donors/new': typeof DonorsNewRoute
+  '/finance/accounts': typeof FinanceAccountsRouteWithChildren
+  '/finance/budgets': typeof FinanceBudgetsRouteWithChildren
   '/finance/closing': typeof FinanceClosingRoute
   '/finance/cost-centers': typeof FinanceCostCentersRoute
-  '/finance/journal': typeof FinanceJournalRoute
+  '/finance/journal': typeof FinanceJournalRouteWithChildren
   '/finance/ledger': typeof FinanceLedgerRoute
   '/finance/statements': typeof FinanceStatementsRoute
   '/inventory/items': typeof InventoryItemsRoute
@@ -391,25 +507,37 @@ export interface FileRoutesByTo {
   '/procurement/quotes': typeof ProcurementQuotesRoute
   '/procurement/requests': typeof ProcurementRequestsRoute
   '/procurement/suppliers': typeof ProcurementSuppliersRoute
-  '/projects/$id': typeof ProjectsIdRoute
+  '/projects/$id': typeof ProjectsIdRouteWithChildren
+  '/projects/new': typeof ProjectsNewRoute
   '/settings/backup': typeof SettingsBackupRoute
   '/settings/branches': typeof SettingsBranchesRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/org': typeof SettingsOrgRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/aid/$id/edit': typeof AidIdEditRoute
+  '/beneficiaries/$id/edit': typeof BeneficiariesIdEditRoute
+  '/donations/$id/edit': typeof DonationsIdEditRoute
+  '/donors/$id/edit': typeof DonorsIdEditRoute
+  '/finance/accounts/new': typeof FinanceAccountsNewRoute
+  '/finance/budgets/new': typeof FinanceBudgetsNewRoute
+  '/finance/journal/new': typeof FinanceJournalNewRoute
+  '/projects/$id/edit': typeof ProjectsIdEditRoute
+  '/finance/accounts/$id/edit': typeof FinanceAccountsIdEditRoute
+  '/finance/budgets/$id/edit': typeof FinanceBudgetsIdEditRoute
+  '/finance/journal/$id/edit': typeof FinanceJournalIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/aid': typeof AidRoute
+  '/aid': typeof AidRouteWithChildren
   '/approvals': typeof ApprovalsRoute
   '/assets': typeof AssetsRoute
   '/audit': typeof AuditRoute
   '/beneficiaries': typeof BeneficiariesRouteWithChildren
   '/campaigns': typeof CampaignsRoute
   '/distribution': typeof DistributionRoute
-  '/donations': typeof DonationsRoute
+  '/donations': typeof DonationsRouteWithChildren
   '/donor-orgs': typeof DonorOrgsRoute
   '/donors': typeof DonorsRouteWithChildren
   '/endowment-returns': typeof EndowmentReturnsRoute
@@ -426,13 +554,17 @@ export interface FileRoutesById {
   '/recurring': typeof RecurringRoute
   '/reports': typeof ReportsRoute
   '/workflows': typeof WorkflowsRoute
-  '/beneficiaries/$id': typeof BeneficiariesIdRoute
-  '/donors/$id': typeof DonorsIdRoute
-  '/finance/accounts': typeof FinanceAccountsRoute
-  '/finance/budgets': typeof FinanceBudgetsRoute
+  '/aid/new': typeof AidNewRoute
+  '/beneficiaries/$id': typeof BeneficiariesIdRouteWithChildren
+  '/beneficiaries/new': typeof BeneficiariesNewRoute
+  '/donations/new': typeof DonationsNewRoute
+  '/donors/$id': typeof DonorsIdRouteWithChildren
+  '/donors/new': typeof DonorsNewRoute
+  '/finance/accounts': typeof FinanceAccountsRouteWithChildren
+  '/finance/budgets': typeof FinanceBudgetsRouteWithChildren
   '/finance/closing': typeof FinanceClosingRoute
   '/finance/cost-centers': typeof FinanceCostCentersRoute
-  '/finance/journal': typeof FinanceJournalRoute
+  '/finance/journal': typeof FinanceJournalRouteWithChildren
   '/finance/ledger': typeof FinanceLedgerRoute
   '/finance/statements': typeof FinanceStatementsRoute
   '/inventory/items': typeof InventoryItemsRoute
@@ -442,13 +574,25 @@ export interface FileRoutesById {
   '/procurement/quotes': typeof ProcurementQuotesRoute
   '/procurement/requests': typeof ProcurementRequestsRoute
   '/procurement/suppliers': typeof ProcurementSuppliersRoute
-  '/projects/$id': typeof ProjectsIdRoute
+  '/projects/$id': typeof ProjectsIdRouteWithChildren
+  '/projects/new': typeof ProjectsNewRoute
   '/settings/backup': typeof SettingsBackupRoute
   '/settings/branches': typeof SettingsBranchesRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/org': typeof SettingsOrgRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/aid/$id/edit': typeof AidIdEditRoute
+  '/beneficiaries/$id/edit': typeof BeneficiariesIdEditRoute
+  '/donations/$id/edit': typeof DonationsIdEditRoute
+  '/donors/$id/edit': typeof DonorsIdEditRoute
+  '/finance/accounts/new': typeof FinanceAccountsNewRoute
+  '/finance/budgets/new': typeof FinanceBudgetsNewRoute
+  '/finance/journal/new': typeof FinanceJournalNewRoute
+  '/projects/$id/edit': typeof ProjectsIdEditRoute
+  '/finance/accounts/$id/edit': typeof FinanceAccountsIdEditRoute
+  '/finance/budgets/$id/edit': typeof FinanceBudgetsIdEditRoute
+  '/finance/journal/$id/edit': typeof FinanceJournalIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -478,8 +622,12 @@ export interface FileRouteTypes {
     | '/recurring'
     | '/reports'
     | '/workflows'
+    | '/aid/new'
     | '/beneficiaries/$id'
+    | '/beneficiaries/new'
+    | '/donations/new'
     | '/donors/$id'
+    | '/donors/new'
     | '/finance/accounts'
     | '/finance/budgets'
     | '/finance/closing'
@@ -495,12 +643,24 @@ export interface FileRouteTypes {
     | '/procurement/requests'
     | '/procurement/suppliers'
     | '/projects/$id'
+    | '/projects/new'
     | '/settings/backup'
     | '/settings/branches'
     | '/settings/integrations'
     | '/settings/org'
     | '/settings/system'
     | '/settings/users'
+    | '/aid/$id/edit'
+    | '/beneficiaries/$id/edit'
+    | '/donations/$id/edit'
+    | '/donors/$id/edit'
+    | '/finance/accounts/new'
+    | '/finance/budgets/new'
+    | '/finance/journal/new'
+    | '/projects/$id/edit'
+    | '/finance/accounts/$id/edit'
+    | '/finance/budgets/$id/edit'
+    | '/finance/journal/$id/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -528,8 +688,12 @@ export interface FileRouteTypes {
     | '/recurring'
     | '/reports'
     | '/workflows'
+    | '/aid/new'
     | '/beneficiaries/$id'
+    | '/beneficiaries/new'
+    | '/donations/new'
     | '/donors/$id'
+    | '/donors/new'
     | '/finance/accounts'
     | '/finance/budgets'
     | '/finance/closing'
@@ -545,12 +709,24 @@ export interface FileRouteTypes {
     | '/procurement/requests'
     | '/procurement/suppliers'
     | '/projects/$id'
+    | '/projects/new'
     | '/settings/backup'
     | '/settings/branches'
     | '/settings/integrations'
     | '/settings/org'
     | '/settings/system'
     | '/settings/users'
+    | '/aid/$id/edit'
+    | '/beneficiaries/$id/edit'
+    | '/donations/$id/edit'
+    | '/donors/$id/edit'
+    | '/finance/accounts/new'
+    | '/finance/budgets/new'
+    | '/finance/journal/new'
+    | '/projects/$id/edit'
+    | '/finance/accounts/$id/edit'
+    | '/finance/budgets/$id/edit'
+    | '/finance/journal/$id/edit'
   id:
     | '__root__'
     | '/'
@@ -578,8 +754,12 @@ export interface FileRouteTypes {
     | '/recurring'
     | '/reports'
     | '/workflows'
+    | '/aid/new'
     | '/beneficiaries/$id'
+    | '/beneficiaries/new'
+    | '/donations/new'
     | '/donors/$id'
+    | '/donors/new'
     | '/finance/accounts'
     | '/finance/budgets'
     | '/finance/closing'
@@ -595,24 +775,36 @@ export interface FileRouteTypes {
     | '/procurement/requests'
     | '/procurement/suppliers'
     | '/projects/$id'
+    | '/projects/new'
     | '/settings/backup'
     | '/settings/branches'
     | '/settings/integrations'
     | '/settings/org'
     | '/settings/system'
     | '/settings/users'
+    | '/aid/$id/edit'
+    | '/beneficiaries/$id/edit'
+    | '/donations/$id/edit'
+    | '/donors/$id/edit'
+    | '/finance/accounts/new'
+    | '/finance/budgets/new'
+    | '/finance/journal/new'
+    | '/projects/$id/edit'
+    | '/finance/accounts/$id/edit'
+    | '/finance/budgets/$id/edit'
+    | '/finance/journal/$id/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AidRoute: typeof AidRoute
+  AidRoute: typeof AidRouteWithChildren
   ApprovalsRoute: typeof ApprovalsRoute
   AssetsRoute: typeof AssetsRoute
   AuditRoute: typeof AuditRoute
   BeneficiariesRoute: typeof BeneficiariesRouteWithChildren
   CampaignsRoute: typeof CampaignsRoute
   DistributionRoute: typeof DistributionRoute
-  DonationsRoute: typeof DonationsRoute
+  DonationsRoute: typeof DonationsRouteWithChildren
   DonorOrgsRoute: typeof DonorOrgsRoute
   DonorsRoute: typeof DonorsRouteWithChildren
   EndowmentReturnsRoute: typeof EndowmentReturnsRoute
@@ -629,11 +821,11 @@ export interface RootRouteChildren {
   RecurringRoute: typeof RecurringRoute
   ReportsRoute: typeof ReportsRoute
   WorkflowsRoute: typeof WorkflowsRoute
-  FinanceAccountsRoute: typeof FinanceAccountsRoute
-  FinanceBudgetsRoute: typeof FinanceBudgetsRoute
+  FinanceAccountsRoute: typeof FinanceAccountsRouteWithChildren
+  FinanceBudgetsRoute: typeof FinanceBudgetsRouteWithChildren
   FinanceClosingRoute: typeof FinanceClosingRoute
   FinanceCostCentersRoute: typeof FinanceCostCentersRoute
-  FinanceJournalRoute: typeof FinanceJournalRoute
+  FinanceJournalRoute: typeof FinanceJournalRouteWithChildren
   FinanceLedgerRoute: typeof FinanceLedgerRoute
   FinanceStatementsRoute: typeof FinanceStatementsRoute
   InventoryItemsRoute: typeof InventoryItemsRoute
@@ -870,6 +1062,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projects/new': {
+      id: '/projects/new'
+      path: '/new'
+      fullPath: '/projects/new'
+      preLoaderRoute: typeof ProjectsNewRouteImport
+      parentRoute: typeof ProjectsRoute
+    }
     '/projects/$id': {
       id: '/projects/$id'
       path: '/$id'
@@ -975,12 +1174,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FinanceAccountsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/donors/new': {
+      id: '/donors/new'
+      path: '/new'
+      fullPath: '/donors/new'
+      preLoaderRoute: typeof DonorsNewRouteImport
+      parentRoute: typeof DonorsRoute
+    }
     '/donors/$id': {
       id: '/donors/$id'
       path: '/$id'
       fullPath: '/donors/$id'
       preLoaderRoute: typeof DonorsIdRouteImport
       parentRoute: typeof DonorsRoute
+    }
+    '/donations/new': {
+      id: '/donations/new'
+      path: '/new'
+      fullPath: '/donations/new'
+      preLoaderRoute: typeof DonationsNewRouteImport
+      parentRoute: typeof DonationsRoute
+    }
+    '/beneficiaries/new': {
+      id: '/beneficiaries/new'
+      path: '/new'
+      fullPath: '/beneficiaries/new'
+      preLoaderRoute: typeof BeneficiariesNewRouteImport
+      parentRoute: typeof BeneficiariesRoute
     }
     '/beneficiaries/$id': {
       id: '/beneficiaries/$id'
@@ -989,54 +1209,248 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BeneficiariesIdRouteImport
       parentRoute: typeof BeneficiariesRoute
     }
+    '/aid/new': {
+      id: '/aid/new'
+      path: '/new'
+      fullPath: '/aid/new'
+      preLoaderRoute: typeof AidNewRouteImport
+      parentRoute: typeof AidRoute
+    }
+    '/projects/$id/edit': {
+      id: '/projects/$id/edit'
+      path: '/edit'
+      fullPath: '/projects/$id/edit'
+      preLoaderRoute: typeof ProjectsIdEditRouteImport
+      parentRoute: typeof ProjectsIdRoute
+    }
+    '/finance/journal/new': {
+      id: '/finance/journal/new'
+      path: '/new'
+      fullPath: '/finance/journal/new'
+      preLoaderRoute: typeof FinanceJournalNewRouteImport
+      parentRoute: typeof FinanceJournalRoute
+    }
+    '/finance/budgets/new': {
+      id: '/finance/budgets/new'
+      path: '/new'
+      fullPath: '/finance/budgets/new'
+      preLoaderRoute: typeof FinanceBudgetsNewRouteImport
+      parentRoute: typeof FinanceBudgetsRoute
+    }
+    '/finance/accounts/new': {
+      id: '/finance/accounts/new'
+      path: '/new'
+      fullPath: '/finance/accounts/new'
+      preLoaderRoute: typeof FinanceAccountsNewRouteImport
+      parentRoute: typeof FinanceAccountsRoute
+    }
+    '/donors/$id/edit': {
+      id: '/donors/$id/edit'
+      path: '/edit'
+      fullPath: '/donors/$id/edit'
+      preLoaderRoute: typeof DonorsIdEditRouteImport
+      parentRoute: typeof DonorsIdRoute
+    }
+    '/donations/$id/edit': {
+      id: '/donations/$id/edit'
+      path: '/$id/edit'
+      fullPath: '/donations/$id/edit'
+      preLoaderRoute: typeof DonationsIdEditRouteImport
+      parentRoute: typeof DonationsRoute
+    }
+    '/beneficiaries/$id/edit': {
+      id: '/beneficiaries/$id/edit'
+      path: '/edit'
+      fullPath: '/beneficiaries/$id/edit'
+      preLoaderRoute: typeof BeneficiariesIdEditRouteImport
+      parentRoute: typeof BeneficiariesIdRoute
+    }
+    '/aid/$id/edit': {
+      id: '/aid/$id/edit'
+      path: '/$id/edit'
+      fullPath: '/aid/$id/edit'
+      preLoaderRoute: typeof AidIdEditRouteImport
+      parentRoute: typeof AidRoute
+    }
+    '/finance/journal/$id/edit': {
+      id: '/finance/journal/$id/edit'
+      path: '/$id/edit'
+      fullPath: '/finance/journal/$id/edit'
+      preLoaderRoute: typeof FinanceJournalIdEditRouteImport
+      parentRoute: typeof FinanceJournalRoute
+    }
+    '/finance/budgets/$id/edit': {
+      id: '/finance/budgets/$id/edit'
+      path: '/$id/edit'
+      fullPath: '/finance/budgets/$id/edit'
+      preLoaderRoute: typeof FinanceBudgetsIdEditRouteImport
+      parentRoute: typeof FinanceBudgetsRoute
+    }
+    '/finance/accounts/$id/edit': {
+      id: '/finance/accounts/$id/edit'
+      path: '/$id/edit'
+      fullPath: '/finance/accounts/$id/edit'
+      preLoaderRoute: typeof FinanceAccountsIdEditRouteImport
+      parentRoute: typeof FinanceAccountsRoute
+    }
   }
 }
 
+interface AidRouteChildren {
+  AidNewRoute: typeof AidNewRoute
+  AidIdEditRoute: typeof AidIdEditRoute
+}
+
+const AidRouteChildren: AidRouteChildren = {
+  AidNewRoute: AidNewRoute,
+  AidIdEditRoute: AidIdEditRoute,
+}
+
+const AidRouteWithChildren = AidRoute._addFileChildren(AidRouteChildren)
+
+interface BeneficiariesIdRouteChildren {
+  BeneficiariesIdEditRoute: typeof BeneficiariesIdEditRoute
+}
+
+const BeneficiariesIdRouteChildren: BeneficiariesIdRouteChildren = {
+  BeneficiariesIdEditRoute: BeneficiariesIdEditRoute,
+}
+
+const BeneficiariesIdRouteWithChildren = BeneficiariesIdRoute._addFileChildren(
+  BeneficiariesIdRouteChildren,
+)
+
 interface BeneficiariesRouteChildren {
-  BeneficiariesIdRoute: typeof BeneficiariesIdRoute
+  BeneficiariesIdRoute: typeof BeneficiariesIdRouteWithChildren
+  BeneficiariesNewRoute: typeof BeneficiariesNewRoute
 }
 
 const BeneficiariesRouteChildren: BeneficiariesRouteChildren = {
-  BeneficiariesIdRoute: BeneficiariesIdRoute,
+  BeneficiariesIdRoute: BeneficiariesIdRouteWithChildren,
+  BeneficiariesNewRoute: BeneficiariesNewRoute,
 }
 
 const BeneficiariesRouteWithChildren = BeneficiariesRoute._addFileChildren(
   BeneficiariesRouteChildren,
 )
 
+interface DonationsRouteChildren {
+  DonationsNewRoute: typeof DonationsNewRoute
+  DonationsIdEditRoute: typeof DonationsIdEditRoute
+}
+
+const DonationsRouteChildren: DonationsRouteChildren = {
+  DonationsNewRoute: DonationsNewRoute,
+  DonationsIdEditRoute: DonationsIdEditRoute,
+}
+
+const DonationsRouteWithChildren = DonationsRoute._addFileChildren(
+  DonationsRouteChildren,
+)
+
+interface DonorsIdRouteChildren {
+  DonorsIdEditRoute: typeof DonorsIdEditRoute
+}
+
+const DonorsIdRouteChildren: DonorsIdRouteChildren = {
+  DonorsIdEditRoute: DonorsIdEditRoute,
+}
+
+const DonorsIdRouteWithChildren = DonorsIdRoute._addFileChildren(
+  DonorsIdRouteChildren,
+)
+
 interface DonorsRouteChildren {
-  DonorsIdRoute: typeof DonorsIdRoute
+  DonorsIdRoute: typeof DonorsIdRouteWithChildren
+  DonorsNewRoute: typeof DonorsNewRoute
 }
 
 const DonorsRouteChildren: DonorsRouteChildren = {
-  DonorsIdRoute: DonorsIdRoute,
+  DonorsIdRoute: DonorsIdRouteWithChildren,
+  DonorsNewRoute: DonorsNewRoute,
 }
 
 const DonorsRouteWithChildren =
   DonorsRoute._addFileChildren(DonorsRouteChildren)
 
+interface ProjectsIdRouteChildren {
+  ProjectsIdEditRoute: typeof ProjectsIdEditRoute
+}
+
+const ProjectsIdRouteChildren: ProjectsIdRouteChildren = {
+  ProjectsIdEditRoute: ProjectsIdEditRoute,
+}
+
+const ProjectsIdRouteWithChildren = ProjectsIdRoute._addFileChildren(
+  ProjectsIdRouteChildren,
+)
+
 interface ProjectsRouteChildren {
-  ProjectsIdRoute: typeof ProjectsIdRoute
+  ProjectsIdRoute: typeof ProjectsIdRouteWithChildren
+  ProjectsNewRoute: typeof ProjectsNewRoute
 }
 
 const ProjectsRouteChildren: ProjectsRouteChildren = {
-  ProjectsIdRoute: ProjectsIdRoute,
+  ProjectsIdRoute: ProjectsIdRouteWithChildren,
+  ProjectsNewRoute: ProjectsNewRoute,
 }
 
 const ProjectsRouteWithChildren = ProjectsRoute._addFileChildren(
   ProjectsRouteChildren,
 )
 
+interface FinanceAccountsRouteChildren {
+  FinanceAccountsNewRoute: typeof FinanceAccountsNewRoute
+  FinanceAccountsIdEditRoute: typeof FinanceAccountsIdEditRoute
+}
+
+const FinanceAccountsRouteChildren: FinanceAccountsRouteChildren = {
+  FinanceAccountsNewRoute: FinanceAccountsNewRoute,
+  FinanceAccountsIdEditRoute: FinanceAccountsIdEditRoute,
+}
+
+const FinanceAccountsRouteWithChildren = FinanceAccountsRoute._addFileChildren(
+  FinanceAccountsRouteChildren,
+)
+
+interface FinanceBudgetsRouteChildren {
+  FinanceBudgetsNewRoute: typeof FinanceBudgetsNewRoute
+  FinanceBudgetsIdEditRoute: typeof FinanceBudgetsIdEditRoute
+}
+
+const FinanceBudgetsRouteChildren: FinanceBudgetsRouteChildren = {
+  FinanceBudgetsNewRoute: FinanceBudgetsNewRoute,
+  FinanceBudgetsIdEditRoute: FinanceBudgetsIdEditRoute,
+}
+
+const FinanceBudgetsRouteWithChildren = FinanceBudgetsRoute._addFileChildren(
+  FinanceBudgetsRouteChildren,
+)
+
+interface FinanceJournalRouteChildren {
+  FinanceJournalNewRoute: typeof FinanceJournalNewRoute
+  FinanceJournalIdEditRoute: typeof FinanceJournalIdEditRoute
+}
+
+const FinanceJournalRouteChildren: FinanceJournalRouteChildren = {
+  FinanceJournalNewRoute: FinanceJournalNewRoute,
+  FinanceJournalIdEditRoute: FinanceJournalIdEditRoute,
+}
+
+const FinanceJournalRouteWithChildren = FinanceJournalRoute._addFileChildren(
+  FinanceJournalRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AidRoute: AidRoute,
+  AidRoute: AidRouteWithChildren,
   ApprovalsRoute: ApprovalsRoute,
   AssetsRoute: AssetsRoute,
   AuditRoute: AuditRoute,
   BeneficiariesRoute: BeneficiariesRouteWithChildren,
   CampaignsRoute: CampaignsRoute,
   DistributionRoute: DistributionRoute,
-  DonationsRoute: DonationsRoute,
+  DonationsRoute: DonationsRouteWithChildren,
   DonorOrgsRoute: DonorOrgsRoute,
   DonorsRoute: DonorsRouteWithChildren,
   EndowmentReturnsRoute: EndowmentReturnsRoute,
@@ -1053,11 +1467,11 @@ const rootRouteChildren: RootRouteChildren = {
   RecurringRoute: RecurringRoute,
   ReportsRoute: ReportsRoute,
   WorkflowsRoute: WorkflowsRoute,
-  FinanceAccountsRoute: FinanceAccountsRoute,
-  FinanceBudgetsRoute: FinanceBudgetsRoute,
+  FinanceAccountsRoute: FinanceAccountsRouteWithChildren,
+  FinanceBudgetsRoute: FinanceBudgetsRouteWithChildren,
   FinanceClosingRoute: FinanceClosingRoute,
   FinanceCostCentersRoute: FinanceCostCentersRoute,
-  FinanceJournalRoute: FinanceJournalRoute,
+  FinanceJournalRoute: FinanceJournalRouteWithChildren,
   FinanceLedgerRoute: FinanceLedgerRoute,
   FinanceStatementsRoute: FinanceStatementsRoute,
   InventoryItemsRoute: InventoryItemsRoute,

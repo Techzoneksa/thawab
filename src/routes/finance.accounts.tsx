@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -31,7 +31,6 @@ import { useState, useEffect, useMemo } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   EmptyState,
@@ -39,16 +38,12 @@ import {
 import { useAuth } from "@/lib/api/auth";
 import {
   getAccounts,
-  createAccount,
-  updateAccount,
   deleteAccount,
   deactivateAccount,
   activateAccount,
   ACCOUNT_TYPES,
   ACCOUNT_STATUSES,
   type Account,
-  type AccountType,
-  type AccountStatus,
 } from "@/lib/api/accounts";
 
 export const Route = createFileRoute("/finance/accounts")({
@@ -58,13 +53,12 @@ export const Route = createFileRoute("/finance/accounts")({
 
 function Page() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("الكل");
   const [statusFilter, setStatusFilter] = useState("الكل");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
-  const [editing, setEditing] = useState<Account | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [statusTarget, setStatusTarget] = useState<{
     id: string;
@@ -74,18 +68,6 @@ function Page() {
   const [view, setView] = useState<"tree" | "table">("tree");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  // Form fields
-  const [formCode, setFormCode] = useState("");
-  const [formName, setFormName] = useState("");
-  const [formType, setFormType] = useState<AccountType>("تفصيلي");
-  const [formParent, setFormParent] = useState<string>("");
-  const [formCurrency, setFormCurrency] = useState("SAR");
-  const [formBalance, setFormBalance] = useState("0");
-  const [formPostable, setFormPostable] = useState(true);
-  const [formStatus, setFormStatus] = useState<AccountStatus>("نشط");
-  const [formDescription, setFormDescription] = useState("");
-  const [formNotes, setFormNotes] = useState("");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["accounts", { search: searchQuery, type: typeFilter, status: statusFilter }],
@@ -130,55 +112,15 @@ function Page() {
   }, [roots, childrenOf, expanded.size]);
 
   const openAdd = (parent?: Account | null) => {
-    setEditing(null);
-    setFormCode("");
-    setFormName("");
-    setFormType(parent ? "تفصيلي" : "رئيسي");
-    setFormParent(parent?.id || "");
-    setFormCurrency("SAR");
-    setFormBalance("0");
-    setFormPostable(!parent);
-    setFormStatus("نشط");
-    setFormDescription("");
-    setFormNotes("");
-    setAddOpen(true);
+    navigate({
+      to: "/finance/accounts/new",
+      search: parent?.id ? { parent: parent.id } : {},
+    });
   };
 
   const openEdit = (a: Account) => {
-    setEditing(a);
-    setFormCode(a.code);
-    setFormName(a.name);
-    setFormType(a.type as AccountType);
-    setFormParent(a.parentId || "");
-    setFormCurrency(a.currency);
-    setFormBalance(String(a.balance));
-    setFormPostable(a.postable);
-    setFormStatus(a.status as AccountStatus);
-    setFormDescription(a.description || "");
-    setFormNotes(a.notes || "");
-    setAddOpen(true);
+    navigate({ to: "/finance/accounts/$id/edit", params: { id: a.id } });
   };
-
-  const createMutation = useMutation({
-    mutationFn: createAccount,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      showToast("تم إضافة الحساب بنجاح", "success");
-      setAddOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateAccount,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      showToast("تم تحديث الحساب بنجاح", "success");
-      setAddOpen(false);
-      setEditing(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
 
   const deleteMutation = useMutation({
     mutationFn: deleteAccount,
@@ -207,30 +149,6 @@ function Page() {
     },
     onError: (err: Error) => showToast(err.message, "error"),
   });
-
-  const handleSave = () => {
-    if (!formCode.trim()) return showToast("يرجى إدخال رقم الحساب", "error");
-    if (!formName.trim()) return showToast("يرجى إدخال اسم الحساب", "error");
-    const payload = {
-      code: formCode,
-      name: formName,
-      type: formType,
-      parentId: formParent || null,
-      currency: formCurrency,
-      balance: parseFloat(formBalance) || 0,
-      postable: formPostable,
-      status: formStatus,
-      description: formDescription,
-      notes: formNotes,
-      userId: user?.id,
-      userName: user?.name,
-    };
-    if (editing) {
-      updateMutation.mutate({ id: editing.id, ...payload });
-    } else {
-      createMutation.mutate(payload);
-    }
-  };
 
   const handleDelete = () => {
     if (deleteTarget) {
@@ -544,138 +462,6 @@ function Page() {
           />
         </Card>
       )}
-
-      <EntityFormDrawer
-        open={addOpen}
-        onClose={() => {
-          setAddOpen(false);
-          setEditing(null);
-        }}
-        title={editing ? "تعديل الحساب" : "إضافة حساب جديد"}
-        onSave={handleSave}
-        loading={createMutation.isPending || updateMutation.isPending}
-      >
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">رقم الحساب *</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formCode}
-              onChange={(e) => setFormCode(e.target.value)}
-              placeholder="1101"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الاسم *</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              placeholder="اسم الحساب"
-            />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">النوع</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formType}
-              onChange={(e) => {
-                const t = e.target.value as AccountType;
-                setFormType(t);
-                if (t === "رئيسي") setFormPostable(false);
-                else setFormPostable(true);
-              }}
-            >
-              {ACCOUNT_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الحساب الأب</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formParent}
-              onChange={(e) => setFormParent(e.target.value)}
-            >
-              <option value="">— (حساب رئيسي)</option>
-              {accounts
-                .filter((a: Account) => a.type === "رئيسي" && a.id !== editing?.id)
-                .map((a: Account) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code} - {a.name}
-                  </option>
-                ))}
-            </select>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">العملة</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formCurrency}
-              onChange={(e) => setFormCurrency(e.target.value)}
-              placeholder="SAR"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">رصيد افتتاحي</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              value={formBalance}
-              onChange={(e) => setFormBalance(e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="flex items-center gap-2 p-3 border rounded-lg">
-            <input
-              type="checkbox"
-              checked={formPostable}
-              onChange={(e) => setFormPostable(e.target.checked)}
-            />
-            <span className="text-sm">قابل للترحيل</span>
-          </label>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الحالة</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formStatus}
-              onChange={(e) => setFormStatus(e.target.value as AccountStatus)}
-            >
-              {ACCOUNT_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الوصف</label>
-          <textarea
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            rows={2}
-            value={formDescription}
-            onChange={(e) => setFormDescription(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">ملاحظات داخلية</label>
-          <textarea
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            rows={2}
-            value={formNotes}
-            onChange={(e) => setFormNotes(e.target.value)}
-          />
-        </div>
-      </EntityFormDrawer>
 
       <ConfirmDialog
         open={!!deleteTarget}

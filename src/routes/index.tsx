@@ -26,6 +26,13 @@ import {
   PROJECTS,
 } from "@/data/sample";
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
   ArrowUpRight,
   ArrowDownRight,
   Download,
@@ -197,15 +204,44 @@ function Dashboard() {
       title="لوحة المعلومات التنفيذية"
       actions={
         <>
-          <Btn variant="outline" onClick={() => showToast("فتح مرشحات لوحة المعلومات...", "info")}>
-            <Filter size={15} /> تصفية
+          <Btn variant="outline" onClick={() => navigate({ to: "/approvals" })}>
+            <FileBarChart size={15} /> الموافقات
           </Btn>
           <Btn variant="outline" onClick={exportDashboard}>
             <Download size={15} /> تصدير
           </Btn>
-          <Btn variant="primary" onClick={() => showToast("اختر إجراءً سريعاً من القائمة", "info")}>
-            <Plus size={15} /> إجراء سريع
-          </Btn>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Btn variant="primary">
+                <Plus size={15} /> إجراء سريع
+              </Btn>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[220px]">
+              <DropdownMenuItem onSelect={() => navigate({ to: "/donations/new" })}>
+                <Plus size={14} /> تسجيل تبرع جديد
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => navigate({ to: "/donors/new" })}>
+                <Plus size={14} /> إضافة متبرع جديد
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => navigate({ to: "/beneficiaries/new" })}>
+                <Plus size={14} /> تسجيل مستفيد جديد
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => navigate({ to: "/projects/new" })}>
+                <Plus size={14} /> إنشاء مشروع جديد
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => navigate({ to: "/finance/journal/new" })}>
+                <Plus size={14} /> قيد يومية جديد
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => navigate({ to: "/finance/budgets/new" })}>
+                <Plus size={14} /> موازنة جديدة
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => navigate({ to: "/aid/new" })}>
+                <Plus size={14} /> صرف مساعدة
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </>
       }
     >

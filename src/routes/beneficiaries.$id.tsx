@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   AppShell,
@@ -113,7 +113,7 @@ function Page() {
           </Btn>
           <Btn
             variant="primary"
-            onClick={() => showToast("سيتم فتح نموذج تعديل المستفيد قريباً", "info")}
+            onClick={() => navigate({ to: "/beneficiaries/$id/edit", params: { id } })}
           >
             <Edit size={15} /> تعديل
           </Btn>

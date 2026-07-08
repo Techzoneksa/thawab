@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -67,12 +67,11 @@ function statusToneLocal(s: string) {
 
 function Page() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [filterOpen, setFilterOpen] = useState(false);
-  const [addDonationOpen, setAddDonationOpen] = useState(false);
   const [addDonorOpen, setAddDonorOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [editingDonation, setEditingDonation] = useState<Donation | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("الكل");
   const [methodFilter, setMethodFilter] = useState("الكل");
@@ -194,26 +193,12 @@ function Page() {
     onError: (err: Error) => showToast(err.message, "error"),
   });
 
-  const openAddDonation = (method?: string) => {
-    setEditingDonation(null);
-    setFormDonorId("");
-    setFormAmount("");
-    setFormProject("");
-    setFormMethod(method || "تحويل بنكي");
-    setFormDate("");
-    setFormNotes("");
-    setAddDonationOpen(true);
+  const openAddDonation = (_method?: string) => {
+    navigate({ to: "/donations/new" });
   };
 
   const openEditDonation = (d: Donation) => {
-    setEditingDonation(d);
-    setFormDonorId(d.donorId);
-    setFormAmount(String(d.amount));
-    setFormProject(d.projectName || "");
-    setFormMethod(d.method);
-    setFormDate(d.date);
-    setFormNotes(d.notes || "");
-    setAddDonationOpen(true);
+    navigate({ to: "/donations/$id/edit", params: { id: d.id } });
   };
 
   const handleSaveDonation = () => {
@@ -466,167 +451,18 @@ function Page() {
         </>
       )}
 
-      <EntityFormDrawer
-        open={addDonationOpen}
-        onClose={() => {
-          setAddDonationOpen(false);
-          setEditingDonation(null);
-        }}
-        title={editingDonation ? "تعديل التبرع" : "تسجيل تبرع جديد"}
-        onSave={handleSaveDonation}
-        loading={createMutation.isPending || updateMutation.isPending}
-      >
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">المتبرع</label>
-          <select
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formDonorId}
-            onChange={(e) => setFormDonorId(e.target.value)}
-          >
-            <option value="">اختر المتبرع...</option>
-            {donors.map((d: Donor) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">المبلغ (ر.س)</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            type="number"
-            value={formAmount}
-            onChange={(e) => setFormAmount(e.target.value)}
-            placeholder="0"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">المشروع</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formProject}
-            onChange={(e) => setFormProject(e.target.value)}
-            placeholder="اسم المشروع أو الحملة"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">طريقة الدفع</label>
-          <select
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formMethod}
-            onChange={(e) => setFormMethod(e.target.value)}
-          >
-            <option>نقدي</option>
-            <option>تحويل بنكي</option>
-            <option>مدى</option>
-            <option>Apple Pay</option>
-            <option>STC Pay</option>
-            <option>صك عيني</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">التاريخ</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            type="date"
-            value={formDate}
-            onChange={(e) => setFormDate(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-          <textarea
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            rows={3}
-            value={formNotes}
-            onChange={(e) => setFormNotes(e.target.value)}
-          />
-        </div>
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
+      <ConfirmDialog
         open={addDonorOpen}
-        onClose={() => {
+        onClose={() => setAddDonorOpen(false)}
+        onConfirm={() => {
           setAddDonorOpen(false);
-          setNewDonorName("");
-          setNewDonorType("فرد");
-          setNewDonorPhone("");
-          setNewDonorEmail("");
-          setNewDonorCity("");
+          navigate({ to: "/donors/new" });
         }}
         title="إضافة متبرع جديد"
-        onSave={async () => {
-          setAddDonorLoading(true);
-          try {
-            const { createDonor } = await import("@/lib/api/donors");
-            await createDonor({
-              name: newDonorName,
-              type: newDonorType,
-              phone: newDonorPhone || undefined,
-              email: newDonorEmail || undefined,
-              city: newDonorCity,
-            });
-            queryClient.invalidateQueries({ queryKey: ["donors"] });
-            showToast("تم إضافة المتبرع بنجاح", "success");
-            setAddDonorOpen(false);
-          } catch (err: any) {
-            showToast(err.message || "فشل في إضافة المتبرع", "error");
-          } finally {
-            setAddDonorLoading(false);
-          }
-        }}
-        loading={addDonorLoading}
-      >
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الاسم</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={newDonorName}
-            onChange={(e) => setNewDonorName(e.target.value)}
-            placeholder="الاسم الكامل"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">النوع</label>
-          <select
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={newDonorType}
-            onChange={(e) => setNewDonorType(e.target.value as "فرد" | "شركة" | "مؤسسة")}
-          >
-            <option>فرد</option>
-            <option>شركة</option>
-            <option>مؤسسة</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الجوال</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={newDonorPhone}
-            onChange={(e) => setNewDonorPhone(e.target.value)}
-            placeholder="05xxxxxxxx"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">البريد الإلكتروني</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={newDonorEmail}
-            onChange={(e) => setNewDonorEmail(e.target.value)}
-            placeholder="email@example.com"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">المدينة</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={newDonorCity}
-            onChange={(e) => setNewDonorCity(e.target.value)}
-            placeholder="المدينة"
-          />
-        </div>
-      </EntityFormDrawer>
+        message="سيتم فتح نموذج المتبرع الكامل في صفحة مستقلة. هل تريد المتابعة؟"
+        confirmText="فتح نموذج المتبرع"
+        cancelText="إلغاء"
+      />
 
       <ConfirmDialog
         open={!!deleteTarget}

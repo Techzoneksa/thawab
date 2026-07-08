@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -47,21 +47,14 @@ function tagTone(t: string) {
 
 function Page() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [filterOpen, setFilterOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [editingDonor, setEditingDonor] = useState<Donor | null>(null);
-  const [addDonorOpen, setAddDonorOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("الكل");
   const [tagFilter, setTagFilter] = useState("الكل");
   const [cityFilter, setCityFilter] = useState("الكل");
   const [recurringFilter, setRecurringFilter] = useState("الكل");
-  const [formName, setFormName] = useState("");
-  const [formType, setFormType] = useState<"فرد" | "شركة" | "مؤسسة">("فرد");
-  const [formPhone, setFormPhone] = useState("");
-  const [formEmail, setFormEmail] = useState("");
-  const [formCity, setFormCity] = useState("");
-  const [formNotes, setFormNotes] = useState("");
 
   const [apiFilters, setApiFilters] = useState<DonorFilters>({
     search: "",
@@ -123,25 +116,11 @@ function Page() {
   });
 
   const openAddDonor = () => {
-    setEditingDonor(null);
-    setFormName("");
-    setFormType("فرد");
-    setFormPhone("");
-    setFormEmail("");
-    setFormCity("");
-    setFormNotes("");
-    setAddDonorOpen(true);
+    navigate({ to: "/donors/new" });
   };
 
   const openEditDonor = (d: Donor) => {
-    setEditingDonor(d);
-    setFormName(d.name);
-    setFormType(d.type as "فرد" | "شركة" | "مؤسسة");
-    setFormPhone(d.phone || "");
-    setFormEmail(d.email || "");
-    setFormCity(d.city);
-    setFormNotes(d.notes || "");
-    setAddDonorOpen(true);
+    navigate({ to: "/donors/$id/edit", params: { id: d.id } });
   };
 
   const handleSaveDonor = () => {
@@ -423,77 +402,6 @@ function Page() {
               </Link>
             )}
           />
-
-          <EntityFormDrawer
-            open={addDonorOpen}
-            onClose={() => {
-              setAddDonorOpen(false);
-              setEditingDonor(null);
-            }}
-            title={editingDonor ? "تعديل المتبرع" : "إضافة متبرع جديد"}
-            onSave={handleSaveDonor}
-            loading={createMutation.isPending || updateMutation.isPending}
-          >
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">الاسم</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                placeholder="الاسم الكامل"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">النوع</label>
-              <select
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formType}
-                onChange={(e) => setFormType(e.target.value as "فرد" | "شركة" | "مؤسسة")}
-              >
-                <option>فرد</option>
-                <option>شركة</option>
-                <option>مؤسسة</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">الجوال</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formPhone}
-                onChange={(e) => setFormPhone(e.target.value)}
-                placeholder="05xxxxxxxx"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">
-                البريد الإلكتروني
-              </label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formEmail}
-                onChange={(e) => setFormEmail(e.target.value)}
-                placeholder="email@example.com"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">المدينة</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formCity}
-                onChange={(e) => setFormCity(e.target.value)}
-                placeholder="المدينة"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-              <textarea
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                rows={3}
-                value={formNotes}
-                onChange={(e) => setFormNotes(e.target.value)}
-              />
-            </div>
-          </EntityFormDrawer>
 
           <ConfirmDialog
             open={!!deleteTarget}
