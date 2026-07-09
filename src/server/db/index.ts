@@ -1,12 +1,15 @@
-import { db, dialect, runRawSql } from "./client";
+import { db as lazyDb, dialect, runRawSql } from "./client";
 import { auditLog } from "./schema";
 import { SQLITE_DDL, SQLITE_MIGRATIONS, PG_DDL, PG_MIGRATIONS } from "./init";
 
-export { db, dialect, runRawSql };
+export { dialect, runRawSql };
 
 let _dbReady = false;
+let _initCalled = false;
 
-export function initDB() {
+function ensureInit() {
+  if (_initCalled) return;
+  _initCalled = true;
   try {
     runRawSql(SQLITE_DDL);
     for (const migration of SQLITE_MIGRATIONS) {
@@ -37,7 +40,13 @@ export function isDbReady() {
   return _dbReady;
 }
 
-initDB();
+// Lazy proxy: first access to `db` triggers DB initialization
+export const db = new Proxy({} as any, {
+  get(_target, prop) {
+    ensureInit();
+    return (lazyDb as any)[prop];
+  },
+});
 
 export function now() {
   return new Date().toLocaleString("ar-SA", { hour12: false });
@@ -58,6 +67,7 @@ export function addAudit(
   before?: string,
   after?: string,
 ) {
+  ensureInit();
   db.insert(auditLog)
     .values({
       id: genId("AUD"),
