@@ -1,10 +1,10 @@
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { db } from "@/server/db/index";
 import { accounts, journalLines, journalEntries, budgetLines, budgets } from "@/server/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
-import type { APIEvent } from "@tanstack/start/server";
 
 // GET /api/finance/statements?type=...&startDate=...&endDate=...&costCenterId=...&projectId=...&budgetId=...
-export async function GET({ request }: APIEvent) {
+async function __handler_GET({ request }: { request: Request }) {
   const url = new URL(request.url);
   const type = url.searchParams.get("type") || "trial-balance";
   const startDate = url.searchParams.get("startDate") || "";
@@ -27,7 +27,7 @@ export async function GET({ request }: APIEvent) {
     return getBudgetVsActual({ budgetId, startDate, endDate });
   }
 
-  return Response.json({ error: "نوع التقرير غير معروف" }, { status: 400 });
+  return Response.json({ error: "ظ†ظˆط¹ ط§ظ„طھظ‚ط±ظٹط± ط؛ظٹط± ظ…ط¹ط±ظˆظپ" }, { status: 400 });
 }
 
 // ============ TRIAL BALANCE ============
@@ -37,7 +37,7 @@ function getTrialBalance(filters: {
   costCenterId: string;
   projectId: string;
 }) {
-  const conditions = [eq(journalEntries.status, "مرحّل")];
+  const conditions = [eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„")];
   if (filters.startDate) conditions.push(sql`${journalEntries.date} >= ${filters.startDate}`);
   if (filters.endDate) conditions.push(sql`${journalEntries.date} <= ${filters.endDate}`);
   if (filters.costCenterId) conditions.push(eq(journalLines.costCenterId, filters.costCenterId));
@@ -89,8 +89,8 @@ function getIncomeExpense(filters: {
   projectId: string;
 }) {
   const conditions = [
-    eq(journalEntries.status, "مرحّل"),
-    inArray(accounts.type, ["إيراد", "مصروف"]),
+    eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„"),
+    inArray(accounts.type, ["ط¥ظٹط±ط§ط¯", "ظ…طµط±ظˆظپ"]),
   ];
   if (filters.startDate) conditions.push(sql`${journalEntries.date} >= ${filters.startDate}`);
   if (filters.endDate) conditions.push(sql`${journalEntries.date} <= ${filters.endDate}`);
@@ -117,14 +117,14 @@ function getIncomeExpense(filters: {
   // For expense: debit - credit (positive = expense)
   const enriched = rows.map((r) => {
     const net =
-      r.accountType === "إيراد" ? r.totalCredit - r.totalDebit : r.totalDebit - r.totalCredit;
+      r.accountType === "ط¥ظٹط±ط§ط¯" ? r.totalCredit - r.totalDebit : r.totalDebit - r.totalCredit;
     return { ...r, netAmount: net };
   });
 
   enriched.sort((a, b) => a.accountCode.localeCompare(b.accountCode, "ar"));
 
-  const revenues = enriched.filter((r) => r.accountType === "إيراد");
-  const expenses = enriched.filter((r) => r.accountType === "مصروف");
+  const revenues = enriched.filter((r) => r.accountType === "ط¥ظٹط±ط§ط¯");
+  const expenses = enriched.filter((r) => r.accountType === "ظ…طµط±ظˆظپ");
   const totalRevenue = revenues.reduce((s, r) => s + Math.max(0, r.netAmount), 0);
   const totalExpense = expenses.reduce((s, r) => s + Math.max(0, r.netAmount), 0);
   const surplus = totalRevenue - totalExpense;
@@ -139,7 +139,7 @@ function getIncomeExpense(filters: {
 
 // ============ FINANCIAL POSITION (BALANCE SHEET) ============
 function getFinancialPosition(filters: { asOf: string; costCenterId: string; projectId: string }) {
-  const conditions = [eq(journalEntries.status, "مرحّل")];
+  const conditions = [eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„")];
   if (filters.asOf) conditions.push(sql`${journalEntries.date} <= ${filters.asOf}`);
   if (filters.costCenterId) conditions.push(eq(journalLines.costCenterId, filters.costCenterId));
   if (filters.projectId) conditions.push(eq(journalLines.projectId, filters.projectId));
@@ -172,17 +172,17 @@ function getFinancialPosition(filters: { asOf: string; costCenterId: string; pro
   // Compute balance per account: debit - credit for assets, credit - debit for liabilities/equity
   const enriched = rows.map((r) => {
     let balance: number;
-    if (r.accountType === "أصل") balance = r.totalDebit - r.totalCredit;
-    else if (r.accountType === "التزام" || r.accountType === "حقوق ملكية")
+    if (r.accountType === "ط£طµظ„") balance = r.totalDebit - r.totalCredit;
+    else if (r.accountType === "ط§ظ„طھط²ط§ظ…" || r.accountType === "ط­ظ‚ظˆظ‚ ظ…ظ„ظƒظٹط©")
       balance = r.totalCredit - r.totalDebit;
     else balance = r.totalDebit - r.totalCredit;
     return { ...r, balance };
   });
 
   // Group by account type
-  const assets = enriched.filter((r) => r.accountType === "أصل");
-  const liabilities = enriched.filter((r) => r.accountType === "التزام");
-  const equity = enriched.filter((r) => r.accountType === "حقوق ملكية");
+  const assets = enriched.filter((r) => r.accountType === "ط£طµظ„");
+  const liabilities = enriched.filter((r) => r.accountType === "ط§ظ„طھط²ط§ظ…");
+  const equity = enriched.filter((r) => r.accountType === "ط­ظ‚ظˆظ‚ ظ…ظ„ظƒظٹط©");
 
   const totalAssets = assets.reduce((s, r) => s + r.balance, 0);
   const totalLiabilities = liabilities.reduce((s, r) => s + r.balance, 0);
@@ -191,8 +191,8 @@ function getFinancialPosition(filters: { asOf: string; costCenterId: string; pro
   // For non-profit, equity includes current period surplus (revenue - expense)
   // Compute net surplus as of date
   const surplusConditions = [
-    eq(journalEntries.status, "مرحّل"),
-    inArray(accounts.type, ["إيراد", "مصروف"]),
+    eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„"),
+    inArray(accounts.type, ["ط¥ظٹط±ط§ط¯", "ظ…طµط±ظˆظپ"]),
   ];
   if (filters.asOf) surplusConditions.push(sql`${journalEntries.date} <= ${filters.asOf}`);
   if (filters.costCenterId)
@@ -212,8 +212,8 @@ function getFinancialPosition(filters: { asOf: string; costCenterId: string; pro
     .groupBy(accounts.type)
     .all();
 
-  const revenueTotal = surplusRows.find((r) => r.accountType === "إيراد");
-  const expenseTotal = surplusRows.find((r) => r.accountType === "مصروف");
+  const revenueTotal = surplusRows.find((r) => r.accountType === "ط¥ظٹط±ط§ط¯");
+  const expenseTotal = surplusRows.find((r) => r.accountType === "ظ…طµط±ظˆظپ");
   const revenueBalance = (revenueTotal?.totalCredit || 0) - (revenueTotal?.totalDebit || 0);
   const expenseBalance = (expenseTotal?.totalDebit || 0) - (expenseTotal?.totalCredit || 0);
   const periodSurplus = revenueBalance - expenseBalance;
@@ -244,13 +244,13 @@ function getBudgetVsActual(filters: { budgetId: string; startDate: string; endDa
   if (filters.budgetId) {
     targetBudgets = db.select().from(budgets).where(eq(budgets.id, filters.budgetId)).all();
     if (targetBudgets.length === 0) {
-      return Response.json({ error: "الموازنة غير موجودة" }, { status: 404 });
+      return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" }, { status: 404 });
     }
   } else {
     targetBudgets = db
       .select()
       .from(budgets)
-      .where(inArray(budgets.status, ["معتمد", "مقفل"]))
+      .where(inArray(budgets.status, ["ظ…ط¹طھظ…ط¯", "ظ…ظ‚ظپظ„"]))
       .all();
   }
 
@@ -261,8 +261,8 @@ function getBudgetVsActual(filters: { budgetId: string; startDate: string; endDa
     const enrichedLines = lines.map((line) => {
       // Compute actual from posted journal lines that match this line's account/cost center/project
       const conditions = [
-        eq(journalEntries.status, "مرحّل"),
-        inArray(accounts.type, ["إيراد", "مصروف"]),
+        eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„"),
+        inArray(accounts.type, ["ط¥ظٹط±ط§ط¯", "ظ…طµط±ظˆظپ"]),
       ];
       if (line.accountId) conditions.push(eq(journalLines.accountId, line.accountId));
       if (line.costCenterId) conditions.push(eq(journalLines.costCenterId, line.costCenterId));
@@ -284,11 +284,11 @@ function getBudgetVsActual(filters: { budgetId: string; startDate: string; endDa
         .all();
 
       const revenueActual =
-        (actuals.find((a) => a.accountType === "إيراد")?.totalCredit || 0) -
-        (actuals.find((a) => a.accountType === "إيراد")?.totalDebit || 0);
+        (actuals.find((a) => a.accountType === "ط¥ظٹط±ط§ط¯")?.totalCredit || 0) -
+        (actuals.find((a) => a.accountType === "ط¥ظٹط±ط§ط¯")?.totalDebit || 0);
       const expenseActual =
-        (actuals.find((a) => a.accountType === "مصروف")?.totalDebit || 0) -
-        (actuals.find((a) => a.accountType === "مصروف")?.totalCredit || 0);
+        (actuals.find((a) => a.accountType === "ظ…طµط±ظˆظپ")?.totalDebit || 0) -
+        (actuals.find((a) => a.accountType === "ظ…طµط±ظˆظپ")?.totalCredit || 0);
 
       // Use expense actual (most common case for budget lines)
       const actual = line.accountId
@@ -301,7 +301,7 @@ function getBudgetVsActual(filters: { budgetId: string; startDate: string; endDa
             .limit(1)
             .all()[0]
         : null;
-      const actualAmount = actual?.type === "إيراد" ? revenueActual : expenseActual;
+      const actualAmount = actual?.type === "ط¥ظٹط±ط§ط¯" ? revenueActual : expenseActual;
 
       return {
         ...line,
@@ -338,3 +338,11 @@ function getBudgetVsActual(filters: { budgetId: string; startDate: string; endDa
     budgets: result,
   });
 }
+
+export const Route = createFileRoute("/api/finance/statements")({
+  server: {
+    handlers: {
+      GET: __handler_GET,
+    },
+  },
+});

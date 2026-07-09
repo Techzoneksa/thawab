@@ -1,30 +1,31 @@
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { accounts, journalLines } from "@/server/db/schema";
 import { eq, like, or, and, desc, ne, isNull, sql } from "drizzle-orm";
-import type { APIEvent } from "@tanstack/start/server";
 
 export const ACCOUNT_TYPES = [
-  "أصل",
-  "التزام",
-  "حقوق ملكية",
-  "إيراد",
-  "مصروف",
-  "رئيسي",
-  "تفصيلي",
+  "ط£طµظ„",
+  "ط§ظ„طھط²ط§ظ…",
+  "ط­ظ‚ظˆظ‚ ظ…ظ„ظƒظٹط©",
+  "ط¥ظٹط±ط§ط¯",
+  "ظ…طµط±ظˆظپ",
+  "ط±ط¦ظٹط³ظٹ",
+  "طھظپطµظٹظ„ظٹ",
 ] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
-export const ACCOUNT_STATUSES = ["نشط", "موقوف", "مغلق"] as const;
+export const ACCOUNT_STATUSES = ["ظ†ط´ط·", "ظ…ظˆظ‚ظˆظپ", "ظ…ط؛ظ„ظ‚"] as const;
 
 // GET /api/finance/accounts - list with search/filter
 // GET /api/finance/accounts?id=xxx - single account with usage info
-export async function GET({ request }: APIEvent) {
+async function __handler_GET({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
   if (id) {
     const account = db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all()[0];
-    if (!account) return Response.json({ error: "الحساب غير موجود" }, { status: 404 });
+    if (!account)
+      return Response.json({ error: "ط§ظ„ط­ط³ط§ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     // Count lines that use this account
     const lineCount =
@@ -58,8 +59,8 @@ export async function GET({ request }: APIEvent) {
   if (search) {
     conditions.push(or(like(accounts.code, `%${search}%`), like(accounts.name, `%${search}%`)));
   }
-  if (type && type !== "الكل") conditions.push(eq(accounts.type, type));
-  if (status && status !== "الكل") conditions.push(eq(accounts.status, status));
+  if (type && type !== "ط§ظ„ظƒظ„") conditions.push(eq(accounts.type, type));
+  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(accounts.status, status));
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -72,24 +73,28 @@ export async function GET({ request }: APIEvent) {
 }
 
 // POST /api/finance/accounts - create or deactivate
-export async function POST({ request }: APIEvent) {
+async function __handler_POST({ request }: { request: Request }) {
   const body = await request.json();
   const { action } = body;
 
   if (action === "deactivate") {
     const { id, userId, userName } = body;
     const existing = db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all()[0];
-    if (!existing) return Response.json({ error: "الحساب غير موجود" }, { status: 404 });
-    if (existing.status === "مغلق")
-      return Response.json({ error: "الحساب مغلق بالفعل" }, { status: 400 });
+    if (!existing)
+      return Response.json({ error: "ط§ظ„ط­ط³ط§ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    if (existing.status === "ظ…ط؛ظ„ظ‚")
+      return Response.json({ error: "ط§ظ„ط­ط³ط§ط¨ ظ…ط؛ظ„ظ‚ ط¨ط§ظ„ظپط¹ظ„" }, { status: 400 });
 
     const before = JSON.stringify(existing);
-    db.update(accounts).set({ status: "موقوف", updatedAt: now() }).where(eq(accounts.id, id)).run();
+    db.update(accounts)
+      .set({ status: "ظ…ظˆظ‚ظˆظپ", updatedAt: now() })
+      .where(eq(accounts.id, id))
+      .run();
     addAudit(
-      "إيقاف",
-      "حساب",
+      "ط¥ظٹظ‚ط§ظپ",
+      "ط­ط³ط§ط¨",
       id,
-      `تم إيقاف الحساب: ${existing.code} - ${existing.name}`,
+      `طھظ… ط¥ظٹظ‚ط§ظپ ط§ظ„ط­ط³ط§ط¨: ${existing.code} - ${existing.name}`,
       userId,
       userName,
       before,
@@ -101,17 +106,21 @@ export async function POST({ request }: APIEvent) {
   if (action === "activate") {
     const { id, userId, userName } = body;
     const existing = db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all()[0];
-    if (!existing) return Response.json({ error: "الحساب غير موجود" }, { status: 404 });
-    if (existing.status === "نشط")
-      return Response.json({ error: "الحساب نشط بالفعل" }, { status: 400 });
+    if (!existing)
+      return Response.json({ error: "ط§ظ„ط­ط³ط§ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    if (existing.status === "ظ†ط´ط·")
+      return Response.json({ error: "ط§ظ„ط­ط³ط§ط¨ ظ†ط´ط· ط¨ط§ظ„ظپط¹ظ„" }, { status: 400 });
 
     const before = JSON.stringify(existing);
-    db.update(accounts).set({ status: "نشط", updatedAt: now() }).where(eq(accounts.id, id)).run();
+    db.update(accounts)
+      .set({ status: "ظ†ط´ط·", updatedAt: now() })
+      .where(eq(accounts.id, id))
+      .run();
     addAudit(
-      "تفعيل",
-      "حساب",
+      "طھظپط¹ظٹظ„",
+      "ط­ط³ط§ط¨",
       id,
-      `تم تفعيل الحساب: ${existing.code} - ${existing.name}`,
+      `طھظ… طھظپط¹ظٹظ„ ط§ظ„ط­ط³ط§ط¨: ${existing.code} - ${existing.name}`,
       userId,
       userName,
       before,
@@ -136,8 +145,10 @@ export async function POST({ request }: APIEvent) {
     userName,
   } = body;
 
-  if (!code?.trim()) return Response.json({ error: "رقم الحساب مطلوب" }, { status: 400 });
-  if (!name?.trim()) return Response.json({ error: "اسم الحساب مطلوب" }, { status: 400 });
+  if (!code?.trim())
+    return Response.json({ error: "ط±ظ‚ظ… ط§ظ„ط­ط³ط§ط¨ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+  if (!name?.trim())
+    return Response.json({ error: "ط§ط³ظ… ط§ظ„ط­ط³ط§ط¨ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db
     .select()
@@ -145,7 +156,11 @@ export async function POST({ request }: APIEvent) {
     .where(eq(accounts.code, code.trim()))
     .limit(1)
     .all()[0];
-  if (existing) return Response.json({ error: "رقم الحساب مستخدم بالفعل" }, { status: 400 });
+  if (existing)
+    return Response.json(
+      { error: "ط±ظ‚ظ… ط§ظ„ط­ط³ط§ط¨ ظ…ط³طھط®ط¯ظ… ط¨ط§ظ„ظپط¹ظ„" },
+      { status: 400 },
+    );
 
   const accId = genId("ACC");
   const ts = now();
@@ -164,13 +179,13 @@ export async function POST({ request }: APIEvent) {
       id: accId,
       code: code.trim(),
       name: name.trim(),
-      type: type || "تفصيلي",
+      type: type || "طھظپطµظٹظ„ظٹ",
       level,
       parentId: parentId || null,
       currency: currency || "SAR",
       balance: parseFloat(balance) || 0,
       postable: postable !== false,
-      status: status || "نشط",
+      status: status || "ظ†ط´ط·",
       description: description || "",
       notes: notes || "",
       createdBy: userId || null,
@@ -179,13 +194,20 @@ export async function POST({ request }: APIEvent) {
     })
     .run();
 
-  addAudit("إضافة", "حساب", accId, `تم إضافة حساب: ${code} - ${name}`, userId, userName);
+  addAudit(
+    "ط¥ط¶ط§ظپط©",
+    "ط­ط³ط§ط¨",
+    accId,
+    `طھظ… ط¥ط¶ط§ظپط© ط­ط³ط§ط¨: ${code} - ${name}`,
+    userId,
+    userName,
+  );
   const created = db.select().from(accounts).where(eq(accounts.id, accId)).limit(1).all()[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
 // PUT /api/finance/accounts - update
-export async function PUT({ request }: APIEvent) {
+async function __handler_PUT({ request }: { request: Request }) {
   const body = await request.json();
   const {
     id,
@@ -202,10 +224,10 @@ export async function PUT({ request }: APIEvent) {
     userName,
   } = body;
 
-  if (!id) return Response.json({ error: "معرف الحساب مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط­ط³ط§ط¨ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all()[0];
-  if (!existing) return Response.json({ error: "الحساب غير موجود" }, { status: 404 });
+  if (!existing) return Response.json({ error: "ط§ظ„ط­ط³ط§ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   const before = JSON.stringify(existing);
   const ts = now();
@@ -227,10 +249,10 @@ export async function PUT({ request }: APIEvent) {
     .run();
 
   addAudit(
-    "تعديل",
-    "حساب",
+    "طھط¹ط¯ظٹظ„",
+    "ط­ط³ط§ط¨",
     id,
-    `تم تحديث الحساب: ${existing.code} - ${name || existing.name}`,
+    `طھظ… طھط­ط¯ظٹط« ط§ظ„ط­ط³ط§ط¨: ${existing.code} - ${name || existing.name}`,
     userId,
     userName,
     before,
@@ -240,16 +262,16 @@ export async function PUT({ request }: APIEvent) {
 }
 
 // DELETE /api/finance/accounts - only if no transactions and no children
-export async function DELETE({ request }: APIEvent) {
+async function __handler_DELETE({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "مستخدم";
+  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
 
-  if (!id) return Response.json({ error: "معرف الحساب مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط­ط³ط§ط¨ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all()[0];
-  if (!existing) return Response.json({ error: "الحساب غير موجود" }, { status: 404 });
+  if (!existing) return Response.json({ error: "ط§ظ„ط­ط³ط§ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   // Check children
   const children =
@@ -261,7 +283,7 @@ export async function DELETE({ request }: APIEvent) {
   if (children > 0) {
     return Response.json(
       {
-        error: `لا يمكن حذف حساب له ${children} حساب فرعي. احذف الفروع أولاً أو أوقف الحساب.`,
+        error: `ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ط­ط³ط§ط¨ ظ„ظ‡ ${children} ط­ط³ط§ط¨ ظپط±ط¹ظٹ. ط§ط­ط°ظپ ط§ظ„ظپط±ظˆط¹ ط£ظˆظ„ط§ظ‹ ط£ظˆ ط£ظˆظ‚ظپ ط§ظ„ط­ط³ط§ط¨.`,
       },
       { status: 400 },
     );
@@ -277,7 +299,7 @@ export async function DELETE({ request }: APIEvent) {
   if (usage > 0) {
     return Response.json(
       {
-        error: `لا يمكن حذف حساب مستخدم في ${usage} سطر قيد. أوقف الحساب بدلاً من ذلك.`,
+        error: `ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ط­ط³ط§ط¨ ظ…ط³طھط®ط¯ظ… ظپظٹ ${usage} ط³ط·ط± ظ‚ظٹط¯. ط£ظˆظ‚ظپ ط§ظ„ط­ط³ط§ط¨ ط¨ط¯ظ„ط§ظ‹ ظ…ظ† ط°ظ„ظƒ.`,
       },
       { status: 400 },
     );
@@ -286,13 +308,24 @@ export async function DELETE({ request }: APIEvent) {
   const before = JSON.stringify(existing);
   db.delete(accounts).where(eq(accounts.id, id)).run();
   addAudit(
-    "حذف",
-    "حساب",
+    "ط­ط°ظپ",
+    "ط­ط³ط§ط¨",
     id,
-    `تم حذف الحساب: ${existing.code} - ${existing.name}`,
+    `طھظ… ط­ط°ظپ ط§ظ„ط­ط³ط§ط¨: ${existing.code} - ${existing.name}`,
     userId,
     userName,
     before,
   );
   return Response.json({ success: true });
 }
+
+export const Route = createFileRoute("/api/finance/accounts")({
+  server: {
+    handlers: {
+      GET: __handler_GET,
+      POST: __handler_POST,
+      PUT: __handler_PUT,
+      DELETE: __handler_DELETE,
+    },
+  },
+});

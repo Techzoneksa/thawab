@@ -1,3 +1,4 @@
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import {
   stocktakes,
@@ -7,29 +8,33 @@ import {
   stockMovements,
 } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import type { APIEvent } from "@tanstack/start/server";
 
-export const STOCKTAKE_STATUSES = ["مسودة", "بانتظار الاعتماد", "معتمد", "مغلق"] as const;
+export const STOCKTAKE_STATUSES = [
+  "ظ…ط³ظˆط¯ط©",
+  "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط§ط¹طھظ…ط§ط¯",
+  "ظ…ط¹طھظ…ط¯",
+  "ظ…ط؛ظ„ظ‚",
+] as const;
 export type StocktakeStatus = (typeof STOCKTAKE_STATUSES)[number];
 
-const READ_ONLY_STATUSES: StocktakeStatus[] = ["معتمد", "مغلق"];
+const READ_ONLY_STATUSES: StocktakeStatus[] = ["ظ…ط¹طھظ…ط¯", "ظ…ط؛ظ„ظ‚"];
 
 // GET /api/inventory/stocktake - list
 // GET /api/inventory/stocktake?id=xxx - single with lines
-export async function GET({ request }: APIEvent) {
+async function __handler_GET({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
   if (id) {
     const st = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
-    if (!st) return Response.json({ error: "الجرد غير موجود" }, { status: 404 });
+    if (!st) return Response.json({ error: "ط§ظ„ط¬ط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     const lines = db.select().from(stocktakeLines).where(eq(stocktakeLines.stocktakeId, id)).all();
     return Response.json({ item: st, lines });
   }
 
   const status = url.searchParams.get("status") || "";
   const conditions = [];
-  if (status && status !== "الكل") conditions.push(eq(stocktakes.status, status));
+  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(stocktakes.status, status));
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -41,31 +46,31 @@ export async function GET({ request }: APIEvent) {
 }
 
 // POST /api/inventory/stocktake - create or workflow actions
-export async function POST({ request }: APIEvent) {
+async function __handler_POST({ request }: { request: Request }) {
   const body = await request.json();
   const { action } = body;
 
   if (action === "submit") {
     const { id, userId, userName } = body;
     const existing = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
-    if (!existing) return Response.json({ error: "الجرد غير موجود" }, { status: 404 });
-    if (existing.status !== "مسودة")
-      return Response.json({ error: "يمكن إرسال المسودة فقط" }, { status: 400 });
+    if (!existing) return Response.json({ error: "ط§ظ„ط¬ط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    if (existing.status !== "ظ…ط³ظˆط¯ط©")
+      return Response.json({ error: "ظٹظ…ظƒظ† ط¥ط±ط³ط§ظ„ ط§ظ„ظ…ط³ظˆط¯ط© ظپظ‚ط·" }, { status: 400 });
 
     const lines = db.select().from(stocktakeLines).where(eq(stocktakeLines.stocktakeId, id)).all();
     if (lines.length === 0)
-      return Response.json({ error: "لا يمكن إرسال جرد فارغ" }, { status: 400 });
+      return Response.json({ error: "ظ„ط§ ظٹظ…ظƒظ† ط¥ط±ط³ط§ظ„ ط¬ط±ط¯ ظپط§ط±ط؛" }, { status: 400 });
 
     const before = JSON.stringify(existing);
     db.update(stocktakes)
-      .set({ status: "بانتظار الاعتماد", updatedAt: now() })
+      .set({ status: "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط§ط¹طھظ…ط§ط¯", updatedAt: now() })
       .where(eq(stocktakes.id, id))
       .run();
     addAudit(
-      "إرسال للاعتماد",
-      "جرد",
+      "ط¥ط±ط³ط§ظ„ ظ„ظ„ط§ط¹طھظ…ط§ط¯",
+      "ط¬ط±ط¯",
       id,
-      `تم إرسال الجرد للاعتماد: ${existing.name} (${lines.length} سطر)`,
+      `طھظ… ط¥ط±ط³ط§ظ„ ط§ظ„ط¬ط±ط¯ ظ„ظ„ط§ط¹طھظ…ط§ط¯: ${existing.name} (${lines.length} ط³ط·ط±)`,
       userId,
       userName,
       before,
@@ -77,9 +82,12 @@ export async function POST({ request }: APIEvent) {
   if (action === "approve") {
     const { id, userId, userName } = body;
     const existing = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
-    if (!existing) return Response.json({ error: "الجرد غير موجود" }, { status: 404 });
-    if (existing.status !== "بانتظار الاعتماد")
-      return Response.json({ error: "الجرد ليس بانتظار الاعتماد" }, { status: 400 });
+    if (!existing) return Response.json({ error: "ط§ظ„ط¬ط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    if (existing.status !== "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط§ط¹طھظ…ط§ط¯")
+      return Response.json(
+        { error: "ط§ظ„ط¬ط±ط¯ ظ„ظٹط³ ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط§ط¹طھظ…ط§ط¯" },
+        { status: 400 },
+      );
 
     const lines = db.select().from(stocktakeLines).where(eq(stocktakeLines.stocktakeId, id)).all();
 
@@ -108,15 +116,15 @@ export async function POST({ request }: APIEvent) {
           id: genId("MV"),
           itemId: item.id,
           warehouseId: existing.warehouseId || item.warehouseId || null,
-          type: "تسوية",
+          type: "طھط³ظˆظٹط©",
           quantity: line.difference,
           balanceAfter: newQty,
           relatedStocktakeId: id,
           sourceType: "stocktake",
           sourceId: id,
-          reference: `جرد ${existing.name}`,
+          reference: `ط¬ط±ط¯ ${existing.name}`,
           date: ts,
-          notes: `تسوية جرد: الفرق ${line.difference} (المعدود ${line.countedQuantity}، بالنظام ${line.systemQuantity})`,
+          notes: `طھط³ظˆظٹط© ط¬ط±ط¯: ط§ظ„ظپط±ظ‚ ${line.difference} (ط§ظ„ظ…ط¹ط¯ظˆط¯ ${line.countedQuantity}طŒ ط¨ط§ظ„ظ†ط¸ط§ظ… ${line.systemQuantity})`,
           createdBy: userId || null,
           createdAt: ts,
         })
@@ -125,7 +133,7 @@ export async function POST({ request }: APIEvent) {
 
     db.update(stocktakes)
       .set({
-        status: "معتمد",
+        status: "ظ…ط¹طھظ…ط¯",
         approvedBy: userId || null,
         approvedAt: ts,
         updatedAt: ts,
@@ -134,10 +142,10 @@ export async function POST({ request }: APIEvent) {
       .run();
 
     addAudit(
-      "اعتماد",
-      "جرد",
+      "ط§ط¹طھظ…ط§ط¯",
+      "ط¬ط±ط¯",
       id,
-      `تم اعتماد الجرد وإنشاء تسويات تلقائية: ${existing.name} (${lines.length} سطر)`,
+      `طھظ… ط§ط¹طھظ…ط§ط¯ ط§ظ„ط¬ط±ط¯ ظˆط¥ظ†ط´ط§ط، طھط³ظˆظٹط§طھ طھظ„ظ‚ط§ط¦ظٹط©: ${existing.name} (${lines.length} ط³ط·ط±)`,
       userId,
       userName,
       before,
@@ -149,28 +157,41 @@ export async function POST({ request }: APIEvent) {
   if (action === "close") {
     const { id, userId, userName } = body;
     const existing = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
-    if (!existing) return Response.json({ error: "الجرد غير موجود" }, { status: 404 });
-    if (existing.status !== "معتمد")
-      return Response.json({ error: "يمكن إغلاق الجرد المعتمد فقط" }, { status: 400 });
+    if (!existing) return Response.json({ error: "ط§ظ„ط¬ط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    if (existing.status !== "ظ…ط¹طھظ…ط¯")
+      return Response.json(
+        { error: "ظٹظ…ظƒظ† ط¥ط؛ظ„ط§ظ‚ ط§ظ„ط¬ط±ط¯ ط§ظ„ظ…ط¹طھظ…ط¯ ظپظ‚ط·" },
+        { status: 400 },
+      );
 
     const before = JSON.stringify(existing);
     db.update(stocktakes)
-      .set({ status: "مغلق", updatedAt: now() })
+      .set({ status: "ظ…ط؛ظ„ظ‚", updatedAt: now() })
       .where(eq(stocktakes.id, id))
       .run();
-    addAudit("إغلاق", "جرد", id, `تم إغلاق الجرد: ${existing.name}`, userId, userName, before);
+    addAudit(
+      "ط¥ط؛ظ„ط§ظ‚",
+      "ط¬ط±ط¯",
+      id,
+      `طھظ… ط¥ط؛ظ„ط§ظ‚ ط§ظ„ط¬ط±ط¯: ${existing.name}`,
+      userId,
+      userName,
+      before,
+    );
     const updated = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
     return Response.json({ item: updated });
   }
 
   // Create
   const { name, warehouseId, date, notes, lines, userId, userName } = body;
-  if (!name?.trim()) return Response.json({ error: "اسم الجرد مطلوب" }, { status: 400 });
-  if (!date?.trim()) return Response.json({ error: "تاريخ الجرد مطلوب" }, { status: 400 });
+  if (!name?.trim())
+    return Response.json({ error: "ط§ط³ظ… ط§ظ„ط¬ط±ط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+  if (!date?.trim())
+    return Response.json({ error: "طھط§ط±ظٹط® ط§ظ„ط¬ط±ط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   if (warehouseId) {
     const wh = db.select().from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1).all()[0];
-    if (!wh) return Response.json({ error: "المستودع غير موجود" }, { status: 400 });
+    if (!wh) return Response.json({ error: "ط§ظ„ظ…ط³طھظˆط¯ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 400 });
   }
 
   const stId = genId("ST");
@@ -182,7 +203,7 @@ export async function POST({ request }: APIEvent) {
       name: name.trim(),
       warehouseId: warehouseId || null,
       date,
-      status: "مسودة",
+      status: "ظ…ط³ظˆط¯ط©",
       notes: notes || "",
       createdBy: userId || null,
       createdAt: ts,
@@ -217,10 +238,10 @@ export async function POST({ request }: APIEvent) {
   }
 
   addAudit(
-    "إضافة",
-    "جرد",
+    "ط¥ط¶ط§ظپط©",
+    "ط¬ط±ط¯",
     stId,
-    `تم إضافة جرد: ${name} (${Array.isArray(lines) ? lines.length : 0} سطر)`,
+    `طھظ… ط¥ط¶ط§ظپط© ط¬ط±ط¯: ${name} (${Array.isArray(lines) ? lines.length : 0} ط³ط·ط±)`,
     userId,
     userName,
   );
@@ -229,15 +250,18 @@ export async function POST({ request }: APIEvent) {
 }
 
 // PUT /api/inventory/stocktake - update draft
-export async function PUT({ request }: APIEvent) {
+async function __handler_PUT({ request }: { request: Request }) {
   const body = await request.json();
   const { id, name, warehouseId, date, notes, userId, userName } = body;
-  if (!id) return Response.json({ error: "معرف الجرد مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط¬ط±ط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
-  if (!existing) return Response.json({ error: "الجرد غير موجود" }, { status: 404 });
+  if (!existing) return Response.json({ error: "ط§ظ„ط¬ط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   if (READ_ONLY_STATUSES.includes(existing.status as StocktakeStatus)) {
-    return Response.json({ error: "لا يمكن تعديل جرد معتمد أو مغلق" }, { status: 400 });
+    return Response.json(
+      { error: "ظ„ط§ ظٹظ…ظƒظ† طھط¹ط¯ظٹظ„ ط¬ط±ط¯ ظ…ط¹طھظ…ط¯ ط£ظˆ ظ…ط؛ظ„ظ‚" },
+      { status: 400 },
+    );
   }
 
   const before = JSON.stringify(existing);
@@ -252,31 +276,61 @@ export async function PUT({ request }: APIEvent) {
     .where(eq(stocktakes.id, id))
     .run();
 
-  addAudit("تعديل", "جرد", id, `تم تحديث الجرد: ${existing.name}`, userId, userName, before);
+  addAudit(
+    "طھط¹ط¯ظٹظ„",
+    "ط¬ط±ط¯",
+    id,
+    `طھظ… طھط­ط¯ظٹط« ط§ظ„ط¬ط±ط¯: ${existing.name}`,
+    userId,
+    userName,
+    before,
+  );
   const updated = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
   return Response.json({ item: updated });
 }
 
 // DELETE /api/inventory/stocktake - only draft
-export async function DELETE({ request }: APIEvent) {
+async function __handler_DELETE({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "مستخدم";
+  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
 
-  if (!id) return Response.json({ error: "معرف الجرد مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط¬ط±ط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
-  if (!existing) return Response.json({ error: "الجرد غير موجود" }, { status: 404 });
-  if (existing.status !== "مسودة") {
+  if (!existing) return Response.json({ error: "ط§ظ„ط¬ط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+  if (existing.status !== "ظ…ط³ظˆط¯ط©") {
     return Response.json(
-      { error: "لا يمكن حذف جرد تمت معالجته. يحتفظ النظام به للسجل التاريخي." },
+      {
+        error:
+          "ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ط¬ط±ط¯ طھظ…طھ ظ…ط¹ط§ظ„ط¬طھظ‡. ظٹط­طھظپط¸ ط§ظ„ظ†ط¸ط§ظ… ط¨ظ‡ ظ„ظ„ط³ط¬ظ„ ط§ظ„طھط§ط±ظٹط®ظٹ.",
+      },
       { status: 400 },
     );
   }
 
   const before = JSON.stringify(existing);
   db.delete(stocktakes).where(eq(stocktakes.id, id)).run();
-  addAudit("حذف", "جرد", id, `تم حذف الجرد: ${existing.name}`, userId, userName, before);
+  addAudit(
+    "ط­ط°ظپ",
+    "ط¬ط±ط¯",
+    id,
+    `طھظ… ط­ط°ظپ ط§ظ„ط¬ط±ط¯: ${existing.name}`,
+    userId,
+    userName,
+    before,
+  );
   return Response.json({ success: true });
 }
+
+export const Route = createFileRoute("/api/inventory/stocktake")({
+  server: {
+    handlers: {
+      GET: __handler_GET,
+      POST: __handler_POST,
+      PUT: __handler_PUT,
+      DELETE: __handler_DELETE,
+    },
+  },
+});

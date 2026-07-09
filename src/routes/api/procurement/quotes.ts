@@ -1,20 +1,21 @@
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { quotes, purchaseRequests } from "@/server/db/schema";
 import { eq, like, or, and, desc, ne } from "drizzle-orm";
-import type { APIEvent } from "@tanstack/start/server";
 
-export const QUOTE_STATUSES = ["بانتظار", "مقبول", "مرفوض"] as const;
+export const QUOTE_STATUSES = ["ط¨ط§ظ†طھط¸ط§ط±", "ظ…ظ‚ط¨ظˆظ„", "ظ…ط±ظپظˆط¶"] as const;
 export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
 
 // GET /api/procurement/quotes - list
 // GET /api/procurement/quotes?id=xxx - single
-export async function GET({ request }: APIEvent) {
+async function __handler_GET({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
   if (id) {
     const quote = db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all()[0];
-    if (!quote) return Response.json({ error: "عرض السعر غير موجود" }, { status: 404 });
+    if (!quote)
+      return Response.json({ error: "ط¹ط±ط¶ ط§ظ„ط³ط¹ط± ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     return Response.json({ item: quote });
   }
 
@@ -32,7 +33,7 @@ export async function GET({ request }: APIEvent) {
       ),
     );
   }
-  if (status && status !== "الكل") conditions.push(eq(quotes.status, status));
+  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(quotes.status, status));
   if (requestId) conditions.push(eq(quotes.requestId, requestId));
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -44,16 +45,20 @@ export async function GET({ request }: APIEvent) {
 }
 
 // POST /api/procurement/quotes - create or accept/reject actions
-export async function POST({ request }: APIEvent) {
+async function __handler_POST({ request }: { request: Request }) {
   const body = await request.json();
   const { action } = body;
 
   if (action === "accept") {
     const { id, userId, userName } = body;
     const existing = db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all()[0];
-    if (!existing) return Response.json({ error: "عرض السعر غير موجود" }, { status: 404 });
-    if (existing.status !== "بانتظار")
-      return Response.json({ error: "يمكن قبول العروض بانتظار فقط" }, { status: 400 });
+    if (!existing)
+      return Response.json({ error: "ط¹ط±ط¶ ط§ظ„ط³ط¹ط± ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    if (existing.status !== "ط¨ط§ظ†طھط¸ط§ط±")
+      return Response.json(
+        { error: "ظٹظ…ظƒظ† ظ‚ط¨ظˆظ„ ط§ظ„ط¹ط±ظˆط¶ ط¨ط§ظ†طھط¸ط§ط± ظپظ‚ط·" },
+        { status: 400 },
+      );
 
     const before = JSON.stringify(existing);
 
@@ -66,15 +71,15 @@ export async function POST({ request }: APIEvent) {
     }
 
     db.update(quotes)
-      .set({ status: "مقبول", winner: true, updatedAt: now() })
+      .set({ status: "ظ…ظ‚ط¨ظˆظ„", winner: true, updatedAt: now() })
       .where(eq(quotes.id, id))
       .run();
 
     addAudit(
-      "قبول",
-      "عرض سعر",
+      "ظ‚ط¨ظˆظ„",
+      "ط¹ط±ط¶ ط³ط¹ط±",
       id,
-      `تم قبول عرض السعر وتحديده كفائز: ${existing.supplier} (${existing.price})`,
+      `طھظ… ظ‚ط¨ظˆظ„ ط¹ط±ط¶ ط§ظ„ط³ط¹ط± ظˆطھط­ط¯ظٹط¯ظ‡ ظƒظپط§ط¦ط²: ${existing.supplier} (${existing.price})`,
       userId,
       userName,
       before,
@@ -86,20 +91,24 @@ export async function POST({ request }: APIEvent) {
   if (action === "reject") {
     const { id, userId, userName } = body;
     const existing = db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all()[0];
-    if (!existing) return Response.json({ error: "عرض السعر غير موجود" }, { status: 404 });
-    if (existing.status !== "بانتظار")
-      return Response.json({ error: "يمكن رفض العروض بانتظار فقط" }, { status: 400 });
+    if (!existing)
+      return Response.json({ error: "ط¹ط±ط¶ ط§ظ„ط³ط¹ط± ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    if (existing.status !== "ط¨ط§ظ†طھط¸ط§ط±")
+      return Response.json(
+        { error: "ظٹظ…ظƒظ† ط±ظپط¶ ط§ظ„ط¹ط±ظˆط¶ ط¨ط§ظ†طھط¸ط§ط± ظپظ‚ط·" },
+        { status: 400 },
+      );
 
     const before = JSON.stringify(existing);
     db.update(quotes)
-      .set({ status: "مرفوض", winner: false, updatedAt: now() })
+      .set({ status: "ظ…ط±ظپظˆط¶", winner: false, updatedAt: now() })
       .where(eq(quotes.id, id))
       .run();
     addAudit(
-      "رفض",
-      "عرض سعر",
+      "ط±ظپط¶",
+      "ط¹ط±ط¶ ط³ط¹ط±",
       id,
-      `تم رفض عرض السعر: ${existing.supplier}`,
+      `طھظ… ط±ظپط¶ ط¹ط±ط¶ ط§ظ„ط³ط¹ط±: ${existing.supplier}`,
       userId,
       userName,
       before,
@@ -124,7 +133,10 @@ export async function POST({ request }: APIEvent) {
   } = body;
 
   if (!supplier?.trim())
-    return Response.json({ error: "اسم المورد/المورّد مطلوب" }, { status: 400 });
+    return Response.json(
+      { error: "ط§ط³ظ… ط§ظ„ظ…ظˆط±ط¯/ط§ظ„ظ…ظˆط±ظ‘ط¯ ظ…ط·ظ„ظˆط¨" },
+      { status: 400 },
+    );
 
   if (requestId) {
     const req = db
@@ -133,7 +145,8 @@ export async function POST({ request }: APIEvent) {
       .where(eq(purchaseRequests.id, requestId))
       .limit(1)
       .all()[0];
-    if (!req) return Response.json({ error: "طلب الشراء غير موجود" }, { status: 404 });
+    if (!req)
+      return Response.json({ error: "ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   }
 
   const quoteId = genId("QT");
@@ -150,7 +163,7 @@ export async function POST({ request }: APIEvent) {
       warranty: warranty || "",
       rating: parseFloat(rating) || 0,
       winner: false,
-      status: "بانتظار",
+      status: "ط¨ط§ظ†طھط¸ط§ط±",
       validUntil: validUntil || "",
       notes: notes || "",
       createdBy: userId || null,
@@ -160,10 +173,10 @@ export async function POST({ request }: APIEvent) {
     .run();
 
   addAudit(
-    "إضافة",
-    "عرض سعر",
+    "ط¥ط¶ط§ظپط©",
+    "ط¹ط±ط¶ ط³ط¹ط±",
     quoteId,
-    `تم إضافة عرض سعر من ${supplier} بسعر ${price}`,
+    `طھظ… ط¥ط¶ط§ظپط© ط¹ط±ط¶ ط³ط¹ط± ظ…ظ† ${supplier} ط¨ط³ط¹ط± ${price}`,
     userId,
     userName,
   );
@@ -172,16 +185,20 @@ export async function POST({ request }: APIEvent) {
 }
 
 // PUT /api/procurement/quotes - update (only pending)
-export async function PUT({ request }: APIEvent) {
+async function __handler_PUT({ request }: { request: Request }) {
   const body = await request.json();
   const { id, supplier, price, delivery, warranty, rating, validUntil, notes, userId, userName } =
     body;
-  if (!id) return Response.json({ error: "معرف العرض مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط¹ط±ط¶ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all()[0];
-  if (!existing) return Response.json({ error: "عرض السعر غير موجود" }, { status: 404 });
-  if (existing.status !== "بانتظار") {
-    return Response.json({ error: "لا يمكن تعديل عرض تم البت فيه" }, { status: 400 });
+  if (!existing)
+    return Response.json({ error: "ط¹ط±ط¶ ط§ظ„ط³ط¹ط± ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+  if (existing.status !== "ط¨ط§ظ†طھط¸ط§ط±") {
+    return Response.json(
+      { error: "ظ„ط§ ظٹظ…ظƒظ† طھط¹ط¯ظٹظ„ ط¹ط±ط¶ طھظ… ط§ظ„ط¨طھ ظپظٹظ‡" },
+      { status: 400 },
+    );
   }
 
   const before = JSON.stringify(existing);
@@ -200,10 +217,10 @@ export async function PUT({ request }: APIEvent) {
     .run();
 
   addAudit(
-    "تعديل",
-    "عرض سعر",
+    "طھط¹ط¯ظٹظ„",
+    "ط¹ط±ط¶ ط³ط¹ط±",
     id,
-    `تم تحديث عرض السعر: ${existing.supplier}`,
+    `طھظ… طھط­ط¯ظٹط« ط¹ط±ط¶ ط§ظ„ط³ط¹ط±: ${existing.supplier}`,
     userId,
     userName,
     before,
@@ -213,27 +230,39 @@ export async function PUT({ request }: APIEvent) {
 }
 
 // DELETE /api/procurement/quotes
-export async function DELETE({ request }: APIEvent) {
+async function __handler_DELETE({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "مستخدم";
+  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
 
-  if (!id) return Response.json({ error: "معرف العرض مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط¹ط±ط¶ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all()[0];
-  if (!existing) return Response.json({ error: "عرض السعر غير موجود" }, { status: 404 });
+  if (!existing)
+    return Response.json({ error: "ط¹ط±ط¶ ط§ظ„ط³ط¹ط± ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   const before = JSON.stringify(existing);
   db.delete(quotes).where(eq(quotes.id, id)).run();
   addAudit(
-    "حذف",
-    "عرض سعر",
+    "ط­ط°ظپ",
+    "ط¹ط±ط¶ ط³ط¹ط±",
     id,
-    `تم حذف عرض السعر: ${existing.supplier}`,
+    `طھظ… ط­ط°ظپ ط¹ط±ط¶ ط§ظ„ط³ط¹ط±: ${existing.supplier}`,
     userId,
     userName,
     before,
   );
   return Response.json({ success: true });
 }
+
+export const Route = createFileRoute("/api/procurement/quotes")({
+  server: {
+    handlers: {
+      GET: __handler_GET,
+      POST: __handler_POST,
+      PUT: __handler_PUT,
+      DELETE: __handler_DELETE,
+    },
+  },
+});

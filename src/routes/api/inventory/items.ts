@@ -1,17 +1,23 @@
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { inventoryItems, warehouses, stockMovements, purchaseOrderLines } from "@/server/db/schema";
 import { eq, like, or, and, desc, sql } from "drizzle-orm";
-import type { APIEvent } from "@tanstack/start/server";
 
-export const ITEM_STATUSES = ["نشط", "موقوف", "مغلق"] as const;
+export const ITEM_STATUSES = ["ظ†ط´ط·", "ظ…ظˆظ‚ظˆظپ", "ظ…ط؛ظ„ظ‚"] as const;
 export type ItemStatus = (typeof ITEM_STATUSES)[number];
 
-export const MOVEMENT_TYPES = ["استلام", "صرف", "تحويل", "تسوية", "جرد"] as const;
+export const MOVEMENT_TYPES = [
+  "ط§ط³طھظ„ط§ظ…",
+  "طµط±ظپ",
+  "طھط­ظˆظٹظ„",
+  "طھط³ظˆظٹط©",
+  "ط¬ط±ط¯",
+] as const;
 export type MovementType = (typeof MOVEMENT_TYPES)[number];
 
 // GET /api/inventory/items - list
 // GET /api/inventory/items?id=xxx - single with movement count
-export async function GET({ request }: APIEvent) {
+async function __handler_GET({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
@@ -22,7 +28,7 @@ export async function GET({ request }: APIEvent) {
       .where(eq(inventoryItems.id, id))
       .limit(1)
       .all()[0];
-    if (!item) return Response.json({ error: "الصنف غير موجود" }, { status: 404 });
+    if (!item) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const movementCount =
       db
@@ -61,8 +67,8 @@ export async function GET({ request }: APIEvent) {
       ),
     );
   }
-  if (status && status !== "الكل") conditions.push(eq(inventoryItems.status, status));
-  if (category && category !== "الكل") conditions.push(eq(inventoryItems.category, category));
+  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(inventoryItems.status, status));
+  if (category && category !== "ط§ظ„ظƒظ„") conditions.push(eq(inventoryItems.category, category));
   if (warehouseId) conditions.push(eq(inventoryItems.warehouseId, warehouseId));
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -80,7 +86,7 @@ export async function GET({ request }: APIEvent) {
 }
 
 // POST /api/inventory/items - create or activate/deactivate/move
-export async function POST({ request }: APIEvent) {
+async function __handler_POST({ request }: { request: Request }) {
   const body = await request.json();
   const { action } = body;
 
@@ -92,12 +98,12 @@ export async function POST({ request }: APIEvent) {
       .where(eq(inventoryItems.id, id))
       .limit(1)
       .all()[0];
-    if (!existing) return Response.json({ error: "الصنف غير موجود" }, { status: 404 });
+    if (!existing) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
-    const newStatus: ItemStatus = action === "activate" ? "نشط" : "موقوف";
+    const newStatus: ItemStatus = action === "activate" ? "ظ†ط´ط·" : "ظ…ظˆظ‚ظˆظپ";
     if (existing.status === newStatus) {
       return Response.json(
-        { error: `الصنف ${newStatus === "نشط" ? "نشط" : "موقوف"} بالفعل` },
+        { error: `ط§ظ„طµظ†ظپ ${newStatus === "ظ†ط´ط·" ? "ظ†ط´ط·" : "ظ…ظˆظ‚ظˆظپ"} ط¨ط§ظ„ظپط¹ظ„` },
         { status: 400 },
       );
     }
@@ -108,10 +114,10 @@ export async function POST({ request }: APIEvent) {
       .where(eq(inventoryItems.id, id))
       .run();
     addAudit(
-      action === "activate" ? "تفعيل" : "تعطيل",
-      "صنف",
+      action === "activate" ? "طھظپط¹ظٹظ„" : "طھط¹ط·ظٹظ„",
+      "طµظ†ظپ",
       id,
-      `تم ${action === "activate" ? "تفعيل" : "تعطيل"} الصنف: ${existing.name}`,
+      `طھظ… ${action === "activate" ? "طھظپط¹ظٹظ„" : "طھط¹ط·ظٹظ„"} ط§ظ„طµظ†ظپ: ${existing.name}`,
       userId,
       userName,
       before,
@@ -149,12 +155,13 @@ export async function POST({ request }: APIEvent) {
     userName,
   } = body;
 
-  if (!name?.trim()) return Response.json({ error: "اسم الصنف مطلوب" }, { status: 400 });
-  if (!unit?.trim()) return Response.json({ error: "الوحدة مطلوبة" }, { status: 400 });
+  if (!name?.trim())
+    return Response.json({ error: "ط§ط³ظ… ط§ظ„طµظ†ظپ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+  if (!unit?.trim()) return Response.json({ error: "ط§ظ„ظˆط­ط¯ط© ظ…ط·ظ„ظˆط¨ط©" }, { status: 400 });
 
   if (warehouseId) {
     const wh = db.select().from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1).all()[0];
-    if (!wh) return Response.json({ error: "المستودع غير موجود" }, { status: 400 });
+    if (!wh) return Response.json({ error: "ط§ظ„ظ…ط³طھظˆط¯ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 400 });
   }
 
   const itemId = genId("INV");
@@ -173,7 +180,7 @@ export async function POST({ request }: APIEvent) {
       minQuantity: parseFloat(minQuantity) || 0,
       price: parseFloat(price) || 0,
       notes: notes || "",
-      status: status || "نشط",
+      status: status || "ظ†ط´ط·",
       createdBy: userId || null,
       createdAt: ts,
       updatedAt: ts,
@@ -186,20 +193,20 @@ export async function POST({ request }: APIEvent) {
         id: genId("MV"),
         itemId,
         warehouseId,
-        type: "استلام",
+        type: "ط§ط³طھظ„ط§ظ…",
         quantity: qty,
         balanceAfter: qty,
         sourceType: "manual",
-        reference: "رصيد افتتاحي",
+        reference: "ط±طµظٹط¯ ط§ظپطھطھط§ط­ظٹ",
         date: ts,
-        notes: "رصيد افتتاحي عند إنشاء الصنف",
+        notes: "ط±طµظٹط¯ ط§ظپطھطھط§ط­ظٹ ط¹ظ†ط¯ ط¥ظ†ط´ط§ط، ط§ظ„طµظ†ظپ",
         createdBy: userId || null,
         createdAt: ts,
       })
       .run();
   }
 
-  addAudit("إضافة", "صنف", itemId, `تم إضافة صنف: ${name}`, userId, userName);
+  addAudit("ط¥ط¶ط§ظپط©", "طµظ†ظپ", itemId, `طھظ… ط¥ط¶ط§ظپط© طµظ†ظپ: ${name}`, userId, userName);
   const created = db
     .select()
     .from(inventoryItems)
@@ -220,29 +227,36 @@ function handleStockMovement(body: {
 }) {
   const { id, action, warehouseId, quantity, notes, userId, userName } = body;
   const qty = parseFloat(String(quantity)) || 0;
-  if (qty <= 0) return Response.json({ error: "الكمية يجب أن تكون أكبر من صفر" }, { status: 400 });
+  if (qty <= 0)
+    return Response.json(
+      { error: "ط§ظ„ظƒظ…ظٹط© ظٹط¬ط¨ ط£ظ† طھظƒظˆظ† ط£ظƒط¨ط± ظ…ظ† طµظپط±" },
+      { status: 400 },
+    );
 
   const item = db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1).all()[0];
-  if (!item) return Response.json({ error: "الصنف غير موجود" }, { status: 404 });
-  if (item.status === "مغلق")
-    return Response.json({ error: "الصنف مغلق. لا يمكن إجراء حركات عليه." }, { status: 400 });
+  if (!item) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+  if (item.status === "ظ…ط؛ظ„ظ‚")
+    return Response.json(
+      { error: "ط§ظ„طµظ†ظپ ظ…ط؛ظ„ظ‚. ظ„ط§ ظٹظ…ظƒظ† ط¥ط¬ط±ط§ط، ط­ط±ظƒط§طھ ط¹ظ„ظٹظ‡." },
+      { status: 400 },
+    );
 
   const movementType: MovementType =
-    action === "receive" ? "استلام" : action === "issue" ? "صرف" : "تسوية";
+    action === "receive" ? "ط§ط³طھظ„ط§ظ…" : action === "issue" ? "طµط±ظپ" : "طھط³ظˆظٹط©";
 
   let newQty = item.quantity;
-  if (movementType === "استلام") {
+  if (movementType === "ط§ط³طھظ„ط§ظ…") {
     newQty = item.quantity + qty;
-  } else if (movementType === "صرف") {
+  } else if (movementType === "طµط±ظپ") {
     if (qty > item.quantity)
       return Response.json(
         {
-          error: `الكمية غير كافية. المتاح: ${item.quantity} ${item.unit}، المطلوب: ${qty} ${item.unit}.`,
+          error: `ط§ظ„ظƒظ…ظٹط© ط؛ظٹط± ظƒط§ظپظٹط©. ط§ظ„ظ…طھط§ط­: ${item.quantity} ${item.unit}طŒ ط§ظ„ظ…ط·ظ„ظˆط¨: ${qty} ${item.unit}.`,
         },
         { status: 400 },
       );
     newQty = item.quantity - qty;
-  } else if (movementType === "تسوية") {
+  } else if (movementType === "طھط³ظˆظٹط©") {
     newQty = qty;
   }
 
@@ -273,9 +287,9 @@ function handleStockMovement(body: {
 
   addAudit(
     movementType,
-    "صنف",
+    "طµظ†ظپ",
     id,
-    `حركة ${movementType} على الصنف ${item.name}: ${qty} ${item.unit} (الرصيد ${newQty})`,
+    `ط­ط±ظƒط© ${movementType} ط¹ظ„ظ‰ ط§ظ„طµظ†ظپ ${item.name}: ${qty} ${item.unit} (ط§ظ„ط±طµظٹط¯ ${newQty})`,
     userId,
     userName,
   );
@@ -300,21 +314,34 @@ function handleTransfer(body: {
 }) {
   const { id, fromWarehouseId, toWarehouseId, quantity, notes, userId, userName } = body;
   const qty = parseFloat(String(quantity)) || 0;
-  if (qty <= 0) return Response.json({ error: "الكمية يجب أن تكون أكبر من صفر" }, { status: 400 });
+  if (qty <= 0)
+    return Response.json(
+      { error: "ط§ظ„ظƒظ…ظٹط© ظٹط¬ط¨ ط£ظ† طھظƒظˆظ† ط£ظƒط¨ط± ظ…ظ† طµظپط±" },
+      { status: 400 },
+    );
   if (!fromWarehouseId || !toWarehouseId)
-    return Response.json({ error: "يجب تحديد المستودع المصدر والهدف" }, { status: 400 });
+    return Response.json(
+      { error: "ظٹط¬ط¨ طھط­ط¯ظٹط¯ ط§ظ„ظ…ط³طھظˆط¯ط¹ ط§ظ„ظ…طµط¯ط± ظˆط§ظ„ظ‡ط¯ظپ" },
+      { status: 400 },
+    );
   if (fromWarehouseId === toWarehouseId)
-    return Response.json({ error: "المستودع المصدر والهدف يجب أن يكونا مختلفين" }, { status: 400 });
+    return Response.json(
+      { error: "ط§ظ„ظ…ط³طھظˆط¯ط¹ ط§ظ„ظ…طµط¯ط± ظˆط§ظ„ظ‡ط¯ظپ ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ†ط§ ظ…ط®طھظ„ظپظٹظ†" },
+      { status: 400 },
+    );
 
   const item = db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1).all()[0];
-  if (!item) return Response.json({ error: "الصنف غير موجود" }, { status: 404 });
-  if (item.status === "مغلق")
-    return Response.json({ error: "الصنف مغلق. لا يمكن إجراء تحويل عليه." }, { status: 400 });
+  if (!item) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+  if (item.status === "ظ…ط؛ظ„ظ‚")
+    return Response.json(
+      { error: "ط§ظ„طµظ†ظپ ظ…ط؛ظ„ظ‚. ظ„ط§ ظٹظ…ظƒظ† ط¥ط¬ط±ط§ط، طھط­ظˆظٹظ„ ط¹ظ„ظٹظ‡." },
+      { status: 400 },
+    );
 
   if (qty > item.quantity)
     return Response.json(
       {
-        error: `الكمية غير كافية للتحويل. المتاح: ${item.quantity} ${item.unit}، المطلوب: ${qty} ${item.unit}.`,
+        error: `ط§ظ„ظƒظ…ظٹط© ط؛ظٹط± ظƒط§ظپظٹط© ظ„ظ„طھط­ظˆظٹظ„. ط§ظ„ظ…طھط§ط­: ${item.quantity} ${item.unit}طŒ ط§ظ„ظ…ط·ظ„ظˆط¨: ${qty} ${item.unit}.`,
       },
       { status: 400 },
     );
@@ -334,12 +361,12 @@ function handleTransfer(body: {
       id: mvId,
       itemId: id,
       warehouseId: fromWarehouseId,
-      type: "تحويل",
+      type: "طھط­ظˆظٹظ„",
       quantity: -qty,
       balanceAfter,
       relatedWarehouseId: toWarehouseId,
       sourceType: "transfer",
-      reference: "تحويل صادر",
+      reference: "طھط­ظˆظٹظ„ طµط§ط¯ط±",
       date: ts,
       notes: notes || "",
       createdBy: userId || null,
@@ -353,13 +380,13 @@ function handleTransfer(body: {
       id: genId("MV"),
       itemId: id,
       warehouseId: toWarehouseId,
-      type: "تحويل",
+      type: "طھط­ظˆظٹظ„",
       quantity: qty,
       balanceAfter: balanceAfter, // Note: item is single-quantity tracked
       relatedWarehouseId: fromWarehouseId,
       relatedStocktakeId: mvId,
       sourceType: "transfer",
-      reference: "تحويل وارد",
+      reference: "طھط­ظˆظٹظ„ ظˆط§ط±ط¯",
       date: ts,
       notes: notes || "",
       createdBy: userId || null,
@@ -368,10 +395,10 @@ function handleTransfer(body: {
     .run();
 
   addAudit(
-    "تحويل",
-    "صنف",
+    "طھط­ظˆظٹظ„",
+    "طµظ†ظپ",
     id,
-    `تم تحويل ${qty} ${item.unit} من مستودع ${fromWarehouseId} إلى ${toWarehouseId} للصنف ${item.name}`,
+    `طھظ… طھط­ظˆظٹظ„ ${qty} ${item.unit} ظ…ظ† ظ…ط³طھظˆط¯ط¹ ${fromWarehouseId} ط¥ظ„ظ‰ ${toWarehouseId} ظ„ظ„طµظ†ظپ ${item.name}`,
     userId,
     userName,
   );
@@ -386,7 +413,7 @@ function handleTransfer(body: {
 }
 
 // PUT /api/inventory/items - update
-export async function PUT({ request }: APIEvent) {
+async function __handler_PUT({ request }: { request: Request }) {
   const body = await request.json();
   const {
     id,
@@ -402,7 +429,7 @@ export async function PUT({ request }: APIEvent) {
     userId,
     userName,
   } = body;
-  if (!id) return Response.json({ error: "معرف الصنف مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„طµظ†ظپ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db
     .select()
@@ -410,7 +437,7 @@ export async function PUT({ request }: APIEvent) {
     .where(eq(inventoryItems.id, id))
     .limit(1)
     .all()[0];
-  if (!existing) return Response.json({ error: "الصنف غير موجود" }, { status: 404 });
+  if (!existing) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   const before = JSON.stringify(existing);
   db.update(inventoryItems)
@@ -429,7 +456,15 @@ export async function PUT({ request }: APIEvent) {
     .where(eq(inventoryItems.id, id))
     .run();
 
-  addAudit("تعديل", "صنف", id, `تم تحديث الصنف: ${existing.name}`, userId, userName, before);
+  addAudit(
+    "طھط¹ط¯ظٹظ„",
+    "طµظ†ظپ",
+    id,
+    `طھظ… طھط­ط¯ظٹط« ط§ظ„طµظ†ظپ: ${existing.name}`,
+    userId,
+    userName,
+    before,
+  );
   const updated = db
     .select()
     .from(inventoryItems)
@@ -440,13 +475,13 @@ export async function PUT({ request }: APIEvent) {
 }
 
 // DELETE /api/inventory/items - only if no movements and no PO lines
-export async function DELETE({ request }: APIEvent) {
+async function __handler_DELETE({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "مستخدم";
+  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
 
-  if (!id) return Response.json({ error: "معرف الصنف مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„طµظ†ظپ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db
     .select()
@@ -454,7 +489,7 @@ export async function DELETE({ request }: APIEvent) {
     .where(eq(inventoryItems.id, id))
     .limit(1)
     .all()[0];
-  if (!existing) return Response.json({ error: "الصنف غير موجود" }, { status: 404 });
+  if (!existing) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   const movementCount =
     db
@@ -472,11 +507,11 @@ export async function DELETE({ request }: APIEvent) {
 
   if (movementCount > 0 || poLineCount > 0) {
     const parts: string[] = [];
-    if (movementCount > 0) parts.push(`${movementCount} حركة مخزون`);
-    if (poLineCount > 0) parts.push(`${poLineCount} سطر أمر شراء`);
+    if (movementCount > 0) parts.push(`${movementCount} ط­ط±ظƒط© ظ…ط®ط²ظˆظ†`);
+    if (poLineCount > 0) parts.push(`${poLineCount} ط³ط·ط± ط£ظ…ط± ط´ط±ط§ط،`);
     return Response.json(
       {
-        error: `لا يمكن حذف الصنف لارتباطه بـ ${parts.join(" و ")}. قم بإيقاف الصنف بدلاً من ذلك.`,
+        error: `ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ط§ظ„طµظ†ظپ ظ„ط§ط±طھط¨ط§ط·ظ‡ ط¨ظ€ ${parts.join(" ظˆ ")}. ظ‚ظ… ط¨ط¥ظٹظ‚ط§ظپ ط§ظ„طµظ†ظپ ط¨ط¯ظ„ط§ظ‹ ظ…ظ† ط°ظ„ظƒ.`,
       },
       { status: 400 },
     );
@@ -484,6 +519,25 @@ export async function DELETE({ request }: APIEvent) {
 
   const before = JSON.stringify(existing);
   db.delete(inventoryItems).where(eq(inventoryItems.id, id)).run();
-  addAudit("حذف", "صنف", id, `تم حذف الصنف: ${existing.name}`, userId, userName, before);
+  addAudit(
+    "ط­ط°ظپ",
+    "طµظ†ظپ",
+    id,
+    `طھظ… ط­ط°ظپ ط§ظ„طµظ†ظپ: ${existing.name}`,
+    userId,
+    userName,
+    before,
+  );
   return Response.json({ success: true });
 }
+
+export const Route = createFileRoute("/api/inventory/items")({
+  server: {
+    handlers: {
+      GET: __handler_GET,
+      POST: __handler_POST,
+      PUT: __handler_PUT,
+      DELETE: __handler_DELETE,
+    },
+  },
+});

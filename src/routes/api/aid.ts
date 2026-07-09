@@ -1,15 +1,15 @@
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { aidRecords, beneficiaries, projects } from "@/server/db/schema";
 import { eq, like, or, and, desc } from "drizzle-orm";
-import type { APIEvent } from "@tanstack/start/server";
 
-export async function GET({ request }: APIEvent) {
+async function __handler_GET({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
   if (id) {
     const aid = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
-    if (!aid) return Response.json({ error: "السجل غير موجود" }, { status: 404 });
+    if (!aid) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const beneficiary = db
       .select()
@@ -44,8 +44,8 @@ export async function GET({ request }: APIEvent) {
   if (search) {
     conditions.push(like(aidRecords.id, `%${search}%`));
   }
-  if (status && status !== "الكل") conditions.push(eq(aidRecords.status, status));
-  if (type && type !== "الكل") conditions.push(eq(aidRecords.type, type));
+  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(aidRecords.status, status));
+  if (type && type !== "ط§ظ„ظƒظ„") conditions.push(eq(aidRecords.type, type));
   if (beneficiaryId) conditions.push(eq(aidRecords.beneficiaryId, beneficiaryId));
   if (projectId) conditions.push(eq(aidRecords.projectId, projectId));
 
@@ -89,20 +89,23 @@ export async function GET({ request }: APIEvent) {
   return Response.json({ items: enrichedItems, total, page, limit });
 }
 
-export async function POST({ request }: APIEvent) {
+async function __handler_POST({ request }: { request: Request }) {
   const body = await request.json();
   const { action, id, userId, userName } = body;
 
   if (action === "approve") {
     const aid = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
-    if (!aid) return Response.json({ error: "السجل غير موجود" }, { status: 404 });
-    if (aid.status !== "قيد المراجعة")
-      return Response.json({ error: "لا يمكن اعتماد هذا السجل" }, { status: 400 });
+    if (!aid) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    if (aid.status !== "ظ‚ظٹط¯ ط§ظ„ظ…ط±ط§ط¬ط¹ط©")
+      return Response.json(
+        { error: "ظ„ط§ ظٹظ…ظƒظ† ط§ط¹طھظ…ط§ط¯ ظ‡ط°ط§ ط§ظ„ط³ط¬ظ„" },
+        { status: 400 },
+      );
 
     const before = JSON.stringify(aid);
     db.update(aidRecords)
       .set({
-        status: "معتمد",
+        status: "ظ…ط¹طھظ…ط¯",
         approvedBy: userId || null,
         approvedAt: now(),
         updatedAt: now(),
@@ -110,28 +113,44 @@ export async function POST({ request }: APIEvent) {
       .where(eq(aidRecords.id, id))
       .run();
 
-    addAudit("اعتماد", "مساعدة", id, `تم اعتماد المساعدة`, userId, userName, before);
+    addAudit(
+      "ط§ط¹طھظ…ط§ط¯",
+      "ظ…ط³ط§ط¹ط¯ط©",
+      id,
+      `طھظ… ط§ط¹طھظ…ط§ط¯ ط§ظ„ظ…ط³ط§ط¹ط¯ط©`,
+      userId,
+      userName,
+      before,
+    );
     const updated = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
     return Response.json({ item: updated });
   }
 
   if (action === "reject") {
     const aid = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
-    if (!aid) return Response.json({ error: "السجل غير موجود" }, { status: 404 });
+    if (!aid) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const before = JSON.stringify(aid);
     db.update(aidRecords)
-      .set({ status: "مرفوض", updatedAt: now() })
+      .set({ status: "ظ…ط±ظپظˆط¶", updatedAt: now() })
       .where(eq(aidRecords.id, id))
       .run();
-    addAudit("رفض", "مساعدة", id, `تم رفض المساعدة`, userId, userName, before);
+    addAudit(
+      "ط±ظپط¶",
+      "ظ…ط³ط§ط¹ط¯ط©",
+      id,
+      `طھظ… ط±ظپط¶ ط§ظ„ظ…ط³ط§ط¹ط¯ط©`,
+      userId,
+      userName,
+      before,
+    );
     const updated = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
     return Response.json({ item: updated });
   }
 
   if (action === "deliver") {
     const aid = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
-    if (!aid) return Response.json({ error: "السجل غير موجود" }, { status: 404 });
+    if (!aid) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     // Check beneficiary eligibility
     const beneficiary = db
@@ -140,17 +159,24 @@ export async function POST({ request }: APIEvent) {
       .where(eq(beneficiaries.id, aid.beneficiaryId))
       .limit(1)
       .all()[0];
-    if (!beneficiary) return Response.json({ error: "المستفيد غير موجود" }, { status: 404 });
-    if (beneficiary.status !== "مؤهل")
-      return Response.json({ error: "لا يمكن تسليم مساعدة لمستفيد غير مؤهل" }, { status: 400 });
-    if (aid.status !== "معتمد")
-      return Response.json({ error: "يجب اعتماد المساعدة أولاً" }, { status: 400 });
+    if (!beneficiary)
+      return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    if (beneficiary.status !== "ظ…ط¤ظ‡ظ„")
+      return Response.json(
+        { error: "ظ„ط§ ظٹظ…ظƒظ† طھط³ظ„ظٹظ… ظ…ط³ط§ط¹ط¯ط© ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ط¤ظ‡ظ„" },
+        { status: 400 },
+      );
+    if (aid.status !== "ظ…ط¹طھظ…ط¯")
+      return Response.json(
+        { error: "ظٹط¬ط¨ ط§ط¹طھظ…ط§ط¯ ط§ظ„ظ…ط³ط§ط¹ط¯ط© ط£ظˆظ„ط§ظ‹" },
+        { status: 400 },
+      );
 
     const before = JSON.stringify(aid);
     const ts = now();
     db.update(aidRecords)
       .set({
-        status: "تم التسليم",
+        status: "طھظ… ط§ظ„طھط³ظ„ظٹظ…",
         updatedAt: ts,
         deliveredAt: ts,
         deliveredBy: userId || null,
@@ -181,10 +207,10 @@ export async function POST({ request }: APIEvent) {
     }
 
     addAudit(
-      "تسليم",
-      "مساعدة",
+      "طھط³ظ„ظٹظ…",
+      "ظ…ط³ط§ط¹ط¯ط©",
       id,
-      `تم تسليم المساعدة بمبلغ ${aid.amount} ر.س`,
+      `طھظ… طھط³ظ„ظٹظ… ط§ظ„ظ…ط³ط§ط¹ط¯ط© ط¨ظ…ط¨ظ„ط؛ ${aid.amount} ط±.ط³`,
       userId,
       userName,
       before,
@@ -195,14 +221,22 @@ export async function POST({ request }: APIEvent) {
 
   if (action === "return") {
     const aid = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
-    if (!aid) return Response.json({ error: "السجل غير موجود" }, { status: 404 });
+    if (!aid) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const before = JSON.stringify(aid);
     db.update(aidRecords)
-      .set({ status: "بانتظار الموافقة", updatedAt: now() })
+      .set({ status: "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©", updatedAt: now() })
       .where(eq(aidRecords.id, id))
       .run();
-    addAudit("إرجاع", "مساعدة", id, `تم إرجاع المساعدة للتعديل`, userId, userName, before);
+    addAudit(
+      "ط¥ط±ط¬ط§ط¹",
+      "ظ…ط³ط§ط¹ط¯ط©",
+      id,
+      `طھظ… ط¥ط±ط¬ط§ط¹ ط§ظ„ظ…ط³ط§ط¹ط¯ط© ظ„ظ„طھط¹ط¯ظٹظ„`,
+      userId,
+      userName,
+      before,
+    );
     const updated = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
     return Response.json({ item: updated });
   }
@@ -219,8 +253,9 @@ export async function POST({ request }: APIEvent) {
     userName: uname,
   } = body;
 
-  if (!beneficiaryId) return Response.json({ error: "المستفيد مطلوب" }, { status: 400 });
-  if (!type) return Response.json({ error: "نوع المساعدة مطلوب" }, { status: 400 });
+  if (!beneficiaryId)
+    return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+  if (!type) return Response.json({ error: "ظ†ظˆط¹ ط§ظ„ظ…ط³ط§ط¹ط¯ط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   // Check beneficiary eligibility
   const beneficiary = db
@@ -229,9 +264,11 @@ export async function POST({ request }: APIEvent) {
     .where(eq(beneficiaries.id, beneficiaryId))
     .limit(1)
     .all()[0];
-  if (beneficiary && beneficiary.status !== "مؤهل") {
+  if (beneficiary && beneficiary.status !== "ظ…ط¤ظ‡ظ„") {
     return Response.json(
-      { error: `لا يمكن إضافة مساعدة لمستفيد بحالة: ${beneficiary.status}` },
+      {
+        error: `ظ„ط§ ظٹظ…ظƒظ† ط¥ط¶ط§ظپط© ظ…ط³ط§ط¹ط¯ط© ظ„ظ…ط³طھظپظٹط¯ ط¨ط­ط§ظ„ط©: ${beneficiary.status}`,
+      },
       { status: 400 },
     );
   }
@@ -246,7 +283,7 @@ export async function POST({ request }: APIEvent) {
       projectId: projectId || null,
       type,
       amount: parseFloat(amount) || 0,
-      status: "بانتظار الموافقة",
+      status: "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©",
       date: date || ts,
       approvedBy: null,
       approvedAt: null,
@@ -256,23 +293,30 @@ export async function POST({ request }: APIEvent) {
     })
     .run();
 
-  addAudit("إضافة", "مساعدة", aidId, `تم إضافة مساعدة جديدة: ${type}`, uid, uname);
+  addAudit(
+    "ط¥ط¶ط§ظپط©",
+    "ظ…ط³ط§ط¹ط¯ط©",
+    aidId,
+    `طھظ… ط¥ط¶ط§ظپط© ظ…ط³ط§ط¹ط¯ط© ط¬ط¯ظٹط¯ط©: ${type}`,
+    uid,
+    uname,
+  );
   const created = db.select().from(aidRecords).where(eq(aidRecords.id, aidId)).limit(1).all()[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
-export async function PUT({ request }: APIEvent) {
+async function __handler_PUT({ request }: { request: Request }) {
   const body = await request.json();
   const { id, beneficiaryId, projectId, type, amount, date, notes, userId, userName } = body;
 
-  if (!id) return Response.json({ error: "معرف السجل مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط³ط¬ظ„ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
-  if (!existing) return Response.json({ error: "السجل غير موجود" }, { status: 404 });
+  if (!existing) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   // Can only edit draft or pending review records
-  if (existing.status === "تم التسليم" || existing.status === "مرفوض") {
-    return Response.json({ error: "لا يمكن تعديل هذا السجل" }, { status: 400 });
+  if (existing.status === "طھظ… ط§ظ„طھط³ظ„ظٹظ…" || existing.status === "ظ…ط±ظپظˆط¶") {
+    return Response.json({ error: "ظ„ط§ ظٹظ…ظƒظ† طھط¹ط¯ظٹظ„ ظ‡ط°ط§ ط§ظ„ط³ط¬ظ„" }, { status: 400 });
   }
 
   const before = JSON.stringify(existing);
@@ -291,30 +335,52 @@ export async function PUT({ request }: APIEvent) {
     .where(eq(aidRecords.id, id))
     .run();
 
-  addAudit("تعديل", "مساعدة", id, `تم تحديث بيانات المساعدة`, userId, userName, before);
+  addAudit(
+    "طھط¹ط¯ظٹظ„",
+    "ظ…ط³ط§ط¹ط¯ط©",
+    id,
+    `طھظ… طھط­ط¯ظٹط« ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط³ط§ط¹ط¯ط©`,
+    userId,
+    userName,
+    before,
+  );
   const updated = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
   return Response.json({ item: updated });
 }
 
-export async function DELETE({ request }: APIEvent) {
+async function __handler_DELETE({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "مستخدم";
+  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
 
-  if (!id) return Response.json({ error: "معرف السجل مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط³ط¬ظ„ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
-  if (!existing) return Response.json({ error: "السجل غير موجود" }, { status: 404 });
+  if (!existing) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   // Can only delete draft/pending records
-  if (existing.status === "تم التسليم") {
-    return Response.json({ error: "لا يمكن حذف مساعدة تم تسليمها" }, { status: 400 });
+  if (existing.status === "طھظ… ط§ظ„طھط³ظ„ظٹظ…") {
+    return Response.json(
+      { error: "ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ظ…ط³ط§ط¹ط¯ط© طھظ… طھط³ظ„ظٹظ…ظ‡ط§" },
+      { status: 400 },
+    );
   }
 
   const before = JSON.stringify(existing);
   db.delete(aidRecords).where(eq(aidRecords.id, id)).run();
-  addAudit("حذف", "مساعدة", id, `تم حذف المساعدة`, userId, userName, before);
+  addAudit("ط­ط°ظپ", "ظ…ط³ط§ط¹ط¯ط©", id, `طھظ… ط­ط°ظپ ط§ظ„ظ…ط³ط§ط¹ط¯ط©`, userId, userName, before);
 
   return Response.json({ success: true });
 }
+
+export const Route = createFileRoute("/api/aid")({
+  server: {
+    handlers: {
+      GET: __handler_GET,
+      POST: __handler_POST,
+      PUT: __handler_PUT,
+      DELETE: __handler_DELETE,
+    },
+  },
+});

@@ -1,25 +1,26 @@
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { projects, donations, beneficiaries, aidRecords } from "@/server/db/schema";
 import { eq, like, or, and, desc, sum, count } from "drizzle-orm";
-import type { APIEvent } from "@tanstack/start/server";
 
 // GET /api/projects - List with search, filters, pagination
 // GET /api/projects?id=xxx - Single project by ID with summary
 // GET /api/projects?id=xxx&summary=true - Project summary calculations
-export async function GET({ request }: APIEvent) {
+async function __handler_GET({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   const summary = url.searchParams.get("summary");
 
   if (id) {
     const project = db.select().from(projects).where(eq(projects.id, id)).limit(1).all()[0];
-    if (!project) return Response.json({ error: "المشروع غير موجود" }, { status: 404 });
+    if (!project)
+      return Response.json({ error: "ط§ظ„ظ…ط´ط±ظˆط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     // Get project donations total
     const projDonations = db
       .select()
       .from(donations)
-      .where(and(eq(donations.projectId, id), eq(donations.status, "مؤكد")))
+      .where(and(eq(donations.projectId, id), eq(donations.status, "ظ…ط¤ظƒط¯")))
       .all();
     const totalDonations = projDonations.reduce((s, d) => s + d.amount, 0);
 
@@ -27,7 +28,7 @@ export async function GET({ request }: APIEvent) {
     const projAid = db
       .select()
       .from(aidRecords)
-      .where(and(eq(aidRecords.projectId, id), eq(aidRecords.status, "تم التسليم")))
+      .where(and(eq(aidRecords.projectId, id), eq(aidRecords.status, "طھظ… ط§ظ„طھط³ظ„ظٹظ…")))
       .all();
     const totalAid = projAid.reduce((s, a) => s + a.amount, 0);
     const beneficiaryCount = projAid.length;
@@ -117,9 +118,9 @@ export async function GET({ request }: APIEvent) {
       ),
     );
   }
-  if (status && status !== "الكل") conditions.push(eq(projects.status, status));
-  if (category && category !== "الكل") conditions.push(eq(projects.category, category));
-  if (branch && branch !== "الكل") conditions.push(eq(projects.branch, branch));
+  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(projects.status, status));
+  if (category && category !== "ط§ظ„ظƒظ„") conditions.push(eq(projects.category, category));
+  if (branch && branch !== "ط§ظ„ظƒظ„") conditions.push(eq(projects.branch, branch));
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -143,33 +144,40 @@ export async function GET({ request }: APIEvent) {
 }
 
 // POST /api/projects - Create project or change status (activate/pause/complete/cancel)
-export async function POST({ request }: APIEvent) {
+async function __handler_POST({ request }: { request: Request }) {
   const body = await request.json();
   const { action, id, userId, userName } = body;
 
   // Workflow actions
   if (action === "activate" || action === "pause" || action === "complete" || action === "cancel") {
     const statusMap = {
-      activate: "نشط",
-      pause: "متوقف",
-      complete: "مكتمل",
-      cancel: "ملغي",
+      activate: "ظ†ط´ط·",
+      pause: "ظ…طھظˆظ‚ظپ",
+      complete: "ظ…ظƒطھظ…ظ„",
+      cancel: "ظ…ظ„ط؛ظٹ",
     };
 
     const newStatus = statusMap[action as keyof typeof statusMap];
     const project = db.select().from(projects).where(eq(projects.id, id)).limit(1).all()[0];
-    if (!project) return Response.json({ error: "المشروع غير موجود" }, { status: 404 });
+    if (!project)
+      return Response.json({ error: "ط§ظ„ظ…ط´ط±ظˆط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     // Workflow rules
-    if (action === "activate" && project.status === "مكتمل") {
+    if (action === "activate" && project.status === "ظ…ظƒطھظ…ظ„") {
       return Response.json(
-        { error: "لا يمكن تفعيل مشروع مكتمل. أنشئ مشروعاً جديداً بدلاً من ذلك." },
+        {
+          error:
+            "ظ„ط§ ظٹظ…ظƒظ† طھظپط¹ظٹظ„ ظ…ط´ط±ظˆط¹ ظ…ظƒطھظ…ظ„. ط£ظ†ط´ط¦ ظ…ط´ط±ظˆط¹ط§ظ‹ ط¬ط¯ظٹط¯ط§ظ‹ ط¨ط¯ظ„ط§ظ‹ ظ…ظ† ط°ظ„ظƒ.",
+        },
         { status: 400 },
       );
     }
 
-    if (action === "complete" && project.status === "ملغي") {
-      return Response.json({ error: "لا يمكن إكمال مشروع ملغي." }, { status: 400 });
+    if (action === "complete" && project.status === "ظ…ظ„ط؛ظٹ") {
+      return Response.json(
+        { error: "ظ„ط§ ظٹظ…ظƒظ† ط¥ظƒظ…ط§ظ„ ظ…ط´ط±ظˆط¹ ظ…ظ„ط؛ظٹ." },
+        { status: 400 },
+      );
     }
 
     const before = JSON.stringify(project);
@@ -178,18 +186,18 @@ export async function POST({ request }: APIEvent) {
 
     const actionLabel =
       action === "activate"
-        ? "تفعيل"
+        ? "طھظپط¹ظٹظ„"
         : action === "pause"
-          ? "إيقاف"
+          ? "ط¥ظٹظ‚ط§ظپ"
           : action === "complete"
-            ? "إكمال"
-            : "إلغاء";
+            ? "ط¥ظƒظ…ط§ظ„"
+            : "ط¥ظ„ط؛ط§ط،";
 
     addAudit(
       actionLabel,
-      "مشروع",
+      "ظ…ط´ط±ظˆط¹",
       id,
-      `تم ${actionLabel} المشروع: ${project.name} (الحالة: ${newStatus})`,
+      `طھظ… ${actionLabel} ط§ظ„ظ…ط´ط±ظˆط¹: ${project.name} (ط§ظ„ط­ط§ظ„ط©: ${newStatus})`,
       userId,
       userName,
       before,
@@ -202,15 +210,16 @@ export async function POST({ request }: APIEvent) {
   if (action === "status") {
     const { status } = body;
     const project = db.select().from(projects).where(eq(projects.id, id)).limit(1).all()[0];
-    if (!project) return Response.json({ error: "المشروع غير موجود" }, { status: 404 });
+    if (!project)
+      return Response.json({ error: "ط§ظ„ظ…ط´ط±ظˆط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const before = JSON.stringify(project);
     db.update(projects).set({ status, updatedAt: now() }).where(eq(projects.id, id)).run();
     addAudit(
-      "تغيير الحالة",
-      "مشروع",
+      "طھط؛ظٹظٹط± ط§ظ„ط­ط§ظ„ط©",
+      "ظ…ط´ط±ظˆط¹",
       id,
-      `تم تغيير حالة المشروع إلى: ${status}`,
+      `طھظ… طھط؛ظٹظٹط± ط­ط§ظ„ط© ط§ظ„ظ…ط´ط±ظˆط¹ ط¥ظ„ظ‰: ${status}`,
       userId,
       userName,
       before,
@@ -238,7 +247,8 @@ export async function POST({ request }: APIEvent) {
     userName: uname,
   } = body;
 
-  if (!name?.trim()) return Response.json({ error: "اسم المشروع مطلوب" }, { status: 400 });
+  if (!name?.trim())
+    return Response.json({ error: "ط§ط³ظ… ط§ظ„ظ…ط´ط±ظˆط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const projectId = genId("PRJ");
   const ts = now();
@@ -257,7 +267,7 @@ export async function POST({ request }: APIEvent) {
       donations: 0,
       beneficiaryCount: 0,
       progress: parseInt(progress) || 0,
-      status: status || "مخطط",
+      status: status || "ظ…ط®ط·ط·",
       startDate: startDate || "",
       endDate: endDate || "",
       description: description || "",
@@ -268,13 +278,20 @@ export async function POST({ request }: APIEvent) {
     })
     .run();
 
-  addAudit("إضافة", "مشروع", projectId, `تم إضافة مشروع جديد: ${name}`, uid, uname);
+  addAudit(
+    "ط¥ط¶ط§ظپط©",
+    "ظ…ط´ط±ظˆط¹",
+    projectId,
+    `طھظ… ط¥ط¶ط§ظپط© ظ…ط´ط±ظˆط¹ ط¬ط¯ظٹط¯: ${name}`,
+    uid,
+    uname,
+  );
   const created = db.select().from(projects).where(eq(projects.id, projectId)).limit(1).all()[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
 // PUT /api/projects - Update project
-export async function PUT({ request }: APIEvent) {
+async function __handler_PUT({ request }: { request: Request }) {
   const body = await request.json();
   const {
     id,
@@ -295,15 +312,16 @@ export async function PUT({ request }: APIEvent) {
     userName,
   } = body;
 
-  if (!id) return Response.json({ error: "معرف المشروع مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ط´ط±ظˆط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db.select().from(projects).where(eq(projects.id, id)).limit(1).all()[0];
-  if (!existing) return Response.json({ error: "المشروع غير موجود" }, { status: 404 });
+  if (!existing)
+    return Response.json({ error: "ط§ظ„ظ…ط´ط±ظˆط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   // Read-only rule for completed/cancelled projects
-  if (existing.status === "مكتمل" || existing.status === "ملغي") {
+  if (existing.status === "ظ…ظƒطھظ…ظ„" || existing.status === "ظ…ظ„ط؛ظٹ") {
     return Response.json(
-      { error: `لا يمكن تعديل مشروع بحالة: ${existing.status}` },
+      { error: `ظ„ط§ ظٹظ…ظƒظ† طھط¹ط¯ظٹظ„ ظ…ط´ط±ظˆط¹ ط¨ط­ط§ظ„ط©: ${existing.status}` },
       { status: 400 },
     );
   }
@@ -332,10 +350,10 @@ export async function PUT({ request }: APIEvent) {
     .run();
 
   addAudit(
-    "تعديل",
-    "مشروع",
+    "طھط¹ط¯ظٹظ„",
+    "ظ…ط´ط±ظˆط¹",
     id,
-    `تم تحديث بيانات المشروع: ${name || existing.name}`,
+    `طھظ… طھط­ط¯ظٹط« ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط´ط±ظˆط¹: ${name || existing.name}`,
     userId,
     userName,
     before,
@@ -345,16 +363,17 @@ export async function PUT({ request }: APIEvent) {
 }
 
 // DELETE /api/projects - Soft-delete project (only if no linked records)
-export async function DELETE({ request }: APIEvent) {
+async function __handler_DELETE({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "مستخدم";
+  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
 
-  if (!id) return Response.json({ error: "معرف المشروع مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ط´ط±ظˆط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db.select().from(projects).where(eq(projects.id, id)).limit(1).all()[0];
-  if (!existing) return Response.json({ error: "المشروع غير موجود" }, { status: 404 });
+  if (!existing)
+    return Response.json({ error: "ط§ظ„ظ…ط´ط±ظˆط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   // Check for linked donations or aid records
   const linkedDonations = db
@@ -367,14 +386,36 @@ export async function DELETE({ request }: APIEvent) {
 
   if (linkedDonations.length > 0 || linkedAid.length > 0) {
     return Response.json(
-      { error: "لا يمكن حذف مشروع مرتبط بتبرعات أو مساعدات. يمكن إيقافه فقط." },
+      {
+        error:
+          "ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ظ…ط´ط±ظˆط¹ ظ…ط±طھط¨ط· ط¨طھط¨ط±ط¹ط§طھ ط£ظˆ ظ…ط³ط§ط¹ط¯ط§طھ. ظٹظ…ظƒظ† ط¥ظٹظ‚ط§ظپظ‡ ظپظ‚ط·.",
+      },
       { status: 400 },
     );
   }
 
   const before = JSON.stringify(existing);
   db.delete(projects).where(eq(projects.id, id)).run();
-  addAudit("حذف", "مشروع", id, `تم حذف المشروع: ${existing.name}`, userId, userName, before);
+  addAudit(
+    "ط­ط°ظپ",
+    "ظ…ط´ط±ظˆط¹",
+    id,
+    `طھظ… ط­ط°ظپ ط§ظ„ظ…ط´ط±ظˆط¹: ${existing.name}`,
+    userId,
+    userName,
+    before,
+  );
 
   return Response.json({ success: true });
 }
+
+export const Route = createFileRoute("/api/projects")({
+  server: {
+    handlers: {
+      GET: __handler_GET,
+      POST: __handler_POST,
+      PUT: __handler_PUT,
+      DELETE: __handler_DELETE,
+    },
+  },
+});

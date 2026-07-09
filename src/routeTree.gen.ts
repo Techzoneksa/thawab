@@ -62,6 +62,15 @@ import { Route as DonationsNewRouteImport } from './routes/donations.new'
 import { Route as BeneficiariesNewRouteImport } from './routes/beneficiaries.new'
 import { Route as BeneficiariesIdRouteImport } from './routes/beneficiaries.$id'
 import { Route as AssetsNewRouteImport } from './routes/assets.new'
+import { Route as ApiReceiptsRouteImport } from './routes/api/receipts'
+import { Route as ApiProjectsRouteImport } from './routes/api/projects'
+import { Route as ApiDonorsRouteImport } from './routes/api/donors'
+import { Route as ApiDonationsRouteImport } from './routes/api/donations'
+import { Route as ApiBeneficiariesRouteImport } from './routes/api/beneficiaries'
+import { Route as ApiAuthRouteImport } from './routes/api/auth'
+import { Route as ApiAuditRouteImport } from './routes/api/audit'
+import { Route as ApiAssetsRouteImport } from './routes/api/assets'
+import { Route as ApiAidRouteImport } from './routes/api/aid'
 import { Route as AidNewRouteImport } from './routes/aid.new'
 import { Route as ProjectsIdEditRouteImport } from './routes/projects.$id.edit'
 import { Route as ProcurementSuppliersNewRouteImport } from './routes/procurement.suppliers.new'
@@ -78,6 +87,20 @@ import { Route as DonorsIdEditRouteImport } from './routes/donors.$id.edit'
 import { Route as DonationsIdEditRouteImport } from './routes/donations.$id.edit'
 import { Route as BeneficiariesIdEditRouteImport } from './routes/beneficiaries.$id.edit'
 import { Route as AssetsIdEditRouteImport } from './routes/assets.$id.edit'
+import { Route as ApiProcurementSuppliersRouteImport } from './routes/api/procurement/suppliers'
+import { Route as ApiProcurementRequestsRouteImport } from './routes/api/procurement/requests'
+import { Route as ApiProcurementQuotesRouteImport } from './routes/api/procurement/quotes'
+import { Route as ApiProcurementOrdersRouteImport } from './routes/api/procurement/orders'
+import { Route as ApiInventoryWarehousesRouteImport } from './routes/api/inventory/warehouses'
+import { Route as ApiInventoryStocktakeRouteImport } from './routes/api/inventory/stocktake'
+import { Route as ApiInventoryItemsRouteImport } from './routes/api/inventory/items'
+import { Route as ApiFinanceStatementsRouteImport } from './routes/api/finance/statements'
+import { Route as ApiFinancePeriodsRouteImport } from './routes/api/finance/periods'
+import { Route as ApiFinanceLedgerRouteImport } from './routes/api/finance/ledger'
+import { Route as ApiFinanceJournalRouteImport } from './routes/api/finance/journal'
+import { Route as ApiFinanceCostCentersRouteImport } from './routes/api/finance/cost-centers'
+import { Route as ApiFinanceBudgetsRouteImport } from './routes/api/finance/budgets'
+import { Route as ApiFinanceAccountsRouteImport } from './routes/api/finance/accounts'
 import { Route as AidIdEditRouteImport } from './routes/aid.$id.edit'
 import { Route as ProcurementSuppliersIdEditRouteImport } from './routes/procurement.suppliers.$id.edit'
 import { Route as ProcurementRequestsIdEditRouteImport } from './routes/procurement.requests.$id.edit'
@@ -355,6 +378,51 @@ const AssetsNewRoute = AssetsNewRouteImport.update({
   path: '/new',
   getParentRoute: () => AssetsRoute,
 } as any)
+const ApiReceiptsRoute = ApiReceiptsRouteImport.update({
+  id: '/api/receipts',
+  path: '/api/receipts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProjectsRoute = ApiProjectsRouteImport.update({
+  id: '/api/projects',
+  path: '/api/projects',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDonorsRoute = ApiDonorsRouteImport.update({
+  id: '/api/donors',
+  path: '/api/donors',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDonationsRoute = ApiDonationsRouteImport.update({
+  id: '/api/donations',
+  path: '/api/donations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBeneficiariesRoute = ApiBeneficiariesRouteImport.update({
+  id: '/api/beneficiaries',
+  path: '/api/beneficiaries',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthRoute = ApiAuthRouteImport.update({
+  id: '/api/auth',
+  path: '/api/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuditRoute = ApiAuditRouteImport.update({
+  id: '/api/audit',
+  path: '/api/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAssetsRoute = ApiAssetsRouteImport.update({
+  id: '/api/assets',
+  path: '/api/assets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAidRoute = ApiAidRouteImport.update({
+  id: '/api/aid',
+  path: '/api/aid',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AidNewRoute = AidNewRouteImport.update({
   id: '/new',
   path: '/new',
@@ -434,6 +502,76 @@ const AssetsIdEditRoute = AssetsIdEditRouteImport.update({
   id: '/$id/edit',
   path: '/$id/edit',
   getParentRoute: () => AssetsRoute,
+} as any)
+const ApiProcurementSuppliersRoute = ApiProcurementSuppliersRouteImport.update({
+  id: '/api/procurement/suppliers',
+  path: '/api/procurement/suppliers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProcurementRequestsRoute = ApiProcurementRequestsRouteImport.update({
+  id: '/api/procurement/requests',
+  path: '/api/procurement/requests',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProcurementQuotesRoute = ApiProcurementQuotesRouteImport.update({
+  id: '/api/procurement/quotes',
+  path: '/api/procurement/quotes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProcurementOrdersRoute = ApiProcurementOrdersRouteImport.update({
+  id: '/api/procurement/orders',
+  path: '/api/procurement/orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInventoryWarehousesRoute = ApiInventoryWarehousesRouteImport.update({
+  id: '/api/inventory/warehouses',
+  path: '/api/inventory/warehouses',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInventoryStocktakeRoute = ApiInventoryStocktakeRouteImport.update({
+  id: '/api/inventory/stocktake',
+  path: '/api/inventory/stocktake',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInventoryItemsRoute = ApiInventoryItemsRouteImport.update({
+  id: '/api/inventory/items',
+  path: '/api/inventory/items',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFinanceStatementsRoute = ApiFinanceStatementsRouteImport.update({
+  id: '/api/finance/statements',
+  path: '/api/finance/statements',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFinancePeriodsRoute = ApiFinancePeriodsRouteImport.update({
+  id: '/api/finance/periods',
+  path: '/api/finance/periods',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFinanceLedgerRoute = ApiFinanceLedgerRouteImport.update({
+  id: '/api/finance/ledger',
+  path: '/api/finance/ledger',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFinanceJournalRoute = ApiFinanceJournalRouteImport.update({
+  id: '/api/finance/journal',
+  path: '/api/finance/journal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFinanceCostCentersRoute = ApiFinanceCostCentersRouteImport.update({
+  id: '/api/finance/cost-centers',
+  path: '/api/finance/cost-centers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFinanceBudgetsRoute = ApiFinanceBudgetsRouteImport.update({
+  id: '/api/finance/budgets',
+  path: '/api/finance/budgets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFinanceAccountsRoute = ApiFinanceAccountsRouteImport.update({
+  id: '/api/finance/accounts',
+  path: '/api/finance/accounts',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AidIdEditRoute = AidIdEditRouteImport.update({
   id: '/$id/edit',
@@ -522,6 +660,15 @@ export interface FileRoutesByFullPath {
   '/reports': typeof ReportsRoute
   '/workflows': typeof WorkflowsRoute
   '/aid/new': typeof AidNewRoute
+  '/api/aid': typeof ApiAidRoute
+  '/api/assets': typeof ApiAssetsRoute
+  '/api/audit': typeof ApiAuditRoute
+  '/api/auth': typeof ApiAuthRoute
+  '/api/beneficiaries': typeof ApiBeneficiariesRoute
+  '/api/donations': typeof ApiDonationsRoute
+  '/api/donors': typeof ApiDonorsRoute
+  '/api/projects': typeof ApiProjectsRoute
+  '/api/receipts': typeof ApiReceiptsRoute
   '/assets/new': typeof AssetsNewRoute
   '/beneficiaries/$id': typeof BeneficiariesIdRouteWithChildren
   '/beneficiaries/new': typeof BeneficiariesNewRoute
@@ -551,6 +698,20 @@ export interface FileRoutesByFullPath {
   '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
   '/aid/$id/edit': typeof AidIdEditRoute
+  '/api/finance/accounts': typeof ApiFinanceAccountsRoute
+  '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
+  '/api/finance/cost-centers': typeof ApiFinanceCostCentersRoute
+  '/api/finance/journal': typeof ApiFinanceJournalRoute
+  '/api/finance/ledger': typeof ApiFinanceLedgerRoute
+  '/api/finance/periods': typeof ApiFinancePeriodsRoute
+  '/api/finance/statements': typeof ApiFinanceStatementsRoute
+  '/api/inventory/items': typeof ApiInventoryItemsRoute
+  '/api/inventory/stocktake': typeof ApiInventoryStocktakeRoute
+  '/api/inventory/warehouses': typeof ApiInventoryWarehousesRoute
+  '/api/procurement/orders': typeof ApiProcurementOrdersRoute
+  '/api/procurement/quotes': typeof ApiProcurementQuotesRoute
+  '/api/procurement/requests': typeof ApiProcurementRequestsRoute
+  '/api/procurement/suppliers': typeof ApiProcurementSuppliersRoute
   '/assets/$id/edit': typeof AssetsIdEditRoute
   '/beneficiaries/$id/edit': typeof BeneficiariesIdEditRoute
   '/donations/$id/edit': typeof DonationsIdEditRoute
@@ -604,6 +765,15 @@ export interface FileRoutesByTo {
   '/reports': typeof ReportsRoute
   '/workflows': typeof WorkflowsRoute
   '/aid/new': typeof AidNewRoute
+  '/api/aid': typeof ApiAidRoute
+  '/api/assets': typeof ApiAssetsRoute
+  '/api/audit': typeof ApiAuditRoute
+  '/api/auth': typeof ApiAuthRoute
+  '/api/beneficiaries': typeof ApiBeneficiariesRoute
+  '/api/donations': typeof ApiDonationsRoute
+  '/api/donors': typeof ApiDonorsRoute
+  '/api/projects': typeof ApiProjectsRoute
+  '/api/receipts': typeof ApiReceiptsRoute
   '/assets/new': typeof AssetsNewRoute
   '/beneficiaries/$id': typeof BeneficiariesIdRouteWithChildren
   '/beneficiaries/new': typeof BeneficiariesNewRoute
@@ -633,6 +803,20 @@ export interface FileRoutesByTo {
   '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
   '/aid/$id/edit': typeof AidIdEditRoute
+  '/api/finance/accounts': typeof ApiFinanceAccountsRoute
+  '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
+  '/api/finance/cost-centers': typeof ApiFinanceCostCentersRoute
+  '/api/finance/journal': typeof ApiFinanceJournalRoute
+  '/api/finance/ledger': typeof ApiFinanceLedgerRoute
+  '/api/finance/periods': typeof ApiFinancePeriodsRoute
+  '/api/finance/statements': typeof ApiFinanceStatementsRoute
+  '/api/inventory/items': typeof ApiInventoryItemsRoute
+  '/api/inventory/stocktake': typeof ApiInventoryStocktakeRoute
+  '/api/inventory/warehouses': typeof ApiInventoryWarehousesRoute
+  '/api/procurement/orders': typeof ApiProcurementOrdersRoute
+  '/api/procurement/quotes': typeof ApiProcurementQuotesRoute
+  '/api/procurement/requests': typeof ApiProcurementRequestsRoute
+  '/api/procurement/suppliers': typeof ApiProcurementSuppliersRoute
   '/assets/$id/edit': typeof AssetsIdEditRoute
   '/beneficiaries/$id/edit': typeof BeneficiariesIdEditRoute
   '/donations/$id/edit': typeof DonationsIdEditRoute
@@ -687,6 +871,15 @@ export interface FileRoutesById {
   '/reports': typeof ReportsRoute
   '/workflows': typeof WorkflowsRoute
   '/aid/new': typeof AidNewRoute
+  '/api/aid': typeof ApiAidRoute
+  '/api/assets': typeof ApiAssetsRoute
+  '/api/audit': typeof ApiAuditRoute
+  '/api/auth': typeof ApiAuthRoute
+  '/api/beneficiaries': typeof ApiBeneficiariesRoute
+  '/api/donations': typeof ApiDonationsRoute
+  '/api/donors': typeof ApiDonorsRoute
+  '/api/projects': typeof ApiProjectsRoute
+  '/api/receipts': typeof ApiReceiptsRoute
   '/assets/new': typeof AssetsNewRoute
   '/beneficiaries/$id': typeof BeneficiariesIdRouteWithChildren
   '/beneficiaries/new': typeof BeneficiariesNewRoute
@@ -716,6 +909,20 @@ export interface FileRoutesById {
   '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
   '/aid/$id/edit': typeof AidIdEditRoute
+  '/api/finance/accounts': typeof ApiFinanceAccountsRoute
+  '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
+  '/api/finance/cost-centers': typeof ApiFinanceCostCentersRoute
+  '/api/finance/journal': typeof ApiFinanceJournalRoute
+  '/api/finance/ledger': typeof ApiFinanceLedgerRoute
+  '/api/finance/periods': typeof ApiFinancePeriodsRoute
+  '/api/finance/statements': typeof ApiFinanceStatementsRoute
+  '/api/inventory/items': typeof ApiInventoryItemsRoute
+  '/api/inventory/stocktake': typeof ApiInventoryStocktakeRoute
+  '/api/inventory/warehouses': typeof ApiInventoryWarehousesRoute
+  '/api/procurement/orders': typeof ApiProcurementOrdersRoute
+  '/api/procurement/quotes': typeof ApiProcurementQuotesRoute
+  '/api/procurement/requests': typeof ApiProcurementRequestsRoute
+  '/api/procurement/suppliers': typeof ApiProcurementSuppliersRoute
   '/assets/$id/edit': typeof AssetsIdEditRoute
   '/beneficiaries/$id/edit': typeof BeneficiariesIdEditRoute
   '/donations/$id/edit': typeof DonationsIdEditRoute
@@ -771,6 +978,15 @@ export interface FileRouteTypes {
     | '/reports'
     | '/workflows'
     | '/aid/new'
+    | '/api/aid'
+    | '/api/assets'
+    | '/api/audit'
+    | '/api/auth'
+    | '/api/beneficiaries'
+    | '/api/donations'
+    | '/api/donors'
+    | '/api/projects'
+    | '/api/receipts'
     | '/assets/new'
     | '/beneficiaries/$id'
     | '/beneficiaries/new'
@@ -800,6 +1016,20 @@ export interface FileRouteTypes {
     | '/settings/system'
     | '/settings/users'
     | '/aid/$id/edit'
+    | '/api/finance/accounts'
+    | '/api/finance/budgets'
+    | '/api/finance/cost-centers'
+    | '/api/finance/journal'
+    | '/api/finance/ledger'
+    | '/api/finance/periods'
+    | '/api/finance/statements'
+    | '/api/inventory/items'
+    | '/api/inventory/stocktake'
+    | '/api/inventory/warehouses'
+    | '/api/procurement/orders'
+    | '/api/procurement/quotes'
+    | '/api/procurement/requests'
+    | '/api/procurement/suppliers'
     | '/assets/$id/edit'
     | '/beneficiaries/$id/edit'
     | '/donations/$id/edit'
@@ -853,6 +1083,15 @@ export interface FileRouteTypes {
     | '/reports'
     | '/workflows'
     | '/aid/new'
+    | '/api/aid'
+    | '/api/assets'
+    | '/api/audit'
+    | '/api/auth'
+    | '/api/beneficiaries'
+    | '/api/donations'
+    | '/api/donors'
+    | '/api/projects'
+    | '/api/receipts'
     | '/assets/new'
     | '/beneficiaries/$id'
     | '/beneficiaries/new'
@@ -882,6 +1121,20 @@ export interface FileRouteTypes {
     | '/settings/system'
     | '/settings/users'
     | '/aid/$id/edit'
+    | '/api/finance/accounts'
+    | '/api/finance/budgets'
+    | '/api/finance/cost-centers'
+    | '/api/finance/journal'
+    | '/api/finance/ledger'
+    | '/api/finance/periods'
+    | '/api/finance/statements'
+    | '/api/inventory/items'
+    | '/api/inventory/stocktake'
+    | '/api/inventory/warehouses'
+    | '/api/procurement/orders'
+    | '/api/procurement/quotes'
+    | '/api/procurement/requests'
+    | '/api/procurement/suppliers'
     | '/assets/$id/edit'
     | '/beneficiaries/$id/edit'
     | '/donations/$id/edit'
@@ -935,6 +1188,15 @@ export interface FileRouteTypes {
     | '/reports'
     | '/workflows'
     | '/aid/new'
+    | '/api/aid'
+    | '/api/assets'
+    | '/api/audit'
+    | '/api/auth'
+    | '/api/beneficiaries'
+    | '/api/donations'
+    | '/api/donors'
+    | '/api/projects'
+    | '/api/receipts'
     | '/assets/new'
     | '/beneficiaries/$id'
     | '/beneficiaries/new'
@@ -964,6 +1226,20 @@ export interface FileRouteTypes {
     | '/settings/system'
     | '/settings/users'
     | '/aid/$id/edit'
+    | '/api/finance/accounts'
+    | '/api/finance/budgets'
+    | '/api/finance/cost-centers'
+    | '/api/finance/journal'
+    | '/api/finance/ledger'
+    | '/api/finance/periods'
+    | '/api/finance/statements'
+    | '/api/inventory/items'
+    | '/api/inventory/stocktake'
+    | '/api/inventory/warehouses'
+    | '/api/procurement/orders'
+    | '/api/procurement/quotes'
+    | '/api/procurement/requests'
+    | '/api/procurement/suppliers'
     | '/assets/$id/edit'
     | '/beneficiaries/$id/edit'
     | '/donations/$id/edit'
@@ -1017,6 +1293,15 @@ export interface RootRouteChildren {
   RecurringRoute: typeof RecurringRoute
   ReportsRoute: typeof ReportsRoute
   WorkflowsRoute: typeof WorkflowsRoute
+  ApiAidRoute: typeof ApiAidRoute
+  ApiAssetsRoute: typeof ApiAssetsRoute
+  ApiAuditRoute: typeof ApiAuditRoute
+  ApiAuthRoute: typeof ApiAuthRoute
+  ApiBeneficiariesRoute: typeof ApiBeneficiariesRoute
+  ApiDonationsRoute: typeof ApiDonationsRoute
+  ApiDonorsRoute: typeof ApiDonorsRoute
+  ApiProjectsRoute: typeof ApiProjectsRoute
+  ApiReceiptsRoute: typeof ApiReceiptsRoute
   FinanceAccountsRoute: typeof FinanceAccountsRouteWithChildren
   FinanceBudgetsRoute: typeof FinanceBudgetsRouteWithChildren
   FinanceClosingRoute: typeof FinanceClosingRoute
@@ -1037,6 +1322,20 @@ export interface RootRouteChildren {
   SettingsOrgRoute: typeof SettingsOrgRoute
   SettingsSystemRoute: typeof SettingsSystemRoute
   SettingsUsersRoute: typeof SettingsUsersRoute
+  ApiFinanceAccountsRoute: typeof ApiFinanceAccountsRoute
+  ApiFinanceBudgetsRoute: typeof ApiFinanceBudgetsRoute
+  ApiFinanceCostCentersRoute: typeof ApiFinanceCostCentersRoute
+  ApiFinanceJournalRoute: typeof ApiFinanceJournalRoute
+  ApiFinanceLedgerRoute: typeof ApiFinanceLedgerRoute
+  ApiFinancePeriodsRoute: typeof ApiFinancePeriodsRoute
+  ApiFinanceStatementsRoute: typeof ApiFinanceStatementsRoute
+  ApiInventoryItemsRoute: typeof ApiInventoryItemsRoute
+  ApiInventoryStocktakeRoute: typeof ApiInventoryStocktakeRoute
+  ApiInventoryWarehousesRoute: typeof ApiInventoryWarehousesRoute
+  ApiProcurementOrdersRoute: typeof ApiProcurementOrdersRoute
+  ApiProcurementQuotesRoute: typeof ApiProcurementQuotesRoute
+  ApiProcurementRequestsRoute: typeof ApiProcurementRequestsRoute
+  ApiProcurementSuppliersRoute: typeof ApiProcurementSuppliersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1412,6 +1711,69 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssetsNewRouteImport
       parentRoute: typeof AssetsRoute
     }
+    '/api/receipts': {
+      id: '/api/receipts'
+      path: '/api/receipts'
+      fullPath: '/api/receipts'
+      preLoaderRoute: typeof ApiReceiptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/projects': {
+      id: '/api/projects'
+      path: '/api/projects'
+      fullPath: '/api/projects'
+      preLoaderRoute: typeof ApiProjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/donors': {
+      id: '/api/donors'
+      path: '/api/donors'
+      fullPath: '/api/donors'
+      preLoaderRoute: typeof ApiDonorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/donations': {
+      id: '/api/donations'
+      path: '/api/donations'
+      fullPath: '/api/donations'
+      preLoaderRoute: typeof ApiDonationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/beneficiaries': {
+      id: '/api/beneficiaries'
+      path: '/api/beneficiaries'
+      fullPath: '/api/beneficiaries'
+      preLoaderRoute: typeof ApiBeneficiariesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth': {
+      id: '/api/auth'
+      path: '/api/auth'
+      fullPath: '/api/auth'
+      preLoaderRoute: typeof ApiAuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/audit': {
+      id: '/api/audit'
+      path: '/api/audit'
+      fullPath: '/api/audit'
+      preLoaderRoute: typeof ApiAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/assets': {
+      id: '/api/assets'
+      path: '/api/assets'
+      fullPath: '/api/assets'
+      preLoaderRoute: typeof ApiAssetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/aid': {
+      id: '/api/aid'
+      path: '/api/aid'
+      fullPath: '/api/aid'
+      preLoaderRoute: typeof ApiAidRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/aid/new': {
       id: '/aid/new'
       path: '/new'
@@ -1523,6 +1885,104 @@ declare module '@tanstack/react-router' {
       fullPath: '/assets/$id/edit'
       preLoaderRoute: typeof AssetsIdEditRouteImport
       parentRoute: typeof AssetsRoute
+    }
+    '/api/procurement/suppliers': {
+      id: '/api/procurement/suppliers'
+      path: '/api/procurement/suppliers'
+      fullPath: '/api/procurement/suppliers'
+      preLoaderRoute: typeof ApiProcurementSuppliersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/procurement/requests': {
+      id: '/api/procurement/requests'
+      path: '/api/procurement/requests'
+      fullPath: '/api/procurement/requests'
+      preLoaderRoute: typeof ApiProcurementRequestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/procurement/quotes': {
+      id: '/api/procurement/quotes'
+      path: '/api/procurement/quotes'
+      fullPath: '/api/procurement/quotes'
+      preLoaderRoute: typeof ApiProcurementQuotesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/procurement/orders': {
+      id: '/api/procurement/orders'
+      path: '/api/procurement/orders'
+      fullPath: '/api/procurement/orders'
+      preLoaderRoute: typeof ApiProcurementOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/inventory/warehouses': {
+      id: '/api/inventory/warehouses'
+      path: '/api/inventory/warehouses'
+      fullPath: '/api/inventory/warehouses'
+      preLoaderRoute: typeof ApiInventoryWarehousesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/inventory/stocktake': {
+      id: '/api/inventory/stocktake'
+      path: '/api/inventory/stocktake'
+      fullPath: '/api/inventory/stocktake'
+      preLoaderRoute: typeof ApiInventoryStocktakeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/inventory/items': {
+      id: '/api/inventory/items'
+      path: '/api/inventory/items'
+      fullPath: '/api/inventory/items'
+      preLoaderRoute: typeof ApiInventoryItemsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/finance/statements': {
+      id: '/api/finance/statements'
+      path: '/api/finance/statements'
+      fullPath: '/api/finance/statements'
+      preLoaderRoute: typeof ApiFinanceStatementsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/finance/periods': {
+      id: '/api/finance/periods'
+      path: '/api/finance/periods'
+      fullPath: '/api/finance/periods'
+      preLoaderRoute: typeof ApiFinancePeriodsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/finance/ledger': {
+      id: '/api/finance/ledger'
+      path: '/api/finance/ledger'
+      fullPath: '/api/finance/ledger'
+      preLoaderRoute: typeof ApiFinanceLedgerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/finance/journal': {
+      id: '/api/finance/journal'
+      path: '/api/finance/journal'
+      fullPath: '/api/finance/journal'
+      preLoaderRoute: typeof ApiFinanceJournalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/finance/cost-centers': {
+      id: '/api/finance/cost-centers'
+      path: '/api/finance/cost-centers'
+      fullPath: '/api/finance/cost-centers'
+      preLoaderRoute: typeof ApiFinanceCostCentersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/finance/budgets': {
+      id: '/api/finance/budgets'
+      path: '/api/finance/budgets'
+      fullPath: '/api/finance/budgets'
+      preLoaderRoute: typeof ApiFinanceBudgetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/finance/accounts': {
+      id: '/api/finance/accounts'
+      path: '/api/finance/accounts'
+      fullPath: '/api/finance/accounts'
+      preLoaderRoute: typeof ApiFinanceAccountsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/aid/$id/edit': {
       id: '/aid/$id/edit'
@@ -1880,6 +2340,15 @@ const rootRouteChildren: RootRouteChildren = {
   RecurringRoute: RecurringRoute,
   ReportsRoute: ReportsRoute,
   WorkflowsRoute: WorkflowsRoute,
+  ApiAidRoute: ApiAidRoute,
+  ApiAssetsRoute: ApiAssetsRoute,
+  ApiAuditRoute: ApiAuditRoute,
+  ApiAuthRoute: ApiAuthRoute,
+  ApiBeneficiariesRoute: ApiBeneficiariesRoute,
+  ApiDonationsRoute: ApiDonationsRoute,
+  ApiDonorsRoute: ApiDonorsRoute,
+  ApiProjectsRoute: ApiProjectsRoute,
+  ApiReceiptsRoute: ApiReceiptsRoute,
   FinanceAccountsRoute: FinanceAccountsRouteWithChildren,
   FinanceBudgetsRoute: FinanceBudgetsRouteWithChildren,
   FinanceClosingRoute: FinanceClosingRoute,
@@ -1900,6 +2369,20 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsOrgRoute: SettingsOrgRoute,
   SettingsSystemRoute: SettingsSystemRoute,
   SettingsUsersRoute: SettingsUsersRoute,
+  ApiFinanceAccountsRoute: ApiFinanceAccountsRoute,
+  ApiFinanceBudgetsRoute: ApiFinanceBudgetsRoute,
+  ApiFinanceCostCentersRoute: ApiFinanceCostCentersRoute,
+  ApiFinanceJournalRoute: ApiFinanceJournalRoute,
+  ApiFinanceLedgerRoute: ApiFinanceLedgerRoute,
+  ApiFinancePeriodsRoute: ApiFinancePeriodsRoute,
+  ApiFinanceStatementsRoute: ApiFinanceStatementsRoute,
+  ApiInventoryItemsRoute: ApiInventoryItemsRoute,
+  ApiInventoryStocktakeRoute: ApiInventoryStocktakeRoute,
+  ApiInventoryWarehousesRoute: ApiInventoryWarehousesRoute,
+  ApiProcurementOrdersRoute: ApiProcurementOrdersRoute,
+  ApiProcurementQuotesRoute: ApiProcurementQuotesRoute,
+  ApiProcurementRequestsRoute: ApiProcurementRequestsRoute,
+  ApiProcurementSuppliersRoute: ApiProcurementSuppliersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

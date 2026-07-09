@@ -69,14 +69,28 @@ function createSqliteDb() {
 
 function wrapSync(realDb: any) {
   const execSync = _pgExecSync ?? _libsqlExecSync;
-  const wrap = (qb: any) => {
-    if (!qb || typeof qb !== "object" || typeof qb.toSQL !== "function") {
+  // Map of underlying target -> proxy. Drizzle's builder methods (e.g.
+  // `.limit()`, `.offset()`, `.where()`) return `this` from inside the
+  // target, so we must remember the proxy for a target and hand the same
+  // proxy back to the caller — otherwise the chain leaks out of the
+  // wrapper and `.all()` returns a Promise instead of a sync array.
+  const proxyCache = new WeakMap<object, any>();
+
+  const wrap = (qb: any): any => {
+    if (qb == null || (typeof qb !== "object" && typeof qb !== "function")) {
       return qb;
     }
-    return new Proxy(qb, {
+    if (qb.__thawabProxy) return qb.__thawabProxy;
+    const existing = proxyCache.get(qb);
+    if (existing) return existing;
+
+    const proxy = new Proxy(qb, {
       get(target, prop) {
         if (prop === "all") {
           return () => {
+            if (typeof target.toSQL !== "function") {
+              throw new Error("Drizzle query has no toSQL(): cannot run sync");
+            }
             const compiled = target.toSQL();
             const result = execSync!(compiled.sql, compiled.params ?? []);
             return Array.isArray(result) ? result : [];
@@ -84,19 +98,21 @@ function wrapSync(realDb: any) {
         }
         if (prop === "run") {
           return () => {
+            if (typeof target.toSQL !== "function") return undefined;
             const compiled = target.toSQL();
             execSync!(compiled.sql, compiled.params ?? []);
           };
         }
         if (prop === "get") {
           return () => {
+            if (typeof target.toSQL !== "function") return undefined;
             const compiled = target.toSQL();
             const result = execSync!(compiled.sql, compiled.params ?? []);
             return Array.isArray(result) ? result[0] : undefined;
           };
         }
 
-        const val = target[prop as keyof typeof target];
+        const val = (target as any)[prop];
 
         if (typeof val === "function") {
           return (...args: any[]) => {
@@ -108,6 +124,13 @@ function wrapSync(realDb: any) {
         return val;
       },
     });
+
+    proxyCache.set(qb, proxy);
+    // Some code paths may compare the proxy against the underlying target
+    // (e.g. Drizzle helpers check `query instanceof SelectBuilder`), so
+    // we also keep a back-reference on the proxy itself.
+    (proxy as any).__thawabProxy = proxy;
+    return proxy;
   };
 
   return {

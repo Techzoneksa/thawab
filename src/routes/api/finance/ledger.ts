@@ -1,10 +1,10 @@
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { db } from "@/server/db/index";
 import { journalEntries, journalLines, accounts, costCenters, projects } from "@/server/db/schema";
 import { and, eq, gte, lte, like, or, sql } from "drizzle-orm";
-import type { APIEvent } from "@tanstack/start/server";
 
 // GET /api/finance/ledger - computed movements from posted journal entries joined with lines
-export async function GET({ request }: APIEvent) {
+async function __handler_GET({ request }: { request: Request }) {
   const url = new URL(request.url);
   const accountId = url.searchParams.get("accountId") || "";
   const costCenterId = url.searchParams.get("costCenterId") || "";
@@ -14,9 +14,9 @@ export async function GET({ request }: APIEvent) {
   const search = url.searchParams.get("search") || "";
 
   // Build conditions for journal entries that are posted (not draft/cancelled/reversed)
-  // Posted = status = "مرحّل" AND reversedAt IS NULL
+  // Posted = status = "ظ…ط±ط­ظ‘ظ„" AND reversedAt IS NULL
   const entryConditions = [
-    eq(journalEntries.status, "مرحّل"),
+    eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„"),
     sql`${journalEntries.reversedAt} IS NULL`,
   ];
   if (dateFrom) entryConditions.push(gte(journalEntries.date, dateFrom));
@@ -130,7 +130,7 @@ export async function GET({ request }: APIEvent) {
   let openingBalance = 0;
   if (accountId && dateFrom) {
     const openingEntryConditions = [
-      eq(journalEntries.status, "مرحّل"),
+      eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„"),
       sql`${journalEntries.reversedAt} IS NULL`,
       sql`${journalEntries.date} < ${dateFrom}`,
     ];
@@ -173,9 +173,11 @@ export async function GET({ request }: APIEvent) {
   // Filter options for dropdowns
   const options = {
     accounts: accountList
-      .filter((a) => a.status === "نشط")
+      .filter((a) => a.status === "ظ†ط´ط·")
       .map((a) => ({ id: a.id, code: a.code, name: a.name })),
-    costCenters: ccList.filter((c) => c.status === "نشط").map((c) => ({ id: c.id, name: c.name })),
+    costCenters: ccList
+      .filter((c) => c.status === "ظ†ط´ط·")
+      .map((c) => ({ id: c.id, name: c.name })),
     projects: projList.map((p) => ({ id: p.id, name: p.name })),
   };
 
@@ -194,3 +196,11 @@ export async function GET({ request }: APIEvent) {
     options,
   });
 }
+
+export const Route = createFileRoute("/api/finance/ledger")({
+  server: {
+    handlers: {
+      GET: __handler_GET,
+    },
+  },
+});

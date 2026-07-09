@@ -1,13 +1,18 @@
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { fiscalPeriods, journalEntries, journalLines } from "@/server/db/schema";
 import { eq, like, or, and, desc, sql } from "drizzle-orm";
-import type { APIEvent } from "@tanstack/start/server";
 
-export const PERIOD_STATUSES = ["مفتوحة", "قيد الإقفال", "مقفلة", "معاد فتحتها"] as const;
+export const PERIOD_STATUSES = [
+  "ظ…ظپطھظˆط­ط©",
+  "ظ‚ظٹط¯ ط§ظ„ط¥ظ‚ظپط§ظ„",
+  "ظ…ظ‚ظپظ„ط©",
+  "ظ…ط¹ط§ط¯ ظپطھط­طھظ‡ط§",
+] as const;
 
 // GET /api/finance/periods - list
 // GET /api/finance/periods?id=xxx - single with stats
-export async function GET({ request }: APIEvent) {
+async function __handler_GET({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
@@ -18,7 +23,11 @@ export async function GET({ request }: APIEvent) {
       .where(eq(fiscalPeriods.id, id))
       .limit(1)
       .all()[0];
-    if (!period) return Response.json({ error: "الفترة المالية غير موجودة" }, { status: 404 });
+    if (!period)
+      return Response.json(
+        { error: "ط§ظ„ظپطھط±ط© ط§ظ„ظ…ط§ظ„ظٹط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" },
+        { status: 404 },
+      );
 
     // Count entries within period range
     const entryCount =
@@ -41,7 +50,7 @@ export async function GET({ request }: APIEvent) {
           and(
             sql`${journalEntries.date} >= ${period.startDate}`,
             sql`${journalEntries.date} <= ${period.endDate}`,
-            eq(journalEntries.status, "مرحّل"),
+            eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„"),
           ),
         )
         .all()[0]?.count || 0;
@@ -54,7 +63,7 @@ export async function GET({ request }: APIEvent) {
           and(
             sql`${journalEntries.date} >= ${period.startDate}`,
             sql`${journalEntries.date} <= ${period.endDate}`,
-            eq(journalEntries.status, "مسودة"),
+            eq(journalEntries.status, "ظ…ط³ظˆط¯ط©"),
           ),
         )
         .all()[0]?.count || 0;
@@ -72,7 +81,7 @@ export async function GET({ request }: APIEvent) {
   if (search) {
     conditions.push(like(fiscalPeriods.name, `%${search}%`));
   }
-  if (status && status !== "الكل") conditions.push(eq(fiscalPeriods.status, status));
+  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(fiscalPeriods.status, status));
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -90,7 +99,7 @@ export async function GET({ request }: APIEvent) {
 }
 
 // POST /api/finance/periods - create or close/reopen actions
-export async function POST({ request }: APIEvent) {
+async function __handler_POST({ request }: { request: Request }) {
   const body = await request.json();
   const { action } = body;
 
@@ -102,11 +111,18 @@ export async function POST({ request }: APIEvent) {
       .where(eq(fiscalPeriods.id, id))
       .limit(1)
       .all()[0];
-    if (!period) return Response.json({ error: "الفترة المالية غير موجودة" }, { status: 404 });
-    if (period.status === "مقفلة")
-      return Response.json({ error: "الفترة مقفلة بالفعل" }, { status: 400 });
-    if (period.status === "قيد الإقفال")
-      return Response.json({ error: "الفترة قيد الإقفال بالفعل" }, { status: 400 });
+    if (!period)
+      return Response.json(
+        { error: "ط§ظ„ظپطھط±ط© ط§ظ„ظ…ط§ظ„ظٹط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" },
+        { status: 404 },
+      );
+    if (period.status === "ظ…ظ‚ظپظ„ط©")
+      return Response.json({ error: "ط§ظ„ظپطھط±ط© ظ…ظ‚ظپظ„ط© ط¨ط§ظ„ظپط¹ظ„" }, { status: 400 });
+    if (period.status === "ظ‚ظٹط¯ ط§ظ„ط¥ظ‚ظپط§ظ„")
+      return Response.json(
+        { error: "ط§ظ„ظپطھط±ط© ظ‚ظٹط¯ ط§ظ„ط¥ظ‚ظپط§ظ„ ط¨ط§ظ„ظپط¹ظ„" },
+        { status: 400 },
+      );
 
     // Check no draft entries in period
     const draftEntries = db
@@ -116,14 +132,14 @@ export async function POST({ request }: APIEvent) {
         and(
           sql`${journalEntries.date} >= ${period.startDate}`,
           sql`${journalEntries.date} <= ${period.endDate}`,
-          eq(journalEntries.status, "مسودة"),
+          eq(journalEntries.status, "ظ…ط³ظˆط¯ط©"),
         ),
       )
       .all();
     if (draftEntries.length > 0) {
       return Response.json(
         {
-          error: `لا يمكن إقفال الفترة: يوجد ${draftEntries.length} قيد مسودة في هذه الفترة. قم بترحيلها أو إلغائها أولاً.`,
+          error: `ظ„ط§ ظٹظ…ظƒظ† ط¥ظ‚ظپط§ظ„ ط§ظ„ظپطھط±ط©: ظٹظˆط¬ط¯ ${draftEntries.length} ظ‚ظٹط¯ ظ…ط³ظˆط¯ط© ظپظٹ ظ‡ط°ظ‡ ط§ظ„ظپطھط±ط©. ظ‚ظ… ط¨طھط±ط­ظٹظ„ظ‡ط§ ط£ظˆ ط¥ظ„ط؛ط§ط¦ظ‡ط§ ط£ظˆظ„ط§ظ‹.`,
         },
         { status: 400 },
       );
@@ -137,7 +153,7 @@ export async function POST({ request }: APIEvent) {
         and(
           sql`${journalEntries.date} >= ${period.startDate}`,
           sql`${journalEntries.date} <= ${period.endDate}`,
-          eq(journalEntries.status, "مرحّل"),
+          eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„"),
         ),
       )
       .all();
@@ -157,7 +173,7 @@ export async function POST({ request }: APIEvent) {
     if (unbalanced.length > 0) {
       return Response.json(
         {
-          error: `لا يمكن إقفال الفترة: يوجد ${unbalanced.length} قيد مرحّل غير متوازن (${unbalanced.slice(0, 3).join("، ")}).`,
+          error: `ظ„ط§ ظٹظ…ظƒظ† ط¥ظ‚ظپط§ظ„ ط§ظ„ظپطھط±ط©: ظٹظˆط¬ط¯ ${unbalanced.length} ظ‚ظٹط¯ ظ…ط±ط­ظ‘ظ„ ط؛ظٹط± ظ…طھظˆط§ط²ظ† (${unbalanced.slice(0, 3).join("طŒ ")}).`,
         },
         { status: 400 },
       );
@@ -167,7 +183,7 @@ export async function POST({ request }: APIEvent) {
     const ts = now();
     db.update(fiscalPeriods)
       .set({
-        status: "مقفلة",
+        status: "ظ…ظ‚ظپظ„ط©",
         closedAt: ts,
         closedById: userId || null,
         closedByName: userName || "",
@@ -178,10 +194,10 @@ export async function POST({ request }: APIEvent) {
       .run();
 
     addAudit(
-      "إقفال",
-      "فترة مالية",
+      "ط¥ظ‚ظپط§ظ„",
+      "ظپطھط±ط© ظ…ط§ظ„ظٹط©",
       id,
-      `تم إقفال الفترة المالية: ${period.name} (من ${period.startDate} إلى ${period.endDate})`,
+      `طھظ… ط¥ظ‚ظپط§ظ„ ط§ظ„ظپطھط±ط© ط§ظ„ظ…ط§ظ„ظٹط©: ${period.name} (ظ…ظ† ${period.startDate} ط¥ظ„ظ‰ ${period.endDate})`,
       userId,
       userName,
       before,
@@ -204,15 +220,22 @@ export async function POST({ request }: APIEvent) {
       .where(eq(fiscalPeriods.id, id))
       .limit(1)
       .all()[0];
-    if (!period) return Response.json({ error: "الفترة المالية غير موجودة" }, { status: 404 });
-    if (period.status !== "مقفلة")
-      return Response.json({ error: "لا يمكن إعادة فتح فترة غير مقفلة" }, { status: 400 });
+    if (!period)
+      return Response.json(
+        { error: "ط§ظ„ظپطھط±ط© ط§ظ„ظ…ط§ظ„ظٹط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" },
+        { status: 404 },
+      );
+    if (period.status !== "ظ…ظ‚ظپظ„ط©")
+      return Response.json(
+        { error: "ظ„ط§ ظٹظ…ظƒظ† ط¥ط¹ط§ط¯ط© ظپطھط­ ظپطھط±ط© ط؛ظٹط± ظ…ظ‚ظپظ„ط©" },
+        { status: 400 },
+      );
 
     const before = JSON.stringify(period);
     const ts = now();
     db.update(fiscalPeriods)
       .set({
-        status: "معاد فتحتها",
+        status: "ظ…ط¹ط§ط¯ ظپطھط­طھظ‡ط§",
         reopenedAt: ts,
         reopenedById: userId || null,
         reopenedByName: userName || "",
@@ -222,10 +245,10 @@ export async function POST({ request }: APIEvent) {
       .run();
 
     addAudit(
-      "إعادة فتح",
-      "فترة مالية",
+      "ط¥ط¹ط§ط¯ط© ظپطھط­",
+      "ظپطھط±ط© ظ…ط§ظ„ظٹط©",
       id,
-      `تم إعادة فتح الفترة المالية: ${period.name}`,
+      `طھظ… ط¥ط¹ط§ط¯ط© ظپطھط­ ط§ظ„ظپطھط±ط© ط§ظ„ظ…ط§ظ„ظٹط©: ${period.name}`,
       userId,
       userName,
       before,
@@ -242,16 +265,25 @@ export async function POST({ request }: APIEvent) {
 
   // Create new period
   const { name, startDate, endDate, notes, userId, userName } = body;
-  if (!name?.trim()) return Response.json({ error: "اسم الفترة مطلوب" }, { status: 400 });
-  if (!startDate?.trim()) return Response.json({ error: "تاريخ البداية مطلوب" }, { status: 400 });
-  if (!endDate?.trim()) return Response.json({ error: "تاريخ النهاية مطلوب" }, { status: 400 });
+  if (!name?.trim())
+    return Response.json({ error: "ط§ط³ظ… ط§ظ„ظپطھط±ط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+  if (!startDate?.trim())
+    return Response.json({ error: "طھط§ط±ظٹط® ط§ظ„ط¨ط¯ط§ظٹط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+  if (!endDate?.trim())
+    return Response.json({ error: "طھط§ط±ظٹط® ط§ظ„ظ†ظ‡ط§ظٹط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
   if (startDate > endDate)
-    return Response.json({ error: "تاريخ البداية يجب أن يكون قبل تاريخ النهاية" }, { status: 400 });
+    return Response.json(
+      { error: "طھط§ط±ظٹط® ط§ظ„ط¨ط¯ط§ظٹط© ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ظ‚ط¨ظ„ طھط§ط±ظٹط® ط§ظ„ظ†ظ‡ط§ظٹط©" },
+      { status: 400 },
+    );
 
   // Check for overlapping closed/open period with same name
   const existing = db.select().from(fiscalPeriods).where(eq(fiscalPeriods.name, name.trim())).all();
   if (existing.length > 0) {
-    return Response.json({ error: "يوجد فترة مالية بنفس الاسم بالفعل" }, { status: 400 });
+    return Response.json(
+      { error: "ظٹظˆط¬ط¯ ظپطھط±ط© ظ…ط§ظ„ظٹط© ط¨ظ†ظپط³ ط§ظ„ط§ط³ظ… ط¨ط§ظ„ظپط¹ظ„" },
+      { status: 400 },
+    );
   }
 
   const periodId = genId("FP");
@@ -263,7 +295,7 @@ export async function POST({ request }: APIEvent) {
       name: name.trim(),
       startDate,
       endDate,
-      status: "مفتوحة",
+      status: "ظ…ظپطھظˆط­ط©",
       notes: notes || "",
       createdBy: userId || null,
       createdAt: ts,
@@ -272,10 +304,10 @@ export async function POST({ request }: APIEvent) {
     .run();
 
   addAudit(
-    "إضافة",
-    "فترة مالية",
+    "ط¥ط¶ط§ظپط©",
+    "ظپطھط±ط© ظ…ط§ظ„ظٹط©",
     periodId,
-    `تم إضافة فترة مالية: ${name} (من ${startDate} إلى ${endDate})`,
+    `طھظ… ط¥ط¶ط§ظپط© ظپطھط±ط© ظ…ط§ظ„ظٹط©: ${name} (ظ…ظ† ${startDate} ط¥ظ„ظ‰ ${endDate})`,
     userId,
     userName,
   );
@@ -290,10 +322,10 @@ export async function POST({ request }: APIEvent) {
 }
 
 // PUT /api/finance/periods - update draft (open) period metadata
-export async function PUT({ request }: APIEvent) {
+async function __handler_PUT({ request }: { request: Request }) {
   const body = await request.json();
   const { id, name, startDate, endDate, notes, userId, userName } = body;
-  if (!id) return Response.json({ error: "معرف الفترة مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظپطھط±ط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db
     .select()
@@ -301,12 +333,22 @@ export async function PUT({ request }: APIEvent) {
     .where(eq(fiscalPeriods.id, id))
     .limit(1)
     .all()[0];
-  if (!existing) return Response.json({ error: "الفترة المالية غير موجودة" }, { status: 404 });
-  if (existing.status === "مقفلة")
-    return Response.json({ error: "لا يمكن تعديل فترة مقفلة. أعد فتحها أولاً." }, { status: 400 });
+  if (!existing)
+    return Response.json(
+      { error: "ط§ظ„ظپطھط±ط© ط§ظ„ظ…ط§ظ„ظٹط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" },
+      { status: 404 },
+    );
+  if (existing.status === "ظ…ظ‚ظپظ„ط©")
+    return Response.json(
+      { error: "ظ„ط§ ظٹظ…ظƒظ† طھط¹ط¯ظٹظ„ ظپطھط±ط© ظ…ظ‚ظپظ„ط©. ط£ط¹ط¯ ظپطھط­ظ‡ط§ ط£ظˆظ„ط§ظ‹." },
+      { status: 400 },
+    );
 
   if (startDate && endDate && startDate > endDate) {
-    return Response.json({ error: "تاريخ البداية يجب أن يكون قبل تاريخ النهاية" }, { status: 400 });
+    return Response.json(
+      { error: "طھط§ط±ظٹط® ط§ظ„ط¨ط¯ط§ظٹط© ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ظ‚ط¨ظ„ طھط§ط±ظٹط® ط§ظ„ظ†ظ‡ط§ظٹط©" },
+      { status: 400 },
+    );
   }
 
   const before = JSON.stringify(existing);
@@ -322,10 +364,10 @@ export async function PUT({ request }: APIEvent) {
     .run();
 
   addAudit(
-    "تعديل",
-    "فترة مالية",
+    "طھط¹ط¯ظٹظ„",
+    "ظپطھط±ط© ظ…ط§ظ„ظٹط©",
     id,
-    `تم تحديث الفترة المالية: ${existing.name}`,
+    `طھظ… طھط­ط¯ظٹط« ط§ظ„ظپطھط±ط© ط§ظ„ظ…ط§ظ„ظٹط©: ${existing.name}`,
     userId,
     userName,
     before,
@@ -336,13 +378,13 @@ export async function PUT({ request }: APIEvent) {
 }
 
 // DELETE /api/finance/periods - only open (never delete closed)
-export async function DELETE({ request }: APIEvent) {
+async function __handler_DELETE({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "مستخدم";
+  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
 
-  if (!id) return Response.json({ error: "معرف الفترة مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظپطھط±ط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db
     .select()
@@ -350,23 +392,41 @@ export async function DELETE({ request }: APIEvent) {
     .where(eq(fiscalPeriods.id, id))
     .limit(1)
     .all()[0];
-  if (!existing) return Response.json({ error: "الفترة المالية غير موجودة" }, { status: 404 });
-  if (existing.status !== "مفتوحة")
+  if (!existing)
     return Response.json(
-      { error: "لا يمكن حذف فترة مقفلة أو قيد الإقفال. يحتفظ النظام بالفترة للسجل التاريخي." },
+      { error: "ط§ظ„ظپطھط±ط© ط§ظ„ظ…ط§ظ„ظٹط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" },
+      { status: 404 },
+    );
+  if (existing.status !== "ظ…ظپطھظˆط­ط©")
+    return Response.json(
+      {
+        error:
+          "ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ظپطھط±ط© ظ…ظ‚ظپظ„ط© ط£ظˆ ظ‚ظٹط¯ ط§ظ„ط¥ظ‚ظپط§ظ„. ظٹط­طھظپط¸ ط§ظ„ظ†ط¸ط§ظ… ط¨ط§ظ„ظپطھط±ط© ظ„ظ„ط³ط¬ظ„ ط§ظ„طھط§ط±ظٹط®ظٹ.",
+      },
       { status: 400 },
     );
 
   const before = JSON.stringify(existing);
   db.delete(fiscalPeriods).where(eq(fiscalPeriods.id, id)).run();
   addAudit(
-    "حذف",
-    "فترة مالية",
+    "ط­ط°ظپ",
+    "ظپطھط±ط© ظ…ط§ظ„ظٹط©",
     id,
-    `تم حذف الفترة المالية: ${existing.name}`,
+    `طھظ… ط­ط°ظپ ط§ظ„ظپطھط±ط© ط§ظ„ظ…ط§ظ„ظٹط©: ${existing.name}`,
     userId,
     userName,
     before,
   );
   return Response.json({ success: true });
 }
+
+export const Route = createFileRoute("/api/finance/periods")({
+  server: {
+    handlers: {
+      GET: __handler_GET,
+      POST: __handler_POST,
+      PUT: __handler_PUT,
+      DELETE: __handler_DELETE,
+    },
+  },
+});

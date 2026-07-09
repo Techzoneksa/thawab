@@ -1,3 +1,4 @@
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import {
   budgets,
@@ -9,19 +10,19 @@ import {
   journalEntries,
 } from "@/server/db/schema";
 import { eq, like, or, and, desc, sql } from "drizzle-orm";
-import type { APIEvent } from "@tanstack/start/server";
 
-export const BUDGET_STATUSES = ["مسودة", "معتمد", "مقفل", "ملغى"] as const;
+export const BUDGET_STATUSES = ["ظ…ط³ظˆط¯ط©", "ظ…ط¹طھظ…ط¯", "ظ…ظ‚ظپظ„", "ظ…ظ„ط؛ظ‰"] as const;
 
 // GET /api/finance/budgets - list with filters
 // GET /api/finance/budgets?id=xxx - single with lines and actual vs budget
-export async function GET({ request }: APIEvent) {
+async function __handler_GET({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
   if (id) {
     const budget = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
-    if (!budget) return Response.json({ error: "الموازنة غير موجودة" }, { status: 404 });
+    if (!budget)
+      return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" }, { status: 404 });
 
     const lines = db
       .select()
@@ -53,7 +54,7 @@ export async function GET({ request }: APIEvent) {
         if (l.accountId) {
           const conditions = [
             eq(journalLines.accountId, l.accountId),
-            eq(journalEntries.status, "مرحّل"),
+            eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„"),
           ];
           if (l.costCenterId) conditions.push(eq(journalLines.costCenterId, l.costCenterId));
           if (l.projectId) conditions.push(eq(journalLines.projectId, l.projectId));
@@ -112,8 +113,8 @@ export async function GET({ request }: APIEvent) {
       ),
     );
   }
-  if (status && status !== "الكل") conditions.push(eq(budgets.status, status));
-  if (year && year !== "الكل") conditions.push(eq(budgets.year, year));
+  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(budgets.status, status));
+  if (year && year !== "ط§ظ„ظƒظ„") conditions.push(eq(budgets.year, year));
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -126,24 +127,31 @@ export async function GET({ request }: APIEvent) {
 }
 
 // POST /api/finance/budgets - create or workflow actions
-export async function POST({ request }: APIEvent) {
+async function __handler_POST({ request }: { request: Request }) {
   const body = await request.json();
   const { action } = body;
 
   if (action === "approve") {
     const { id, userId, userName } = body;
     const existing = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
-    if (!existing) return Response.json({ error: "الموازنة غير موجودة" }, { status: 404 });
-    if (existing.status === "معتمد")
-      return Response.json({ error: "الموازنة معتمدة بالفعل" }, { status: 400 });
-    if (existing.status === "مقفل")
-      return Response.json({ error: "لا يمكن اعتماد موازنة مقفلة" }, { status: 400 });
+    if (!existing)
+      return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" }, { status: 404 });
+    if (existing.status === "ظ…ط¹طھظ…ط¯")
+      return Response.json(
+        { error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ظ…ط¹طھظ…ط¯ط© ط¨ط§ظ„ظپط¹ظ„" },
+        { status: 400 },
+      );
+    if (existing.status === "ظ…ظ‚ظپظ„")
+      return Response.json(
+        { error: "ظ„ط§ ظٹظ…ظƒظ† ط§ط¹طھظ…ط§ط¯ ظ…ظˆط§ط²ظ†ط© ظ…ظ‚ظپظ„ط©" },
+        { status: 400 },
+      );
 
     const before = JSON.stringify(existing);
     const ts = now();
     db.update(budgets)
       .set({
-        status: "معتمد",
+        status: "ظ…ط¹طھظ…ط¯",
         approvedBy: userId || null,
         approvedAt: ts,
         updatedAt: ts,
@@ -151,10 +159,10 @@ export async function POST({ request }: APIEvent) {
       .where(eq(budgets.id, id))
       .run();
     addAudit(
-      "اعتماد",
-      "موازنة",
+      "ط§ط¹طھظ…ط§ط¯",
+      "ظ…ظˆط§ط²ظ†ط©",
       id,
-      `تم اعتماد الموازنة: ${existing.name} (${existing.year})`,
+      `طھظ… ط§ط¹طھظ…ط§ط¯ ط§ظ„ظ…ظˆط§ط²ظ†ط©: ${existing.name} (${existing.year})`,
       userId,
       userName,
       before,
@@ -166,15 +174,19 @@ export async function POST({ request }: APIEvent) {
   if (action === "lock") {
     const { id, userId, userName } = body;
     const existing = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
-    if (!existing) return Response.json({ error: "الموازنة غير موجودة" }, { status: 404 });
-    if (existing.status !== "معتمد")
-      return Response.json({ error: "يجب اعتماد الموازنة قبل قفلها" }, { status: 400 });
+    if (!existing)
+      return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" }, { status: 404 });
+    if (existing.status !== "ظ…ط¹طھظ…ط¯")
+      return Response.json(
+        { error: "ظٹط¬ط¨ ط§ط¹طھظ…ط§ط¯ ط§ظ„ظ…ظˆط§ط²ظ†ط© ظ‚ط¨ظ„ ظ‚ظپظ„ظ‡ط§" },
+        { status: 400 },
+      );
 
     const before = JSON.stringify(existing);
     const ts = now();
     db.update(budgets)
       .set({
-        status: "مقفل",
+        status: "ظ…ظ‚ظپظ„",
         lockedBy: userId || null,
         lockedAt: ts,
         updatedAt: ts,
@@ -182,10 +194,10 @@ export async function POST({ request }: APIEvent) {
       .where(eq(budgets.id, id))
       .run();
     addAudit(
-      "قفل",
-      "موازنة",
+      "ظ‚ظپظ„",
+      "ظ…ظˆط§ط²ظ†ط©",
       id,
-      `تم قفل الموازنة: ${existing.name} (${existing.year})`,
+      `طھظ… ظ‚ظپظ„ ط§ظ„ظ…ظˆط§ط²ظ†ط©: ${existing.name} (${existing.year})`,
       userId,
       userName,
       before,
@@ -197,17 +209,21 @@ export async function POST({ request }: APIEvent) {
   if (action === "unlock") {
     const { id, userId, userName } = body;
     const existing = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
-    if (!existing) return Response.json({ error: "الموازنة غير موجودة" }, { status: 404 });
-    if (existing.status !== "مقفل")
-      return Response.json({ error: "الموازنة ليست مقفلة" }, { status: 400 });
+    if (!existing)
+      return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" }, { status: 404 });
+    if (existing.status !== "ظ…ظ‚ظپظ„")
+      return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ظ„ظٹط³طھ ظ…ظ‚ظپظ„ط©" }, { status: 400 });
 
     const before = JSON.stringify(existing);
-    db.update(budgets).set({ status: "معتمد", updatedAt: now() }).where(eq(budgets.id, id)).run();
+    db.update(budgets)
+      .set({ status: "ظ…ط¹طھظ…ط¯", updatedAt: now() })
+      .where(eq(budgets.id, id))
+      .run();
     addAudit(
-      "فتح قفل",
-      "موازنة",
+      "ظپطھط­ ظ‚ظپظ„",
+      "ظ…ظˆط§ط²ظ†ط©",
       id,
-      `تم فتح قفل الموازنة: ${existing.name}`,
+      `طھظ… ظپطھط­ ظ‚ظپظ„ ط§ظ„ظ…ظˆط§ط²ظ†ط©: ${existing.name}`,
       userId,
       userName,
       before,
@@ -231,8 +247,10 @@ export async function POST({ request }: APIEvent) {
     userName,
   } = body;
 
-  if (!name?.trim()) return Response.json({ error: "اسم الموازنة مطلوب" }, { status: 400 });
-  if (!year?.trim()) return Response.json({ error: "سنة الموازنة مطلوبة" }, { status: 400 });
+  if (!name?.trim())
+    return Response.json({ error: "ط§ط³ظ… ط§ظ„ظ…ظˆط§ط²ظ†ط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+  if (!year?.trim())
+    return Response.json({ error: "ط³ظ†ط© ط§ظ„ظ…ظˆط§ط²ظ†ط© ظ…ط·ظ„ظˆط¨ط©" }, { status: 400 });
 
   const budgetId = genId("BUD");
   const ts = now();
@@ -244,7 +262,7 @@ export async function POST({ request }: APIEvent) {
       year: year.trim(),
       amount: parseFloat(amount) || 0,
       department: department || "",
-      status: status || "مسودة",
+      status: status || "ظ…ط³ظˆط¯ط©",
       currency: currency || "SAR",
       description: description || "",
       notes: notes || "",
@@ -284,21 +302,32 @@ export async function POST({ request }: APIEvent) {
     }
   }
 
-  addAudit("إضافة", "موازنة", budgetId, `تم إضافة موازنة: ${name} (${year})`, userId, userName);
+  addAudit(
+    "ط¥ط¶ط§ظپط©",
+    "ظ…ظˆط§ط²ظ†ط©",
+    budgetId,
+    `طھظ… ط¥ط¶ط§ظپط© ظ…ظˆط§ط²ظ†ط©: ${name} (${year})`,
+    userId,
+    userName,
+  );
   const created = db.select().from(budgets).where(eq(budgets.id, budgetId)).limit(1).all()[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
 // PUT /api/finance/budgets - update draft only
-export async function PUT({ request }: APIEvent) {
+async function __handler_PUT({ request }: { request: Request }) {
   const body = await request.json();
   const { id, name, year, amount, department, description, notes, lines, userId, userName } = body;
-  if (!id) return Response.json({ error: "معرف الموازنة مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ظˆط§ط²ظ†ط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
-  if (!existing) return Response.json({ error: "الموازنة غير موجودة" }, { status: 404 });
-  if (existing.status !== "مسودة")
-    return Response.json({ error: "لا يمكن تعديل موازنة معتمدة أو مقفلة" }, { status: 400 });
+  if (!existing)
+    return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" }, { status: 404 });
+  if (existing.status !== "ظ…ط³ظˆط¯ط©")
+    return Response.json(
+      { error: "ظ„ط§ ظٹظ…ظƒظ† طھط¹ط¯ظٹظ„ ظ…ظˆط§ط²ظ†ط© ظ…ط¹طھظ…ط¯ط© ط£ظˆ ظ…ظ‚ظپظ„ط©" },
+      { status: 400 },
+    );
 
   if (Array.isArray(lines) && lines.length > 0) {
     let totalPlanned = 0;
@@ -339,27 +368,58 @@ export async function PUT({ request }: APIEvent) {
     })
     .where(eq(budgets.id, id))
     .run();
-  addAudit("تعديل", "موازنة", id, `تم تحديث الموازنة: ${existing.name}`, userId, userName, before);
+  addAudit(
+    "طھط¹ط¯ظٹظ„",
+    "ظ…ظˆط§ط²ظ†ط©",
+    id,
+    `طھظ… طھط­ط¯ظٹط« ط§ظ„ظ…ظˆط§ط²ظ†ط©: ${existing.name}`,
+    userId,
+    userName,
+    before,
+  );
   const updated = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
   return Response.json({ item: updated });
 }
 
 // DELETE /api/finance/budgets - only drafts
-export async function DELETE({ request }: APIEvent) {
+async function __handler_DELETE({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "مستخدم";
+  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
 
-  if (!id) return Response.json({ error: "معرف الموازنة مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ظˆط§ط²ظ†ط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
-  if (!existing) return Response.json({ error: "الموازنة غير موجودة" }, { status: 404 });
-  if (existing.status !== "مسودة")
-    return Response.json({ error: "لا يمكن حذف موازنة معتمدة أو مقفلة" }, { status: 400 });
+  if (!existing)
+    return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" }, { status: 404 });
+  if (existing.status !== "ظ…ط³ظˆط¯ط©")
+    return Response.json(
+      { error: "ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ظ…ظˆط§ط²ظ†ط© ظ…ط¹طھظ…ط¯ط© ط£ظˆ ظ…ظ‚ظپظ„ط©" },
+      { status: 400 },
+    );
 
   const before = JSON.stringify(existing);
   db.delete(budgets).where(eq(budgets.id, id)).run();
-  addAudit("حذف", "موازنة", id, `تم حذف الموازنة: ${existing.name}`, userId, userName, before);
+  addAudit(
+    "ط­ط°ظپ",
+    "ظ…ظˆط§ط²ظ†ط©",
+    id,
+    `طھظ… ط­ط°ظپ ط§ظ„ظ…ظˆط§ط²ظ†ط©: ${existing.name}`,
+    userId,
+    userName,
+    before,
+  );
   return Response.json({ success: true });
 }
+
+export const Route = createFileRoute("/api/finance/budgets")({
+  server: {
+    handlers: {
+      GET: __handler_GET,
+      POST: __handler_POST,
+      PUT: __handler_PUT,
+      DELETE: __handler_DELETE,
+    },
+  },
+});

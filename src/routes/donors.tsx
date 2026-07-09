@@ -71,6 +71,7 @@ function Page() {
   });
 
   const donors = data?.items || [];
+  const total = data?.total || 0;
 
   useEffect(() => {
     setApiFilters((f) => ({

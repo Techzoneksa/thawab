@@ -1,17 +1,17 @@
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { db } from "@/server/db/index";
 import { auditLog, users } from "@/server/db/schema";
 import { eq, like, or, and, desc, sql, gte, lte } from "drizzle-orm";
-import type { APIEvent } from "@tanstack/start/server";
 
 // GET /api/audit - list with filters and pagination
 // GET /api/audit?id=xxx - single audit entry with before/after
-export async function GET({ request }: APIEvent) {
+async function __handler_GET({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
   if (id) {
     const entry = db.select().from(auditLog).where(eq(auditLog.id, id)).limit(1).all()[0];
-    if (!entry) return Response.json({ error: "السجل غير موجود" }, { status: 404 });
+    if (!entry) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     // Parse before/after as JSON if possible
     let beforeParsed: unknown = null;
@@ -57,9 +57,9 @@ export async function GET({ request }: APIEvent) {
       ),
     );
   }
-  if (userName && userName !== "الكل") conditions.push(eq(auditLog.userName, userName));
-  if (action && action !== "الكل") conditions.push(eq(auditLog.action, action));
-  if (entityType && entityType !== "الكل") conditions.push(eq(auditLog.entityType, entityType));
+  if (userName && userName !== "ط§ظ„ظƒظ„") conditions.push(eq(auditLog.userName, userName));
+  if (action && action !== "ط§ظ„ظƒظ„") conditions.push(eq(auditLog.action, action));
+  if (entityType && entityType !== "ط§ظ„ظƒظ„") conditions.push(eq(auditLog.entityType, entityType));
   if (entityId) conditions.push(eq(auditLog.entityId, entityId));
   if (dateFrom) {
     conditions.push(sql`${auditLog.timestamp} >= ${dateFrom}`);
@@ -106,3 +106,11 @@ export async function GET({ request }: APIEvent) {
     },
   });
 }
+
+export const Route = createFileRoute("/api/audit")({
+  server: {
+    handlers: {
+      GET: __handler_GET,
+    },
+  },
+});

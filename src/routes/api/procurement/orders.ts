@@ -1,3 +1,4 @@
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import {
   purchaseOrders,
@@ -7,21 +8,20 @@ import {
   stockMovements,
 } from "@/server/db/schema";
 import { eq, like, or, and, desc, sql } from "drizzle-orm";
-import type { APIEvent } from "@tanstack/start/server";
 
 export const ORDER_STATUSES = [
-  "مسودة",
-  "معتمد",
-  "تم الاستلام جزئيًا",
-  "تم الاستلام",
-  "مغلق",
-  "ملغي",
+  "ظ…ط³ظˆط¯ط©",
+  "ظ…ط¹طھظ…ط¯",
+  "طھظ… ط§ظ„ط§ط³طھظ„ط§ظ… ط¬ط²ط¦ظٹظ‹ط§",
+  "طھظ… ط§ظ„ط§ط³طھظ„ط§ظ…",
+  "ظ…ط؛ظ„ظ‚",
+  "ظ…ظ„ط؛ظٹ",
 ] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 // GET /api/procurement/orders - list with search/filter
 // GET /api/procurement/orders?id=xxx - single with lines
-export async function GET({ request }: APIEvent) {
+async function __handler_GET({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
@@ -32,7 +32,8 @@ export async function GET({ request }: APIEvent) {
       .where(eq(purchaseOrders.id, id))
       .limit(1)
       .all()[0];
-    if (!order) return Response.json({ error: "أمر الشراء غير موجود" }, { status: 404 });
+    if (!order)
+      return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     const lines = db
       .select()
       .from(purchaseOrderLines)
@@ -52,7 +53,7 @@ export async function GET({ request }: APIEvent) {
       or(like(purchaseOrders.subject, `%${search}%`), like(purchaseOrders.notes, `%${search}%`)),
     );
   }
-  if (status && status !== "الكل") conditions.push(eq(purchaseOrders.status, status));
+  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(purchaseOrders.status, status));
   if (supplierId) conditions.push(eq(purchaseOrders.supplierId, supplierId));
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -70,7 +71,7 @@ export async function GET({ request }: APIEvent) {
 }
 
 // POST /api/procurement/orders - create or workflow action
-export async function POST({ request }: APIEvent) {
+async function __handler_POST({ request }: { request: Request }) {
   const body = await request.json();
   const { action } = body;
 
@@ -82,20 +83,24 @@ export async function POST({ request }: APIEvent) {
       .where(eq(purchaseOrders.id, id))
       .limit(1)
       .all()[0];
-    if (!existing) return Response.json({ error: "أمر الشراء غير موجود" }, { status: 404 });
-    if (existing.status !== "مسودة")
-      return Response.json({ error: "يمكن اعتماد المسودة فقط" }, { status: 400 });
+    if (!existing)
+      return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    if (existing.status !== "ظ…ط³ظˆط¯ط©")
+      return Response.json(
+        { error: "ظٹظ…ظƒظ† ط§ط¹طھظ…ط§ط¯ ط§ظ„ظ…ط³ظˆط¯ط© ظپظ‚ط·" },
+        { status: 400 },
+      );
 
     const before = JSON.stringify(existing);
     db.update(purchaseOrders)
-      .set({ status: "معتمد", updatedAt: now() })
+      .set({ status: "ظ…ط¹طھظ…ط¯", updatedAt: now() })
       .where(eq(purchaseOrders.id, id))
       .run();
     addAudit(
-      "اعتماد",
-      "أمر شراء",
+      "ط§ط¹طھظ…ط§ط¯",
+      "ط£ظ…ط± ط´ط±ط§ط،",
       id,
-      `تم اعتماد أمر الشراء: ${existing.subject}`,
+      `طھظ… ط§ط¹طھظ…ط§ط¯ ط£ظ…ط± ط§ظ„ط´ط±ط§ط،: ${existing.subject}`,
       userId,
       userName,
       before,
@@ -117,15 +122,16 @@ export async function POST({ request }: APIEvent) {
       .where(eq(purchaseOrders.id, id))
       .limit(1)
       .all()[0];
-    if (!existing) return Response.json({ error: "أمر الشراء غير موجود" }, { status: 404 });
-    if (existing.status === "ملغي")
-      return Response.json({ error: "الأمر ملغي بالفعل" }, { status: 400 });
-    if (existing.status === "مغلق")
-      return Response.json({ error: "لا يمكن إلغاء أمر مغلق" }, { status: 400 });
+    if (!existing)
+      return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    if (existing.status === "ظ…ظ„ط؛ظٹ")
+      return Response.json({ error: "ط§ظ„ط£ظ…ط± ظ…ظ„ط؛ظٹ ط¨ط§ظ„ظپط¹ظ„" }, { status: 400 });
+    if (existing.status === "ظ…ط؛ظ„ظ‚")
+      return Response.json({ error: "ظ„ط§ ظٹظ…ظƒظ† ط¥ظ„ط؛ط§ط، ط£ظ…ط± ظ…ط؛ظ„ظ‚" }, { status: 400 });
 
     const before = JSON.stringify(existing);
     db.update(purchaseOrders)
-      .set({ status: "ملغي", updatedAt: now() })
+      .set({ status: "ظ…ظ„ط؛ظٹ", updatedAt: now() })
       .where(eq(purchaseOrders.id, id))
       .run();
 
@@ -137,19 +143,19 @@ export async function POST({ request }: APIEvent) {
         .where(eq(purchaseRequests.id, existing.requestId))
         .limit(1)
         .all()[0];
-      if (linked && linked.status === "محول إلى أمر شراء") {
+      if (linked && linked.status === "ظ…ط­ظˆظ„ ط¥ظ„ظ‰ ط£ظ…ط± ط´ط±ط§ط،") {
         db.update(purchaseRequests)
-          .set({ status: "معتمد", updatedAt: now() })
+          .set({ status: "ظ…ط¹طھظ…ط¯", updatedAt: now() })
           .where(eq(purchaseRequests.id, existing.requestId))
           .run();
       }
     }
 
     addAudit(
-      "إلغاء",
-      "أمر شراء",
+      "ط¥ظ„ط؛ط§ط،",
+      "ط£ظ…ط± ط´ط±ط§ط،",
       id,
-      `تم إلغاء أمر الشراء: ${existing.subject}`,
+      `طھظ… ط¥ظ„ط؛ط§ط، ط£ظ…ط± ط§ظ„ط´ط±ط§ط،: ${existing.subject}`,
       userId,
       userName,
       before,
@@ -177,15 +183,22 @@ export async function POST({ request }: APIEvent) {
       .where(eq(purchaseOrders.id, id))
       .limit(1)
       .all()[0];
-    if (!order) return Response.json({ error: "أمر الشراء غير موجود" }, { status: 404 });
-    if (order.status !== "معتمد" && order.status !== "تم الاستلام جزئيًا") {
+    if (!order)
+      return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    if (order.status !== "ظ…ط¹طھظ…ط¯" && order.status !== "طھظ… ط§ظ„ط§ط³طھظ„ط§ظ… ط¬ط²ط¦ظٹظ‹ط§") {
       return Response.json(
-        { error: "يمكن الاستلام فقط للأوامر المعتمدة أو المستلمة جزئياً" },
+        {
+          error:
+            "ظٹظ…ظƒظ† ط§ظ„ط§ط³طھظ„ط§ظ… ظپظ‚ط· ظ„ظ„ط£ظˆط§ظ…ط± ط§ظ„ظ…ط¹طھظ…ط¯ط© ط£ظˆ ط§ظ„ظ…ط³طھظ„ظ…ط© ط¬ط²ط¦ظٹط§ظ‹",
+        },
         { status: 400 },
       );
     }
     if (!receipts || !Array.isArray(receipts) || receipts.length === 0) {
-      return Response.json({ error: "يجب تحديد الكميات المستلمة" }, { status: 400 });
+      return Response.json(
+        { error: "ظٹط¬ط¨ طھط­ط¯ظٹط¯ ط§ظ„ظƒظ…ظٹط§طھ ط§ظ„ظ…ط³طھظ„ظ…ط©" },
+        { status: 400 },
+      );
     }
 
     const lines = db
@@ -206,7 +219,7 @@ export async function POST({ request }: APIEvent) {
       if (newReceived > line.quantity + 0.0001) {
         return Response.json(
           {
-            error: `الكمية المستلمة للسطر "${line.description}" تتجاوز المطلوب (${line.quantity})`,
+            error: `ط§ظ„ظƒظ…ظٹط© ط§ظ„ظ…ط³طھظ„ظ…ط© ظ„ظ„ط³ط·ط± "${line.description}" طھطھط¬ط§ظˆط² ط§ظ„ظ…ط·ظ„ظˆط¨ (${line.quantity})`,
           },
           { status: 400 },
         );
@@ -237,14 +250,14 @@ export async function POST({ request }: APIEvent) {
               id: genId("MV"),
               itemId: line.itemId,
               warehouseId: item.warehouseId || null,
-              type: "استلام",
+              type: "ط§ط³طھظ„ط§ظ…",
               quantity: r.receivedQty,
               balanceAfter: newQty,
               sourceType: "purchase_order",
               sourceId: order.id,
               reference: `PO ${order.id}`,
               date: ts,
-              notes: `استلام من أمر شراء ${order.id}`,
+              notes: `ط§ط³طھظ„ط§ظ… ظ…ظ† ط£ظ…ط± ط´ط±ط§ط، ${order.id}`,
               createdBy: userId || null,
               createdAt: ts,
             })
@@ -258,7 +271,9 @@ export async function POST({ request }: APIEvent) {
     }
 
     const before = JSON.stringify(order);
-    const newStatus: OrderStatus = allComplete ? "تم الاستلام" : "تم الاستلام جزئيًا";
+    const newStatus: OrderStatus = allComplete
+      ? "طھظ… ط§ظ„ط§ط³طھظ„ط§ظ…"
+      : "طھظ… ط§ظ„ط§ط³طھظ„ط§ظ… ط¬ط²ط¦ظٹظ‹ط§";
     const totalReceived = lines.reduce((sum, l) => {
       const r = receipts.find((x) => x.lineId === l.id);
       return sum + (l.receivedQuantity || 0) + (r?.receivedQty || 0);
@@ -269,10 +284,10 @@ export async function POST({ request }: APIEvent) {
       .run();
 
     addAudit(
-      "استلام",
-      "أمر شراء",
+      "ط§ط³طھظ„ط§ظ…",
+      "ط£ظ…ط± ط´ط±ط§ط،",
       id,
-      `تم استلام ${anyReceived ? "أصناف" : "تحديث"} لأمر الشراء: ${order.subject}`,
+      `طھظ… ط§ط³طھظ„ط§ظ… ${anyReceived ? "ط£طµظ†ط§ظپ" : "طھط­ط¯ظٹط«"} ظ„ط£ظ…ط± ط§ظ„ط´ط±ط§ط،: ${order.subject}`,
       userId,
       userName,
       before,
@@ -294,20 +309,21 @@ export async function POST({ request }: APIEvent) {
       .where(eq(purchaseOrders.id, id))
       .limit(1)
       .all()[0];
-    if (!existing) return Response.json({ error: "أمر الشراء غير موجود" }, { status: 404 });
-    if (existing.status === "مغلق")
-      return Response.json({ error: "الأمر مغلق بالفعل" }, { status: 400 });
+    if (!existing)
+      return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    if (existing.status === "ظ…ط؛ظ„ظ‚")
+      return Response.json({ error: "ط§ظ„ط£ظ…ط± ظ…ط؛ظ„ظ‚ ط¨ط§ظ„ظپط¹ظ„" }, { status: 400 });
 
     const before = JSON.stringify(existing);
     db.update(purchaseOrders)
-      .set({ status: "مغلق", updatedAt: now() })
+      .set({ status: "ظ…ط؛ظ„ظ‚", updatedAt: now() })
       .where(eq(purchaseOrders.id, id))
       .run();
     addAudit(
-      "إغلاق",
-      "أمر شراء",
+      "ط¥ط؛ظ„ط§ظ‚",
+      "ط£ظ…ط± ط´ط±ط§ط،",
       id,
-      `تم إغلاق أمر الشراء: ${existing.subject}`,
+      `طھظ… ط¥ط؛ظ„ط§ظ‚ ط£ظ…ط± ط§ظ„ط´ط±ط§ط،: ${existing.subject}`,
       userId,
       userName,
       before,
@@ -325,9 +341,13 @@ export async function POST({ request }: APIEvent) {
   const { supplierId, requestId, subject, date, deliveryDate, notes, lines, userId, userName } =
     body;
 
-  if (!subject?.trim()) return Response.json({ error: "موضوع أمر الشراء مطلوب" }, { status: 400 });
+  if (!subject?.trim())
+    return Response.json({ error: "ظ…ظˆط¶ظˆط¹ ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ظ…ط·ظ„ظˆط¨" }, { status: 400 });
   if (!Array.isArray(lines) || lines.length === 0) {
-    return Response.json({ error: "يجب إضافة سطر واحد على الأقل" }, { status: 400 });
+    return Response.json(
+      { error: "ظٹط¬ط¨ ط¥ط¶ط§ظپط© ط³ط·ط± ظˆط§ط­ط¯ ط¹ظ„ظ‰ ط§ظ„ط£ظ‚ظ„" },
+      { status: 400 },
+    );
   }
 
   // If linked to request, verify status
@@ -338,10 +358,14 @@ export async function POST({ request }: APIEvent) {
       .where(eq(purchaseRequests.id, requestId))
       .limit(1)
       .all()[0];
-    if (!req) return Response.json({ error: "طلب الشراء غير موجود" }, { status: 404 });
-    if (req.status !== "معتمد") {
+    if (!req)
+      return Response.json({ error: "ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    if (req.status !== "ظ…ط¹طھظ…ط¯") {
       return Response.json(
-        { error: "يجب أن يكون طلب الشراء معتمداً قبل إنشاء أمر شراء" },
+        {
+          error:
+            "ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ظ…ط¹طھظ…ط¯ط§ظ‹ ظ‚ط¨ظ„ ط¥ظ†ط´ط§ط، ط£ظ…ط± ط´ط±ط§ط،",
+        },
         { status: 400 },
       );
     }
@@ -362,7 +386,7 @@ export async function POST({ request }: APIEvent) {
       subject: subject.trim(),
       date: date || ts,
       deliveryDate: deliveryDate || "",
-      status: "مسودة",
+      status: "ظ…ط³ظˆط¯ط©",
       total,
       receivedAmount: 0,
       notes: notes || "",
@@ -394,16 +418,16 @@ export async function POST({ request }: APIEvent) {
   // Link request status
   if (requestId) {
     db.update(purchaseRequests)
-      .set({ status: "محول إلى أمر شراء", updatedAt: ts })
+      .set({ status: "ظ…ط­ظˆظ„ ط¥ظ„ظ‰ ط£ظ…ط± ط´ط±ط§ط،", updatedAt: ts })
       .where(eq(purchaseRequests.id, requestId))
       .run();
   }
 
   addAudit(
-    "إضافة",
-    "أمر شراء",
+    "ط¥ط¶ط§ظپط©",
+    "ط£ظ…ط± ط´ط±ط§ط،",
     orderId,
-    `تم إضافة أمر شراء: ${subject} (${lines.length} سطر، الإجمالي ${total})`,
+    `طھظ… ط¥ط¶ط§ظپط© ط£ظ…ط± ط´ط±ط§ط،: ${subject} (${lines.length} ط³ط·ط±طŒ ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ ${total})`,
     userId,
     userName,
   );
@@ -417,11 +441,12 @@ export async function POST({ request }: APIEvent) {
 }
 
 // PUT /api/procurement/orders - update (only draft)
-export async function PUT({ request }: APIEvent) {
+async function __handler_PUT({ request }: { request: Request }) {
   const body = await request.json();
   const { id, subject, date, deliveryDate, notes, userId, userName } = body;
 
-  if (!id) return Response.json({ error: "معرف أمر الشراء مطلوب" }, { status: 400 });
+  if (!id)
+    return Response.json({ error: "ظ…ط¹ط±ظپ ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db
     .select()
@@ -429,9 +454,13 @@ export async function PUT({ request }: APIEvent) {
     .where(eq(purchaseOrders.id, id))
     .limit(1)
     .all()[0];
-  if (!existing) return Response.json({ error: "أمر الشراء غير موجود" }, { status: 404 });
-  if (existing.status !== "مسودة") {
-    return Response.json({ error: "لا يمكن تعديل أمر شراء في حالة حالية" }, { status: 400 });
+  if (!existing)
+    return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+  if (existing.status !== "ظ…ط³ظˆط¯ط©") {
+    return Response.json(
+      { error: "ظ„ط§ ظٹظ…ظƒظ† طھط¹ط¯ظٹظ„ ط£ظ…ط± ط´ط±ط§ط، ظپظٹ ط­ط§ظ„ط© ط­ط§ظ„ظٹط©" },
+      { status: 400 },
+    );
   }
 
   const before = JSON.stringify(existing);
@@ -447,10 +476,10 @@ export async function PUT({ request }: APIEvent) {
     .run();
 
   addAudit(
-    "تعديل",
-    "أمر شراء",
+    "طھط¹ط¯ظٹظ„",
+    "ط£ظ…ط± ط´ط±ط§ط،",
     id,
-    `تم تحديث أمر الشراء: ${existing.subject}`,
+    `طھظ… طھط­ط¯ظٹط« ط£ظ…ط± ط§ظ„ط´ط±ط§ط،: ${existing.subject}`,
     userId,
     userName,
     before,
@@ -465,13 +494,14 @@ export async function PUT({ request }: APIEvent) {
 }
 
 // DELETE /api/procurement/orders - only draft
-export async function DELETE({ request }: APIEvent) {
+async function __handler_DELETE({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "مستخدم";
+  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
 
-  if (!id) return Response.json({ error: "معرف أمر الشراء مطلوب" }, { status: 400 });
+  if (!id)
+    return Response.json({ error: "ظ…ط¹ط±ظپ ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db
     .select()
@@ -479,10 +509,14 @@ export async function DELETE({ request }: APIEvent) {
     .where(eq(purchaseOrders.id, id))
     .limit(1)
     .all()[0];
-  if (!existing) return Response.json({ error: "أمر الشراء غير موجود" }, { status: 404 });
-  if (existing.status !== "مسودة") {
+  if (!existing)
+    return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+  if (existing.status !== "ظ…ط³ظˆط¯ط©") {
     return Response.json(
-      { error: "لا يمكن حذف أمر شراء غير مسودة. ألغِه بدلاً من ذلك." },
+      {
+        error:
+          "ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ط£ظ…ط± ط´ط±ط§ط، ط؛ظٹط± ظ…ط³ظˆط¯ط©. ط£ظ„ط؛ظگظ‡ ط¨ط¯ظ„ط§ظ‹ ظ…ظ† ط°ظ„ظƒ.",
+      },
       { status: 400 },
     );
   }
@@ -491,19 +525,30 @@ export async function DELETE({ request }: APIEvent) {
   // Roll back linked request
   if (existing.requestId) {
     db.update(purchaseRequests)
-      .set({ status: "معتمد", updatedAt: now() })
+      .set({ status: "ظ…ط¹طھظ…ط¯", updatedAt: now() })
       .where(eq(purchaseRequests.id, existing.requestId))
       .run();
   }
   db.delete(purchaseOrders).where(eq(purchaseOrders.id, id)).run();
   addAudit(
-    "حذف",
-    "أمر شراء",
+    "ط­ط°ظپ",
+    "ط£ظ…ط± ط´ط±ط§ط،",
     id,
-    `تم حذف أمر الشراء: ${existing.subject}`,
+    `طھظ… ط­ط°ظپ ط£ظ…ط± ط§ظ„ط´ط±ط§ط،: ${existing.subject}`,
     userId,
     userName,
     before,
   );
   return Response.json({ success: true });
 }
+
+export const Route = createFileRoute("/api/procurement/orders")({
+  server: {
+    handlers: {
+      GET: __handler_GET,
+      POST: __handler_POST,
+      PUT: __handler_PUT,
+      DELETE: __handler_DELETE,
+    },
+  },
+});

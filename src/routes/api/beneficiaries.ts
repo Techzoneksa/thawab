@@ -1,12 +1,12 @@
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { beneficiaries, aidRecords, projects } from "@/server/db/schema";
 import { eq, like, or, and, desc, ne } from "drizzle-orm";
-import type { APIEvent } from "@tanstack/start/server";
 
 // GET /api/beneficiaries - List with search, filters, pagination
 // GET /api/beneficiaries?id=xxx - Single beneficiary by ID with aid history
 // GET /api/beneficiaries?id=xxx&summary=true - Beneficiary summary calculations
-export async function GET({ request }: APIEvent) {
+async function __handler_GET({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   const summary = url.searchParams.get("summary");
@@ -18,7 +18,8 @@ export async function GET({ request }: APIEvent) {
       .where(eq(beneficiaries.id, id))
       .limit(1)
       .all()[0];
-    if (!beneficiary) return Response.json({ error: "المستفيد غير موجود" }, { status: 404 });
+    if (!beneficiary)
+      return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     // Get aid history
     const aidHistory = db
@@ -29,11 +30,11 @@ export async function GET({ request }: APIEvent) {
       .all();
 
     const totalAid = aidHistory
-      .filter((a) => a.status === "تم التسليم")
+      .filter((a) => a.status === "طھظ… ط§ظ„طھط³ظ„ظٹظ…")
       .reduce((s, a) => s + a.amount, 0);
-    const aidCount = aidHistory.filter((a) => a.status === "تم التسليم").length;
+    const aidCount = aidHistory.filter((a) => a.status === "طھظ… ط§ظ„طھط³ظ„ظٹظ…").length;
     const pendingAidCount = aidHistory.filter(
-      (a) => a.status === "بانتظار الموافقة" || a.status === "معتمد",
+      (a) => a.status === "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©" || a.status === "ظ…ط¹طھظ…ط¯",
     ).length;
     const lastAidDate = aidHistory.length > 0 ? aidHistory[0].createdAt : null;
 
@@ -103,9 +104,9 @@ export async function GET({ request }: APIEvent) {
       ),
     );
   }
-  if (status && status !== "الكل") conditions.push(eq(beneficiaries.status, status));
-  if (category && category !== "الكل") conditions.push(eq(beneficiaries.category, category));
-  if (city && city !== "الكل") conditions.push(eq(beneficiaries.city, city));
+  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(beneficiaries.status, status));
+  if (category && category !== "ط§ظ„ظƒظ„") conditions.push(eq(beneficiaries.category, category));
+  if (city && city !== "ط§ظ„ظƒظ„") conditions.push(eq(beneficiaries.city, city));
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -129,7 +130,7 @@ export async function GET({ request }: APIEvent) {
 }
 
 // POST /api/beneficiaries - Create beneficiary or change status (workflow actions)
-export async function POST({ request }: APIEvent) {
+async function __handler_POST({ request }: { request: Request }) {
   const body = await request.json();
   const { action, id, userId, userName } = body;
 
@@ -142,11 +143,11 @@ export async function POST({ request }: APIEvent) {
     action === "reactivate"
   ) {
     const statusMap: Record<string, string> = {
-      review: "قيد المراجعة",
-      qualify: "مؤهل",
-      disqualify: "غير مؤهل",
-      suspend: "موقوف",
-      reactivate: "مؤهل",
+      review: "ظ‚ظٹط¯ ط§ظ„ظ…ط±ط§ط¬ط¹ط©",
+      qualify: "ظ…ط¤ظ‡ظ„",
+      disqualify: "ط؛ظٹط± ظ…ط¤ظ‡ظ„",
+      suspend: "ظ…ظˆظ‚ظˆظپ",
+      reactivate: "ظ…ط¤ظ‡ظ„",
     };
 
     const newStatus = statusMap[action];
@@ -156,22 +157,32 @@ export async function POST({ request }: APIEvent) {
       .where(eq(beneficiaries.id, id))
       .limit(1)
       .all()[0];
-    if (!beneficiary) return Response.json({ error: "المستفيد غير موجود" }, { status: 404 });
+    if (!beneficiary)
+      return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     // Workflow rules
-    if (action === "qualify" && beneficiary.status === "موقوف") {
+    if (action === "qualify" && beneficiary.status === "ظ…ظˆظ‚ظˆظپ") {
       return Response.json(
-        { error: "لا يمكن تأهيل مستفيد موقوف. أعد تفعيله أولاً." },
+        {
+          error:
+            "ظ„ط§ ظٹظ…ظƒظ† طھط£ظ‡ظٹظ„ ظ…ط³طھظپظٹط¯ ظ…ظˆظ‚ظˆظپ. ط£ط¹ط¯ طھظپط¹ظٹظ„ظ‡ ط£ظˆظ„ط§ظ‹.",
+        },
         { status: 400 },
       );
     }
 
-    if (action === "reactivate" && beneficiary.status !== "موقوف") {
-      return Response.json({ error: "لا يمكن إعادة تفعيل مستفيد غير موقوف." }, { status: 400 });
+    if (action === "reactivate" && beneficiary.status !== "ظ…ظˆظ‚ظˆظپ") {
+      return Response.json(
+        { error: "ظ„ط§ ظٹظ…ظƒظ† ط¥ط¹ط§ط¯ط© طھظپط¹ظٹظ„ ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆظ‚ظˆظپ." },
+        { status: 400 },
+      );
     }
 
-    if (action === "suspend" && beneficiary.status === "غير مؤهل") {
-      return Response.json({ error: "لا يمكن إيقاف مستفيد غير مؤهل." }, { status: 400 });
+    if (action === "suspend" && beneficiary.status === "ط؛ظٹط± ظ…ط¤ظ‡ظ„") {
+      return Response.json(
+        { error: "ظ„ط§ ظٹظ…ظƒظ† ط¥ظٹظ‚ط§ظپ ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ط¤ظ‡ظ„." },
+        { status: 400 },
+      );
     }
 
     const before = JSON.stringify(beneficiary);
@@ -182,18 +193,18 @@ export async function POST({ request }: APIEvent) {
       .run();
 
     const actionLabels: Record<string, string> = {
-      review: "إرسال للمراجعة",
-      qualify: "تأهيل",
-      disqualify: "عدم تأهيل",
-      suspend: "إيقاف",
-      reactivate: "إعادة تفعيل",
+      review: "ط¥ط±ط³ط§ظ„ ظ„ظ„ظ…ط±ط§ط¬ط¹ط©",
+      qualify: "طھط£ظ‡ظٹظ„",
+      disqualify: "ط¹ط¯ظ… طھط£ظ‡ظٹظ„",
+      suspend: "ط¥ظٹظ‚ط§ظپ",
+      reactivate: "ط¥ط¹ط§ط¯ط© طھظپط¹ظٹظ„",
     };
 
     addAudit(
       actionLabels[action],
-      "مستفيد",
+      "ظ…ط³طھظپظٹط¯",
       id,
-      `تم ${actionLabels[action]} المستفيد: ${beneficiary.name} (الحالة: ${newStatus})`,
+      `طھظ… ${actionLabels[action]} ط§ظ„ظ…ط³طھظپظٹط¯: ${beneficiary.name} (ط§ظ„ط­ط§ظ„ط©: ${newStatus})`,
       userId,
       userName,
       before,
@@ -216,7 +227,8 @@ export async function POST({ request }: APIEvent) {
       .where(eq(beneficiaries.id, id))
       .limit(1)
       .all()[0];
-    if (!beneficiary) return Response.json({ error: "المستفيد غير موجود" }, { status: 404 });
+    if (!beneficiary)
+      return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const before = JSON.stringify(beneficiary);
     db.update(beneficiaries)
@@ -224,10 +236,10 @@ export async function POST({ request }: APIEvent) {
       .where(eq(beneficiaries.id, id))
       .run();
     addAudit(
-      "تغيير الحالة",
-      "مستفيد",
+      "طھط؛ظٹظٹط± ط§ظ„ط­ط§ظ„ط©",
+      "ظ…ط³طھظپظٹط¯",
       id,
-      `تم تغيير حالة المستفيد إلى: ${status}`,
+      `طھظ… طھط؛ظٹظٹط± ط­ط§ظ„ط© ط§ظ„ظ…ط³طھظپظٹط¯ ط¥ظ„ظ‰: ${status}`,
       userId,
       userName,
       before,
@@ -259,7 +271,8 @@ export async function POST({ request }: APIEvent) {
     userName: uname,
   } = body;
 
-  if (!name?.trim()) return Response.json({ error: "اسم المستفيد مطلوب" }, { status: 400 });
+  if (!name?.trim())
+    return Response.json({ error: "ط§ط³ظ… ط§ظ„ظ…ط³طھظپظٹط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const benId = genId("BEN");
   const ts = now();
@@ -273,8 +286,8 @@ export async function POST({ request }: APIEvent) {
       phone: phone || "",
       city: city || "",
       address: address || "",
-      category: category || "أسر محتاجة",
-      status: status || "جديد",
+      category: category || "ط£ط³ط± ظ…ط­طھط§ط¬ط©",
+      status: status || "ط¬ط¯ظٹط¯",
       familyMembers: parseInt(familyMembers) || 1,
       monthlyIncome: parseFloat(monthlyIncome) || 0,
       maritalStatus: maritalStatus || "",
@@ -285,7 +298,14 @@ export async function POST({ request }: APIEvent) {
     })
     .run();
 
-  addAudit("إضافة", "مستفيد", benId, `تم إضافة مستفيد جديد: ${name}`, uid, uname);
+  addAudit(
+    "ط¥ط¶ط§ظپط©",
+    "ظ…ط³طھظپظٹط¯",
+    benId,
+    `طھظ… ط¥ط¶ط§ظپط© ظ…ط³طھظپظٹط¯ ط¬ط¯ظٹط¯: ${name}`,
+    uid,
+    uname,
+  );
   const created = db
     .select()
     .from(beneficiaries)
@@ -296,7 +316,7 @@ export async function POST({ request }: APIEvent) {
 }
 
 // PUT /api/beneficiaries - Update beneficiary
-export async function PUT({ request }: APIEvent) {
+async function __handler_PUT({ request }: { request: Request }) {
   const body = await request.json();
   const {
     id,
@@ -316,7 +336,7 @@ export async function PUT({ request }: APIEvent) {
     userName,
   } = body;
 
-  if (!id) return Response.json({ error: "معرف المستفيد مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ط³طھظپظٹط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db
     .select()
@@ -324,12 +344,15 @@ export async function PUT({ request }: APIEvent) {
     .where(eq(beneficiaries.id, id))
     .limit(1)
     .all()[0];
-  if (!existing) return Response.json({ error: "المستفيد غير موجود" }, { status: 404 });
+  if (!existing)
+    return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   // If trying to qualify, check that beneficiary is eligible
-  if (status === "مؤهل" && existing.status === "موقوف") {
+  if (status === "ظ…ط¤ظ‡ظ„" && existing.status === "ظ…ظˆظ‚ظˆظپ") {
     return Response.json(
-      { error: "لا يمكن تأهيل مستفيد موقوف. أعد تفعيله أولاً." },
+      {
+        error: "ظ„ط§ ظٹظ…ظƒظ† طھط£ظ‡ظٹظ„ ظ…ط³طھظپظٹط¯ ظ…ظˆظ‚ظˆظپ. ط£ط¹ط¯ طھظپط¹ظٹظ„ظ‡ ط£ظˆظ„ط§ظ‹.",
+      },
       { status: 400 },
     );
   }
@@ -358,10 +381,10 @@ export async function PUT({ request }: APIEvent) {
     .run();
 
   addAudit(
-    "تعديل",
-    "مستفيد",
+    "طھط¹ط¯ظٹظ„",
+    "ظ…ط³طھظپظٹط¯",
     id,
-    `تم تحديث بيانات المستفيد: ${name || existing.name}`,
+    `طھظ… طھط­ط¯ظٹط« ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط³طھظپظٹط¯: ${name || existing.name}`,
     userId,
     userName,
     before,
@@ -371,13 +394,13 @@ export async function PUT({ request }: APIEvent) {
 }
 
 // DELETE /api/beneficiaries - Delete beneficiary (only if no delivered aid)
-export async function DELETE({ request }: APIEvent) {
+async function __handler_DELETE({ request }: { request: Request }) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "مستخدم";
+  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
 
-  if (!id) return Response.json({ error: "معرف المستفيد مطلوب" }, { status: 400 });
+  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ط³طھظپظٹط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   const existing = db
     .select()
@@ -385,19 +408,23 @@ export async function DELETE({ request }: APIEvent) {
     .where(eq(beneficiaries.id, id))
     .limit(1)
     .all()[0];
-  if (!existing) return Response.json({ error: "المستفيد غير موجود" }, { status: 404 });
+  if (!existing)
+    return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   // Check for delivered aid records
   const linkedAid = db
     .select()
     .from(aidRecords)
-    .where(and(eq(aidRecords.beneficiaryId, id), eq(aidRecords.status, "تم التسليم")))
+    .where(and(eq(aidRecords.beneficiaryId, id), eq(aidRecords.status, "طھظ… ط§ظ„طھط³ظ„ظٹظ…")))
     .limit(1)
     .all();
 
   if (linkedAid.length > 0) {
     return Response.json(
-      { error: "لا يمكن حذف مستفيد له مساعدات مستلمة. يمكن إيقافه فقط." },
+      {
+        error:
+          "ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ظ…ط³طھظپظٹط¯ ظ„ظ‡ ظ…ط³ط§ط¹ط¯ط§طھ ظ…ط³طھظ„ظ…ط©. ظٹظ…ظƒظ† ط¥ظٹظ‚ط§ظپظ‡ ظپظ‚ط·.",
+      },
       { status: 400 },
     );
   }
@@ -409,7 +436,10 @@ export async function DELETE({ request }: APIEvent) {
     .where(
       and(
         eq(aidRecords.beneficiaryId, id),
-        or(eq(aidRecords.status, "بانتظار الموافقة"), eq(aidRecords.status, "معتمد")) as any,
+        or(
+          eq(aidRecords.status, "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©"),
+          eq(aidRecords.status, "ظ…ط¹طھظ…ط¯"),
+        ) as any,
       ),
     )
     .limit(1)
@@ -418,7 +448,8 @@ export async function DELETE({ request }: APIEvent) {
   if (pendingAid.length > 0) {
     return Response.json(
       {
-        error: "لا يمكن حذف مستفيد له مساعدات قيد المعالجة. عالج المساعدات أولاً أو أوقف المستفيد.",
+        error:
+          "ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ظ…ط³طھظپظٹط¯ ظ„ظ‡ ظ…ط³ط§ط¹ط¯ط§طھ ظ‚ظٹط¯ ط§ظ„ظ…ط¹ط§ظ„ط¬ط©. ط¹ط§ظ„ط¬ ط§ظ„ظ…ط³ط§ط¹ط¯ط§طھ ط£ظˆظ„ط§ظ‹ ط£ظˆ ط£ظˆظ‚ظپ ط§ظ„ظ…ط³طھظپظٹط¯.",
       },
       { status: 400 },
     );
@@ -426,7 +457,26 @@ export async function DELETE({ request }: APIEvent) {
 
   const before = JSON.stringify(existing);
   db.delete(beneficiaries).where(eq(beneficiaries.id, id)).run();
-  addAudit("حذف", "مستفيد", id, `تم حذف المستفيد: ${existing.name}`, userId, userName, before);
+  addAudit(
+    "ط­ط°ظپ",
+    "ظ…ط³طھظپظٹط¯",
+    id,
+    `طھظ… ط­ط°ظپ ط§ظ„ظ…ط³طھظپظٹط¯: ${existing.name}`,
+    userId,
+    userName,
+    before,
+  );
 
   return Response.json({ success: true });
 }
+
+export const Route = createFileRoute("/api/beneficiaries")({
+  server: {
+    handlers: {
+      GET: __handler_GET,
+      POST: __handler_POST,
+      PUT: __handler_PUT,
+      DELETE: __handler_DELETE,
+    },
+  },
+});
