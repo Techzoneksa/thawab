@@ -4,25 +4,37 @@ import { SQLITE_DDL, SQLITE_MIGRATIONS, PG_DDL, PG_MIGRATIONS } from "./init";
 
 export { db, dialect, runRawSql };
 
+let _dbReady = false;
+
 export function initDB() {
-  runRawSql(SQLITE_DDL);
-  for (const migration of SQLITE_MIGRATIONS) {
-    try {
-      runRawSql(migration);
-    } catch {
-      // Column already exists, ignore
-    }
-  }
-  if (dialect === "postgres") {
-    runRawSql(PG_DDL);
-    for (const migration of PG_MIGRATIONS) {
+  try {
+    runRawSql(SQLITE_DDL);
+    for (const migration of SQLITE_MIGRATIONS) {
       try {
         runRawSql(migration);
       } catch {
         // Column already exists, ignore
       }
     }
+    if (dialect === "postgres") {
+      runRawSql(PG_DDL);
+      for (const migration of PG_MIGRATIONS) {
+        try {
+          runRawSql(migration);
+        } catch {
+          // Column already exists, ignore
+        }
+      }
+    }
+    _dbReady = true;
+    console.log("[db] init OK");
+  } catch (e) {
+    console.error("[db] init failed:", e instanceof Error ? e.message : e);
   }
+}
+
+export function isDbReady() {
+  return _dbReady;
 }
 
 initDB();
