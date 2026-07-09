@@ -247,23 +247,23 @@ async function __handler_POST({ request }: { request: Request }) {
         { status: 400 },
       );
 
-    const newAccumulated = existing.accumulatedDepreciation + depAmount;
+    const newAccumulated = (existing.accumulated_depreciation ?? 0) + depAmount;
     const bookValue = existing.cost - newAccumulated;
 
     if (bookValue < -0.0001) {
       return Response.json(
         {
-          error: `ط§ظ„ط¥ظ‡ظ„ط§ظƒ ط³ظٹط¬ط¹ظ„ ط§ظ„ظ‚ظٹظ…ط© ط§ظ„ط¯ظپطھط±ظٹط© ط³ط§ظ„ط¨ط©. ط§ظ„ط­ط¯ ط§ظ„ط£ظ‚طµظ‰ ظ„ظ„ط¥ظ‡ظ„ط§ظƒ: ${existing.cost - existing.accumulatedDepreciation - (existing.salvageValue || 0)}`,
+          error: `Ø§Ù„Ø¥Ù‡Ù„Ø§Ùƒ Ø³ÙŠØ¬Ø¹Ù„ Ø§Ù„Ù‚ÙŠÙ…Ø© Ø§Ù„Ø¯ÙØªØ±ÙŠØ© Ø³Ø§Ù„Ø¨Ø©. Ø§Ù„ØØ¯ Ø§Ù„Ø£Ù‚ØµÙ‰ Ù„Ù„Ø¥Ù‡Ù„Ø§Ùƒ: ${existing.cost - (existing.accumulated_depreciation ?? 0) - (existing.salvage_value || 0)}`,
         },
         { status: 400 },
       );
     }
 
-    const maxDepreciable = existing.cost - (existing.salvageValue || 0);
+    const maxDepreciable = existing.cost - (existing.salvage_value || 0);
     if (newAccumulated > maxDepreciable + 0.0001) {
       return Response.json(
         {
-          error: `ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط¥ظ‡ظ„ط§ظƒ ط³ظٹطھط¬ط§ظˆط² (ط§ظ„طھظƒظ„ظپط© - ط§ظ„ظ‚ظٹظ…ط© ط§ظ„ظ…طھط¨ظ‚ظٹط©). ط§ظ„ط­ط¯ ط§ظ„ظ…طھط¨ظ‚ظٹ: ${maxDepreciable - existing.accumulatedDepreciation}`,
+          error: `Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ø¥Ù‡Ù„Ø§Ùƒ Ø³ÙŠØªØ¬Ø§ÙˆØ² (Ø§Ù„ØªÙƒÙ„ÙØ© - Ø§Ù„Ù‚ÙŠÙ…Ø© Ø§Ù„Ù…ØªØ¨Ù‚ÙŠØ©). Ø§Ù„ØØ¯ Ø§Ù„Ù…ØªØ¨Ù‚ÙŠ: ${maxDepreciable - (existing.accumulated_depreciation ?? 0)}`,
         },
         { status: 400 },
       );
@@ -279,7 +279,7 @@ async function __handler_POST({ request }: { request: Request }) {
         date: date || ts,
         amount: depAmount,
         bookValueAfter: bookValue,
-        method: existing.depreciationMethod,
+        method: existing.depreciation_method,
         notes: notes || "",
         createdBy: userId || null,
         createdAt: ts,
