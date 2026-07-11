@@ -8,6 +8,7 @@ import {
   stockMovements,
 } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { safeHandler } from "@/server/db/api-utils";
 
 export const STOCKTAKE_STATUSES = [
   "ظ…ط³ظˆط¯ط©",
@@ -327,10 +328,10 @@ async function __handler_DELETE({ request }: { request: Request }) {
 export const Route = createFileRoute("/api/inventory/stocktake")({
   server: {
     handlers: {
-      GET: __handler_GET,
-      POST: __handler_POST,
-      PUT: __handler_PUT,
-      DELETE: __handler_DELETE,
+      GET: safeHandler(__handler_GET),
+      POST: safeHandler(__handler_POST),
+      PUT: safeHandler(__handler_PUT),
+      DELETE: safeHandler(__handler_DELETE),
     },
   },
 });

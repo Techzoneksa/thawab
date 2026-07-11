@@ -47,11 +47,8 @@ verify_build() {
     fi
     ok "server/index.mjs ($size bytes)"
 
-    if [ ! -f "$dir/server/_ssr/libsql-worker.mjs" ]; then
-        fail "server/_ssr/libsql-worker.mjs is MISSING"
-        all_ok=false
-    else
-        ok "server/_ssr/libsql-worker.mjs"
+    if [ -f "$dir/server/_ssr/manifest.json" ]; then
+        ok "server/_ssr/manifest.json"
     fi
 
     if [ ! -d "$dir/public/assets" ]; then
@@ -192,6 +189,17 @@ deploy_output() {
         rm -rf "$data_backup"
     fi
 
+    # Install production dependencies (needed for native modules like libsql)
+    if [ -f "$SOURCE_DIR/package.json" ]; then
+        log "" "Installing production dependencies..."
+        cp "$SOURCE_DIR/package.json" "$APP_DIR/"
+        cp "$SOURCE_DIR/package-lock.json" "$APP_DIR/" 2>/dev/null || true
+        cd "$APP_DIR"
+        npm install --production --no-audit --no-fund 2>&1 | tail -3
+        rm -f "$APP_DIR/package.json" "$APP_DIR/package-lock.json"
+        ok "Production dependencies installed"
+    fi
+
     ok "Build output copied to production"
 }
 
@@ -251,11 +259,8 @@ show_verification() {
         overall=false
     fi
 
-    if [ -f "$APP_DIR/server/_ssr/libsql-worker.mjs" ]; then
-        ok "libsql-worker.mjs - present"
-    else
-        fail "libsql-worker.mjs - MISSING"
-        overall=false
+    if [ -f "$APP_DIR/server/_ssr/manifest.json" ]; then
+        ok "ssr manifest - present"
     fi
 
     if [ -f "$APP_DIR/nitro.json" ]; then

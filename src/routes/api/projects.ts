@@ -2,6 +2,7 @@
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { projects, donations, beneficiaries, aidRecords } from "@/server/db/schema";
 import { eq, like, or, and, desc, sum, count } from "drizzle-orm";
+import { safeHandler } from "@/server/db/api-utils";
 
 // GET /api/projects - List with search, filters, pagination
 // GET /api/projects?id=xxx - Single project by ID with summary
@@ -412,10 +413,10 @@ async function __handler_DELETE({ request }: { request: Request }) {
 export const Route = createFileRoute("/api/projects")({
   server: {
     handlers: {
-      GET: __handler_GET,
-      POST: __handler_POST,
-      PUT: __handler_PUT,
-      DELETE: __handler_DELETE,
+      GET: safeHandler(__handler_GET),
+      POST: safeHandler(__handler_POST),
+      PUT: safeHandler(__handler_PUT),
+      DELETE: safeHandler(__handler_DELETE),
     },
   },
 });

@@ -67,6 +67,7 @@ import { Route as ApiProjectsRouteImport } from './routes/api/projects'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiDonorsRouteImport } from './routes/api/donors'
 import { Route as ApiDonationsRouteImport } from './routes/api/donations'
+import { Route as ApiDiagnoseRouteImport } from './routes/api/diagnose'
 import { Route as ApiBeneficiariesRouteImport } from './routes/api/beneficiaries'
 import { Route as ApiAuthRouteImport } from './routes/api/auth'
 import { Route as ApiAuditRouteImport } from './routes/api/audit'
@@ -404,6 +405,11 @@ const ApiDonationsRoute = ApiDonationsRouteImport.update({
   path: '/api/donations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDiagnoseRoute = ApiDiagnoseRouteImport.update({
+  id: '/api/diagnose',
+  path: '/api/diagnose',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBeneficiariesRoute = ApiBeneficiariesRouteImport.update({
   id: '/api/beneficiaries',
   path: '/api/beneficiaries',
@@ -671,6 +677,7 @@ export interface FileRoutesByFullPath {
   '/api/audit': typeof ApiAuditRoute
   '/api/auth': typeof ApiAuthRoute
   '/api/beneficiaries': typeof ApiBeneficiariesRoute
+  '/api/diagnose': typeof ApiDiagnoseRoute
   '/api/donations': typeof ApiDonationsRoute
   '/api/donors': typeof ApiDonorsRoute
   '/api/health': typeof ApiHealthRoute
@@ -777,6 +784,7 @@ export interface FileRoutesByTo {
   '/api/audit': typeof ApiAuditRoute
   '/api/auth': typeof ApiAuthRoute
   '/api/beneficiaries': typeof ApiBeneficiariesRoute
+  '/api/diagnose': typeof ApiDiagnoseRoute
   '/api/donations': typeof ApiDonationsRoute
   '/api/donors': typeof ApiDonorsRoute
   '/api/health': typeof ApiHealthRoute
@@ -884,6 +892,7 @@ export interface FileRoutesById {
   '/api/audit': typeof ApiAuditRoute
   '/api/auth': typeof ApiAuthRoute
   '/api/beneficiaries': typeof ApiBeneficiariesRoute
+  '/api/diagnose': typeof ApiDiagnoseRoute
   '/api/donations': typeof ApiDonationsRoute
   '/api/donors': typeof ApiDonorsRoute
   '/api/health': typeof ApiHealthRoute
@@ -992,6 +1001,7 @@ export interface FileRouteTypes {
     | '/api/audit'
     | '/api/auth'
     | '/api/beneficiaries'
+    | '/api/diagnose'
     | '/api/donations'
     | '/api/donors'
     | '/api/health'
@@ -1098,6 +1108,7 @@ export interface FileRouteTypes {
     | '/api/audit'
     | '/api/auth'
     | '/api/beneficiaries'
+    | '/api/diagnose'
     | '/api/donations'
     | '/api/donors'
     | '/api/health'
@@ -1204,6 +1215,7 @@ export interface FileRouteTypes {
     | '/api/audit'
     | '/api/auth'
     | '/api/beneficiaries'
+    | '/api/diagnose'
     | '/api/donations'
     | '/api/donors'
     | '/api/health'
@@ -1310,6 +1322,7 @@ export interface RootRouteChildren {
   ApiAuditRoute: typeof ApiAuditRoute
   ApiAuthRoute: typeof ApiAuthRoute
   ApiBeneficiariesRoute: typeof ApiBeneficiariesRoute
+  ApiDiagnoseRoute: typeof ApiDiagnoseRoute
   ApiDonationsRoute: typeof ApiDonationsRoute
   ApiDonorsRoute: typeof ApiDonorsRoute
   ApiHealthRoute: typeof ApiHealthRoute
@@ -1757,6 +1770,13 @@ declare module '@tanstack/react-router' {
       path: '/api/donations'
       fullPath: '/api/donations'
       preLoaderRoute: typeof ApiDonationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/diagnose': {
+      id: '/api/diagnose'
+      path: '/api/diagnose'
+      fullPath: '/api/diagnose'
+      preLoaderRoute: typeof ApiDiagnoseRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/beneficiaries': {
@@ -2365,6 +2385,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuditRoute: ApiAuditRoute,
   ApiAuthRoute: ApiAuthRoute,
   ApiBeneficiariesRoute: ApiBeneficiariesRoute,
+  ApiDiagnoseRoute: ApiDiagnoseRoute,
   ApiDonationsRoute: ApiDonationsRoute,
   ApiDonorsRoute: ApiDonorsRoute,
   ApiHealthRoute: ApiHealthRoute,

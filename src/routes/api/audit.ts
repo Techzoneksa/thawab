@@ -2,6 +2,7 @@
 import { db } from "@/server/db/index";
 import { auditLog, users } from "@/server/db/schema";
 import { eq, like, or, and, desc, sql, gte, lte } from "drizzle-orm";
+import { safeHandler } from "@/server/db/api-utils";
 
 // GET /api/audit - list with filters and pagination
 // GET /api/audit?id=xxx - single audit entry with before/after
@@ -110,7 +111,7 @@ async function __handler_GET({ request }: { request: Request }) {
 export const Route = createFileRoute("/api/audit")({
   server: {
     handlers: {
-      GET: __handler_GET,
+      GET: safeHandler(__handler_GET),
     },
   },
 });

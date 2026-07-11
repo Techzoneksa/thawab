@@ -2,6 +2,7 @@
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { journalEntries, journalLines, accounts, costCenters, projects } from "@/server/db/schema";
 import { eq, like, or, and, desc, ne, sql } from "drizzle-orm";
+import { safeHandler } from "@/server/db/api-utils";
 
 export const JOURNAL_STATUSES = [
   "ظ…ط³ظˆط¯ط©",
@@ -682,10 +683,10 @@ async function generateJournalNumber(): Promise<string> {
 export const Route = createFileRoute("/api/finance/journal")({
   server: {
     handlers: {
-      GET: __handler_GET,
-      POST: __handler_POST,
-      PUT: __handler_PUT,
-      DELETE: __handler_DELETE,
+      GET: safeHandler(__handler_GET),
+      POST: safeHandler(__handler_POST),
+      PUT: safeHandler(__handler_PUT),
+      DELETE: safeHandler(__handler_DELETE),
     },
   },
 });

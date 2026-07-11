@@ -2,6 +2,7 @@
 import { db } from "@/server/db/index";
 import { accounts, journalLines, journalEntries, budgetLines, budgets } from "@/server/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
+import { safeHandler } from "@/server/db/api-utils";
 
 // GET /api/finance/statements?type=...&startDate=...&endDate=...&costCenterId=...&projectId=...&budgetId=...
 async function __handler_GET({ request }: { request: Request }) {
@@ -342,7 +343,7 @@ async function getBudgetVsActual(filters: { budgetId: string; startDate: string;
 export const Route = createFileRoute("/api/finance/statements")({
   server: {
     handlers: {
-      GET: __handler_GET,
+      GET: safeHandler(__handler_GET),
     },
   },
 });

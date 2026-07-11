@@ -1,5 +1,6 @@
 ﻿import { createFileRoute } from "@tanstack/react-router";
 import { login, logout, getCurrentUser } from "@/server/db/auth";
+import { safeHandler } from "@/server/db/api-utils";
 
 async function __handler_POST({ request }: { request: Request }) {
   const body = await request.json();
@@ -39,8 +40,8 @@ async function __handler_GET({ request }: { request: Request }) {
 export const Route = createFileRoute("/api/auth")({
   server: {
     handlers: {
-      POST: __handler_POST,
-      GET: __handler_GET,
+      POST: safeHandler(__handler_POST),
+      GET: safeHandler(__handler_GET),
     },
   },
 });

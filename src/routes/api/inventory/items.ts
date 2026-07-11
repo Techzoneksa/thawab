@@ -2,6 +2,7 @@
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { inventoryItems, warehouses, stockMovements, purchaseOrderLines } from "@/server/db/schema";
 import { eq, like, or, and, desc, sql } from "drizzle-orm";
+import { safeHandler } from "@/server/db/api-utils";
 
 export const ITEM_STATUSES = ["ظ†ط´ط·", "ظ…ظˆظ‚ظˆظپ", "ظ…ط؛ظ„ظ‚"] as const;
 export type ItemStatus = (typeof ITEM_STATUSES)[number];
@@ -534,10 +535,10 @@ async function __handler_DELETE({ request }: { request: Request }) {
 export const Route = createFileRoute("/api/inventory/items")({
   server: {
     handlers: {
-      GET: __handler_GET,
-      POST: __handler_POST,
-      PUT: __handler_PUT,
-      DELETE: __handler_DELETE,
+      GET: safeHandler(__handler_GET),
+      POST: safeHandler(__handler_POST),
+      PUT: safeHandler(__handler_PUT),
+      DELETE: safeHandler(__handler_DELETE),
     },
   },
 });

@@ -2,6 +2,7 @@
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { quotes, purchaseRequests } from "@/server/db/schema";
 import { eq, like, or, and, desc, ne } from "drizzle-orm";
+import { safeHandler } from "@/server/db/api-utils";
 
 export const QUOTE_STATUSES = ["ط¨ط§ظ†طھط¸ط§ط±", "ظ…ظ‚ط¨ظˆظ„", "ظ…ط±ظپظˆط¶"] as const;
 export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
@@ -259,10 +260,10 @@ async function __handler_DELETE({ request }: { request: Request }) {
 export const Route = createFileRoute("/api/procurement/quotes")({
   server: {
     handlers: {
-      GET: __handler_GET,
-      POST: __handler_POST,
-      PUT: __handler_PUT,
-      DELETE: __handler_DELETE,
+      GET: safeHandler(__handler_GET),
+      POST: safeHandler(__handler_POST),
+      PUT: safeHandler(__handler_PUT),
+      DELETE: safeHandler(__handler_DELETE),
     },
   },
 });

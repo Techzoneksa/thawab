@@ -2,6 +2,7 @@
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { receipts, donations, donors } from "@/server/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { safeHandler } from "@/server/db/api-utils";
 
 // GET /api/receipts - List all receipts (newest first)
 async function __handler_GET({ request }: { request: Request }) {
@@ -165,10 +166,10 @@ async function __handler_DELETE({ request }: { request: Request }) {
 export const Route = createFileRoute("/api/receipts")({
   server: {
     handlers: {
-      GET: __handler_GET,
-      POST: __handler_POST,
-      PUT: __handler_PUT,
-      DELETE: __handler_DELETE,
+      GET: safeHandler(__handler_GET),
+      POST: safeHandler(__handler_POST),
+      PUT: safeHandler(__handler_PUT),
+      DELETE: safeHandler(__handler_DELETE),
     },
   },
 });

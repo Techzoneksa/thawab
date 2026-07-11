@@ -2,6 +2,7 @@
 import { db } from "@/server/db/index";
 import { journalEntries, journalLines, accounts, costCenters, projects } from "@/server/db/schema";
 import { and, eq, gte, lte, like, or, sql } from "drizzle-orm";
+import { safeHandler } from "@/server/db/api-utils";
 
 // GET /api/finance/ledger - computed movements from posted journal entries joined with lines
 async function __handler_GET({ request }: { request: Request }) {
@@ -200,7 +201,7 @@ async function __handler_GET({ request }: { request: Request }) {
 export const Route = createFileRoute("/api/finance/ledger")({
   server: {
     handlers: {
-      GET: __handler_GET,
+      GET: safeHandler(__handler_GET),
     },
   },
 });
