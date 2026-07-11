@@ -19,15 +19,15 @@ async function __handler_GET({ request }: { request: Request }) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const entry = db
+    const entry = (await db
       .select()
       .from(journalEntries)
       .where(eq(journalEntries.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!entry) return Response.json({ error: "ط§ظ„ظ‚ظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
-    const lines = db
+    const lines = await db
       .select()
       .from(journalLines)
       .where(eq(journalLines.journalEntryId, id))
@@ -35,18 +35,18 @@ async function __handler_GET({ request }: { request: Request }) {
       .all();
 
     // Enrich lines with account/cost center/project names
-    const enrichedLines = lines.map((l) => {
-      const account = db
+    const enrichedLines = lines.map(async (l) => {
+      const account = (await db
         .select()
         .from(accounts)
         .where(eq(accounts.id, l.accountId))
         .limit(1)
-        .all()[0];
+        .all())[0];
       const cc = l.costCenterId
-        ? db.select().from(costCenters).where(eq(costCenters.id, l.costCenterId)).limit(1).all()[0]
+        ? (await db.select().from(costCenters).where(eq(costCenters.id, l.costCenterId)).limit(1).all())[0]
         : null;
       const project = l.projectId
-        ? db.select().from(projects).where(eq(projects.id, l.projectId)).limit(1).all()[0]
+        ? (await db.select().from(projects).where(eq(projects.id, l.projectId)).limit(1).all())[0]
         : null;
       return {
         ...l,
@@ -62,14 +62,14 @@ async function __handler_GET({ request }: { request: Request }) {
 
     let reversedOf = null;
     if (entry.reversedOf) {
-      reversedOf = db
+      reversedOf = (await db
         .select()
         .from(journalEntries)
         .where(eq(journalEntries.id, entry.reversedOf))
         .limit(1)
-        .all()[0];
+        .all())[0];
     }
-    const reversalEntries = db
+    const reversalEntries = await db
       .select()
       .from(journalEntries)
       .where(eq(journalEntries.reversedOf, id))
@@ -113,23 +113,23 @@ async function __handler_GET({ request }: { request: Request }) {
 
   const allQuery = db.select().from(journalEntries).$dynamic();
   const all = whereClause
-    ? allQuery.where(whereClause).orderBy(desc(journalEntries.createdAt)).all()
-    : allQuery.orderBy(desc(journalEntries.createdAt)).all();
+    ? await allQuery.where(whereClause).orderBy(desc(journalEntries.createdAt)).all()
+    : await allQuery.orderBy(desc(journalEntries.createdAt)).all();
   const total = all.length;
 
   const itemsQuery = db.select().from(journalEntries).$dynamic();
   const items = whereClause
-    ? itemsQuery
+    ? await itemsQuery
         .where(whereClause)
         .orderBy(desc(journalEntries.createdAt))
         .limit(limit)
         .offset(offset)
         .all()
-    : itemsQuery.orderBy(desc(journalEntries.createdAt)).limit(limit).offset(offset).all();
+    : await itemsQuery.orderBy(desc(journalEntries.createdAt)).limit(limit).offset(offset).all();
 
   // Enrich with totals and line counts
-  const enrichedItems = items.map((entry) => {
-    const lines = db
+  const enrichedItems = items.map(async (entry) => {
+    const lines = await db
       .select()
       .from(journalLines)
       .where(eq(journalLines.journalEntryId, entry.id))
@@ -148,12 +148,12 @@ async function __handler_POST({ request }: { request: Request }) {
   const { action, id, userId, userName } = body;
 
   if (action === "post") {
-    const entry = db
+    const entry = (await db
       .select()
       .from(journalEntries)
       .where(eq(journalEntries.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!entry) return Response.json({ error: "ط§ظ„ظ‚ظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (entry.status === "ظ…ط±ط­ظ‘ظ„")
       return Response.json({ error: "ط§ظ„ظ‚ظٹط¯ ظ…ط±ط­ظ‘ظ„ ط¨ط§ظ„ظپط¹ظ„" }, { status: 400 });
@@ -163,7 +163,7 @@ async function __handler_POST({ request }: { request: Request }) {
         { status: 400 },
       );
 
-    const lines = db.select().from(journalLines).where(eq(journalLines.journalEntryId, id)).all();
+    const lines = await db.select().from(journalLines).where(eq(journalLines.journalEntryId, id)).all();
     if (lines.length === 0)
       return Response.json(
         { error: "ظ„ط§ ظٹظ…ظƒظ† طھط±ط­ظٹظ„ ظ‚ظٹط¯ ط¨ط¯ظˆظ† ط³ط·ظˆط±" },
@@ -183,12 +183,12 @@ async function __handler_POST({ request }: { request: Request }) {
 
     // Verify all line accounts are postable and active
     for (const line of lines) {
-      const account = db
+      const account = (await db
         .select()
         .from(accounts)
         .where(eq(accounts.id, line.accountId))
         .limit(1)
-        .all()[0];
+        .all())[0];
       if (!account)
         return Response.json(
           { error: `ط§ظ„ط­ط³ط§ط¨ ظپظٹ ط§ظ„ط³ط·ط± ${line.lineNumber} ط؛ظٹط± ظ…ظˆط¬ظˆط¯` },
@@ -212,7 +212,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
     const before = JSON.stringify(entry);
     const ts = now();
-    db.update(journalEntries)
+    await db.update(journalEntries)
       .set({
         status: "ظ…ط±ط­ظ‘ظ„",
         postedBy: userId || null,
@@ -222,7 +222,7 @@ async function __handler_POST({ request }: { request: Request }) {
       .where(eq(journalEntries.id, id))
       .run();
 
-    addAudit(
+    await addAudit(
       "طھط±ط­ظٹظ„",
       "ظ‚ظٹط¯ ظٹظˆظ…ظٹط©",
       id,
@@ -232,22 +232,22 @@ async function __handler_POST({ request }: { request: Request }) {
       before,
     );
 
-    const updated = db
+    const updated = (await db
       .select()
       .from(journalEntries)
       .where(eq(journalEntries.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "reverse") {
-    const entry = db
+    const entry = (await db
       .select()
       .from(journalEntries)
       .where(eq(journalEntries.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!entry) return Response.json({ error: "ط§ظ„ظ‚ظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (entry.status !== "ظ…ط±ط­ظ‘ظ„")
       return Response.json(
@@ -255,7 +255,7 @@ async function __handler_POST({ request }: { request: Request }) {
         { status: 400 },
       );
 
-    const lines = db
+    const lines = await db
       .select()
       .from(journalLines)
       .where(eq(journalLines.journalEntryId, id))
@@ -268,12 +268,12 @@ async function __handler_POST({ request }: { request: Request }) {
       );
 
     // Generate reversal number
-    const newNumber = generateJournalNumber();
+    const newNumber = await generateJournalNumber();
     const reversalId = genId("JV");
     const ts = now();
 
     // Create reversal header
-    db.insert(journalEntries)
+    await db.insert(journalEntries)
       .values({
         id: reversalId,
         number: newNumber,
@@ -301,7 +301,7 @@ async function __handler_POST({ request }: { request: Request }) {
     // Copy lines in reverse (debitâ†”credit)
     let lineNum = 1;
     for (const line of lines) {
-      db.insert(journalLines)
+      await db.insert(journalLines)
         .values({
           id: genId("JL"),
           journalEntryId: reversalId,
@@ -319,12 +319,12 @@ async function __handler_POST({ request }: { request: Request }) {
     }
 
     // Mark original as reversed
-    db.update(journalEntries)
+    await db.update(journalEntries)
       .set({ status: "ظ…ط¹ظƒظˆط³", updatedAt: ts })
       .where(eq(journalEntries.id, id))
       .run();
 
-    addAudit(
+    await addAudit(
       "ط¹ظƒط³",
       "ظ‚ظٹط¯ ظٹظˆظ…ظٹط©",
       reversalId,
@@ -332,7 +332,7 @@ async function __handler_POST({ request }: { request: Request }) {
       userId,
       userName,
     );
-    addAudit(
+    await addAudit(
       "ط¹ظƒط³",
       "ظ‚ظٹط¯ ظٹظˆظ…ظٹط©",
       id,
@@ -340,22 +340,22 @@ async function __handler_POST({ request }: { request: Request }) {
       userId,
       userName,
     );
-    const created = db
+    const created = (await db
       .select()
       .from(journalEntries)
       .where(eq(journalEntries.id, reversalId))
       .limit(1)
-      .all()[0];
+      .all())[0];
     return Response.json({ item: created }, { status: 201 });
   }
 
   if (action === "cancel") {
-    const entry = db
+    const entry = (await db
       .select()
       .from(journalEntries)
       .where(eq(journalEntries.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!entry) return Response.json({ error: "ط§ظ„ظ‚ظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (entry.status === "ظ…ط±ط­ظ‘ظ„" || entry.status === "ظ…ط¹ظƒظˆط³")
       return Response.json(
@@ -367,11 +367,11 @@ async function __handler_POST({ request }: { request: Request }) {
       );
 
     const before = JSON.stringify(entry);
-    db.update(journalEntries)
+    await db.update(journalEntries)
       .set({ status: "ظ…ظ„ط؛ظ‰", updatedAt: now() })
       .where(eq(journalEntries.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "ط¥ظ„ط؛ط§ط،",
       "ظ‚ظٹط¯ ظٹظˆظ…ظٹط©",
       id,
@@ -380,12 +380,12 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db
+    const updated = (await db
       .select()
       .from(journalEntries)
       .where(eq(journalEntries.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     return Response.json({ item: updated });
   }
 
@@ -425,12 +425,12 @@ async function __handler_POST({ request }: { request: Request }) {
     totalDebit += debit;
     totalCredit += credit;
 
-    const account = db
+    const account = (await db
       .select()
       .from(accounts)
       .where(eq(accounts.id, line.accountId))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!account)
       return Response.json(
         { error: `ط§ظ„ط³ط·ط± ${idx + 1}: ط§ظ„ط­ط³ط§ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯` },
@@ -458,11 +458,11 @@ async function __handler_POST({ request }: { request: Request }) {
     );
   }
 
-  const newNumber = number || generateJournalNumber();
+  const newNumber = number || (await generateJournalNumber());
   const newId = genId("JV");
   const ts = now();
 
-  db.insert(journalEntries)
+  await db.insert(journalEntries)
     .values({
       id: newId,
       number: newNumber,
@@ -484,7 +484,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
   let lineNum = 1;
   for (const line of lines) {
-    db.insert(journalLines)
+    await db.insert(journalLines)
       .values({
         id: genId("JL"),
         journalEntryId: newId,
@@ -501,7 +501,7 @@ async function __handler_POST({ request }: { request: Request }) {
       .run();
   }
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "ظ‚ظٹط¯ ظٹظˆظ…ظٹط©",
     newId,
@@ -509,12 +509,12 @@ async function __handler_POST({ request }: { request: Request }) {
     userId,
     userName,
   );
-  const created = db
+  const created = (await db
     .select()
     .from(journalEntries)
     .where(eq(journalEntries.id, newId))
     .limit(1)
-    .all()[0];
+    .all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -524,7 +524,7 @@ async function __handler_PUT({ request }: { request: Request }) {
   const { id, date, description, fund, projectId, notes, lines, userId, userName } = body;
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ‚ظٹط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const entry = db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1).all()[0];
+  const entry = (await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1).all())[0];
   if (!entry) return Response.json({ error: "ط§ظ„ظ‚ظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   if (entry.status !== "ظ…ط³ظˆط¯ط©" && entry.status !== "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط§ط¹طھظ…ط§ط¯")
     return Response.json(
@@ -573,11 +573,11 @@ async function __handler_PUT({ request }: { request: Request }) {
     }
 
     // Replace lines
-    db.delete(journalLines).where(eq(journalLines.journalEntryId, id)).run();
+    await db.delete(journalLines).where(eq(journalLines.journalEntryId, id)).run();
     let lineNum = 1;
     const ts = now();
     for (const line of lines) {
-      db.insert(journalLines)
+      await db.insert(journalLines)
         .values({
           id: genId("JL"),
           journalEntryId: id,
@@ -593,14 +593,14 @@ async function __handler_PUT({ request }: { request: Request }) {
         })
         .run();
     }
-    db.update(journalEntries)
+    await db.update(journalEntries)
       .set({ amount: totalDebit, updatedAt: ts })
       .where(eq(journalEntries.id, id))
       .run();
   }
 
   const before = JSON.stringify(entry);
-  db.update(journalEntries)
+  await db.update(journalEntries)
     .set({
       date: date ?? entry.date,
       description: description?.trim() ?? entry.description,
@@ -612,7 +612,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     .where(eq(journalEntries.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "ظ‚ظٹط¯ ظٹظˆظ…ظٹط©",
     id,
@@ -621,12 +621,12 @@ async function __handler_PUT({ request }: { request: Request }) {
     userName,
     before,
   );
-  const updated = db
+  const updated = (await db
     .select()
     .from(journalEntries)
     .where(eq(journalEntries.id, id))
     .limit(1)
-    .all()[0];
+    .all())[0];
   return Response.json({ item: updated });
 }
 
@@ -639,7 +639,7 @@ async function __handler_DELETE({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ‚ظٹط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const entry = db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1).all()[0];
+  const entry = (await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1).all())[0];
   if (!entry) return Response.json({ error: "ط§ظ„ظ‚ظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   if (entry.status !== "ظ…ط³ظˆط¯ط©")
     return Response.json(
@@ -649,8 +649,8 @@ async function __handler_DELETE({ request }: { request: Request }) {
 
   const before = JSON.stringify(entry);
   // Lines are cascaded
-  db.delete(journalEntries).where(eq(journalEntries.id, id)).run();
-  addAudit(
+  await db.delete(journalEntries).where(eq(journalEntries.id, id)).run();
+  await addAudit(
     "ط­ط°ظپ",
     "ظ‚ظٹط¯ ظٹظˆظ…ظٹط©",
     id,
@@ -663,9 +663,9 @@ async function __handler_DELETE({ request }: { request: Request }) {
 }
 
 // Generate next journal number
-function generateJournalNumber(): string {
+async function generateJournalNumber(): Promise<string> {
   const year = new Date().getFullYear().toString().slice(-2);
-  const all = db.select().from(journalEntries).all();
+  const all = await db.select().from(journalEntries).all();
   const sameYear = all.filter((e) => e.number.startsWith(`JV-${year}`));
   const maxSeq = sameYear.reduce((max, e) => {
     const m = e.number.match(/-(\d+)$/);

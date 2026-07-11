@@ -20,11 +20,11 @@ async function __handler_GET({ request }: { request: Request }) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const budget = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
+    const budget = (await db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all())[0];
     if (!budget)
       return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" }, { status: 404 });
 
-    const lines = db
+    const lines = await db
       .select()
       .from(budgetLines)
       .where(eq(budgetLines.budgetId, id))
@@ -35,18 +35,18 @@ async function __handler_GET({ request }: { request: Request }) {
     const enrichedLines = await Promise.all(
       lines.map(async (l) => {
         const account = l.accountId
-          ? db.select().from(accounts).where(eq(accounts.id, l.accountId)).limit(1).all()[0]
+          ? (await db.select().from(accounts).where(eq(accounts.id, l.accountId)).limit(1).all())[0]
           : null;
         const cc = l.costCenterId
-          ? db
+          ? (await db
               .select()
               .from(costCenters)
               .where(eq(costCenters.id, l.costCenterId))
               .limit(1)
-              .all()[0]
+              .all())[0]
           : null;
         const project = l.projectId
-          ? db.select().from(projects).where(eq(projects.id, l.projectId)).limit(1).all()[0]
+          ? (await db.select().from(projects).where(eq(projects.id, l.projectId)).limit(1).all())[0]
           : null;
 
         // Compute actual from posted journal entries
@@ -58,7 +58,7 @@ async function __handler_GET({ request }: { request: Request }) {
           ];
           if (l.costCenterId) conditions.push(eq(journalLines.costCenterId, l.costCenterId));
           if (l.projectId) conditions.push(eq(journalLines.projectId, l.projectId));
-          const actuals = db
+          const actuals = (await db
             .select({
               debit: sql<number>`COALESCE(SUM(${journalLines.debit}), 0)`,
               credit: sql<number>`COALESCE(SUM(${journalLines.credit}), 0)`,
@@ -66,7 +66,7 @@ async function __handler_GET({ request }: { request: Request }) {
             .from(journalLines)
             .innerJoin(journalEntries, eq(journalLines.journalEntryId, journalEntries.id))
             .where(and(...conditions))
-            .all()[0];
+            .all())[0];
           // For expenses, actual = debit - credit
           actual = (actuals?.debit || 0) - (actuals?.credit || 0);
         }
@@ -119,8 +119,8 @@ async function __handler_GET({ request }: { request: Request }) {
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const items = whereClause
-    ? db.select().from(budgets).where(whereClause).orderBy(desc(budgets.year)).all()
-    : db.select().from(budgets).orderBy(desc(budgets.year)).all();
+    ? await db.select().from(budgets).where(whereClause).orderBy(desc(budgets.year)).all()
+    : await db.select().from(budgets).orderBy(desc(budgets.year)).all();
   const total = items.length;
 
   return Response.json({ items, total });
@@ -133,7 +133,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
   if (action === "approve") {
     const { id, userId, userName } = body;
-    const existing = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all())[0];
     if (!existing)
       return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" }, { status: 404 });
     if (existing.status === "ظ…ط¹طھظ…ط¯")
@@ -149,7 +149,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
     const before = JSON.stringify(existing);
     const ts = now();
-    db.update(budgets)
+    await db.update(budgets)
       .set({
         status: "ظ…ط¹طھظ…ط¯",
         approvedBy: userId || null,
@@ -158,7 +158,7 @@ async function __handler_POST({ request }: { request: Request }) {
       })
       .where(eq(budgets.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "ط§ط¹طھظ…ط§ط¯",
       "ظ…ظˆط§ط²ظ†ط©",
       id,
@@ -167,13 +167,13 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "lock") {
     const { id, userId, userName } = body;
-    const existing = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all())[0];
     if (!existing)
       return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" }, { status: 404 });
     if (existing.status !== "ظ…ط¹طھظ…ط¯")
@@ -184,7 +184,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
     const before = JSON.stringify(existing);
     const ts = now();
-    db.update(budgets)
+    await db.update(budgets)
       .set({
         status: "ظ…ظ‚ظپظ„",
         lockedBy: userId || null,
@@ -193,7 +193,7 @@ async function __handler_POST({ request }: { request: Request }) {
       })
       .where(eq(budgets.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "ظ‚ظپظ„",
       "ظ…ظˆط§ط²ظ†ط©",
       id,
@@ -202,24 +202,24 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "unlock") {
     const { id, userId, userName } = body;
-    const existing = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all())[0];
     if (!existing)
       return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" }, { status: 404 });
     if (existing.status !== "ظ…ظ‚ظپظ„")
       return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ظ„ظٹط³طھ ظ…ظ‚ظپظ„ط©" }, { status: 400 });
 
     const before = JSON.stringify(existing);
-    db.update(budgets)
+    await db.update(budgets)
       .set({ status: "ظ…ط¹طھظ…ط¯", updatedAt: now() })
       .where(eq(budgets.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "ظپطھط­ ظ‚ظپظ„",
       "ظ…ظˆط§ط²ظ†ط©",
       id,
@@ -228,7 +228,7 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
@@ -255,7 +255,7 @@ async function __handler_POST({ request }: { request: Request }) {
   const budgetId = genId("BUD");
   const ts = now();
 
-  db.insert(budgets)
+  await db.insert(budgets)
     .values({
       id: budgetId,
       name: name.trim(),
@@ -278,7 +278,7 @@ async function __handler_POST({ request }: { request: Request }) {
     for (const line of lines) {
       const planned = parseFloat(line.plannedAmount) || 0;
       totalPlanned += planned;
-      db.insert(budgetLines)
+      await db.insert(budgetLines)
         .values({
           id: genId("BL"),
           budgetId,
@@ -295,14 +295,14 @@ async function __handler_POST({ request }: { request: Request }) {
     }
     // Sync header amount
     if (totalPlanned !== (parseFloat(amount) || 0)) {
-      db.update(budgets)
+      await db.update(budgets)
         .set({ amount: totalPlanned, updatedAt: ts })
         .where(eq(budgets.id, budgetId))
         .run();
     }
   }
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "ظ…ظˆط§ط²ظ†ط©",
     budgetId,
@@ -310,7 +310,7 @@ async function __handler_POST({ request }: { request: Request }) {
     userId,
     userName,
   );
-  const created = db.select().from(budgets).where(eq(budgets.id, budgetId)).limit(1).all()[0];
+  const created = (await db.select().from(budgets).where(eq(budgets.id, budgetId)).limit(1).all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -320,7 +320,7 @@ async function __handler_PUT({ request }: { request: Request }) {
   const { id, name, year, amount, department, description, notes, lines, userId, userName } = body;
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ظˆط§ط²ظ†ط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all())[0];
   if (!existing)
     return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" }, { status: 404 });
   if (existing.status !== "ظ…ط³ظˆط¯ط©")
@@ -334,11 +334,11 @@ async function __handler_PUT({ request }: { request: Request }) {
     for (const line of lines) {
       totalPlanned += parseFloat(line.plannedAmount) || 0;
     }
-    db.delete(budgetLines).where(eq(budgetLines.budgetId, id)).run();
+    await db.delete(budgetLines).where(eq(budgetLines.budgetId, id)).run();
     let lineNum = 1;
     const ts = now();
     for (const line of lines) {
-      db.insert(budgetLines)
+      await db.insert(budgetLines)
         .values({
           id: genId("BL"),
           budgetId: id,
@@ -353,11 +353,11 @@ async function __handler_PUT({ request }: { request: Request }) {
         })
         .run();
     }
-    db.update(budgets).set({ amount: totalPlanned, updatedAt: ts }).where(eq(budgets.id, id)).run();
+    await db.update(budgets).set({ amount: totalPlanned, updatedAt: ts }).where(eq(budgets.id, id)).run();
   }
 
   const before = JSON.stringify(existing);
-  db.update(budgets)
+  await db.update(budgets)
     .set({
       name: name?.trim() ?? existing.name,
       year: year?.trim() ?? existing.year,
@@ -368,7 +368,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     })
     .where(eq(budgets.id, id))
     .run();
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "ظ…ظˆط§ط²ظ†ط©",
     id,
@@ -377,7 +377,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     userName,
     before,
   );
-  const updated = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
+  const updated = (await db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all())[0];
   return Response.json({ item: updated });
 }
 
@@ -390,7 +390,7 @@ async function __handler_DELETE({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ظˆط§ط²ظ†ط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(budgets).where(eq(budgets.id, id)).limit(1).all())[0];
   if (!existing)
     return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" }, { status: 404 });
   if (existing.status !== "ظ…ط³ظˆط¯ط©")
@@ -400,8 +400,8 @@ async function __handler_DELETE({ request }: { request: Request }) {
     );
 
   const before = JSON.stringify(existing);
-  db.delete(budgets).where(eq(budgets.id, id)).run();
-  addAudit(
+  await db.delete(budgets).where(eq(budgets.id, id)).run();
+  await addAudit(
     "ط­ط°ظپ",
     "ظ…ظˆط§ط²ظ†ط©",
     id,

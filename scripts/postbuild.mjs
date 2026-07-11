@@ -20,20 +20,6 @@ await rm(targetServer, { recursive: true, force: true });
 await mkdir(targetServer, { recursive: true });
 await cp(sourceServer, targetServer, { recursive: true });
 
-// Copy the synckit worker files used by src/server/db/client.ts.
-// These are referenced via `new URL("./libsql-worker.mjs", import.meta.url)`
-// at runtime but Vite does not bundle them, so they must be mirrored
-// into the build output alongside the SSR chunks.
-const ssrDir = resolve(targetServer, "_ssr");
-await mkdir(ssrDir, { recursive: true });
-for (const worker of ["libsql-worker.mjs", "pg-worker.mjs"]) {
-  const src = resolve(root, "src", "server", "db", worker);
-  const dst = resolve(ssrDir, worker);
-  if (existsSync(src)) {
-    await copyFile(src, dst);
-  }
-}
-
 if (existsSync(sourcePublic)) {
   await rm(targetPublic, { recursive: true, force: true });
   await mkdir(targetPublic, { recursive: true });

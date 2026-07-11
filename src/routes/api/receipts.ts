@@ -10,21 +10,21 @@ async function __handler_GET({ request }: { request: Request }) {
 
   const baseQuery = db.select().from(receipts).orderBy(desc(receipts.createdAt));
   const items = donationId
-    ? baseQuery.where(eq(receipts.donationId, donationId)).all()
-    : baseQuery.all();
+    ? await baseQuery.where(eq(receipts.donationId, donationId)).all()
+    : await baseQuery.all();
 
-  const enriched = items.map((receipt) => {
+  const enriched = items.map(async (receipt) => {
     let donation = null;
     let donor = null;
     if (receipt.donationId) {
-      donation = db
+      donation = (await db
         .select()
         .from(donations)
         .where(eq(donations.id, receipt.donationId))
         .limit(1)
-        .all()[0];
+        .all())[0];
       if (donation?.donorId) {
-        donor = db.select().from(donors).where(eq(donors.id, donation.donorId)).limit(1).all()[0];
+        donor = (await db.select().from(donors).where(eq(donors.id, donation.donorId)).limit(1).all())[0];
       }
     }
     return { ...receipt, donation, donor };
@@ -49,12 +49,12 @@ async function __handler_POST({ request }: { request: Request }) {
     );
   }
 
-  const donation = db
+  const donation = (await db
     .select()
     .from(donations)
     .where(eq(donations.id, donationId))
     .limit(1)
-    .all()[0];
+    .all())[0];
   if (!donation) {
     return Response.json({ error: "ط§ظ„طھط¨ط±ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   }
@@ -63,7 +63,7 @@ async function __handler_POST({ request }: { request: Request }) {
   const ts = now();
   const finalNumber = number || `REC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-  db.insert(receipts)
+  await db.insert(receipts)
     .values({
       id,
       donationId,
@@ -78,9 +78,9 @@ async function __handler_POST({ request }: { request: Request }) {
     })
     .run();
 
-  const donor = db.select().from(donors).where(eq(donors.id, donation.donorId)).limit(1).all()[0];
+  const donor = (await db.select().from(donors).where(eq(donors.id, donation.donorId)).limit(1).all())[0];
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "ط¥ظٹطµط§ظ„",
     id,
@@ -89,7 +89,7 @@ async function __handler_POST({ request }: { request: Request }) {
     userName,
   );
 
-  const created = db.select().from(receipts).where(eq(receipts.id, id)).limit(1).all()[0];
+  const created = (await db.select().from(receipts).where(eq(receipts.id, id)).limit(1).all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -102,14 +102,14 @@ async function __handler_PUT({ request }: { request: Request }) {
     return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط¥ظٹطµط§ظ„ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
   }
 
-  const existing = db.select().from(receipts).where(eq(receipts.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(receipts).where(eq(receipts.id, id)).limit(1).all())[0];
   if (!existing) {
     return Response.json({ error: "ط§ظ„ط¥ظٹطµط§ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   }
 
   if (action === "void") {
-    db.update(receipts).set({ status: "ظ…ظ„ط؛ظٹ" }).where(eq(receipts.id, id)).run();
-    addAudit(
+    await db.update(receipts).set({ status: "ظ…ظ„ط؛ظٹ" }).where(eq(receipts.id, id)).run();
+    await addAudit(
       "طھط¹ط¯ظٹظ„",
       "ط¥ظٹطµط§ظ„",
       id,
@@ -118,8 +118,8 @@ async function __handler_PUT({ request }: { request: Request }) {
       userName,
     );
   } else if (action === "reprint") {
-    db.update(receipts).set({ printed: true }).where(eq(receipts.id, id)).run();
-    addAudit(
+    await db.update(receipts).set({ printed: true }).where(eq(receipts.id, id)).run();
+    await addAudit(
       "طھط¹ط¯ظٹظ„",
       "ط¥ظٹطµط§ظ„",
       id,
@@ -129,7 +129,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     );
   }
 
-  const updated = db.select().from(receipts).where(eq(receipts.id, id)).limit(1).all()[0];
+  const updated = (await db.select().from(receipts).where(eq(receipts.id, id)).limit(1).all())[0];
   return Response.json({ item: updated });
 }
 
@@ -144,13 +144,13 @@ async function __handler_DELETE({ request }: { request: Request }) {
     return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط¥ظٹطµط§ظ„ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
   }
 
-  const existing = db.select().from(receipts).where(eq(receipts.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(receipts).where(eq(receipts.id, id)).limit(1).all())[0];
   if (!existing) {
     return Response.json({ error: "ط§ظ„ط¥ظٹطµط§ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   }
 
-  db.delete(receipts).where(eq(receipts.id, id)).run();
-  addAudit(
+  await db.delete(receipts).where(eq(receipts.id, id)).run();
+  await addAudit(
     "ط­ط°ظپ",
     "ط¥ظٹطµط§ظ„",
     id,

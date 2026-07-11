@@ -10,7 +10,7 @@ async function __handler_GET({ request }: { request: Request }) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const entry = db.select().from(auditLog).where(eq(auditLog.id, id)).limit(1).all()[0];
+    const entry = (await db.select().from(auditLog).where(eq(auditLog.id, id)).limit(1).all())[0];
     if (!entry) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     // Parse before/after as JSON if possible
@@ -72,22 +72,22 @@ async function __handler_GET({ request }: { request: Request }) {
 
   const allQuery = db.select().from(auditLog).$dynamic();
   const all = whereClause
-    ? allQuery.where(whereClause).orderBy(desc(auditLog.timestamp)).all()
-    : allQuery.orderBy(desc(auditLog.timestamp)).all();
+    ? await allQuery.where(whereClause).orderBy(desc(auditLog.timestamp)).all()
+    : await allQuery.orderBy(desc(auditLog.timestamp)).all();
   const total = all.length;
 
   const itemsQuery = db.select().from(auditLog).$dynamic();
   const items = whereClause
-    ? itemsQuery
+    ? await itemsQuery
         .where(whereClause)
         .orderBy(desc(auditLog.timestamp))
         .limit(limit)
         .offset(offset)
         .all()
-    : itemsQuery.orderBy(desc(auditLog.timestamp)).limit(limit).offset(offset).all();
+    : await itemsQuery.orderBy(desc(auditLog.timestamp)).limit(limit).offset(offset).all();
 
   // Derive distinct options for filters
-  const allEntries = db.select().from(auditLog).all();
+  const allEntries = await db.select().from(auditLog).all();
   const userOptions = Array.from(
     new Set(allEntries.map((e) => e.userName).filter((u): u is string => Boolean(u))),
   ).sort();

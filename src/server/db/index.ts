@@ -6,28 +6,33 @@ export { dialect, runRawSql, diagnose };
 
 let _dbReady = false;
 let _initCalled = false;
+let _initPromise: Promise<void> | null = null;
 
-function ensureInit() {
-  if (_initCalled) return;
-  _initCalled = true;
-  try {
-    const t0 = Date.now();
-    runRawSql(SQLITE_DDL);
-    for (const migration of SQLITE_MIGRATIONS) {
-      try { runRawSql(migration); } catch { }
-    }
-    if (dialect === "postgres") {
-      runRawSql(PG_DDL);
-      for (const migration of PG_MIGRATIONS) {
-        try { runRawSql(migration); } catch { }
+export async function ensureInit() {
+  if (_initPromise) return _initPromise;
+  _initPromise = (async () => {
+    if (_initCalled) return;
+    _initCalled = true;
+    try {
+      const t0 = Date.now();
+      await runRawSql(SQLITE_DDL);
+      for (const migration of SQLITE_MIGRATIONS) {
+        try { await runRawSql(migration); } catch { }
       }
+      if (dialect === "postgres") {
+        await runRawSql(PG_DDL);
+        for (const migration of PG_MIGRATIONS) {
+          try { await runRawSql(migration); } catch { }
+        }
+      }
+      _dbReady = true;
+      const d = await diagnose();
+      console.log(`[db] init OK (${Date.now() - t0}ms)`, JSON.stringify(d));
+    } catch (e) {
+      console.error("[db] init failed:", e instanceof Error ? e.message : e);
     }
-    _dbReady = true;
-    const d = diagnose();
-    console.log(`[db] init OK (${Date.now() - t0}ms)`, JSON.stringify(d));
-  } catch (e) {
-    console.error("[db] init failed:", e instanceof Error ? e.message : e);
-  }
+  })();
+  return _initPromise;
 }
 
 export function isDbReady() {
@@ -36,7 +41,7 @@ export function isDbReady() {
 
 export const db = new Proxy({} as any, {
   get(_target, prop) {
-    ensureInit();
+    ensureInit().catch(() => {});
     return (lazyDb as any)[prop];
   },
 });
@@ -50,7 +55,7 @@ export function genId(prefix = "") {
   return prefix ? `${prefix}-${num}` : num;
 }
 
-export function addAudit(
+export async function addAudit(
   action: string,
   entityType: string,
   entityId: string,
@@ -60,8 +65,8 @@ export function addAudit(
   before?: string,
   after?: string,
 ) {
-  ensureInit();
-  db.insert(auditLog)
+  await ensureInit();
+  await db.insert(auditLog)
     .values({
       id: genId("AUD"),
       userId: userId || null,
@@ -76,6 +81,3 @@ export function addAudit(
     })
     .run();
 }
-
-// Eager init at module load time so the first request is not penalized
-ensureInit();

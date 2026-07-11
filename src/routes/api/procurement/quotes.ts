@@ -13,7 +13,7 @@ async function __handler_GET({ request }: { request: Request }) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const quote = db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all()[0];
+    const quote = (await db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all())[0];
     if (!quote)
       return Response.json({ error: "ط¹ط±ط¶ ط§ظ„ط³ط¹ط± ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     return Response.json({ item: quote });
@@ -39,8 +39,8 @@ async function __handler_GET({ request }: { request: Request }) {
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const items = whereClause
-    ? db.select().from(quotes).where(whereClause).orderBy(desc(quotes.createdAt)).all()
-    : db.select().from(quotes).orderBy(desc(quotes.createdAt)).all();
+    ? await db.select().from(quotes).where(whereClause).orderBy(desc(quotes.createdAt)).all()
+    : await db.select().from(quotes).orderBy(desc(quotes.createdAt)).all();
   return Response.json({ items, total: items.length });
 }
 
@@ -51,7 +51,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
   if (action === "accept") {
     const { id, userId, userName } = body;
-    const existing = db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all())[0];
     if (!existing)
       return Response.json({ error: "ط¹ط±ط¶ ط§ظ„ط³ط¹ط± ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (existing.status !== "ط¨ط§ظ†طھط¸ط§ط±")
@@ -64,18 +64,18 @@ async function __handler_POST({ request }: { request: Request }) {
 
     // Unset other winners for the same request
     if (existing.requestId) {
-      db.update(quotes)
+      await db.update(quotes)
         .set({ winner: false, updatedAt: now() })
         .where(and(eq(quotes.requestId, existing.requestId), ne(quotes.id, id)))
         .run();
     }
 
-    db.update(quotes)
+    await db.update(quotes)
       .set({ status: "ظ…ظ‚ط¨ظˆظ„", winner: true, updatedAt: now() })
       .where(eq(quotes.id, id))
       .run();
 
-    addAudit(
+    await addAudit(
       "ظ‚ط¨ظˆظ„",
       "ط¹ط±ط¶ ط³ط¹ط±",
       id,
@@ -84,13 +84,13 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "reject") {
     const { id, userId, userName } = body;
-    const existing = db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all())[0];
     if (!existing)
       return Response.json({ error: "ط¹ط±ط¶ ط§ظ„ط³ط¹ط± ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (existing.status !== "ط¨ط§ظ†طھط¸ط§ط±")
@@ -100,11 +100,11 @@ async function __handler_POST({ request }: { request: Request }) {
       );
 
     const before = JSON.stringify(existing);
-    db.update(quotes)
+    await db.update(quotes)
       .set({ status: "ظ…ط±ظپظˆط¶", winner: false, updatedAt: now() })
       .where(eq(quotes.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "ط±ظپط¶",
       "ط¹ط±ط¶ ط³ط¹ط±",
       id,
@@ -113,7 +113,7 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
@@ -139,12 +139,12 @@ async function __handler_POST({ request }: { request: Request }) {
     );
 
   if (requestId) {
-    const req = db
+    const req = (await db
       .select()
       .from(purchaseRequests)
       .where(eq(purchaseRequests.id, requestId))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!req)
       return Response.json({ error: "ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   }
@@ -152,7 +152,7 @@ async function __handler_POST({ request }: { request: Request }) {
   const quoteId = genId("QT");
   const ts = now();
 
-  db.insert(quotes)
+  await db.insert(quotes)
     .values({
       id: quoteId,
       requestId: requestId || null,
@@ -172,7 +172,7 @@ async function __handler_POST({ request }: { request: Request }) {
     })
     .run();
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "ط¹ط±ط¶ ط³ط¹ط±",
     quoteId,
@@ -180,7 +180,7 @@ async function __handler_POST({ request }: { request: Request }) {
     userId,
     userName,
   );
-  const created = db.select().from(quotes).where(eq(quotes.id, quoteId)).limit(1).all()[0];
+  const created = (await db.select().from(quotes).where(eq(quotes.id, quoteId)).limit(1).all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -191,7 +191,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     body;
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط¹ط±ط¶ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all())[0];
   if (!existing)
     return Response.json({ error: "ط¹ط±ط¶ ط§ظ„ط³ط¹ط± ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   if (existing.status !== "ط¨ط§ظ†طھط¸ط§ط±") {
@@ -202,7 +202,7 @@ async function __handler_PUT({ request }: { request: Request }) {
   }
 
   const before = JSON.stringify(existing);
-  db.update(quotes)
+  await db.update(quotes)
     .set({
       supplier: supplier?.trim() ?? existing.supplier,
       price: price !== undefined ? parseFloat(price) : existing.price,
@@ -216,7 +216,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     .where(eq(quotes.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "ط¹ط±ط¶ ط³ط¹ط±",
     id,
@@ -225,7 +225,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     userName,
     before,
   );
-  const updated = db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all()[0];
+  const updated = (await db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all())[0];
   return Response.json({ item: updated });
 }
 
@@ -238,13 +238,13 @@ async function __handler_DELETE({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط¹ط±ط¶ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(quotes).where(eq(quotes.id, id)).limit(1).all())[0];
   if (!existing)
     return Response.json({ error: "ط¹ط±ط¶ ط§ظ„ط³ط¹ط± ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   const before = JSON.stringify(existing);
-  db.delete(quotes).where(eq(quotes.id, id)).run();
-  addAudit(
+  await db.delete(quotes).where(eq(quotes.id, id)).run();
+  await addAudit(
     "ط­ط°ظپ",
     "ط¹ط±ط¶ ط³ط¹ط±",
     id,

@@ -10,7 +10,7 @@ async function __handler_GET({ request }: { request: Request }) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const donor = db.select().from(donors).where(eq(donors.id, id)).limit(1).all()[0];
+    const donor = (await db.select().from(donors).where(eq(donors.id, id)).limit(1).all())[0];
     if (!donor) {
       return Response.json({ error: "ط§ظ„ظ…طھط¨ط±ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     }
@@ -53,19 +53,19 @@ async function __handler_GET({ request }: { request: Request }) {
 
   const allQuery = db.select().from(donors);
   const all = whereClause
-    ? allQuery.where(whereClause).orderBy(desc(donors.createdAt)).all()
-    : allQuery.orderBy(desc(donors.createdAt)).all();
+    ? await allQuery.where(whereClause).orderBy(desc(donors.createdAt)).all()
+    : await allQuery.orderBy(desc(donors.createdAt)).all();
   const total = all.length;
 
   const itemsQuery = db.select().from(donors);
   const items = whereClause
-    ? itemsQuery
+    ? await itemsQuery
         .where(whereClause)
         .orderBy(desc(donors.createdAt))
         .limit(limit)
         .offset(offset)
         .all()
-    : itemsQuery.orderBy(desc(donors.createdAt)).limit(limit).offset(offset).all();
+    : await itemsQuery.orderBy(desc(donors.createdAt)).limit(limit).offset(offset).all();
 
   return Response.json({ items, total, page, limit });
 }
@@ -82,7 +82,7 @@ async function __handler_POST({ request }: { request: Request }) {
   const id = genId("D");
   const ts = now();
 
-  db.insert(donors)
+  await db.insert(donors)
     .values({
       id,
       name: name.trim(),
@@ -103,7 +103,7 @@ async function __handler_POST({ request }: { request: Request }) {
     })
     .run();
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "ظ…طھط¨ط±ط¹",
     id,
@@ -112,7 +112,7 @@ async function __handler_POST({ request }: { request: Request }) {
     userName,
   );
 
-  const created = db.select().from(donors).where(eq(donors.id, id)).limit(1).all()[0];
+  const created = (await db.select().from(donors).where(eq(donors.id, id)).limit(1).all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -125,7 +125,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…طھط¨ط±ط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
   }
 
-  const existing = db.select().from(donors).where(eq(donors.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(donors).where(eq(donors.id, id)).limit(1).all())[0];
   if (!existing) {
     return Response.json({ error: "ط§ظ„ظ…طھط¨ط±ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   }
@@ -133,7 +133,7 @@ async function __handler_PUT({ request }: { request: Request }) {
   const before = JSON.stringify(existing);
   const ts = now();
 
-  db.update(donors)
+  await db.update(donors)
     .set({
       name: name?.trim() ?? existing.name,
       type: type ?? existing.type,
@@ -148,7 +148,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     .where(eq(donors.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "ظ…طھط¨ط±ط¹",
     id,
@@ -158,7 +158,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     before,
   );
 
-  const updated = db.select().from(donors).where(eq(donors.id, id)).limit(1).all()[0];
+  const updated = (await db.select().from(donors).where(eq(donors.id, id)).limit(1).all())[0];
   return Response.json({ item: updated });
 }
 
@@ -173,17 +173,17 @@ async function __handler_DELETE({ request }: { request: Request }) {
     return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…طھط¨ط±ط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
   }
 
-  const existing = db.select().from(donors).where(eq(donors.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(donors).where(eq(donors.id, id)).limit(1).all())[0];
   if (!existing) {
     return Response.json({ error: "ط§ظ„ظ…طھط¨ط±ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   }
 
-  db.update(donors)
+  await db.update(donors)
     .set({ status: "ط؛ظٹط± ظ†ط´ط·", updatedAt: now() })
     .where(eq(donors.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "ط­ط°ظپ",
     "ظ…طھط¨ط±ط¹",
     id,

@@ -23,25 +23,25 @@ async function __handler_GET({ request }: { request: Request }) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const account = db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all()[0];
+    const account = (await db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all())[0];
     if (!account)
       return Response.json({ error: "ط§ظ„ط­ط³ط§ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     // Count lines that use this account
     const lineCount =
-      db
+      (await db
         .select({ count: sql<number>`count(*)` })
         .from(journalLines)
         .where(eq(journalLines.accountId, id))
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
 
     // Count child accounts
     const childCount =
-      db
+      (await db
         .select({ count: sql<number>`count(*)` })
         .from(accounts)
         .where(eq(accounts.parentId, id))
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
 
     return Response.json({
       item: account,
@@ -65,8 +65,8 @@ async function __handler_GET({ request }: { request: Request }) {
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const items = whereClause
-    ? db.select().from(accounts).where(whereClause).orderBy(accounts.code).all()
-    : db.select().from(accounts).orderBy(accounts.code).all();
+    ? await db.select().from(accounts).where(whereClause).orderBy(accounts.code).all()
+    : await db.select().from(accounts).orderBy(accounts.code).all();
   const total = items.length;
 
   return Response.json({ items, total });
@@ -79,18 +79,18 @@ async function __handler_POST({ request }: { request: Request }) {
 
   if (action === "deactivate") {
     const { id, userId, userName } = body;
-    const existing = db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all())[0];
     if (!existing)
       return Response.json({ error: "ط§ظ„ط­ط³ط§ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (existing.status === "ظ…ط؛ظ„ظ‚")
       return Response.json({ error: "ط§ظ„ط­ط³ط§ط¨ ظ…ط؛ظ„ظ‚ ط¨ط§ظ„ظپط¹ظ„" }, { status: 400 });
 
     const before = JSON.stringify(existing);
-    db.update(accounts)
+    await db.update(accounts)
       .set({ status: "ظ…ظˆظ‚ظˆظپ", updatedAt: now() })
       .where(eq(accounts.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "ط¥ظٹظ‚ط§ظپ",
       "ط­ط³ط§ط¨",
       id,
@@ -99,24 +99,24 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "activate") {
     const { id, userId, userName } = body;
-    const existing = db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all())[0];
     if (!existing)
       return Response.json({ error: "ط§ظ„ط­ط³ط§ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (existing.status === "ظ†ط´ط·")
       return Response.json({ error: "ط§ظ„ط­ط³ط§ط¨ ظ†ط´ط· ط¨ط§ظ„ظپط¹ظ„" }, { status: 400 });
 
     const before = JSON.stringify(existing);
-    db.update(accounts)
+    await db.update(accounts)
       .set({ status: "ظ†ط´ط·", updatedAt: now() })
       .where(eq(accounts.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "طھظپط¹ظٹظ„",
       "ط­ط³ط§ط¨",
       id,
@@ -125,7 +125,7 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
@@ -150,12 +150,12 @@ async function __handler_POST({ request }: { request: Request }) {
   if (!name?.trim())
     return Response.json({ error: "ط§ط³ظ… ط§ظ„ط­ط³ط§ط¨ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db
+  const existing = (await db
     .select()
     .from(accounts)
     .where(eq(accounts.code, code.trim()))
     .limit(1)
-    .all()[0];
+    .all())[0];
   if (existing)
     return Response.json(
       { error: "ط±ظ‚ظ… ط§ظ„ط­ط³ط§ط¨ ظ…ط³طھط®ط¯ظ… ط¨ط§ظ„ظپط¹ظ„" },
@@ -168,13 +168,13 @@ async function __handler_POST({ request }: { request: Request }) {
   // Derive level from parent
   let level = 1;
   if (parentId) {
-    const parent = db.select().from(accounts).where(eq(accounts.id, parentId)).limit(1).all()[0];
+    const parent = (await db.select().from(accounts).where(eq(accounts.id, parentId)).limit(1).all())[0];
     if (parent) {
       level = (parent.level || 1) + 1;
     }
   }
 
-  db.insert(accounts)
+  await db.insert(accounts)
     .values({
       id: accId,
       code: code.trim(),
@@ -194,7 +194,7 @@ async function __handler_POST({ request }: { request: Request }) {
     })
     .run();
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "ط­ط³ط§ط¨",
     accId,
@@ -202,7 +202,7 @@ async function __handler_POST({ request }: { request: Request }) {
     userId,
     userName,
   );
-  const created = db.select().from(accounts).where(eq(accounts.id, accId)).limit(1).all()[0];
+  const created = (await db.select().from(accounts).where(eq(accounts.id, accId)).limit(1).all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -226,13 +226,13 @@ async function __handler_PUT({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط­ط³ط§ط¨ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all())[0];
   if (!existing) return Response.json({ error: "ط§ظ„ط­ط³ط§ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   const before = JSON.stringify(existing);
   const ts = now();
 
-  db.update(accounts)
+  await db.update(accounts)
     .set({
       name: name?.trim() ?? existing.name,
       type: type ?? existing.type,
@@ -248,7 +248,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     .where(eq(accounts.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "ط­ط³ط§ط¨",
     id,
@@ -257,7 +257,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     userName,
     before,
   );
-  const updated = db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all()[0];
+  const updated = (await db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all())[0];
   return Response.json({ item: updated });
 }
 
@@ -270,16 +270,16 @@ async function __handler_DELETE({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط­ط³ط§ط¨ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(accounts).where(eq(accounts.id, id)).limit(1).all())[0];
   if (!existing) return Response.json({ error: "ط§ظ„ط­ط³ط§ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   // Check children
   const children =
-    db
+    (await db
       .select({ count: sql<number>`count(*)` })
       .from(accounts)
       .where(eq(accounts.parentId, id))
-      .all()[0]?.count || 0;
+      .all())[0]?.count || 0;
   if (children > 0) {
     return Response.json(
       {
@@ -291,11 +291,11 @@ async function __handler_DELETE({ request }: { request: Request }) {
 
   // Check usage in journal lines
   const usage =
-    db
+    (await db
       .select({ count: sql<number>`count(*)` })
       .from(journalLines)
       .where(eq(journalLines.accountId, id))
-      .all()[0]?.count || 0;
+      .all())[0]?.count || 0;
   if (usage > 0) {
     return Response.json(
       {
@@ -306,8 +306,8 @@ async function __handler_DELETE({ request }: { request: Request }) {
   }
 
   const before = JSON.stringify(existing);
-  db.delete(accounts).where(eq(accounts.id, id)).run();
-  addAudit(
+  await db.delete(accounts).where(eq(accounts.id, id)).run();
+  await addAudit(
     "ط­ط°ظپ",
     "ط­ط³ط§ط¨",
     id,

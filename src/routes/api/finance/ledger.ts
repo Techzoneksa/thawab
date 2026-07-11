@@ -33,7 +33,7 @@ async function __handler_GET({ request }: { request: Request }) {
   const entryWhere = and(...entryConditions)!;
 
   // Get posted entries that match entry-level filters
-  const matchingEntries = db
+  const matchingEntries = await db
     .select()
     .from(journalEntries)
     .where(entryWhere)
@@ -54,7 +54,7 @@ async function __handler_GET({ request }: { request: Request }) {
   if (projectId) lineConditions.push(eq(journalLines.projectId, projectId));
   const lineWhere = and(...lineConditions);
 
-  const lines = db
+  const lines = await db
     .select()
     .from(journalLines)
     .where(lineWhere)
@@ -62,13 +62,13 @@ async function __handler_GET({ request }: { request: Request }) {
     .all();
 
   // Build lookups for accounts, costCenters, projects
-  const accountList = db.select().from(accounts).all();
+  const accountList = await db.select().from(accounts).all();
   const accountMap = new Map(accountList.map((a) => [a.id, a]));
 
-  const ccList = db.select().from(costCenters).all();
+  const ccList = await db.select().from(costCenters).all();
   const ccMap = new Map(ccList.map((c) => [c.id, c]));
 
-  const projList = db.select().from(projects).all();
+  const projList = await db.select().from(projects).all();
   const projMap = new Map(projList.map((p) => [p.id, p]));
 
   // Build movement rows from lines joined with entries
@@ -134,14 +134,14 @@ async function __handler_GET({ request }: { request: Request }) {
       sql`${journalEntries.reversedAt} IS NULL`,
       sql`${journalEntries.date} < ${dateFrom}`,
     ];
-    const openingEntries = db
+    const openingEntries = await db
       .select()
       .from(journalEntries)
       .where(and(...openingEntryConditions))
       .all();
     const openingEntryIds = openingEntries.map((e) => e.id);
     if (openingEntryIds.length > 0) {
-      const openingLines = db
+      const openingLines = await db
         .select()
         .from(journalLines)
         .where(

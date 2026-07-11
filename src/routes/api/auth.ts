@@ -7,7 +7,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
   if (action === "logout") {
     const token = request.headers.get("x-session-token");
-    if (token) logout(token);
+    if (token) await logout(token);
     return Response.json({ success: true });
   }
 
@@ -18,7 +18,7 @@ async function __handler_POST({ request }: { request: Request }) {
     );
   }
 
-  const result = login(email, password);
+  const result = await login(email, password);
   if (result.error) {
     return Response.json({ error: result.error }, { status: 401 });
   }
@@ -32,7 +32,7 @@ async function __handler_GET({ request }: { request: Request }) {
     return Response.json({ user: null });
   }
 
-  const user = getCurrentUser(token);
+  const user = await getCurrentUser(token);
   return Response.json({ user });
 }
 

@@ -27,7 +27,7 @@ async function __handler_GET({ request }: { request: Request }) {
   const baseQuery = db.select().from(donations).orderBy(desc(donations.date));
 
   if (stats === "1") {
-    const all = whereClause ? baseQuery.where(whereClause).all() : baseQuery.all();
+    const all = whereClause ? await baseQuery.where(whereClause).all() : await baseQuery.all();
 
     const totalAmount = all.reduce((sum, d) => sum + (d.amount || 0), 0);
     const totalCount = all.length;
@@ -42,18 +42,18 @@ async function __handler_GET({ request }: { request: Request }) {
       byChannel[channel] = (byChannel[channel] || 0) + amount;
 
       if (d.campaignId) {
-        const campaign = db
+        const campaign = (await db
           .select()
           .from(campaigns)
           .where(eq(campaigns.id, d.campaignId))
           .limit(1)
-          .all()[0];
+          .all())[0];
         const name = campaign?.name || "ط؛ظٹط± ظ…ط­ط¯ط¯";
         byCampaign[name] = (byCampaign[name] || 0) + amount;
       }
 
       if (d.donorId) {
-        const donor = db.select().from(donors).where(eq(donors.id, d.donorId)).limit(1).all()[0];
+        const donor = (await db.select().from(donors).where(eq(donors.id, d.donorId)).limit(1).all())[0];
         const name = donor?.name || "ط؛ظٹط± ظ…ط­ط¯ط¯";
         if (!byDonor[d.donorId]) {
           byDonor[d.donorId] = { name, total: 0, count: 0 };
@@ -76,7 +76,7 @@ async function __handler_GET({ request }: { request: Request }) {
     });
   }
 
-  const items = whereClause ? baseQuery.where(whereClause).all() : baseQuery.all();
+  const items = whereClause ? await baseQuery.where(whereClause).all() : await baseQuery.all();
   const total = items.length;
   return Response.json({ items, total });
 }
@@ -102,7 +102,7 @@ async function __handler_POST({ request }: { request: Request }) {
     return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…طھط¨ط±ط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
   }
 
-  const donor = db.select().from(donors).where(eq(donors.id, donorId)).limit(1).all()[0];
+  const donor = (await db.select().from(donors).where(eq(donors.id, donorId)).limit(1).all())[0];
   if (!donor) {
     return Response.json({ error: "ط§ظ„ظ…طھط¨ط±ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   }
@@ -118,7 +118,7 @@ async function __handler_POST({ request }: { request: Request }) {
   const ts = now();
   const amountNum = Number(amount);
 
-  db.insert(donations)
+  await db.insert(donations)
     .values({
       id,
       donorId,
@@ -143,7 +143,7 @@ async function __handler_POST({ request }: { request: Request }) {
   else if (newTotal >= 50000) newTag = "ظپط¶ظٹ";
   else if (newTotal >= 10000) newTag = "ط¨ط±ظˆظ†ط²ظٹ";
 
-  db.update(donors)
+  await db.update(donors)
     .set({
       totalDonations: newTotal,
       donationCount: newCount,
@@ -155,14 +155,14 @@ async function __handler_POST({ request }: { request: Request }) {
     .run();
 
   if (campaignId) {
-    const campaign = db
+    const campaign = (await db
       .select()
       .from(campaigns)
       .where(eq(campaigns.id, campaignId))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (campaign) {
-      db.update(campaigns)
+      await db.update(campaigns)
         .set({ raised: (campaign.raised || 0) + amountNum, updatedAt: ts })
         .where(eq(campaigns.id, campaignId))
         .run();
@@ -170,16 +170,16 @@ async function __handler_POST({ request }: { request: Request }) {
   }
 
   if (projectId) {
-    const project = db.select().from(projects).where(eq(projects.id, projectId)).limit(1).all()[0];
+    const project = (await db.select().from(projects).where(eq(projects.id, projectId)).limit(1).all())[0];
     if (project) {
-      db.update(projects)
+      await db.update(projects)
         .set({ donations: (project.donations || 0) + amountNum, updatedAt: ts })
         .where(eq(projects.id, projectId))
         .run();
     }
   }
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "طھط¨ط±ط¹",
     id,
@@ -188,7 +188,7 @@ async function __handler_POST({ request }: { request: Request }) {
     userName,
   );
 
-  const created = db.select().from(donations).where(eq(donations.id, id)).limit(1).all()[0];
+  const created = (await db.select().from(donations).where(eq(donations.id, id)).limit(1).all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -203,20 +203,20 @@ async function __handler_DELETE({ request }: { request: Request }) {
     return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„طھط¨ط±ط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
   }
 
-  const donation = db.select().from(donations).where(eq(donations.id, id)).limit(1).all()[0];
+  const donation = (await db.select().from(donations).where(eq(donations.id, id)).limit(1).all())[0];
   if (!donation) {
     return Response.json({ error: "ط§ظ„طھط¨ط±ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   }
 
   const refundAmount = donation.amount || 0;
 
-  db.update(donations)
+  await db.update(donations)
     .set({ status: "ظ…ظ„ط؛ظٹ", updatedAt: now() })
     .where(eq(donations.id, id))
     .run();
 
   if (donation.donorId) {
-    const donor = db.select().from(donors).where(eq(donors.id, donation.donorId)).limit(1).all()[0];
+    const donor = (await db.select().from(donors).where(eq(donors.id, donation.donorId)).limit(1).all())[0];
     if (donor) {
       const newTotal = Math.max(0, (donor.totalDonations || 0) - refundAmount);
       const newCount = Math.max(0, (donor.donationCount || 0) - 1);
@@ -225,7 +225,7 @@ async function __handler_DELETE({ request }: { request: Request }) {
       else if (newTotal >= 50000) newTag = "ظپط¶ظٹ";
       else if (newTotal >= 10000) newTag = "ط¨ط±ظˆظ†ط²ظٹ";
 
-      db.update(donors)
+      await db.update(donors)
         .set({ totalDonations: newTotal, donationCount: newCount, tag: newTag, updatedAt: now() })
         .where(eq(donors.id, donation.donorId))
         .run();
@@ -233,21 +233,21 @@ async function __handler_DELETE({ request }: { request: Request }) {
   }
 
   if (donation.campaignId) {
-    const campaign = db
+    const campaign = (await db
       .select()
       .from(campaigns)
       .where(eq(campaigns.id, donation.campaignId))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (campaign) {
-      db.update(campaigns)
+      await db.update(campaigns)
         .set({ raised: Math.max(0, (campaign.raised || 0) - refundAmount), updatedAt: now() })
         .where(eq(campaigns.id, donation.campaignId))
         .run();
     }
   }
 
-  addAudit(
+  await addAudit(
     "ط­ط°ظپ",
     "طھط¨ط±ط¹",
     id,

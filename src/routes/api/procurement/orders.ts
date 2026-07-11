@@ -26,15 +26,15 @@ async function __handler_GET({ request }: { request: Request }) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const order = db
+    const order = (await db
       .select()
       .from(purchaseOrders)
       .where(eq(purchaseOrders.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!order)
       return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    const lines = db
+    const lines = await db
       .select()
       .from(purchaseOrderLines)
       .where(eq(purchaseOrderLines.orderId, id))
@@ -59,13 +59,13 @@ async function __handler_GET({ request }: { request: Request }) {
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const items = whereClause
-    ? db
+    ? await db
         .select()
         .from(purchaseOrders)
         .where(whereClause)
         .orderBy(desc(purchaseOrders.createdAt))
         .all()
-    : db.select().from(purchaseOrders).orderBy(desc(purchaseOrders.createdAt)).all();
+    : await db.select().from(purchaseOrders).orderBy(desc(purchaseOrders.createdAt)).all();
 
   return Response.json({ items, total: items.length });
 }
@@ -77,12 +77,12 @@ async function __handler_POST({ request }: { request: Request }) {
 
   if (action === "approve") {
     const { id, userId, userName } = body;
-    const existing = db
+    const existing = (await db
       .select()
       .from(purchaseOrders)
       .where(eq(purchaseOrders.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!existing)
       return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (existing.status !== "ظ…ط³ظˆط¯ط©")
@@ -92,11 +92,11 @@ async function __handler_POST({ request }: { request: Request }) {
       );
 
     const before = JSON.stringify(existing);
-    db.update(purchaseOrders)
+    await db.update(purchaseOrders)
       .set({ status: "ظ…ط¹طھظ…ط¯", updatedAt: now() })
       .where(eq(purchaseOrders.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "ط§ط¹طھظ…ط§ط¯",
       "ط£ظ…ط± ط´ط±ط§ط،",
       id,
@@ -105,23 +105,23 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db
+    const updated = (await db
       .select()
       .from(purchaseOrders)
       .where(eq(purchaseOrders.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "cancel") {
     const { id, userId, userName } = body;
-    const existing = db
+    const existing = (await db
       .select()
       .from(purchaseOrders)
       .where(eq(purchaseOrders.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!existing)
       return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (existing.status === "ظ…ظ„ط؛ظٹ")
@@ -130,28 +130,28 @@ async function __handler_POST({ request }: { request: Request }) {
       return Response.json({ error: "ظ„ط§ ظٹظ…ظƒظ† ط¥ظ„ط؛ط§ط، ط£ظ…ط± ظ…ط؛ظ„ظ‚" }, { status: 400 });
 
     const before = JSON.stringify(existing);
-    db.update(purchaseOrders)
+    await db.update(purchaseOrders)
       .set({ status: "ظ…ظ„ط؛ظٹ", updatedAt: now() })
       .where(eq(purchaseOrders.id, id))
       .run();
 
     // If linked to a request, mark it as not converted
     if (existing.requestId) {
-      const linked = db
+      const linked = (await db
         .select()
         .from(purchaseRequests)
         .where(eq(purchaseRequests.id, existing.requestId))
         .limit(1)
-        .all()[0];
+        .all())[0];
       if (linked && linked.status === "ظ…ط­ظˆظ„ ط¥ظ„ظ‰ ط£ظ…ط± ط´ط±ط§ط،") {
-        db.update(purchaseRequests)
+        await db.update(purchaseRequests)
           .set({ status: "ظ…ط¹طھظ…ط¯", updatedAt: now() })
           .where(eq(purchaseRequests.id, existing.requestId))
           .run();
       }
     }
 
-    addAudit(
+    await addAudit(
       "ط¥ظ„ط؛ط§ط،",
       "ط£ظ…ط± ط´ط±ط§ط،",
       id,
@@ -160,12 +160,12 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db
+    const updated = (await db
       .select()
       .from(purchaseOrders)
       .where(eq(purchaseOrders.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     return Response.json({ item: updated });
   }
 
@@ -177,12 +177,12 @@ async function __handler_POST({ request }: { request: Request }) {
       userName?: string;
     };
 
-    const order = db
+    const order = (await db
       .select()
       .from(purchaseOrders)
       .where(eq(purchaseOrders.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!order)
       return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (order.status !== "ظ…ط¹طھظ…ط¯" && order.status !== "طھظ… ط§ظ„ط§ط³طھظ„ط§ظ… ط¬ط²ط¦ظٹظ‹ط§") {
@@ -201,7 +201,7 @@ async function __handler_POST({ request }: { request: Request }) {
       );
     }
 
-    const lines = db
+    const lines = await db
       .select()
       .from(purchaseOrderLines)
       .where(eq(purchaseOrderLines.orderId, id))
@@ -224,7 +224,7 @@ async function __handler_POST({ request }: { request: Request }) {
           { status: 400 },
         );
       }
-      db.update(purchaseOrderLines)
+      await db.update(purchaseOrderLines)
         .set({ receivedQuantity: newReceived })
         .where(eq(purchaseOrderLines.id, line.id))
         .run();
@@ -232,20 +232,20 @@ async function __handler_POST({ request }: { request: Request }) {
       if (r.receivedQty > 0 && line.itemId) {
         anyReceived = true;
         // Update inventory item quantity
-        const item = db
+        const item = (await db
           .select()
           .from(inventoryItems)
           .where(eq(inventoryItems.id, line.itemId))
           .limit(1)
-          .all()[0];
+          .all())[0];
         if (item) {
           const newQty = (item.quantity || 0) + r.receivedQty;
-          db.update(inventoryItems)
+          await db.update(inventoryItems)
             .set({ quantity: newQty, updatedAt: ts })
             .where(eq(inventoryItems.id, line.itemId))
             .run();
           // Record stock movement
-          db.insert(stockMovements)
+          await db.insert(stockMovements)
             .values({
               id: genId("MV"),
               itemId: line.itemId,
@@ -278,12 +278,12 @@ async function __handler_POST({ request }: { request: Request }) {
       const r = receipts.find((x) => x.lineId === l.id);
       return sum + (l.receivedQuantity || 0) + (r?.receivedQty || 0);
     }, 0);
-    db.update(purchaseOrders)
+    await db.update(purchaseOrders)
       .set({ status: newStatus, receivedAmount: totalReceived, updatedAt: ts })
       .where(eq(purchaseOrders.id, id))
       .run();
 
-    addAudit(
+    await addAudit(
       "ط§ط³طھظ„ط§ظ…",
       "ط£ظ…ط± ط´ط±ط§ط،",
       id,
@@ -292,34 +292,34 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db
+    const updated = (await db
       .select()
       .from(purchaseOrders)
       .where(eq(purchaseOrders.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "close") {
     const { id, userId, userName } = body;
-    const existing = db
+    const existing = (await db
       .select()
       .from(purchaseOrders)
       .where(eq(purchaseOrders.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!existing)
       return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (existing.status === "ظ…ط؛ظ„ظ‚")
       return Response.json({ error: "ط§ظ„ط£ظ…ط± ظ…ط؛ظ„ظ‚ ط¨ط§ظ„ظپط¹ظ„" }, { status: 400 });
 
     const before = JSON.stringify(existing);
-    db.update(purchaseOrders)
+    await db.update(purchaseOrders)
       .set({ status: "ظ…ط؛ظ„ظ‚", updatedAt: now() })
       .where(eq(purchaseOrders.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "ط¥ط؛ظ„ط§ظ‚",
       "ط£ظ…ط± ط´ط±ط§ط،",
       id,
@@ -328,12 +328,12 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db
+    const updated = (await db
       .select()
       .from(purchaseOrders)
       .where(eq(purchaseOrders.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     return Response.json({ item: updated });
   }
 
@@ -352,12 +352,12 @@ async function __handler_POST({ request }: { request: Request }) {
 
   // If linked to request, verify status
   if (requestId) {
-    const req = db
+    const req = (await db
       .select()
       .from(purchaseRequests)
       .where(eq(purchaseRequests.id, requestId))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!req)
       return Response.json({ error: "ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (req.status !== "ظ…ط¹طھظ…ط¯") {
@@ -378,7 +378,7 @@ async function __handler_POST({ request }: { request: Request }) {
     total += (parseFloat(l.quantity) || 0) * (parseFloat(l.unitPrice) || 0);
   }
 
-  db.insert(purchaseOrders)
+  await db.insert(purchaseOrders)
     .values({
       id: orderId,
       supplierId: supplierId || null,
@@ -398,7 +398,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i];
-    db.insert(purchaseOrderLines)
+    await db.insert(purchaseOrderLines)
       .values({
         id: genId("POL"),
         orderId,
@@ -417,13 +417,13 @@ async function __handler_POST({ request }: { request: Request }) {
 
   // Link request status
   if (requestId) {
-    db.update(purchaseRequests)
+    await db.update(purchaseRequests)
       .set({ status: "ظ…ط­ظˆظ„ ط¥ظ„ظ‰ ط£ظ…ط± ط´ط±ط§ط،", updatedAt: ts })
       .where(eq(purchaseRequests.id, requestId))
       .run();
   }
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "ط£ظ…ط± ط´ط±ط§ط،",
     orderId,
@@ -431,12 +431,12 @@ async function __handler_POST({ request }: { request: Request }) {
     userId,
     userName,
   );
-  const created = db
+  const created = (await db
     .select()
     .from(purchaseOrders)
     .where(eq(purchaseOrders.id, orderId))
     .limit(1)
-    .all()[0];
+    .all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -448,12 +448,12 @@ async function __handler_PUT({ request }: { request: Request }) {
   if (!id)
     return Response.json({ error: "ظ…ط¹ط±ظپ ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db
+  const existing = (await db
     .select()
     .from(purchaseOrders)
     .where(eq(purchaseOrders.id, id))
     .limit(1)
-    .all()[0];
+    .all())[0];
   if (!existing)
     return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   if (existing.status !== "ظ…ط³ظˆط¯ط©") {
@@ -464,7 +464,7 @@ async function __handler_PUT({ request }: { request: Request }) {
   }
 
   const before = JSON.stringify(existing);
-  db.update(purchaseOrders)
+  await db.update(purchaseOrders)
     .set({
       subject: subject?.trim() ?? existing.subject,
       date: date ?? existing.date,
@@ -475,7 +475,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     .where(eq(purchaseOrders.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "ط£ظ…ط± ط´ط±ط§ط،",
     id,
@@ -484,12 +484,12 @@ async function __handler_PUT({ request }: { request: Request }) {
     userName,
     before,
   );
-  const updated = db
+  const updated = (await db
     .select()
     .from(purchaseOrders)
     .where(eq(purchaseOrders.id, id))
     .limit(1)
-    .all()[0];
+    .all())[0];
   return Response.json({ item: updated });
 }
 
@@ -503,12 +503,12 @@ async function __handler_DELETE({ request }: { request: Request }) {
   if (!id)
     return Response.json({ error: "ظ…ط¹ط±ظپ ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db
+  const existing = (await db
     .select()
     .from(purchaseOrders)
     .where(eq(purchaseOrders.id, id))
     .limit(1)
-    .all()[0];
+    .all())[0];
   if (!existing)
     return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   if (existing.status !== "ظ…ط³ظˆط¯ط©") {
@@ -524,13 +524,13 @@ async function __handler_DELETE({ request }: { request: Request }) {
   const before = JSON.stringify(existing);
   // Roll back linked request
   if (existing.requestId) {
-    db.update(purchaseRequests)
+    await db.update(purchaseRequests)
       .set({ status: "ظ…ط¹طھظ…ط¯", updatedAt: now() })
       .where(eq(purchaseRequests.id, existing.requestId))
       .run();
   }
-  db.delete(purchaseOrders).where(eq(purchaseOrders.id, id)).run();
-  addAudit(
+  await db.delete(purchaseOrders).where(eq(purchaseOrders.id, id)).run();
+  await addAudit(
     "ط­ط°ظپ",
     "ط£ظ…ط± ط´ط±ط§ط،",
     id,

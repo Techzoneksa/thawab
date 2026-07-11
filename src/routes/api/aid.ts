@@ -8,17 +8,17 @@ async function __handler_GET({ request }: { request: Request }) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const aid = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
+    const aid = (await db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all())[0];
     if (!aid) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
-    const beneficiary = db
+    const beneficiary = (await db
       .select()
       .from(beneficiaries)
       .where(eq(beneficiaries.id, aid.beneficiaryId))
       .limit(1)
-      .all()[0];
+      .all())[0];
     const project = aid.projectId
-      ? db.select().from(projects).where(eq(projects.id, aid.projectId)).limit(1).all()[0]
+      ? (await db.select().from(projects).where(eq(projects.id, aid.projectId)).limit(1).all())[0]
       : null;
 
     return Response.json({
@@ -53,30 +53,30 @@ async function __handler_GET({ request }: { request: Request }) {
 
   const allQuery = db.select().from(aidRecords).$dynamic();
   const all = whereClause
-    ? allQuery.where(whereClause).orderBy(desc(aidRecords.createdAt)).all()
-    : allQuery.orderBy(desc(aidRecords.createdAt)).all();
+    ? await allQuery.where(whereClause).orderBy(desc(aidRecords.createdAt)).all()
+    : await allQuery.orderBy(desc(aidRecords.createdAt)).all();
   const total = all.length;
 
   const itemsQuery = db.select().from(aidRecords).$dynamic();
   const items = whereClause
-    ? itemsQuery
+    ? await itemsQuery
         .where(whereClause)
         .orderBy(desc(aidRecords.createdAt))
         .limit(limit)
         .offset(offset)
         .all()
-    : itemsQuery.orderBy(desc(aidRecords.createdAt)).limit(limit).offset(offset).all();
+    : await itemsQuery.orderBy(desc(aidRecords.createdAt)).limit(limit).offset(offset).all();
 
   // Enrich with beneficiary and project names
-  const enrichedItems = items.map((a) => {
-    const beneficiary = db
+  const enrichedItems = items.map(async (a) => {
+    const beneficiary = (await db
       .select()
       .from(beneficiaries)
       .where(eq(beneficiaries.id, a.beneficiaryId))
       .limit(1)
-      .all()[0];
+      .all())[0];
     const project = a.projectId
-      ? db.select().from(projects).where(eq(projects.id, a.projectId)).limit(1).all()[0]
+      ? (await db.select().from(projects).where(eq(projects.id, a.projectId)).limit(1).all())[0]
       : null;
     return {
       ...a,
@@ -94,7 +94,7 @@ async function __handler_POST({ request }: { request: Request }) {
   const { action, id, userId, userName } = body;
 
   if (action === "approve") {
-    const aid = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
+    const aid = (await db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all())[0];
     if (!aid) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (aid.status !== "ظ‚ظٹط¯ ط§ظ„ظ…ط±ط§ط¬ط¹ط©")
       return Response.json(
@@ -103,7 +103,7 @@ async function __handler_POST({ request }: { request: Request }) {
       );
 
     const before = JSON.stringify(aid);
-    db.update(aidRecords)
+    await db.update(aidRecords)
       .set({
         status: "ظ…ط¹طھظ…ط¯",
         approvedBy: userId || null,
@@ -113,7 +113,7 @@ async function __handler_POST({ request }: { request: Request }) {
       .where(eq(aidRecords.id, id))
       .run();
 
-    addAudit(
+    await addAudit(
       "ط§ط¹طھظ…ط§ط¯",
       "ظ…ط³ط§ط¹ط¯ط©",
       id,
@@ -122,20 +122,20 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "reject") {
-    const aid = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
+    const aid = (await db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all())[0];
     if (!aid) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const before = JSON.stringify(aid);
-    db.update(aidRecords)
+    await db.update(aidRecords)
       .set({ status: "ظ…ط±ظپظˆط¶", updatedAt: now() })
       .where(eq(aidRecords.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "ط±ظپط¶",
       "ظ…ط³ط§ط¹ط¯ط©",
       id,
@@ -144,21 +144,21 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "deliver") {
-    const aid = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
+    const aid = (await db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all())[0];
     if (!aid) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     // Check beneficiary eligibility
-    const beneficiary = db
+    const beneficiary = (await db
       .select()
       .from(beneficiaries)
       .where(eq(beneficiaries.id, aid.beneficiaryId))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!beneficiary)
       return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (beneficiary.status !== "ظ…ط¤ظ‡ظ„")
@@ -174,7 +174,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
     const before = JSON.stringify(aid);
     const ts = now();
-    db.update(aidRecords)
+    await db.update(aidRecords)
       .set({
         status: "طھظ… ط§ظ„طھط³ظ„ظٹظ…",
         updatedAt: ts,
@@ -188,14 +188,14 @@ async function __handler_POST({ request }: { request: Request }) {
 
     // Update project spent
     if (aid.projectId && aid.amount > 0) {
-      const project = db
+      const project = (await db
         .select()
         .from(projects)
         .where(eq(projects.id, aid.projectId))
         .limit(1)
-        .all()[0];
+        .all())[0];
       if (project) {
-        db.update(projects)
+        await db.update(projects)
           .set({
             spent: project.spent + aid.amount,
             beneficiaryCount: project.beneficiaryCount + 1,
@@ -206,7 +206,7 @@ async function __handler_POST({ request }: { request: Request }) {
       }
     }
 
-    addAudit(
+    await addAudit(
       "طھط³ظ„ظٹظ…",
       "ظ…ط³ط§ط¹ط¯ط©",
       id,
@@ -215,20 +215,20 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "return") {
-    const aid = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
+    const aid = (await db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all())[0];
     if (!aid) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const before = JSON.stringify(aid);
-    db.update(aidRecords)
+    await db.update(aidRecords)
       .set({ status: "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©", updatedAt: now() })
       .where(eq(aidRecords.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "ط¥ط±ط¬ط§ط¹",
       "ظ…ط³ط§ط¹ط¯ط©",
       id,
@@ -237,7 +237,7 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
@@ -258,12 +258,12 @@ async function __handler_POST({ request }: { request: Request }) {
   if (!type) return Response.json({ error: "ظ†ظˆط¹ ط§ظ„ظ…ط³ط§ط¹ط¯ط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   // Check beneficiary eligibility
-  const beneficiary = db
+  const beneficiary = (await db
     .select()
     .from(beneficiaries)
     .where(eq(beneficiaries.id, beneficiaryId))
     .limit(1)
-    .all()[0];
+    .all())[0];
   if (beneficiary && beneficiary.status !== "ظ…ط¤ظ‡ظ„") {
     return Response.json(
       {
@@ -276,7 +276,7 @@ async function __handler_POST({ request }: { request: Request }) {
   const aidId = genId("AID");
   const ts = now();
 
-  db.insert(aidRecords)
+  await db.insert(aidRecords)
     .values({
       id: aidId,
       beneficiaryId,
@@ -293,7 +293,7 @@ async function __handler_POST({ request }: { request: Request }) {
     })
     .run();
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "ظ…ط³ط§ط¹ط¯ط©",
     aidId,
@@ -301,7 +301,7 @@ async function __handler_POST({ request }: { request: Request }) {
     uid,
     uname,
   );
-  const created = db.select().from(aidRecords).where(eq(aidRecords.id, aidId)).limit(1).all()[0];
+  const created = (await db.select().from(aidRecords).where(eq(aidRecords.id, aidId)).limit(1).all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -311,7 +311,7 @@ async function __handler_PUT({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط³ط¬ظ„ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all())[0];
   if (!existing) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   // Can only edit draft or pending review records
@@ -322,7 +322,7 @@ async function __handler_PUT({ request }: { request: Request }) {
   const before = JSON.stringify(existing);
   const ts = now();
 
-  db.update(aidRecords)
+  await db.update(aidRecords)
     .set({
       beneficiaryId: beneficiaryId ?? existing.beneficiaryId,
       projectId: projectId !== undefined ? projectId : existing.projectId,
@@ -335,7 +335,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     .where(eq(aidRecords.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "ظ…ط³ط§ط¹ط¯ط©",
     id,
@@ -344,7 +344,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     userName,
     before,
   );
-  const updated = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
+  const updated = (await db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all())[0];
   return Response.json({ item: updated });
 }
 
@@ -356,7 +356,7 @@ async function __handler_DELETE({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط³ط¬ظ„ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(aidRecords).where(eq(aidRecords.id, id)).limit(1).all())[0];
   if (!existing) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   // Can only delete draft/pending records
@@ -368,8 +368,8 @@ async function __handler_DELETE({ request }: { request: Request }) {
   }
 
   const before = JSON.stringify(existing);
-  db.delete(aidRecords).where(eq(aidRecords.id, id)).run();
-  addAudit("ط­ط°ظپ", "ظ…ط³ط§ط¹ط¯ط©", id, `طھظ… ط­ط°ظپ ط§ظ„ظ…ط³ط§ط¹ط¯ط©`, userId, userName, before);
+  await db.delete(aidRecords).where(eq(aidRecords.id, id)).run();
+  await addAudit("ط­ط°ظپ", "ظ…ط³ط§ط¹ط¯ط©", id, `طھظ… ط­ط°ظپ ط§ظ„ظ…ط³ط§ط¹ط¯ط©`, userId, userName, before);
 
   return Response.json({ success: true });
 }

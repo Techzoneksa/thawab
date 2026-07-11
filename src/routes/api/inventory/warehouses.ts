@@ -13,29 +13,29 @@ async function __handler_GET({ request }: { request: Request }) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const wh = db.select().from(warehouses).where(eq(warehouses.id, id)).limit(1).all()[0];
+    const wh = (await db.select().from(warehouses).where(eq(warehouses.id, id)).limit(1).all())[0];
     if (!wh) return Response.json({ error: "ط§ظ„ظ…ط³طھظˆط¯ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const itemCount =
-      db
+      (await db
         .select({ count: sql<number>`count(*)` })
         .from(inventoryItems)
         .where(eq(inventoryItems.warehouseId, id))
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
 
     const movementCount =
-      db
+      (await db
         .select({ count: sql<number>`count(*)` })
         .from(stockMovements)
         .where(eq(stockMovements.warehouseId, id))
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
 
     const totalQty =
-      db
+      (await db
         .select({ total: sql<number>`coalesce(sum(${inventoryItems.quantity}), 0)` })
         .from(inventoryItems)
         .where(eq(inventoryItems.warehouseId, id))
-        .all()[0]?.total || 0;
+        .all())[0]?.total || 0;
 
     return Response.json({
       item: wh,
@@ -64,8 +64,8 @@ async function __handler_GET({ request }: { request: Request }) {
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const items = whereClause
-    ? db.select().from(warehouses).where(whereClause).orderBy(desc(warehouses.createdAt)).all()
-    : db.select().from(warehouses).orderBy(desc(warehouses.createdAt)).all();
+    ? await db.select().from(warehouses).where(whereClause).orderBy(desc(warehouses.createdAt)).all()
+    : await db.select().from(warehouses).orderBy(desc(warehouses.createdAt)).all();
 
   return Response.json({ items, total: items.length });
 }
@@ -77,7 +77,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
   if (action === "activate" || action === "deactivate") {
     const { id, userId, userName } = body;
-    const existing = db.select().from(warehouses).where(eq(warehouses.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(warehouses).where(eq(warehouses.id, id)).limit(1).all())[0];
     if (!existing)
       return Response.json({ error: "ط§ظ„ظ…ط³طھظˆط¯ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
@@ -92,11 +92,11 @@ async function __handler_POST({ request }: { request: Request }) {
     }
 
     const before = JSON.stringify(existing);
-    db.update(warehouses)
+    await db.update(warehouses)
       .set({ status: newStatus, updatedAt: now() })
       .where(eq(warehouses.id, id))
       .run();
-    addAudit(
+    await addAudit(
       action === "activate" ? "طھظپط¹ظٹظ„" : "طھط¹ط·ظٹظ„",
       "ظ…ط³طھظˆط¯ط¹",
       id,
@@ -105,7 +105,7 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(warehouses).where(eq(warehouses.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(warehouses).where(eq(warehouses.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
@@ -117,7 +117,7 @@ async function __handler_POST({ request }: { request: Request }) {
   const whId = genId("WH");
   const ts = now();
 
-  db.insert(warehouses)
+  await db.insert(warehouses)
     .values({
       id: whId,
       name: name.trim(),
@@ -133,7 +133,7 @@ async function __handler_POST({ request }: { request: Request }) {
     })
     .run();
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "ظ…ط³طھظˆط¯ط¹",
     whId,
@@ -141,7 +141,7 @@ async function __handler_POST({ request }: { request: Request }) {
     userId,
     userName,
   );
-  const created = db.select().from(warehouses).where(eq(warehouses.id, whId)).limit(1).all()[0];
+  const created = (await db.select().from(warehouses).where(eq(warehouses.id, whId)).limit(1).all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -152,12 +152,12 @@ async function __handler_PUT({ request }: { request: Request }) {
     body;
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ط³طھظˆط¯ط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(warehouses).where(eq(warehouses.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(warehouses).where(eq(warehouses.id, id)).limit(1).all())[0];
   if (!existing)
     return Response.json({ error: "ط§ظ„ظ…ط³طھظˆط¯ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   const before = JSON.stringify(existing);
-  db.update(warehouses)
+  await db.update(warehouses)
     .set({
       name: name?.trim() ?? existing.name,
       location: location ?? existing.location,
@@ -171,7 +171,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     .where(eq(warehouses.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "ظ…ط³طھظˆط¯ط¹",
     id,
@@ -180,7 +180,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     userName,
     before,
   );
-  const updated = db.select().from(warehouses).where(eq(warehouses.id, id)).limit(1).all()[0];
+  const updated = (await db.select().from(warehouses).where(eq(warehouses.id, id)).limit(1).all())[0];
   return Response.json({ item: updated });
 }
 
@@ -193,23 +193,23 @@ async function __handler_DELETE({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ط³طھظˆط¯ط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(warehouses).where(eq(warehouses.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(warehouses).where(eq(warehouses.id, id)).limit(1).all())[0];
   if (!existing)
     return Response.json({ error: "ط§ظ„ظ…ط³طھظˆط¯ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   const itemCount =
-    db
+    (await db
       .select({ count: sql<number>`count(*)` })
       .from(inventoryItems)
       .where(eq(inventoryItems.warehouseId, id))
-      .all()[0]?.count || 0;
+      .all())[0]?.count || 0;
 
   const movementCount =
-    db
+    (await db
       .select({ count: sql<number>`count(*)` })
       .from(stockMovements)
       .where(eq(stockMovements.warehouseId, id))
-      .all()[0]?.count || 0;
+      .all())[0]?.count || 0;
 
   if (itemCount > 0 || movementCount > 0) {
     const parts: string[] = [];
@@ -224,8 +224,8 @@ async function __handler_DELETE({ request }: { request: Request }) {
   }
 
   const before = JSON.stringify(existing);
-  db.delete(warehouses).where(eq(warehouses.id, id)).run();
-  addAudit(
+  await db.delete(warehouses).where(eq(warehouses.id, id)).run();
+  await addAudit(
     "ط­ط°ظپ",
     "ظ…ط³طھظˆط¯ط¹",
     id,

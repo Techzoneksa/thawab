@@ -12,22 +12,22 @@ async function __handler_GET({ request }: { request: Request }) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const cc = db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all()[0];
+    const cc = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
     if (!cc)
       return Response.json({ error: "ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const journalUsage =
-      db
+      (await db
         .select({ count: sql<number>`count(*)` })
         .from(journalLines)
         .where(eq(journalLines.costCenterId, id))
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
     const budgetUsage =
-      db
+      (await db
         .select({ count: sql<number>`count(*)` })
         .from(budgetLines)
         .where(eq(budgetLines.costCenterId, id))
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
 
     return Response.json({
       item: cc,
@@ -51,8 +51,8 @@ async function __handler_GET({ request }: { request: Request }) {
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const items = whereClause
-    ? db.select().from(costCenters).where(whereClause).orderBy(costCenters.code).all()
-    : db.select().from(costCenters).orderBy(costCenters.code).all();
+    ? await db.select().from(costCenters).where(whereClause).orderBy(costCenters.code).all()
+    : await db.select().from(costCenters).orderBy(costCenters.code).all();
   const total = items.length;
 
   return Response.json({ items, total });
@@ -65,7 +65,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
   if (action === "deactivate") {
     const { id, userId, userName } = body;
-    const existing = db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
     if (!existing)
       return Response.json({ error: "ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (existing.status === "ظ…ظˆظ‚ظˆظپ")
@@ -75,11 +75,11 @@ async function __handler_POST({ request }: { request: Request }) {
       );
 
     const before = JSON.stringify(existing);
-    db.update(costCenters)
+    await db.update(costCenters)
       .set({ status: "ظ…ظˆظ‚ظˆظپ", updatedAt: now() })
       .where(eq(costCenters.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "ط¥ظٹظ‚ط§ظپ",
       "ظ…ط±ظƒط² طھظƒظ„ظپط©",
       id,
@@ -88,13 +88,13 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "activate") {
     const { id, userId, userName } = body;
-    const existing = db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
     if (!existing)
       return Response.json({ error: "ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (existing.status === "ظ†ط´ط·")
@@ -104,11 +104,11 @@ async function __handler_POST({ request }: { request: Request }) {
       );
 
     const before = JSON.stringify(existing);
-    db.update(costCenters)
+    await db.update(costCenters)
       .set({ status: "ظ†ط´ط·", updatedAt: now() })
       .where(eq(costCenters.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "طھظپط¹ظٹظ„",
       "ظ…ط±ظƒط² طھظƒظ„ظپط©",
       id,
@@ -117,7 +117,7 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
@@ -129,12 +129,12 @@ async function __handler_POST({ request }: { request: Request }) {
   if (!name?.trim())
     return Response.json({ error: "ط§ط³ظ… ط§ظ„ظ…ط±ظƒط² ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db
+  const existing = (await db
     .select()
     .from(costCenters)
     .where(eq(costCenters.code, code.trim()))
     .limit(1)
-    .all()[0];
+    .all())[0];
   if (existing)
     return Response.json(
       { error: "ط±ظ…ط² ط§ظ„ظ…ط±ظƒط² ظ…ط³طھط®ط¯ظ… ط¨ط§ظ„ظپط¹ظ„" },
@@ -144,7 +144,7 @@ async function __handler_POST({ request }: { request: Request }) {
   const ccId = genId("CC");
   const ts = now();
 
-  db.insert(costCenters)
+  await db.insert(costCenters)
     .values({
       id: ccId,
       code: code.trim(),
@@ -161,7 +161,7 @@ async function __handler_POST({ request }: { request: Request }) {
     })
     .run();
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "ظ…ط±ظƒط² طھظƒظ„ظپط©",
     ccId,
@@ -169,7 +169,7 @@ async function __handler_POST({ request }: { request: Request }) {
     userId,
     userName,
   );
-  const created = db.select().from(costCenters).where(eq(costCenters.id, ccId)).limit(1).all()[0];
+  const created = (await db.select().from(costCenters).where(eq(costCenters.id, ccId)).limit(1).all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -181,14 +181,14 @@ async function __handler_PUT({ request }: { request: Request }) {
   if (!id)
     return Response.json({ error: "ظ…ط¹ط±ظپ ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
   if (!existing)
     return Response.json({ error: "ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   const before = JSON.stringify(existing);
   const ts = now();
 
-  db.update(costCenters)
+  await db.update(costCenters)
     .set({
       name: name?.trim() ?? existing.name,
       manager: manager ?? existing.manager,
@@ -202,7 +202,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     .where(eq(costCenters.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "ظ…ط±ظƒط² طھظƒظ„ظپط©",
     id,
@@ -211,7 +211,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     userName,
     before,
   );
-  const updated = db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all()[0];
+  const updated = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
   return Response.json({ item: updated });
 }
 
@@ -225,22 +225,22 @@ async function __handler_DELETE({ request }: { request: Request }) {
   if (!id)
     return Response.json({ error: "ظ…ط¹ط±ظپ ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
   if (!existing)
     return Response.json({ error: "ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   const journalUsage =
-    db
+    (await db
       .select({ count: sql<number>`count(*)` })
       .from(journalLines)
       .where(eq(journalLines.costCenterId, id))
-      .all()[0]?.count || 0;
+      .all())[0]?.count || 0;
   const budgetUsage =
-    db
+    (await db
       .select({ count: sql<number>`count(*)` })
       .from(budgetLines)
       .where(eq(budgetLines.costCenterId, id))
-      .all()[0]?.count || 0;
+      .all())[0]?.count || 0;
 
   if (journalUsage > 0 || budgetUsage > 0) {
     return Response.json(
@@ -252,8 +252,8 @@ async function __handler_DELETE({ request }: { request: Request }) {
   }
 
   const before = JSON.stringify(existing);
-  db.delete(costCenters).where(eq(costCenters.id, id)).run();
-  addAudit(
+  await db.delete(costCenters).where(eq(costCenters.id, id)).run();
+  await addAudit(
     "ط­ط°ظپ",
     "ظ…ط±ظƒط² طھظƒظ„ظپط©",
     id,

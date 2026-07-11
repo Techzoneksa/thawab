@@ -12,17 +12,17 @@ async function __handler_GET({ request }: { request: Request }) {
   const summary = url.searchParams.get("summary");
 
   if (id) {
-    const beneficiary = db
+    const beneficiary = (await db
       .select()
       .from(beneficiaries)
       .where(eq(beneficiaries.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!beneficiary)
       return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     // Get aid history
-    const aidHistory = db
+    const aidHistory = await db
       .select()
       .from(aidRecords)
       .where(eq(aidRecords.beneficiaryId, id))
@@ -44,7 +44,7 @@ async function __handler_GET({ request }: { request: Request }) {
     );
     const linkedProjects =
       linkedProjectIds.length > 0
-        ? db
+        ? await db
             .select()
             .from(projects)
             .where(or(...linkedProjectIds.map((pid) => eq(projects.id, pid))))
@@ -112,19 +112,19 @@ async function __handler_GET({ request }: { request: Request }) {
 
   const allQuery = db.select().from(beneficiaries).$dynamic();
   const all = whereClause
-    ? allQuery.where(whereClause).orderBy(desc(beneficiaries.createdAt)).all()
-    : allQuery.orderBy(desc(beneficiaries.createdAt)).all();
+    ? await allQuery.where(whereClause).orderBy(desc(beneficiaries.createdAt)).all()
+    : await allQuery.orderBy(desc(beneficiaries.createdAt)).all();
   const total = all.length;
 
   const itemsQuery = db.select().from(beneficiaries).$dynamic();
   const items = whereClause
-    ? itemsQuery
+    ? await itemsQuery
         .where(whereClause)
         .orderBy(desc(beneficiaries.createdAt))
         .limit(limit)
         .offset(offset)
         .all()
-    : itemsQuery.orderBy(desc(beneficiaries.createdAt)).limit(limit).offset(offset).all();
+    : await itemsQuery.orderBy(desc(beneficiaries.createdAt)).limit(limit).offset(offset).all();
 
   return Response.json({ items, total, page, limit });
 }
@@ -151,12 +151,12 @@ async function __handler_POST({ request }: { request: Request }) {
     };
 
     const newStatus = statusMap[action];
-    const beneficiary = db
+    const beneficiary = (await db
       .select()
       .from(beneficiaries)
       .where(eq(beneficiaries.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!beneficiary)
       return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
@@ -187,7 +187,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
     const before = JSON.stringify(beneficiary);
     const ts = now();
-    db.update(beneficiaries)
+    await db.update(beneficiaries)
       .set({ status: newStatus, updatedAt: ts })
       .where(eq(beneficiaries.id, id))
       .run();
@@ -200,7 +200,7 @@ async function __handler_POST({ request }: { request: Request }) {
       reactivate: "ط¥ط¹ط§ط¯ط© طھظپط¹ظٹظ„",
     };
 
-    addAudit(
+    await addAudit(
       actionLabels[action],
       "ظ…ط³طھظپظٹط¯",
       id,
@@ -209,33 +209,33 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db
+    const updated = (await db
       .select()
       .from(beneficiaries)
       .where(eq(beneficiaries.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     return Response.json({ item: updated });
   }
 
   // Legacy "status" action - keep for backward compat
   if (action === "status") {
     const { status } = body;
-    const beneficiary = db
+    const beneficiary = (await db
       .select()
       .from(beneficiaries)
       .where(eq(beneficiaries.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!beneficiary)
       return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const before = JSON.stringify(beneficiary);
-    db.update(beneficiaries)
+    await db.update(beneficiaries)
       .set({ status, updatedAt: now() })
       .where(eq(beneficiaries.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "طھط؛ظٹظٹط± ط§ظ„ط­ط§ظ„ط©",
       "ظ…ط³طھظپظٹط¯",
       id,
@@ -244,12 +244,12 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db
+    const updated = (await db
       .select()
       .from(beneficiaries)
       .where(eq(beneficiaries.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     return Response.json({ item: updated });
   }
 
@@ -277,7 +277,7 @@ async function __handler_POST({ request }: { request: Request }) {
   const benId = genId("BEN");
   const ts = now();
 
-  db.insert(beneficiaries)
+  await db.insert(beneficiaries)
     .values({
       id: benId,
       name: name.trim(),
@@ -298,7 +298,7 @@ async function __handler_POST({ request }: { request: Request }) {
     })
     .run();
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "ظ…ط³طھظپظٹط¯",
     benId,
@@ -306,12 +306,12 @@ async function __handler_POST({ request }: { request: Request }) {
     uid,
     uname,
   );
-  const created = db
+  const created = (await db
     .select()
     .from(beneficiaries)
     .where(eq(beneficiaries.id, benId))
     .limit(1)
-    .all()[0];
+    .all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -338,12 +338,12 @@ async function __handler_PUT({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ط³طھظپظٹط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db
+  const existing = (await db
     .select()
     .from(beneficiaries)
     .where(eq(beneficiaries.id, id))
     .limit(1)
-    .all()[0];
+    .all())[0];
   if (!existing)
     return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
@@ -360,7 +360,7 @@ async function __handler_PUT({ request }: { request: Request }) {
   const before = JSON.stringify(existing);
   const ts = now();
 
-  db.update(beneficiaries)
+  await db.update(beneficiaries)
     .set({
       name: name?.trim() ?? existing.name,
       fileNumber: fileNumber ?? existing.fileNumber,
@@ -380,7 +380,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     .where(eq(beneficiaries.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "ظ…ط³طھظپظٹط¯",
     id,
@@ -389,7 +389,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     userName,
     before,
   );
-  const updated = db.select().from(beneficiaries).where(eq(beneficiaries.id, id)).limit(1).all()[0];
+  const updated = (await db.select().from(beneficiaries).where(eq(beneficiaries.id, id)).limit(1).all())[0];
   return Response.json({ item: updated });
 }
 
@@ -402,17 +402,17 @@ async function __handler_DELETE({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ط³طھظپظٹط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db
+  const existing = (await db
     .select()
     .from(beneficiaries)
     .where(eq(beneficiaries.id, id))
     .limit(1)
-    .all()[0];
+    .all())[0];
   if (!existing)
     return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   // Check for delivered aid records
-  const linkedAid = db
+  const linkedAid = await db
     .select()
     .from(aidRecords)
     .where(and(eq(aidRecords.beneficiaryId, id), eq(aidRecords.status, "طھظ… ط§ظ„طھط³ظ„ظٹظ…")))
@@ -430,7 +430,7 @@ async function __handler_DELETE({ request }: { request: Request }) {
   }
 
   // Check for pending aid records
-  const pendingAid = db
+  const pendingAid = await db
     .select()
     .from(aidRecords)
     .where(
@@ -456,8 +456,8 @@ async function __handler_DELETE({ request }: { request: Request }) {
   }
 
   const before = JSON.stringify(existing);
-  db.delete(beneficiaries).where(eq(beneficiaries.id, id)).run();
-  addAudit(
+  await db.delete(beneficiaries).where(eq(beneficiaries.id, id)).run();
+  await addAudit(
     "ط­ط°ظپ",
     "ظ…ط³طھظپظٹط¯",
     id,

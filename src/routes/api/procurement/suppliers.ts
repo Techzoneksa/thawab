@@ -13,30 +13,30 @@ async function __handler_GET({ request }: { request: Request }) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const supplier = db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all()[0];
+    const supplier = (await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all())[0];
     if (!supplier)
       return Response.json({ error: "ط§ظ„ظ…ظˆط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const orderCount =
-      db
+      (await db
         .select({ count: sql<number>`count(*)` })
         .from(purchaseOrders)
         .where(eq(purchaseOrders.supplierId, id))
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
 
     const movementCount =
-      db
+      (await db
         .select({ count: sql<number>`count(*)` })
         .from(stockMovements)
         .where(and(eq(stockMovements.sourceType, "supplier"), eq(stockMovements.sourceId, id)))
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
 
     const assetCount =
-      db
+      (await db
         .select({ count: sql<number>`count(*)` })
         .from(fixedAssets)
         .where(eq(fixedAssets.supplierId, id))
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
 
     const usage = orderCount + assetCount;
 
@@ -68,8 +68,8 @@ async function __handler_GET({ request }: { request: Request }) {
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const items = whereClause
-    ? db.select().from(suppliers).where(whereClause).orderBy(desc(suppliers.createdAt)).all()
-    : db.select().from(suppliers).orderBy(desc(suppliers.createdAt)).all();
+    ? await db.select().from(suppliers).where(whereClause).orderBy(desc(suppliers.createdAt)).all()
+    : await db.select().from(suppliers).orderBy(desc(suppliers.createdAt)).all();
   const total = items.length;
 
   return Response.json({ items, total });
@@ -82,7 +82,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
   if (action === "activate" || action === "deactivate") {
     const { id, userId, userName } = body;
-    const existing = db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all())[0];
     if (!existing)
       return Response.json({ error: "ط§ظ„ظ…ظˆط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
@@ -95,11 +95,11 @@ async function __handler_POST({ request }: { request: Request }) {
     }
 
     const before = JSON.stringify(existing);
-    db.update(suppliers)
+    await db.update(suppliers)
       .set({ status: newStatus, updatedAt: now() })
       .where(eq(suppliers.id, id))
       .run();
-    addAudit(
+    await addAudit(
       action === "activate" ? "طھظپط¹ظٹظ„" : "طھط¹ط·ظٹظ„",
       "ظ…ظˆط±ط¯",
       id,
@@ -108,7 +108,7 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
@@ -133,7 +133,7 @@ async function __handler_POST({ request }: { request: Request }) {
   const supId = genId("SUP");
   const ts = now();
 
-  db.insert(suppliers)
+  await db.insert(suppliers)
     .values({
       id: supId,
       name: name.trim(),
@@ -152,8 +152,8 @@ async function __handler_POST({ request }: { request: Request }) {
     })
     .run();
 
-  addAudit("ط¥ط¶ط§ظپط©", "ظ…ظˆط±ط¯", supId, `طھظ… ط¥ط¶ط§ظپط© ظ…ظˆط±ط¯: ${name}`, userId, userName);
-  const created = db.select().from(suppliers).where(eq(suppliers.id, supId)).limit(1).all()[0];
+  await addAudit("ط¥ط¶ط§ظپط©", "ظ…ظˆط±ط¯", supId, `طھظ… ط¥ط¶ط§ظپط© ظ…ظˆط±ط¯: ${name}`, userId, userName);
+  const created = (await db.select().from(suppliers).where(eq(suppliers.id, supId)).limit(1).all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -178,13 +178,13 @@ async function __handler_PUT({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ظˆط±ط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all())[0];
   if (!existing) return Response.json({ error: "ط§ظ„ظ…ظˆط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   const before = JSON.stringify(existing);
   const ts = now();
 
-  db.update(suppliers)
+  await db.update(suppliers)
     .set({
       name: name?.trim() ?? existing.name,
       activity: activity ?? existing.activity,
@@ -201,7 +201,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     .where(eq(suppliers.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "ظ…ظˆط±ط¯",
     id,
@@ -210,7 +210,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     userName,
     before,
   );
-  const updated = db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all()[0];
+  const updated = (await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all())[0];
   return Response.json({ item: updated });
 }
 
@@ -223,22 +223,22 @@ async function __handler_DELETE({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ظˆط±ط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all())[0];
   if (!existing) return Response.json({ error: "ط§ظ„ظ…ظˆط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   const orderCount =
-    db
+    (await db
       .select({ count: sql<number>`count(*)` })
       .from(purchaseOrders)
       .where(eq(purchaseOrders.supplierId, id))
-      .all()[0]?.count || 0;
+      .all())[0]?.count || 0;
 
   const assetCount =
-    db
+    (await db
       .select({ count: sql<number>`count(*)` })
       .from(fixedAssets)
       .where(eq(fixedAssets.supplierId, id))
-      .all()[0]?.count || 0;
+      .all())[0]?.count || 0;
 
   if (orderCount > 0 || assetCount > 0) {
     const parts: string[] = [];
@@ -253,8 +253,8 @@ async function __handler_DELETE({ request }: { request: Request }) {
   }
 
   const before = JSON.stringify(existing);
-  db.delete(suppliers).where(eq(suppliers.id, id)).run();
-  addAudit(
+  await db.delete(suppliers).where(eq(suppliers.id, id)).run();
+  await addAudit(
     "ط­ط°ظپ",
     "ظ…ظˆط±ط¯",
     id,

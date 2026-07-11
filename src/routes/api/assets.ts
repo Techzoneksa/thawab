@@ -40,22 +40,22 @@ async function __handler_GET({ request }: { request: Request }) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const asset = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+    const asset = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
     if (!asset) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const depCount =
-      db
+      (await db
         .select({ count: sql<number>`count(*)` })
         .from(assetDepreciations)
         .where(eq(assetDepreciations.assetId, id))
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
 
     const mvCount =
-      db
+      (await db
         .select({ count: sql<number>`count(*)` })
         .from(assetMovements)
         .where(eq(assetMovements.assetId, id))
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
 
     return Response.json({
       item: asset,
@@ -88,8 +88,8 @@ async function __handler_GET({ request }: { request: Request }) {
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const items = whereClause
-    ? db.select().from(fixedAssets).where(whereClause).orderBy(desc(fixedAssets.createdAt)).all()
-    : db.select().from(fixedAssets).orderBy(desc(fixedAssets.createdAt)).all();
+    ? await db.select().from(fixedAssets).where(whereClause).orderBy(desc(fixedAssets.createdAt)).all()
+    : await db.select().from(fixedAssets).orderBy(desc(fixedAssets.createdAt)).all();
 
   return Response.json({ items, total: items.length });
 }
@@ -101,7 +101,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
   if (action === "transfer") {
     const { id, toLocation, toResponsible, date, reason, notes, userId, userName } = body;
-    const existing = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
     if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (READ_ONLY_STATUSES.includes(existing.status as AssetStatus)) {
       return Response.json(
@@ -112,7 +112,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
     const before = JSON.stringify(existing);
     const ts = now();
-    db.update(fixedAssets)
+    await db.update(fixedAssets)
       .set({
         location: toLocation || existing.location,
         responsiblePerson: toResponsible || existing.responsiblePerson,
@@ -122,7 +122,7 @@ async function __handler_POST({ request }: { request: Request }) {
       .where(eq(fixedAssets.id, id))
       .run();
 
-    db.insert(assetMovements)
+    await db.insert(assetMovements)
       .values({
         id: genId("AMV"),
         assetId: id,
@@ -139,7 +139,7 @@ async function __handler_POST({ request }: { request: Request }) {
       })
       .run();
 
-    addAudit(
+    await addAudit(
       "طھط­ظˆظٹظ„",
       "ط£طµظ„ ط«ط§ط¨طھ",
       id,
@@ -148,13 +148,13 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "maintain") {
     const { id, date, cost, reason, notes, userId, userName } = body;
-    const existing = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
     if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (READ_ONLY_STATUSES.includes(existing.status as AssetStatus)) {
       return Response.json(
@@ -167,7 +167,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
     const before = JSON.stringify(existing);
     const ts = now();
-    db.insert(assetMovements)
+    await db.insert(assetMovements)
       .values({
         id: genId("AMV"),
         assetId: id,
@@ -181,12 +181,12 @@ async function __handler_POST({ request }: { request: Request }) {
       })
       .run();
 
-    db.update(fixedAssets)
+    await db.update(fixedAssets)
       .set({ status: "طھط­طھ ط§ظ„طµظٹط§ظ†ط©", updatedAt: ts })
       .where(eq(fixedAssets.id, id))
       .run();
 
-    addAudit(
+    await addAudit(
       "طµظٹط§ظ†ط©",
       "ط£طµظ„ ط«ط§ط¨طھ",
       id,
@@ -195,20 +195,20 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "returnFromMaintenance") {
     const { id, condition, userId, userName } = body;
-    const existing = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
     if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (existing.status !== "طھط­طھ ط§ظ„طµظٹط§ظ†ط©") {
       return Response.json({ error: "ط§ظ„ط£طµظ„ ظ„ظٹط³ طھط­طھ ط§ظ„طµظٹط§ظ†ط©" }, { status: 400 });
     }
 
     const before = JSON.stringify(existing);
-    db.update(fixedAssets)
+    await db.update(fixedAssets)
       .set({
         status: "ظ†ط´ط·",
         condition: condition || existing.condition,
@@ -216,7 +216,7 @@ async function __handler_POST({ request }: { request: Request }) {
       })
       .where(eq(fixedAssets.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "ط¥ظ†ظ‡ط§ط، طµظٹط§ظ†ط©",
       "ط£طµظ„ ط«ط§ط¨طھ",
       id,
@@ -225,13 +225,13 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "depreciate") {
     const { id, amount, date, notes, userId, userName } = body;
-    const existing = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
     if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (READ_ONLY_STATUSES.includes(existing.status as AssetStatus)) {
       return Response.json(
@@ -272,7 +272,7 @@ async function __handler_POST({ request }: { request: Request }) {
     const before = JSON.stringify(existing);
     const ts = now();
 
-    db.insert(assetDepreciations)
+    await db.insert(assetDepreciations)
       .values({
         id: genId("DEP"),
         assetId: id,
@@ -286,12 +286,12 @@ async function __handler_POST({ request }: { request: Request }) {
       })
       .run();
 
-    db.update(fixedAssets)
+    await db.update(fixedAssets)
       .set({ accumulatedDepreciation: newAccumulated, updatedAt: ts })
       .where(eq(fixedAssets.id, id))
       .run();
 
-    addAudit(
+    await addAudit(
       "ط¥ظ‡ظ„ط§ظƒ",
       "ط£طµظ„ ط«ط§ط¨طھ",
       id,
@@ -300,13 +300,13 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "dispose") {
     const { id, date, reason, notes, userId, userName } = body;
-    const existing = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
     if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (READ_ONLY_STATUSES.includes(existing.status as AssetStatus)) {
       return Response.json(
@@ -317,12 +317,12 @@ async function __handler_POST({ request }: { request: Request }) {
 
     const before = JSON.stringify(existing);
     const ts = now();
-    db.update(fixedAssets)
+    await db.update(fixedAssets)
       .set({ status: "ظ…ط³طھط¨ط¹ط¯", updatedAt: ts })
       .where(eq(fixedAssets.id, id))
       .run();
 
-    db.insert(assetMovements)
+    await db.insert(assetMovements)
       .values({
         id: genId("AMV"),
         assetId: id,
@@ -335,7 +335,7 @@ async function __handler_POST({ request }: { request: Request }) {
       })
       .run();
 
-    addAudit(
+    await addAudit(
       "ط§ط³طھط¨ط¹ط§ط¯",
       "ط£طµظ„ ط«ط§ط¨طھ",
       id,
@@ -344,13 +344,13 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "sell") {
     const { id, salePrice, date, buyer, notes, userId, userName } = body;
-    const existing = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
     if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (READ_ONLY_STATUSES.includes(existing.status as AssetStatus)) {
       return Response.json(
@@ -361,12 +361,12 @@ async function __handler_POST({ request }: { request: Request }) {
 
     const before = JSON.stringify(existing);
     const ts = now();
-    db.update(fixedAssets)
+    await db.update(fixedAssets)
       .set({ status: "ظ…ط¨ط§ط¹", updatedAt: ts })
       .where(eq(fixedAssets.id, id))
       .run();
 
-    db.insert(assetMovements)
+    await db.insert(assetMovements)
       .values({
         id: genId("AMV"),
         assetId: id,
@@ -380,7 +380,7 @@ async function __handler_POST({ request }: { request: Request }) {
       })
       .run();
 
-    addAudit(
+    await addAudit(
       "ط¨ظٹط¹",
       "ط£طµظ„ ط«ط§ط¨طھ",
       id,
@@ -389,7 +389,7 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
@@ -416,14 +416,14 @@ async function __handler_POST({ request }: { request: Request }) {
     return Response.json({ error: "ط§ط³ظ… ط§ظ„ط£طµظ„ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   if (supplierId) {
-    const sup = db.select().from(suppliers).where(eq(suppliers.id, supplierId)).limit(1).all()[0];
+    const sup = (await db.select().from(suppliers).where(eq(suppliers.id, supplierId)).limit(1).all())[0];
     if (!sup) return Response.json({ error: "ط§ظ„ظ…ظˆط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 400 });
   }
 
   const assetId = genId("AST");
   const ts = now();
 
-  db.insert(fixedAssets)
+  await db.insert(fixedAssets)
     .values({
       id: assetId,
       name: name.trim(),
@@ -448,7 +448,7 @@ async function __handler_POST({ request }: { request: Request }) {
     })
     .run();
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "ط£طµظ„ ط«ط§ط¨طھ",
     assetId,
@@ -456,12 +456,12 @@ async function __handler_POST({ request }: { request: Request }) {
     userId,
     userName,
   );
-  const created = db
+  const created = (await db
     .select()
     .from(fixedAssets)
     .where(eq(fixedAssets.id, assetId))
     .limit(1)
-    .all()[0];
+    .all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -489,7 +489,7 @@ async function __handler_PUT({ request }: { request: Request }) {
   } = body;
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط£طµظ„ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
   if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   if (READ_ONLY_STATUSES.includes(existing.status as AssetStatus)) {
     return Response.json(
@@ -499,7 +499,7 @@ async function __handler_PUT({ request }: { request: Request }) {
   }
 
   const before = JSON.stringify(existing);
-  db.update(fixedAssets)
+  await db.update(fixedAssets)
     .set({
       name: name?.trim() ?? existing.name,
       code: code ?? existing.code,
@@ -521,7 +521,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     .where(eq(fixedAssets.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "ط£طµظ„ ط«ط§ط¨طھ",
     id,
@@ -530,7 +530,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     userName,
     before,
   );
-  const updated = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+  const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
   return Response.json({ item: updated });
 }
 
@@ -543,22 +543,22 @@ async function __handler_DELETE({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط£طµظ„ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
   if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   const depCount =
-    db
+    (await db
       .select({ count: sql<number>`count(*)` })
       .from(assetDepreciations)
       .where(eq(assetDepreciations.assetId, id))
-      .all()[0]?.count || 0;
+      .all())[0]?.count || 0;
 
   const mvCount =
-    db
+    (await db
       .select({ count: sql<number>`count(*)` })
       .from(assetMovements)
       .where(eq(assetMovements.assetId, id))
-      .all()[0]?.count || 0;
+      .all())[0]?.count || 0;
 
   if (depCount > 0 || mvCount > 0) {
     const parts: string[] = [];
@@ -573,8 +573,8 @@ async function __handler_DELETE({ request }: { request: Request }) {
   }
 
   const before = JSON.stringify(existing);
-  db.delete(fixedAssets).where(eq(fixedAssets.id, id)).run();
-  addAudit(
+  await db.delete(fixedAssets).where(eq(fixedAssets.id, id)).run();
+  await addAudit(
     "ط­ط°ظپ",
     "ط£طµظ„ ط«ط§ط¨طھ",
     id,

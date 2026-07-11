@@ -12,12 +12,12 @@ async function __handler_GET({ request }: { request: Request }) {
   const summary = url.searchParams.get("summary");
 
   if (id) {
-    const project = db.select().from(projects).where(eq(projects.id, id)).limit(1).all()[0];
+    const project = (await db.select().from(projects).where(eq(projects.id, id)).limit(1).all())[0];
     if (!project)
       return Response.json({ error: "ط§ظ„ظ…ط´ط±ظˆط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     // Get project donations total
-    const projDonations = db
+    const projDonations = await db
       .select()
       .from(donations)
       .where(and(eq(donations.projectId, id), eq(donations.status, "ظ…ط¤ظƒط¯")))
@@ -25,7 +25,7 @@ async function __handler_GET({ request }: { request: Request }) {
     const totalDonations = projDonations.reduce((s, d) => s + d.amount, 0);
 
     // Get aid records count and total
-    const projAid = db
+    const projAid = await db
       .select()
       .from(aidRecords)
       .where(and(eq(aidRecords.projectId, id), eq(aidRecords.status, "طھظ… ط§ظ„طھط³ظ„ظٹظ…")))
@@ -54,7 +54,7 @@ async function __handler_GET({ request }: { request: Request }) {
     }
 
     // Get linked donations for display
-    const linkedDonations = db
+    const linkedDonations = await db
       .select()
       .from(donations)
       .where(eq(donations.projectId, id))
@@ -63,7 +63,7 @@ async function __handler_GET({ request }: { request: Request }) {
       .all();
 
     // Get linked aid records for display
-    const linkedAid = db
+    const linkedAid = await db
       .select()
       .from(aidRecords)
       .where(eq(aidRecords.projectId, id))
@@ -77,7 +77,7 @@ async function __handler_GET({ request }: { request: Request }) {
     );
     const linkedBeneficiaries =
       linkedBeneficiaryIds.length > 0
-        ? db
+        ? await db
             .select()
             .from(beneficiaries)
             .where(or(...linkedBeneficiaryIds.map((bid) => eq(beneficiaries.id, bid))))
@@ -126,19 +126,19 @@ async function __handler_GET({ request }: { request: Request }) {
 
   const allQuery = db.select().from(projects).$dynamic();
   const all = whereClause
-    ? allQuery.where(whereClause).orderBy(desc(projects.createdAt)).all()
-    : allQuery.orderBy(desc(projects.createdAt)).all();
+    ? await allQuery.where(whereClause).orderBy(desc(projects.createdAt)).all()
+    : await allQuery.orderBy(desc(projects.createdAt)).all();
   const total = all.length;
 
   const itemsQuery = db.select().from(projects).$dynamic();
   const items = whereClause
-    ? itemsQuery
+    ? await itemsQuery
         .where(whereClause)
         .orderBy(desc(projects.createdAt))
         .limit(limit)
         .offset(offset)
         .all()
-    : itemsQuery.orderBy(desc(projects.createdAt)).limit(limit).offset(offset).all();
+    : await itemsQuery.orderBy(desc(projects.createdAt)).limit(limit).offset(offset).all();
 
   return Response.json({ items, total, page, limit });
 }
@@ -158,7 +158,7 @@ async function __handler_POST({ request }: { request: Request }) {
     };
 
     const newStatus = statusMap[action as keyof typeof statusMap];
-    const project = db.select().from(projects).where(eq(projects.id, id)).limit(1).all()[0];
+    const project = (await db.select().from(projects).where(eq(projects.id, id)).limit(1).all())[0];
     if (!project)
       return Response.json({ error: "ط§ظ„ظ…ط´ط±ظˆط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
@@ -182,7 +182,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
     const before = JSON.stringify(project);
     const ts = now();
-    db.update(projects).set({ status: newStatus, updatedAt: ts }).where(eq(projects.id, id)).run();
+    await db.update(projects).set({ status: newStatus, updatedAt: ts }).where(eq(projects.id, id)).run();
 
     const actionLabel =
       action === "activate"
@@ -193,7 +193,7 @@ async function __handler_POST({ request }: { request: Request }) {
             ? "ط¥ظƒظ…ط§ظ„"
             : "ط¥ظ„ط؛ط§ط،";
 
-    addAudit(
+    await addAudit(
       actionLabel,
       "ظ…ط´ط±ظˆط¹",
       id,
@@ -202,20 +202,20 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(projects).where(eq(projects.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(projects).where(eq(projects.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   // Legacy "status" action - keep for backward compat
   if (action === "status") {
     const { status } = body;
-    const project = db.select().from(projects).where(eq(projects.id, id)).limit(1).all()[0];
+    const project = (await db.select().from(projects).where(eq(projects.id, id)).limit(1).all())[0];
     if (!project)
       return Response.json({ error: "ط§ظ„ظ…ط´ط±ظˆط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const before = JSON.stringify(project);
-    db.update(projects).set({ status, updatedAt: now() }).where(eq(projects.id, id)).run();
-    addAudit(
+    await db.update(projects).set({ status, updatedAt: now() }).where(eq(projects.id, id)).run();
+    await addAudit(
       "طھط؛ظٹظٹط± ط§ظ„ط­ط§ظ„ط©",
       "ظ…ط´ط±ظˆط¹",
       id,
@@ -224,7 +224,7 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(projects).where(eq(projects.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(projects).where(eq(projects.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
@@ -253,7 +253,7 @@ async function __handler_POST({ request }: { request: Request }) {
   const projectId = genId("PRJ");
   const ts = now();
 
-  db.insert(projects)
+  await db.insert(projects)
     .values({
       id: projectId,
       name: name.trim(),
@@ -278,7 +278,7 @@ async function __handler_POST({ request }: { request: Request }) {
     })
     .run();
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "ظ…ط´ط±ظˆط¹",
     projectId,
@@ -286,7 +286,7 @@ async function __handler_POST({ request }: { request: Request }) {
     uid,
     uname,
   );
-  const created = db.select().from(projects).where(eq(projects.id, projectId)).limit(1).all()[0];
+  const created = (await db.select().from(projects).where(eq(projects.id, projectId)).limit(1).all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -314,7 +314,7 @@ async function __handler_PUT({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ط´ط±ظˆط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(projects).where(eq(projects.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(projects).where(eq(projects.id, id)).limit(1).all())[0];
   if (!existing)
     return Response.json({ error: "ط§ظ„ظ…ط´ط±ظˆط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
@@ -329,7 +329,7 @@ async function __handler_PUT({ request }: { request: Request }) {
   const before = JSON.stringify(existing);
   const ts = now();
 
-  db.update(projects)
+  await db.update(projects)
     .set({
       name: name?.trim() ?? existing.name,
       code: code ?? existing.code,
@@ -349,7 +349,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     .where(eq(projects.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "ظ…ط´ط±ظˆط¹",
     id,
@@ -358,7 +358,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     userName,
     before,
   );
-  const updated = db.select().from(projects).where(eq(projects.id, id)).limit(1).all()[0];
+  const updated = (await db.select().from(projects).where(eq(projects.id, id)).limit(1).all())[0];
   return Response.json({ item: updated });
 }
 
@@ -371,18 +371,18 @@ async function __handler_DELETE({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ط´ط±ظˆط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(projects).where(eq(projects.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(projects).where(eq(projects.id, id)).limit(1).all())[0];
   if (!existing)
     return Response.json({ error: "ط§ظ„ظ…ط´ط±ظˆط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   // Check for linked donations or aid records
-  const linkedDonations = db
+  const linkedDonations = await db
     .select()
     .from(donations)
     .where(eq(donations.projectId, id))
     .limit(1)
     .all();
-  const linkedAid = db.select().from(aidRecords).where(eq(aidRecords.projectId, id)).limit(1).all();
+  const linkedAid = await db.select().from(aidRecords).where(eq(aidRecords.projectId, id)).limit(1).all();
 
   if (linkedDonations.length > 0 || linkedAid.length > 0) {
     return Response.json(
@@ -395,8 +395,8 @@ async function __handler_DELETE({ request }: { request: Request }) {
   }
 
   const before = JSON.stringify(existing);
-  db.delete(projects).where(eq(projects.id, id)).run();
-  addAudit(
+  await db.delete(projects).where(eq(projects.id, id)).run();
+  await addAudit(
     "ط­ط°ظپ",
     "ظ…ط´ط±ظˆط¹",
     id,

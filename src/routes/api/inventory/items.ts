@@ -22,27 +22,27 @@ async function __handler_GET({ request }: { request: Request }) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const item = db
+    const item = (await db
       .select()
       .from(inventoryItems)
       .where(eq(inventoryItems.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!item) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const movementCount =
-      db
+      (await db
         .select({ count: sql<number>`count(*)` })
         .from(stockMovements)
         .where(eq(stockMovements.itemId, id))
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
 
     const poLineCount =
-      db
+      (await db
         .select({ count: sql<number>`count(*)` })
         .from(purchaseOrderLines)
         .where(eq(purchaseOrderLines.itemId, id))
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
 
     return Response.json({
       item,
@@ -74,13 +74,13 @@ async function __handler_GET({ request }: { request: Request }) {
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const items = whereClause
-    ? db
+    ? await db
         .select()
         .from(inventoryItems)
         .where(whereClause)
         .orderBy(desc(inventoryItems.createdAt))
         .all()
-    : db.select().from(inventoryItems).orderBy(desc(inventoryItems.createdAt)).all();
+    : await db.select().from(inventoryItems).orderBy(desc(inventoryItems.createdAt)).all();
 
   return Response.json({ items, total: items.length });
 }
@@ -92,12 +92,12 @@ async function __handler_POST({ request }: { request: Request }) {
 
   if (action === "activate" || action === "deactivate") {
     const { id, userId, userName } = body;
-    const existing = db
+    const existing = (await db
       .select()
       .from(inventoryItems)
       .where(eq(inventoryItems.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!existing) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
     const newStatus: ItemStatus = action === "activate" ? "ظ†ط´ط·" : "ظ…ظˆظ‚ظˆظپ";
@@ -109,11 +109,11 @@ async function __handler_POST({ request }: { request: Request }) {
     }
 
     const before = JSON.stringify(existing);
-    db.update(inventoryItems)
+    await db.update(inventoryItems)
       .set({ status: newStatus, updatedAt: now() })
       .where(eq(inventoryItems.id, id))
       .run();
-    addAudit(
+    await addAudit(
       action === "activate" ? "طھظپط¹ظٹظ„" : "طھط¹ط·ظٹظ„",
       "طµظ†ظپ",
       id,
@@ -122,12 +122,12 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db
+    const updated = (await db
       .select()
       .from(inventoryItems)
       .where(eq(inventoryItems.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     return Response.json({ item: updated });
   }
 
@@ -160,7 +160,7 @@ async function __handler_POST({ request }: { request: Request }) {
   if (!unit?.trim()) return Response.json({ error: "ط§ظ„ظˆط­ط¯ط© ظ…ط·ظ„ظˆط¨ط©" }, { status: 400 });
 
   if (warehouseId) {
-    const wh = db.select().from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1).all()[0];
+    const wh = (await db.select().from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1).all())[0];
     if (!wh) return Response.json({ error: "ط§ظ„ظ…ط³طھظˆط¯ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 400 });
   }
 
@@ -168,7 +168,7 @@ async function __handler_POST({ request }: { request: Request }) {
   const ts = now();
   const qty = parseFloat(quantity) || 0;
 
-  db.insert(inventoryItems)
+  await db.insert(inventoryItems)
     .values({
       id: itemId,
       name: name.trim(),
@@ -188,7 +188,7 @@ async function __handler_POST({ request }: { request: Request }) {
     .run();
 
   if (qty > 0 && warehouseId) {
-    db.insert(stockMovements)
+    await db.insert(stockMovements)
       .values({
         id: genId("MV"),
         itemId,
@@ -206,17 +206,17 @@ async function __handler_POST({ request }: { request: Request }) {
       .run();
   }
 
-  addAudit("ط¥ط¶ط§ظپط©", "طµظ†ظپ", itemId, `طھظ… ط¥ط¶ط§ظپط© طµظ†ظپ: ${name}`, userId, userName);
-  const created = db
+  await addAudit("ط¥ط¶ط§ظپط©", "طµظ†ظپ", itemId, `طھظ… ط¥ط¶ط§ظپط© طµظ†ظپ: ${name}`, userId, userName);
+  const created = (await db
     .select()
     .from(inventoryItems)
     .where(eq(inventoryItems.id, itemId))
     .limit(1)
-    .all()[0];
+    .all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
-function handleStockMovement(body: {
+async function handleStockMovement(body: {
   id: string;
   action: string;
   warehouseId?: string;
@@ -233,7 +233,7 @@ function handleStockMovement(body: {
       { status: 400 },
     );
 
-  const item = db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1).all()[0];
+  const item = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1).all())[0];
   if (!item) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   if (item.status === "ظ…ط؛ظ„ظ‚")
     return Response.json(
@@ -263,12 +263,12 @@ function handleStockMovement(body: {
   const whId = warehouseId || item.warehouseId;
   const ts = now();
 
-  db.update(inventoryItems)
+  await db.update(inventoryItems)
     .set({ quantity: newQty, warehouseId: whId || null, updatedAt: ts })
     .where(eq(inventoryItems.id, id))
     .run();
 
-  db.insert(stockMovements)
+  await db.insert(stockMovements)
     .values({
       id: genId("MV"),
       itemId: id,
@@ -285,7 +285,7 @@ function handleStockMovement(body: {
     })
     .run();
 
-  addAudit(
+  await addAudit(
     movementType,
     "طµظ†ظپ",
     id,
@@ -294,16 +294,16 @@ function handleStockMovement(body: {
     userName,
   );
 
-  const updated = db
+  const updated = (await db
     .select()
     .from(inventoryItems)
     .where(eq(inventoryItems.id, id))
     .limit(1)
-    .all()[0];
+    .all())[0];
   return Response.json({ item: updated });
 }
 
-function handleTransfer(body: {
+async function handleTransfer(body: {
   id: string;
   fromWarehouseId?: string;
   toWarehouseId?: string;
@@ -330,7 +330,7 @@ function handleTransfer(body: {
       { status: 400 },
     );
 
-  const item = db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1).all()[0];
+  const item = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1).all())[0];
   if (!item) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   if (item.status === "ظ…ط؛ظ„ظ‚")
     return Response.json(
@@ -350,13 +350,13 @@ function handleTransfer(body: {
   const mvId = genId("MV");
   const balanceAfter = item.quantity - qty;
 
-  db.update(inventoryItems)
+  await db.update(inventoryItems)
     .set({ quantity: balanceAfter, warehouseId: toWarehouseId, updatedAt: ts })
     .where(eq(inventoryItems.id, id))
     .run();
 
   // Out movement
-  db.insert(stockMovements)
+  await db.insert(stockMovements)
     .values({
       id: mvId,
       itemId: id,
@@ -375,7 +375,7 @@ function handleTransfer(body: {
     .run();
 
   // In movement
-  db.insert(stockMovements)
+  await db.insert(stockMovements)
     .values({
       id: genId("MV"),
       itemId: id,
@@ -394,7 +394,7 @@ function handleTransfer(body: {
     })
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط­ظˆظٹظ„",
     "طµظ†ظپ",
     id,
@@ -403,12 +403,12 @@ function handleTransfer(body: {
     userName,
   );
 
-  const updated = db
+  const updated = (await db
     .select()
     .from(inventoryItems)
     .where(eq(inventoryItems.id, id))
     .limit(1)
-    .all()[0];
+    .all())[0];
   return Response.json({ item: updated });
 }
 
@@ -431,16 +431,16 @@ async function __handler_PUT({ request }: { request: Request }) {
   } = body;
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„طµظ†ظپ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db
+  const existing = (await db
     .select()
     .from(inventoryItems)
     .where(eq(inventoryItems.id, id))
     .limit(1)
-    .all()[0];
+    .all())[0];
   if (!existing) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   const before = JSON.stringify(existing);
-  db.update(inventoryItems)
+  await db.update(inventoryItems)
     .set({
       name: name?.trim() ?? existing.name,
       sku: sku ?? existing.sku,
@@ -456,7 +456,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     .where(eq(inventoryItems.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "طµظ†ظپ",
     id,
@@ -465,12 +465,12 @@ async function __handler_PUT({ request }: { request: Request }) {
     userName,
     before,
   );
-  const updated = db
+  const updated = (await db
     .select()
     .from(inventoryItems)
     .where(eq(inventoryItems.id, id))
     .limit(1)
-    .all()[0];
+    .all())[0];
   return Response.json({ item: updated });
 }
 
@@ -483,27 +483,27 @@ async function __handler_DELETE({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„طµظ†ظپ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db
+  const existing = (await db
     .select()
     .from(inventoryItems)
     .where(eq(inventoryItems.id, id))
     .limit(1)
-    .all()[0];
+    .all())[0];
   if (!existing) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
 
   const movementCount =
-    db
+    (await db
       .select({ count: sql<number>`count(*)` })
       .from(stockMovements)
       .where(eq(stockMovements.itemId, id))
-      .all()[0]?.count || 0;
+      .all())[0]?.count || 0;
 
   const poLineCount =
-    db
+    (await db
       .select({ count: sql<number>`count(*)` })
       .from(purchaseOrderLines)
       .where(eq(purchaseOrderLines.itemId, id))
-      .all()[0]?.count || 0;
+      .all())[0]?.count || 0;
 
   if (movementCount > 0 || poLineCount > 0) {
     const parts: string[] = [];
@@ -518,8 +518,8 @@ async function __handler_DELETE({ request }: { request: Request }) {
   }
 
   const before = JSON.stringify(existing);
-  db.delete(inventoryItems).where(eq(inventoryItems.id, id)).run();
-  addAudit(
+  await db.delete(inventoryItems).where(eq(inventoryItems.id, id)).run();
+  await addAudit(
     "ط­ط°ظپ",
     "طµظ†ظپ",
     id,

@@ -17,12 +17,12 @@ async function __handler_GET({ request }: { request: Request }) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const period = db
+    const period = (await db
       .select()
       .from(fiscalPeriods)
       .where(eq(fiscalPeriods.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!period)
       return Response.json(
         { error: "ط§ظ„ظپطھط±ط© ط§ظ„ظ…ط§ظ„ظٹط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" },
@@ -31,7 +31,7 @@ async function __handler_GET({ request }: { request: Request }) {
 
     // Count entries within period range
     const entryCount =
-      db
+      (await db
         .select({ count: sql<number>`COUNT(*)` })
         .from(journalEntries)
         .where(
@@ -40,10 +40,10 @@ async function __handler_GET({ request }: { request: Request }) {
             sql`${journalEntries.date} <= ${period.endDate}`,
           ),
         )
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
 
     const postedCount =
-      db
+      (await db
         .select({ count: sql<number>`COUNT(*)` })
         .from(journalEntries)
         .where(
@@ -53,10 +53,10 @@ async function __handler_GET({ request }: { request: Request }) {
             eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„"),
           ),
         )
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
 
     const draftCount =
-      db
+      (await db
         .select({ count: sql<number>`COUNT(*)` })
         .from(journalEntries)
         .where(
@@ -66,7 +66,7 @@ async function __handler_GET({ request }: { request: Request }) {
             eq(journalEntries.status, "ظ…ط³ظˆط¯ط©"),
           ),
         )
-        .all()[0]?.count || 0;
+        .all())[0]?.count || 0;
 
     return Response.json({
       item: period,
@@ -86,13 +86,13 @@ async function __handler_GET({ request }: { request: Request }) {
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const items = whereClause
-    ? db
+    ? await db
         .select()
         .from(fiscalPeriods)
         .where(whereClause)
         .orderBy(desc(fiscalPeriods.startDate))
         .all()
-    : db.select().from(fiscalPeriods).orderBy(desc(fiscalPeriods.startDate)).all();
+    : await db.select().from(fiscalPeriods).orderBy(desc(fiscalPeriods.startDate)).all();
 
   const total = items.length;
   return Response.json({ items, total });
@@ -105,12 +105,12 @@ async function __handler_POST({ request }: { request: Request }) {
 
   if (action === "close") {
     const { id, userId, userName, notes } = body;
-    const period = db
+    const period = (await db
       .select()
       .from(fiscalPeriods)
       .where(eq(fiscalPeriods.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!period)
       return Response.json(
         { error: "ط§ظ„ظپطھط±ط© ط§ظ„ظ…ط§ظ„ظٹط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" },
@@ -125,7 +125,7 @@ async function __handler_POST({ request }: { request: Request }) {
       );
 
     // Check no draft entries in period
-    const draftEntries = db
+    const draftEntries = await db
       .select()
       .from(journalEntries)
       .where(
@@ -146,7 +146,7 @@ async function __handler_POST({ request }: { request: Request }) {
     }
 
     // Check unbalanced posted entries
-    const postedEntries = db
+    const postedEntries = await db
       .select()
       .from(journalEntries)
       .where(
@@ -159,7 +159,7 @@ async function __handler_POST({ request }: { request: Request }) {
       .all();
     const unbalanced: string[] = [];
     for (const e of postedEntries) {
-      const lines = db
+      const lines = await db
         .select()
         .from(journalLines)
         .where(eq(journalLines.journalEntryId, e.id))
@@ -181,7 +181,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
     const before = JSON.stringify(period);
     const ts = now();
-    db.update(fiscalPeriods)
+    await db.update(fiscalPeriods)
       .set({
         status: "ظ…ظ‚ظپظ„ط©",
         closedAt: ts,
@@ -193,7 +193,7 @@ async function __handler_POST({ request }: { request: Request }) {
       .where(eq(fiscalPeriods.id, id))
       .run();
 
-    addAudit(
+    await addAudit(
       "ط¥ظ‚ظپط§ظ„",
       "ظپطھط±ط© ظ…ط§ظ„ظٹط©",
       id,
@@ -203,23 +203,23 @@ async function __handler_POST({ request }: { request: Request }) {
       before,
     );
 
-    const updated = db
+    const updated = (await db
       .select()
       .from(fiscalPeriods)
       .where(eq(fiscalPeriods.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "reopen") {
     const { id, userId, userName } = body;
-    const period = db
+    const period = (await db
       .select()
       .from(fiscalPeriods)
       .where(eq(fiscalPeriods.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     if (!period)
       return Response.json(
         { error: "ط§ظ„ظپطھط±ط© ط§ظ„ظ…ط§ظ„ظٹط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" },
@@ -233,7 +233,7 @@ async function __handler_POST({ request }: { request: Request }) {
 
     const before = JSON.stringify(period);
     const ts = now();
-    db.update(fiscalPeriods)
+    await db.update(fiscalPeriods)
       .set({
         status: "ظ…ط¹ط§ط¯ ظپطھط­طھظ‡ط§",
         reopenedAt: ts,
@@ -244,7 +244,7 @@ async function __handler_POST({ request }: { request: Request }) {
       .where(eq(fiscalPeriods.id, id))
       .run();
 
-    addAudit(
+    await addAudit(
       "ط¥ط¹ط§ط¯ط© ظپطھط­",
       "ظپطھط±ط© ظ…ط§ظ„ظٹط©",
       id,
@@ -254,12 +254,12 @@ async function __handler_POST({ request }: { request: Request }) {
       before,
     );
 
-    const updated = db
+    const updated = (await db
       .select()
       .from(fiscalPeriods)
       .where(eq(fiscalPeriods.id, id))
       .limit(1)
-      .all()[0];
+      .all())[0];
     return Response.json({ item: updated });
   }
 
@@ -278,7 +278,7 @@ async function __handler_POST({ request }: { request: Request }) {
     );
 
   // Check for overlapping closed/open period with same name
-  const existing = db.select().from(fiscalPeriods).where(eq(fiscalPeriods.name, name.trim())).all();
+  const existing = await db.select().from(fiscalPeriods).where(eq(fiscalPeriods.name, name.trim())).all();
   if (existing.length > 0) {
     return Response.json(
       { error: "ظٹظˆط¬ط¯ ظپطھط±ط© ظ…ط§ظ„ظٹط© ط¨ظ†ظپط³ ط§ظ„ط§ط³ظ… ط¨ط§ظ„ظپط¹ظ„" },
@@ -289,7 +289,7 @@ async function __handler_POST({ request }: { request: Request }) {
   const periodId = genId("FP");
   const ts = now();
 
-  db.insert(fiscalPeriods)
+  await db.insert(fiscalPeriods)
     .values({
       id: periodId,
       name: name.trim(),
@@ -303,7 +303,7 @@ async function __handler_POST({ request }: { request: Request }) {
     })
     .run();
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "ظپطھط±ط© ظ…ط§ظ„ظٹط©",
     periodId,
@@ -312,12 +312,12 @@ async function __handler_POST({ request }: { request: Request }) {
     userName,
   );
 
-  const created = db
+  const created = (await db
     .select()
     .from(fiscalPeriods)
     .where(eq(fiscalPeriods.id, periodId))
     .limit(1)
-    .all()[0];
+    .all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -327,12 +327,12 @@ async function __handler_PUT({ request }: { request: Request }) {
   const { id, name, startDate, endDate, notes, userId, userName } = body;
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظپطھط±ط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db
+  const existing = (await db
     .select()
     .from(fiscalPeriods)
     .where(eq(fiscalPeriods.id, id))
     .limit(1)
-    .all()[0];
+    .all())[0];
   if (!existing)
     return Response.json(
       { error: "ط§ظ„ظپطھط±ط© ط§ظ„ظ…ط§ظ„ظٹط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" },
@@ -352,7 +352,7 @@ async function __handler_PUT({ request }: { request: Request }) {
   }
 
   const before = JSON.stringify(existing);
-  db.update(fiscalPeriods)
+  await db.update(fiscalPeriods)
     .set({
       name: name?.trim() ?? existing.name,
       startDate: startDate ?? existing.startDate,
@@ -363,7 +363,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     .where(eq(fiscalPeriods.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "ظپطھط±ط© ظ…ط§ظ„ظٹط©",
     id,
@@ -373,7 +373,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     before,
   );
 
-  const updated = db.select().from(fiscalPeriods).where(eq(fiscalPeriods.id, id)).limit(1).all()[0];
+  const updated = (await db.select().from(fiscalPeriods).where(eq(fiscalPeriods.id, id)).limit(1).all())[0];
   return Response.json({ item: updated });
 }
 
@@ -386,12 +386,12 @@ async function __handler_DELETE({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظپطھط±ط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db
+  const existing = (await db
     .select()
     .from(fiscalPeriods)
     .where(eq(fiscalPeriods.id, id))
     .limit(1)
-    .all()[0];
+    .all())[0];
   if (!existing)
     return Response.json(
       { error: "ط§ظ„ظپطھط±ط© ط§ظ„ظ…ط§ظ„ظٹط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" },
@@ -407,8 +407,8 @@ async function __handler_DELETE({ request }: { request: Request }) {
     );
 
   const before = JSON.stringify(existing);
-  db.delete(fiscalPeriods).where(eq(fiscalPeriods.id, id)).run();
-  addAudit(
+  await db.delete(fiscalPeriods).where(eq(fiscalPeriods.id, id)).run();
+  await addAudit(
     "ط­ط°ظپ",
     "ظپطھط±ط© ظ…ط§ظ„ظٹط©",
     id,

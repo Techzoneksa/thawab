@@ -31,7 +31,7 @@ async function __handler_GET({ request }: { request: Request }) {
 }
 
 // ============ TRIAL BALANCE ============
-function getTrialBalance(filters: {
+async function getTrialBalance(filters: {
   startDate: string;
   endDate: string;
   costCenterId: string;
@@ -43,7 +43,7 @@ function getTrialBalance(filters: {
   if (filters.costCenterId) conditions.push(eq(journalLines.costCenterId, filters.costCenterId));
   if (filters.projectId) conditions.push(eq(journalLines.projectId, filters.projectId));
 
-  const rows = db
+  const rows = await db
     .select({
       accountId: journalLines.accountId,
       accountCode: accounts.code,
@@ -82,7 +82,7 @@ function getTrialBalance(filters: {
 }
 
 // ============ INCOME / EXPENSE ============
-function getIncomeExpense(filters: {
+async function getIncomeExpense(filters: {
   startDate: string;
   endDate: string;
   costCenterId: string;
@@ -97,7 +97,7 @@ function getIncomeExpense(filters: {
   if (filters.costCenterId) conditions.push(eq(journalLines.costCenterId, filters.costCenterId));
   if (filters.projectId) conditions.push(eq(journalLines.projectId, filters.projectId));
 
-  const rows = db
+  const rows = await db
     .select({
       accountId: journalLines.accountId,
       accountCode: accounts.code,
@@ -138,13 +138,13 @@ function getIncomeExpense(filters: {
 }
 
 // ============ FINANCIAL POSITION (BALANCE SHEET) ============
-function getFinancialPosition(filters: { asOf: string; costCenterId: string; projectId: string }) {
+async function getFinancialPosition(filters: { asOf: string; costCenterId: string; projectId: string }) {
   const conditions = [eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„")];
   if (filters.asOf) conditions.push(sql`${journalEntries.date} <= ${filters.asOf}`);
   if (filters.costCenterId) conditions.push(eq(journalLines.costCenterId, filters.costCenterId));
   if (filters.projectId) conditions.push(eq(journalLines.projectId, filters.projectId));
 
-  const rows = db
+  const rows = await db
     .select({
       accountId: journalLines.accountId,
       accountCode: accounts.code,
@@ -199,7 +199,7 @@ function getFinancialPosition(filters: { asOf: string; costCenterId: string; pro
     surplusConditions.push(eq(journalLines.costCenterId, filters.costCenterId));
   if (filters.projectId) surplusConditions.push(eq(journalLines.projectId, filters.projectId));
 
-  const surplusRows = db
+  const surplusRows = await db
     .select({
       accountType: accounts.type,
       totalDebit: sql<number>`COALESCE(SUM(${journalLines.debit}), 0)`,
@@ -238,11 +238,11 @@ function getFinancialPosition(filters: { asOf: string; costCenterId: string; pro
 }
 
 // ============ BUDGET vs ACTUAL ============
-function getBudgetVsActual(filters: { budgetId: string; startDate: string; endDate: string }) {
+async function getBudgetVsActual(filters: { budgetId: string; startDate: string; endDate: string }) {
   // 1. Get all approved budgets if budgetId not given
   let targetBudgets;
   if (filters.budgetId) {
-    targetBudgets = db.select().from(budgets).where(eq(budgets.id, filters.budgetId)).all();
+    targetBudgets = await db.select().from(budgets).where(eq(budgets.id, filters.budgetId)).all();
     if (targetBudgets.length === 0) {
       return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" }, { status: 404 });
     }
@@ -255,10 +255,10 @@ function getBudgetVsActual(filters: { budgetId: string; startDate: string; endDa
   }
 
   // 2. For each budget, compute planned vs actual
-  const result = targetBudgets.map((budget) => {
-    const lines = db.select().from(budgetLines).where(eq(budgetLines.budgetId, budget.id)).all();
+  const result = targetBudgets.map(async (budget) => {
+    const lines = await db.select().from(budgetLines).where(eq(budgetLines.budgetId, budget.id)).all();
 
-    const enrichedLines = lines.map((line) => {
+    const enrichedLines = lines.map(async (line) => {
       // Compute actual from posted journal lines that match this line's account/cost center/project
       const conditions = [
         eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„"),
@@ -270,7 +270,7 @@ function getBudgetVsActual(filters: { budgetId: string; startDate: string; endDa
       if (filters.startDate) conditions.push(sql`${journalEntries.date} >= ${filters.startDate}`);
       if (filters.endDate) conditions.push(sql`${journalEntries.date} <= ${filters.endDate}`);
 
-      const actuals = db
+      const actuals = await db
         .select({
           accountType: accounts.type,
           totalDebit: sql<number>`COALESCE(SUM(${journalLines.debit}), 0)`,
@@ -292,14 +292,14 @@ function getBudgetVsActual(filters: { budgetId: string; startDate: string; endDa
 
       // Use expense actual (most common case for budget lines)
       const actual = line.accountId
-        ? db
+        ? (await db
             .select({
               type: accounts.type,
             })
             .from(accounts)
             .where(eq(accounts.id, line.accountId))
             .limit(1)
-            .all()[0]
+            .all())[0]
         : null;
       const actualAmount = actual?.type === "ط¥ظٹط±ط§ط¯" ? revenueActual : expenseActual;
 

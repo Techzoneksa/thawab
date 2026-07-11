@@ -26,9 +26,9 @@ async function __handler_GET({ request }: { request: Request }) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const st = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
+    const st = (await db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all())[0];
     if (!st) return Response.json({ error: "ط§ظ„ط¬ط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    const lines = db.select().from(stocktakeLines).where(eq(stocktakeLines.stocktakeId, id)).all();
+    const lines = await db.select().from(stocktakeLines).where(eq(stocktakeLines.stocktakeId, id)).all();
     return Response.json({ item: st, lines });
   }
 
@@ -39,8 +39,8 @@ async function __handler_GET({ request }: { request: Request }) {
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const items = whereClause
-    ? db.select().from(stocktakes).where(whereClause).orderBy(desc(stocktakes.createdAt)).all()
-    : db.select().from(stocktakes).orderBy(desc(stocktakes.createdAt)).all();
+    ? await db.select().from(stocktakes).where(whereClause).orderBy(desc(stocktakes.createdAt)).all()
+    : await db.select().from(stocktakes).orderBy(desc(stocktakes.createdAt)).all();
 
   return Response.json({ items, total: items.length });
 }
@@ -52,21 +52,21 @@ async function __handler_POST({ request }: { request: Request }) {
 
   if (action === "submit") {
     const { id, userId, userName } = body;
-    const existing = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all())[0];
     if (!existing) return Response.json({ error: "ط§ظ„ط¬ط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (existing.status !== "ظ…ط³ظˆط¯ط©")
       return Response.json({ error: "ظٹظ…ظƒظ† ط¥ط±ط³ط§ظ„ ط§ظ„ظ…ط³ظˆط¯ط© ظپظ‚ط·" }, { status: 400 });
 
-    const lines = db.select().from(stocktakeLines).where(eq(stocktakeLines.stocktakeId, id)).all();
+    const lines = await db.select().from(stocktakeLines).where(eq(stocktakeLines.stocktakeId, id)).all();
     if (lines.length === 0)
       return Response.json({ error: "ظ„ط§ ظٹظ…ظƒظ† ط¥ط±ط³ط§ظ„ ط¬ط±ط¯ ظپط§ط±ط؛" }, { status: 400 });
 
     const before = JSON.stringify(existing);
-    db.update(stocktakes)
+    await db.update(stocktakes)
       .set({ status: "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط§ط¹طھظ…ط§ط¯", updatedAt: now() })
       .where(eq(stocktakes.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "ط¥ط±ط³ط§ظ„ ظ„ظ„ط§ط¹طھظ…ط§ط¯",
       "ط¬ط±ط¯",
       id,
@@ -75,13 +75,13 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "approve") {
     const { id, userId, userName } = body;
-    const existing = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all())[0];
     if (!existing) return Response.json({ error: "ط§ظ„ط¬ط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (existing.status !== "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط§ط¹طھظ…ط§ط¯")
       return Response.json(
@@ -89,7 +89,7 @@ async function __handler_POST({ request }: { request: Request }) {
         { status: 400 },
       );
 
-    const lines = db.select().from(stocktakeLines).where(eq(stocktakeLines.stocktakeId, id)).all();
+    const lines = await db.select().from(stocktakeLines).where(eq(stocktakeLines.stocktakeId, id)).all();
 
     const ts = now();
     const before = JSON.stringify(existing);
@@ -97,21 +97,21 @@ async function __handler_POST({ request }: { request: Request }) {
     // For each line with a difference, create an adjustment stock movement
     for (const line of lines) {
       if (Math.abs(line.difference) < 0.0001) continue;
-      const item = db
+      const item = (await db
         .select()
         .from(inventoryItems)
         .where(eq(inventoryItems.id, line.itemId))
         .limit(1)
-        .all()[0];
+        .all())[0];
       if (!item) continue;
 
       const newQty = item.quantity + line.difference;
-      db.update(inventoryItems)
+      await db.update(inventoryItems)
         .set({ quantity: newQty, updatedAt: ts })
         .where(eq(inventoryItems.id, item.id))
         .run();
 
-      db.insert(stockMovements)
+      await db.insert(stockMovements)
         .values({
           id: genId("MV"),
           itemId: item.id,
@@ -131,7 +131,7 @@ async function __handler_POST({ request }: { request: Request }) {
         .run();
     }
 
-    db.update(stocktakes)
+    await db.update(stocktakes)
       .set({
         status: "ظ…ط¹طھظ…ط¯",
         approvedBy: userId || null,
@@ -141,7 +141,7 @@ async function __handler_POST({ request }: { request: Request }) {
       .where(eq(stocktakes.id, id))
       .run();
 
-    addAudit(
+    await addAudit(
       "ط§ط¹طھظ…ط§ط¯",
       "ط¬ط±ط¯",
       id,
@@ -150,13 +150,13 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
   if (action === "close") {
     const { id, userId, userName } = body;
-    const existing = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
+    const existing = (await db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all())[0];
     if (!existing) return Response.json({ error: "ط§ظ„ط¬ط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
     if (existing.status !== "ظ…ط¹طھظ…ط¯")
       return Response.json(
@@ -165,11 +165,11 @@ async function __handler_POST({ request }: { request: Request }) {
       );
 
     const before = JSON.stringify(existing);
-    db.update(stocktakes)
+    await db.update(stocktakes)
       .set({ status: "ظ…ط؛ظ„ظ‚", updatedAt: now() })
       .where(eq(stocktakes.id, id))
       .run();
-    addAudit(
+    await addAudit(
       "ط¥ط؛ظ„ط§ظ‚",
       "ط¬ط±ط¯",
       id,
@@ -178,7 +178,7 @@ async function __handler_POST({ request }: { request: Request }) {
       userName,
       before,
     );
-    const updated = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
+    const updated = (await db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all())[0];
     return Response.json({ item: updated });
   }
 
@@ -190,14 +190,14 @@ async function __handler_POST({ request }: { request: Request }) {
     return Response.json({ error: "طھط§ط±ظٹط® ط§ظ„ط¬ط±ط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
   if (warehouseId) {
-    const wh = db.select().from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1).all()[0];
+    const wh = (await db.select().from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1).all())[0];
     if (!wh) return Response.json({ error: "ط§ظ„ظ…ط³طھظˆط¯ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 400 });
   }
 
   const stId = genId("ST");
   const ts = now();
 
-  db.insert(stocktakes)
+  await db.insert(stocktakes)
     .values({
       id: stId,
       name: name.trim(),
@@ -214,15 +214,15 @@ async function __handler_POST({ request }: { request: Request }) {
   if (Array.isArray(lines)) {
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i];
-      const item = db
+      const item = (await db
         .select()
         .from(inventoryItems)
         .where(eq(inventoryItems.id, l.itemId))
         .limit(1)
-        .all()[0];
+        .all())[0];
       const systemQty = item?.quantity || 0;
       const countedQty = parseFloat(l.countedQuantity) || 0;
-      db.insert(stocktakeLines)
+      await db.insert(stocktakeLines)
         .values({
           id: genId("STL"),
           stocktakeId: stId,
@@ -237,7 +237,7 @@ async function __handler_POST({ request }: { request: Request }) {
     }
   }
 
-  addAudit(
+  await addAudit(
     "ط¥ط¶ط§ظپط©",
     "ط¬ط±ط¯",
     stId,
@@ -245,7 +245,7 @@ async function __handler_POST({ request }: { request: Request }) {
     userId,
     userName,
   );
-  const created = db.select().from(stocktakes).where(eq(stocktakes.id, stId)).limit(1).all()[0];
+  const created = (await db.select().from(stocktakes).where(eq(stocktakes.id, stId)).limit(1).all())[0];
   return Response.json({ item: created }, { status: 201 });
 }
 
@@ -255,7 +255,7 @@ async function __handler_PUT({ request }: { request: Request }) {
   const { id, name, warehouseId, date, notes, userId, userName } = body;
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط¬ط±ط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all())[0];
   if (!existing) return Response.json({ error: "ط§ظ„ط¬ط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   if (READ_ONLY_STATUSES.includes(existing.status as StocktakeStatus)) {
     return Response.json(
@@ -265,7 +265,7 @@ async function __handler_PUT({ request }: { request: Request }) {
   }
 
   const before = JSON.stringify(existing);
-  db.update(stocktakes)
+  await db.update(stocktakes)
     .set({
       name: name?.trim() ?? existing.name,
       warehouseId: warehouseId ?? existing.warehouseId,
@@ -276,7 +276,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     .where(eq(stocktakes.id, id))
     .run();
 
-  addAudit(
+  await addAudit(
     "طھط¹ط¯ظٹظ„",
     "ط¬ط±ط¯",
     id,
@@ -285,7 +285,7 @@ async function __handler_PUT({ request }: { request: Request }) {
     userName,
     before,
   );
-  const updated = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
+  const updated = (await db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all())[0];
   return Response.json({ item: updated });
 }
 
@@ -298,7 +298,7 @@ async function __handler_DELETE({ request }: { request: Request }) {
 
   if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط¬ط±ط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
 
-  const existing = db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all()[0];
+  const existing = (await db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1).all())[0];
   if (!existing) return Response.json({ error: "ط§ظ„ط¬ط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
   if (existing.status !== "ظ…ط³ظˆط¯ط©") {
     return Response.json(
@@ -311,8 +311,8 @@ async function __handler_DELETE({ request }: { request: Request }) {
   }
 
   const before = JSON.stringify(existing);
-  db.delete(stocktakes).where(eq(stocktakes.id, id)).run();
-  addAudit(
+  await db.delete(stocktakes).where(eq(stocktakes.id, id)).run();
+  await addAudit(
     "ط­ط°ظپ",
     "ط¬ط±ط¯",
     id,
