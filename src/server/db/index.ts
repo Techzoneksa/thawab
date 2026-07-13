@@ -17,7 +17,9 @@ export async function ensureInit() {
       const t0 = Date.now();
       await runRawSql(SQLITE_DDL);
       for (const migration of SQLITE_MIGRATIONS) {
-        try { await runRawSql(migration); } catch { }
+        try { await runRawSql(migration); } catch (e) {
+          console.warn("[db] migration skipped:", e instanceof Error ? e.message : String(e));
+        }
       }
       if (dialect === "postgres") {
         await runRawSql(PG_DDL);
@@ -39,12 +41,7 @@ export function isDbReady() {
   return _dbReady;
 }
 
-export const db = new Proxy({} as any, {
-  get(_target, prop) {
-    ensureInit().catch(() => {});
-    return (lazyDb as any)[prop];
-  },
-});
+export const db = lazyDb;
 
 export function now() {
   return new Date().toLocaleString("ar-SA", { hour12: false });
