@@ -125,7 +125,13 @@ export const dialect = new Proxy({} as any, {
 export async function runRawSql(sql: string) {
   await ensureClient();
   if (_dialect === "sqlite") {
-    await _client.execute(sql);
+    const statements = sql
+      .split(";")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    for (const stmt of statements) {
+      await _client.execute(stmt);
+    }
   } else {
     await _client.unsafe(sql);
   }
