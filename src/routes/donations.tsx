@@ -101,6 +101,8 @@ function Page() {
   const [cancelTarget, setCancelTarget] = useState<Donation | null>(null);
   const [receiptTarget, setReceiptTarget] = useState<Donation | null>(null);
   const [addDonorLoading, setAddDonorLoading] = useState(false);
+  const [addDonationOpen, setAddDonationOpen] = useState(false);
+  const [editingDonation, setEditingDonation] = useState<Donation | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["donations", apiFilters],

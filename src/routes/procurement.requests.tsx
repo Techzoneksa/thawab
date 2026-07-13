@@ -32,6 +32,7 @@ import {
 import { useState } from "react";
 import {
   showToast,
+  EntityFormDrawer,
   ConfirmDialog,
   ActionMenu,
   ExportButton,
@@ -40,6 +41,7 @@ import {
 import { useAuth } from "@/lib/api/auth";
 import {
   getPurchaseRequests,
+  getPurchaseRequest,
   submitPurchaseRequest,
   approvePurchaseRequest,
   rejectPurchaseRequest,
@@ -69,7 +71,14 @@ function Page() {
     req: PurchaseRequest;
     action: "reject" | "return" | "cancel";
   } | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+
+  const detailQuery = useQuery({
+    queryKey: ["purchaseRequest", detailId],
+    queryFn: () => getPurchaseRequest(detailId!),
+    enabled: !!detailId,
+  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: [

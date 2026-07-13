@@ -30,6 +30,7 @@ export const Route = createFileRoute("/beneficiaries/$id")({
 });
 
 function Page() {
+  const navigate = useNavigate();
   const { id } = Route.useParams();
   const [tab, setTab] = useState("نظرة عامة");
   const [mobileTab, setMobileTab] = useState("نظرة عامة");

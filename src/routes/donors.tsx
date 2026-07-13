@@ -55,6 +55,14 @@ function Page() {
   const [tagFilter, setTagFilter] = useState("الكل");
   const [cityFilter, setCityFilter] = useState("الكل");
   const [recurringFilter, setRecurringFilter] = useState("الكل");
+  const [addDonorOpen, setAddDonorOpen] = useState(false);
+  const [editingDonor, setEditingDonor] = useState<Donor | null>(null);
+  const [formName, setFormName] = useState("");
+  const [formType, setFormType] = useState("");
+  const [formEmail, setFormEmail] = useState("");
+  const [formPhone, setFormPhone] = useState("");
+  const [formCity, setFormCity] = useState("");
+  const [formNotes, setFormNotes] = useState("");
 
   const [apiFilters, setApiFilters] = useState<DonorFilters>({
     search: "",
