@@ -5,6 +5,7 @@
  * On first request we run any pending migrations against Postgres.
  */
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { resolve } from "node:path";
 import { db, getDb, diagnose, runRawSql, closeDb } from "./client";
@@ -14,18 +15,29 @@ export { db, getDb, diagnose, runRawSql, closeDb };
 
 let _initPromise: Promise<void> | null = null;
 
+/**
+ * Best-effort auto-migration on first request.
+ *
+ * The authoritative migration step is `npm run db:migrate` (run once against the
+ * production DB at deploy time). At runtime we opportunistically apply pending
+ * migrations IF the ./drizzle folder is reachable from cwd — but we never crash
+ * the whole app over it, since the schema is expected to already exist.
+ */
 export function ensureInit(): Promise<void> {
   if (_initPromise) return _initPromise;
   _initPromise = (async () => {
+    const folder = resolve(process.cwd(), "drizzle");
+    if (!existsSync(folder)) {
+      console.warn(`[db] migrations folder not found at ${folder} — assuming DB migrated externally (npm run db:migrate).`);
+      return;
+    }
     const t0 = Date.now();
     try {
-      await migrate(getDb(), { migrationsFolder: resolve(process.cwd(), "drizzle") });
+      await migrate(getDb(), { migrationsFolder: folder });
       console.log(`[db] migrations applied (${Date.now() - t0}ms)`);
     } catch (e) {
-      // Do NOT cache a failed init — allow the next request to retry.
-      _initPromise = null;
-      console.error("[db] init/migrate failed:", e instanceof Error ? e.message : e);
-      throw e;
+      // Do not crash the app — external migration is the source of truth.
+      console.error("[db] auto-migrate skipped:", e instanceof Error ? e.message : e);
     }
   })();
   return _initPromise;
