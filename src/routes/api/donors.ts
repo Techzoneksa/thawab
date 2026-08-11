@@ -1,20 +1,19 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
+import { and, count, desc, eq, like, or } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { donors } from "@/server/db/schema";
-import { eq, like, or, and, desc } from "drizzle-orm";
-import { safeHandler } from "@/server/db/api-utils";
+import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
+import { DonorType, DonorTag, DonorStatus } from "@/lib/enums";
 
-// GET /api/donors - List with search, filters, pagination
-// GET /api/donors?id=xxx - Single donor by ID
-async function __handler_GET({ request }: { request: Request }) {
+// GET /api/donors?id=xxx  — single; else list with search/filter/pagination.
+async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
   if (id) {
-    const donor = (await db.select().from(donors).where(eq(donors.id, id)).limit(1).all())[0];
-    if (!donor) {
-      return Response.json({ error: "ط§ظ„ظ…طھط¨ط±ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    }
+    const donor = (await db.select().from(donors).where(eq(donors.id, id)).limit(1))[0];
+    if (!donor) return err("المتبرع غير موجود", 404, "NOT_FOUND");
     return Response.json({ item: donor });
   }
 
@@ -22,12 +21,11 @@ async function __handler_GET({ request }: { request: Request }) {
   const type = url.searchParams.get("type") || "";
   const tag = url.searchParams.get("tag") || "";
   const city = url.searchParams.get("city") || "";
-  const page = parseInt(url.searchParams.get("page") || "1");
-  const limit = parseInt(url.searchParams.get("limit") || "50");
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1") || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "50") || 50));
   const offset = (page - 1) * limit;
 
   const conditions = [];
-
   if (search) {
     conditions.push(
       or(
@@ -37,161 +35,140 @@ async function __handler_GET({ request }: { request: Request }) {
       ),
     );
   }
+  if (type) conditions.push(eq(donors.type, type));
+  if (tag) conditions.push(eq(donors.tag, tag));
+  if (city) conditions.push(eq(donors.city, city));
+  const where = conditions.length ? and(...conditions) : undefined;
 
-  if (type && type !== "ط§ظ„ظƒظ„") {
-    conditions.push(eq(donors.type, type));
-  }
+  const [{ c: total }] = await db.select({ c: count() }).from(donors).where(where);
+  const items = await db
+    .select()
+    .from(donors)
+    .where(where)
+    .orderBy(desc(donors.createdAt))
+    .limit(limit)
+    .offset(offset);
 
-  if (tag && tag !== "ط§ظ„ظƒظ„") {
-    conditions.push(eq(donors.tag, tag));
-  }
-
-  if (city && city !== "ط§ظ„ظƒظ„") {
-    conditions.push(eq(donors.city, city));
-  }
-
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-  const allQuery = db.select().from(donors);
-  const all = whereClause
-    ? await allQuery.where(whereClause).orderBy(desc(donors.createdAt)).all()
-    : await allQuery.orderBy(desc(donors.createdAt)).all();
-  const total = all.length;
-
-  const itemsQuery = db.select().from(donors);
-  const items = whereClause
-    ? await itemsQuery
-        .where(whereClause)
-        .orderBy(desc(donors.createdAt))
-        .limit(limit)
-        .offset(offset)
-        .all()
-    : await itemsQuery.orderBy(desc(donors.createdAt)).limit(limit).offset(offset).all();
-
-  return Response.json({ items, total, page, limit });
+  return Response.json({ items, total: Number(total), page, limit });
 }
 
-// POST /api/donors - Create new donor
-async function __handler_POST({ request }: { request: Request }) {
-  const body = await request.json();
-  const { name, type, email, phone, city, address, tag, notes, userId, userName } = body;
+const createSchema = z.object({
+  name: z.string().trim().min(1, "الاسم مطلوب"),
+  type: z.nativeEnum(DonorType).optional(),
+  email: z.string().email().nullish().or(z.literal("")),
+  phone: z.string().nullish(),
+  city: z.string().optional(),
+  address: z.string().optional(),
+  tag: z.nativeEnum(DonorTag).optional(),
+  recurring: z.boolean().optional(),
+  notes: z.string().optional(),
+});
 
-  if (!name?.trim()) {
-    return Response.json({ error: "ط§ظ„ط§ط³ظ… ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-  }
+async function POST(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, createSchema);
+    const id = genId("D");
+    const ts = now();
 
-  const id = genId("D");
-  const ts = now();
-
-  await db.insert(donors)
-    .values({
+    await db.insert(donors).values({
       id,
-      name: name.trim(),
-      type: type || "ظپط±ط¯",
-      email: email || null,
-      phone: phone || null,
-      city: city || "",
-      address: address || "",
-      tag: tag || "ط¨ط±ظˆظ†ط²ظٹ",
+      name: b.name,
+      type: b.type ?? DonorType.INDIVIDUAL,
+      email: b.email || null,
+      phone: b.phone || null,
+      city: b.city ?? "",
+      address: b.address ?? "",
+      tag: b.tag ?? DonorTag.BRONZE,
       totalDonations: 0,
       donationCount: 0,
-      recurring: false,
-      notes: notes || "",
-      status: "ظ†ط´ط·",
-      createdBy: userId || null,
+      recurring: b.recurring ?? false,
+      notes: b.notes ?? "",
+      status: DonorStatus.ACTIVE,
+      createdBy: ctx.user.id,
       createdAt: ts,
       updatedAt: ts,
-    })
-    .run();
+    });
 
-  await addAudit(
-    "ط¥ط¶ط§ظپط©",
-    "ظ…طھط¨ط±ط¹",
-    id,
-    `طھظ… ط¥ط¶ط§ظپط© ظ…طھط¨ط±ط¹ ط¬ط¯ظٹط¯: ${name}`,
-    userId,
-    userName,
-  );
+    await addAudit({
+      action: "create",
+      entityType: "donor",
+      entityId: id,
+      description: `تم إضافة متبرع جديد: ${b.name}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      ip: ctx.ip,
+    });
 
-  const created = (await db.select().from(donors).where(eq(donors.id, id)).limit(1).all())[0];
-  return Response.json({ item: created }, { status: 201 });
+    const created = (await db.select().from(donors).where(eq(donors.id, id)).limit(1))[0];
+    return Response.json({ item: created }, { status: 201 });
+  });
 }
 
-// PUT /api/donors - Update donor
-async function __handler_PUT({ request }: { request: Request }) {
-  const body = await request.json();
-  const { id, name, type, email, phone, city, address, tag, notes, userId, userName } = body;
+const updateSchema = createSchema.partial().extend({
+  id: z.string().min(1, "معرف المتبرع مطلوب"),
+});
 
-  if (!id) {
-    return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…طھط¨ط±ط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-  }
+async function PUT(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, updateSchema);
+    const existing = (await db.select().from(donors).where(eq(donors.id, b.id)).limit(1))[0];
+    if (!existing) return err("المتبرع غير موجود", 404, "NOT_FOUND");
 
-  const existing = (await db.select().from(donors).where(eq(donors.id, id)).limit(1).all())[0];
-  if (!existing) {
-    return Response.json({ error: "ط§ظ„ظ…طھط¨ط±ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-  }
+    const before = JSON.stringify(existing);
+    await db
+      .update(donors)
+      .set({
+        name: b.name ?? existing.name,
+        type: b.type ?? existing.type,
+        email: b.email === undefined ? existing.email : b.email || null,
+        phone: b.phone ?? existing.phone,
+        city: b.city ?? existing.city,
+        address: b.address ?? existing.address,
+        tag: b.tag ?? existing.tag,
+        recurring: b.recurring ?? existing.recurring,
+        notes: b.notes ?? existing.notes,
+        updatedAt: now(),
+      })
+      .where(eq(donors.id, b.id));
 
-  const before = JSON.stringify(existing);
-  const ts = now();
+    await addAudit({
+      action: "update",
+      entityType: "donor",
+      entityId: b.id,
+      description: `تم تحديث بيانات المتبرع: ${b.name || existing.name}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      before,
+      ip: ctx.ip,
+    });
 
-  await db.update(donors)
-    .set({
-      name: name?.trim() ?? existing.name,
-      type: type ?? existing.type,
-      email: email ?? existing.email,
-      phone: phone ?? existing.phone,
-      city: city ?? existing.city,
-      address: address ?? existing.address,
-      tag: tag ?? existing.tag,
-      notes: notes ?? existing.notes,
-      updatedAt: ts,
-    })
-    .where(eq(donors.id, id))
-    .run();
-
-  await addAudit(
-    "طھط¹ط¯ظٹظ„",
-    "ظ…طھط¨ط±ط¹",
-    id,
-    `طھظ… طھط­ط¯ظٹط« ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…طھط¨ط±ط¹: ${name || existing.name}`,
-    userId,
-    userName,
-    before,
-  );
-
-  const updated = (await db.select().from(donors).where(eq(donors.id, id)).limit(1).all())[0];
-  return Response.json({ item: updated });
+    const updated = (await db.select().from(donors).where(eq(donors.id, b.id)).limit(1))[0];
+    return Response.json({ item: updated });
+  });
 }
 
-// DELETE /api/donors - Soft delete donor
-async function __handler_DELETE({ request }: { request: Request }) {
-  const url = new URL(request.url);
-  const id = url.searchParams.get("id");
-  const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
+// DELETE /api/donors?id=xxx — soft delete. Identity comes from the session, never the query.
+async function DELETE({ request }: { request: Request }, ctx: Ctx) {
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return err("معرف المتبرع مطلوب", 400, "BAD_REQUEST");
 
-  if (!id) {
-    return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…طھط¨ط±ط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-  }
+  const existing = (await db.select().from(donors).where(eq(donors.id, id)).limit(1))[0];
+  if (!existing) return err("المتبرع غير موجود", 404, "NOT_FOUND");
 
-  const existing = (await db.select().from(donors).where(eq(donors.id, id)).limit(1).all())[0];
-  if (!existing) {
-    return Response.json({ error: "ط§ظ„ظ…طھط¨ط±ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-  }
+  await db
+    .update(donors)
+    .set({ status: DonorStatus.INACTIVE, updatedAt: now() })
+    .where(eq(donors.id, id));
 
-  await db.update(donors)
-    .set({ status: "ط؛ظٹط± ظ†ط´ط·", updatedAt: now() })
-    .where(eq(donors.id, id))
-    .run();
-
-  await addAudit(
-    "ط­ط°ظپ",
-    "ظ…طھط¨ط±ط¹",
-    id,
-    `طھظ… ط­ط°ظپ ط§ظ„ظ…طھط¨ط±ط¹: ${existing.name}`,
-    userId,
-    userName,
-  );
+  await addAudit({
+    action: "delete",
+    entityType: "donor",
+    entityId: id,
+    description: `تم حذف المتبرع: ${existing.name}`,
+    userId: ctx.user.id,
+    userName: ctx.user.name,
+    ip: ctx.ip,
+  });
 
   return Response.json({ success: true });
 }
@@ -199,10 +176,10 @@ async function __handler_DELETE({ request }: { request: Request }) {
 export const Route = createFileRoute("/api/donors")({
   server: {
     handlers: {
-      GET: safeHandler(__handler_GET),
-      POST: safeHandler(__handler_POST),
-      PUT: safeHandler(__handler_PUT),
-      DELETE: safeHandler(__handler_DELETE),
+      GET: authHandler("donors.view", GET),
+      POST: authHandler("donors.create", POST),
+      PUT: authHandler("donors.update", PUT),
+      DELETE: authHandler("donors.delete", DELETE),
     },
   },
 });

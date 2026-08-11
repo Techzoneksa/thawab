@@ -1,23 +1,45 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
-import { relations } from "drizzle-orm";
+/**
+ * ثواب — Canonical database schema (PostgreSQL only).
+ *
+ * All status/type/classification columns store ASCII enum keys from
+ * `src/lib/enums.ts`. Arabic is applied at the UI layer only.
+ *
+ * Timestamps are stored as ISO-8601 strings (sortable) in text columns.
+ */
+import {
+  pgTable,
+  text,
+  integer,
+  boolean,
+  doublePrecision,
+  index,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 // ============ USERS & AUTH ============
 
-export const users = sqliteTable("users", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  password: text("password").notNull(),
-  phone: text("phone"),
-  role: text("role").notNull().default("employee"),
-  branchId: text("branch_id"),
-  status: text("status").notNull().default("active"),
-  avatar: text("avatar"),
-  createdAt: text("created_at").notNull().default(""),
-  lastLogin: text("last_login"),
-});
+export const users = pgTable(
+  "users",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    password: text("password").notNull(),
+    phone: text("phone"),
+    role: text("role").notNull().default("employee"),
+    branchId: text("branch_id"),
+    status: text("status").notNull().default("active"),
+    avatar: text("avatar"),
+    mustChangePassword: boolean("must_change_password").notNull().default(false),
+    createdAt: text("created_at").notNull().default(""),
+    lastLogin: text("last_login"),
+  },
+  (t) => ({
+    emailIdx: uniqueIndex("users_email_idx").on(t.email),
+  }),
+);
 
-export const roles = sqliteTable("roles", {
+export const roles = pgTable("roles", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
@@ -25,19 +47,44 @@ export const roles = sqliteTable("roles", {
   createdAt: text("created_at").notNull().default(""),
 });
 
-export const sessions = sqliteTable("sessions", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id),
-  token: text("token").notNull().unique(),
-  expiresAt: text("expires_at").notNull(),
-  createdAt: text("created_at").notNull().default(""),
-});
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    token: text("token").notNull().unique(),
+    ip: text("ip").default(""),
+    userAgent: text("user_agent").default(""),
+    expiresAt: text("expires_at").notNull(),
+    createdAt: text("created_at").notNull().default(""),
+  },
+  (t) => ({
+    tokenIdx: uniqueIndex("sessions_token_idx").on(t.token),
+    userIdx: index("sessions_user_idx").on(t.userId),
+  }),
+);
+
+// Failed-login tracking for rate limiting / lockout.
+export const loginAttempts = pgTable(
+  "login_attempts",
+  {
+    id: text("id").primaryKey(),
+    email: text("email").notNull().default(""),
+    ip: text("ip").notNull().default(""),
+    success: boolean("success").notNull().default(false),
+    at: text("at").notNull().default(""),
+  },
+  (t) => ({
+    emailIdx: index("login_attempts_email_idx").on(t.email),
+    ipIdx: index("login_attempts_ip_idx").on(t.ip),
+  }),
+);
 
 // ============ BRANCHES ============
 
-export const branches = sqliteTable("branches", {
+export const branches = pgTable("branches", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   city: text("city").notNull(),
@@ -50,36 +97,42 @@ export const branches = sqliteTable("branches", {
 
 // ============ DONORS ============
 
-export const donors = sqliteTable("donors", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  type: text("type").notNull().default("فرد"),
-  email: text("email"),
-  phone: text("phone"),
-  city: text("city").default(""),
-  address: text("address").default(""),
-  tag: text("tag").default("برونزي"),
-  totalDonations: real("total_donations").notNull().default(0),
-  donationCount: integer("donation_count").notNull().default(0),
-  lastDonation: text("last_donation"),
-  recurring: integer("recurring", { mode: "boolean" }).notNull().default(false),
-  notes: text("notes").default(""),
-  status: text("status").notNull().default("نشط"),
-  createdBy: text("created_by").references(() => users.id),
-  createdAt: text("created_at").notNull().default(""),
-  updatedAt: text("updated_at").notNull().default(""),
-});
+export const donors = pgTable(
+  "donors",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    type: text("type").notNull().default("individual"),
+    email: text("email"),
+    phone: text("phone"),
+    city: text("city").default(""),
+    address: text("address").default(""),
+    tag: text("tag").default("bronze"),
+    totalDonations: doublePrecision("total_donations").notNull().default(0),
+    donationCount: integer("donation_count").notNull().default(0),
+    lastDonation: text("last_donation"),
+    recurring: boolean("recurring").notNull().default(false),
+    notes: text("notes").default(""),
+    status: text("status").notNull().default("active"),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+  },
+  (t) => ({
+    statusIdx: index("donors_status_idx").on(t.status),
+  }),
+);
 
 // ============ CAMPAIGNS ============
 
-export const campaigns = sqliteTable("campaigns", {
+export const campaigns = pgTable("campaigns", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  goal: real("goal").notNull().default(0),
-  raised: real("raised").notNull().default(0),
+  goal: doublePrecision("goal").notNull().default(0),
+  raised: doublePrecision("raised").notNull().default(0),
   startDate: text("start_date").default(""),
   endDate: text("end_date").default(""),
-  status: text("status").notNull().default("مخطط"),
+  status: text("status").notNull().default("planned"),
   description: text("description").default(""),
   createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
@@ -87,7 +140,7 @@ export const campaigns = sqliteTable("campaigns", {
 
 // ============ PROJECTS ============
 
-export const projects = sqliteTable("projects", {
+export const projects = pgTable("projects", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   code: text("code").default(""),
@@ -95,12 +148,13 @@ export const projects = sqliteTable("projects", {
   category: text("category").default(""),
   branch: text("branch").default(""),
   manager: text("manager").notNull(),
-  budget: real("budget").notNull().default(0),
-  spent: real("spent").notNull().default(0),
-  donations: real("donations").notNull().default(0),
+  budget: doublePrecision("budget").notNull().default(0),
+  spent: doublePrecision("spent").notNull().default(0),
+  donations: doublePrecision("donations").notNull().default(0),
   beneficiaryCount: integer("beneficiary_count").notNull().default(0),
   progress: integer("progress").notNull().default(0),
-  status: text("status").notNull().default("مخطط"),
+  status: text("status").notNull().default("planned"),
+  fund: text("fund").notNull().default("unrestricted"),
   startDate: text("start_date").default(""),
   endDate: text("end_date").default(""),
   description: text("description").default(""),
@@ -112,57 +166,74 @@ export const projects = sqliteTable("projects", {
 
 // ============ DONATIONS ============
 
-export const donations = sqliteTable("donations", {
-  id: text("id").primaryKey(),
-  donorId: text("donor_id")
-    .notNull()
-    .references(() => donors.id),
-  projectId: text("project_id").references(() => projects.id),
-  campaignId: text("campaign_id").references(() => campaigns.id),
-  amount: real("amount").notNull(),
-  method: text("method").notNull().default("نقدي"),
-  channel: text("channel").notNull().default("مباشر"),
-  status: text("status").notNull().default("مسودة"),
-  receiptId: text("receipt_id"),
-  notes: text("notes").default(""),
-  date: text("date").notNull().default(""),
-  createdBy: text("created_by").references(() => users.id),
-  createdAt: text("created_at").notNull().default(""),
-  updatedAt: text("updated_at").notNull().default(""),
-});
+export const donations = pgTable(
+  "donations",
+  {
+    id: text("id").primaryKey(),
+    donorId: text("donor_id")
+      .notNull()
+      .references(() => donors.id),
+    projectId: text("project_id").references(() => projects.id),
+    campaignId: text("campaign_id").references(() => campaigns.id),
+    amount: doublePrecision("amount").notNull(),
+    method: text("method").notNull().default("cash"),
+    channel: text("channel").notNull().default("direct"),
+    fund: text("fund").notNull().default("unrestricted"),
+    status: text("status").notNull().default("draft"),
+    receiptId: text("receipt_id"),
+    journalEntryId: text("journal_entry_id"),
+    notes: text("notes").default(""),
+    date: text("date").notNull().default(""),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+  },
+  (t) => ({
+    donorIdx: index("donations_donor_idx").on(t.donorId),
+    statusIdx: index("donations_status_idx").on(t.status),
+  }),
+);
 
 // ============ BENEFICIARIES ============
 
-export const beneficiaries = sqliteTable("beneficiaries", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  fileNumber: text("file_number").default(""),
-  idNumber: text("id_number").default(""),
-  phone: text("phone"),
-  city: text("city").default(""),
-  address: text("address").default(""),
-  category: text("category").notNull().default("أسر محتاجة"),
-  status: text("status").notNull().default("جديد"),
-  familyMembers: integer("family_members").notNull().default(1),
-  monthlyIncome: real("monthly_income").notNull().default(0),
-  maritalStatus: text("marital_status").default(""),
-  notes: text("notes").default(""),
-  createdBy: text("created_by").references(() => users.id),
-  createdAt: text("created_at").notNull().default(""),
-  updatedAt: text("updated_at").notNull().default(""),
-});
+export const beneficiaries = pgTable(
+  "beneficiaries",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    fileNumber: text("file_number").default(""),
+    idNumber: text("id_number").default(""),
+    phone: text("phone"),
+    city: text("city").default(""),
+    address: text("address").default(""),
+    category: text("category").notNull().default("needy_family"),
+    status: text("status").notNull().default("new"),
+    familyMembers: integer("family_members").notNull().default(1),
+    monthlyIncome: doublePrecision("monthly_income").notNull().default(0),
+    maritalStatus: text("marital_status").default(""),
+    notes: text("notes").default(""),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+  },
+  (t) => ({
+    statusIdx: index("beneficiaries_status_idx").on(t.status),
+  }),
+);
 
 // ============ AID RECORDS ============
 
-export const aidRecords = sqliteTable("aid_records", {
+export const aidRecords = pgTable("aid_records", {
   id: text("id").primaryKey(),
   beneficiaryId: text("beneficiary_id")
     .notNull()
     .references(() => beneficiaries.id),
   projectId: text("project_id").references(() => projects.id),
-  type: text("type").notNull().default("مساعدة عاجلة"),
-  amount: real("amount").notNull().default(0),
-  status: text("status").notNull().default("بانتظار الموافقة"),
+  type: text("type").notNull().default("urgent"),
+  amount: doublePrecision("amount").notNull().default(0),
+  fund: text("fund").notNull().default("unrestricted"),
+  status: text("status").notNull().default("pending"),
+  journalEntryId: text("journal_entry_id"),
   date: text("date").notNull().default(""),
   approvedBy: text("approved_by").references(() => users.id),
   approvedAt: text("approved_at"),
@@ -178,90 +249,119 @@ export const aidRecords = sqliteTable("aid_records", {
 
 // ============ RECEIPTS ============
 
-export const receipts = sqliteTable("receipts", {
+export const receipts = pgTable("receipts", {
   id: text("id").primaryKey(),
   donationId: text("donation_id").references(() => donations.id),
   number: text("number").notNull().unique(),
-  amount: real("amount").notNull(),
+  amount: doublePrecision("amount").notNull(),
   date: text("date").notNull().default(""),
-  type: text("type").notNull().default("تبرع"),
-  status: text("status").notNull().default("مرحّل"),
-  printed: integer("printed", { mode: "boolean" }).notNull().default(false),
+  type: text("type").notNull().default("donation"),
+  status: text("status").notNull().default("issued"),
+  printed: boolean("printed").notNull().default(false),
   createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
 });
 
 // ============ FINANCE ============
 
-export const accounts = sqliteTable("accounts", {
-  id: text("id").primaryKey(),
-  code: text("code").notNull(),
-  name: text("name").notNull(),
-  type: text("type").notNull().default("تفصيلي"),
-  level: integer("level").notNull().default(1),
-  parentId: text("parent_id"),
-  currency: text("currency").notNull().default("SAR"),
-  balance: real("balance").notNull().default(0),
-  postable: integer("postable", { mode: "boolean" }).notNull().default(true),
-  status: text("status").notNull().default("نشط"),
-  description: text("description").default(""),
-  notes: text("notes").default(""),
-  createdBy: text("created_by").references(() => users.id),
-  createdAt: text("created_at").notNull().default(""),
-  updatedAt: text("updated_at").notNull().default(""),
-});
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: text("id").primaryKey(),
+    code: text("code").notNull().unique(),
+    name: text("name").notNull(),
+    // Accounting nature (asset/liability/equity/revenue/expense).
+    classification: text("classification").notNull(),
+    // Hierarchy nature is expressed by `postable` (false = header/group).
+    level: integer("level").notNull().default(1),
+    parentId: text("parent_id"),
+    // Stable key for special accounts the posting engine resolves
+    // (e.g. "cash", "bank_main", "donations_revenue"). Nullable/unique.
+    systemKey: text("system_key").unique(),
+    currency: text("currency").notNull().default("SAR"),
+    balance: doublePrecision("balance").notNull().default(0),
+    postable: boolean("postable").notNull().default(true),
+    status: text("status").notNull().default("active"),
+    description: text("description").default(""),
+    notes: text("notes").default(""),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+  },
+  (t) => ({
+    codeIdx: uniqueIndex("accounts_code_idx").on(t.code),
+    classIdx: index("accounts_classification_idx").on(t.classification),
+    parentIdx: index("accounts_parent_idx").on(t.parentId),
+  }),
+);
 
-export const journalEntries = sqliteTable("journal_entries", {
-  id: text("id").primaryKey(),
-  number: text("number").notNull().unique(),
-  date: text("date").notNull().default(""),
-  description: text("description").notNull().default(""),
-  debitAccount: text("debit_account").notNull(),
-  creditAccount: text("credit_account").notNull(),
-  amount: real("amount").notNull().default(0),
-  fund: text("fund").notNull().default("مقيد"),
-  currency: text("currency").notNull().default("SAR"),
-  projectId: text("project_id").references(() => projects.id),
-  sourceType: text("source_type"),
-  sourceId: text("source_id"),
-  status: text("status").notNull().default("مسودة"),
-  postedBy: text("posted_by").references(() => users.id),
-  postedAt: text("posted_at"),
-  reversedBy: text("reversed_by"),
-  reversedAt: text("reversed_at"),
-  reversedOf: text("reversed_of"),
-  notes: text("notes").default(""),
-  createdBy: text("created_by").references(() => users.id),
-  createdAt: text("created_at").notNull().default(""),
-  updatedAt: text("updated_at").notNull().default(""),
-});
+export const journalEntries = pgTable(
+  "journal_entries",
+  {
+    id: text("id").primaryKey(),
+    number: text("number").notNull().unique(),
+    date: text("date").notNull().default(""),
+    description: text("description").notNull().default(""),
+    amount: doublePrecision("amount").notNull().default(0), // total debits = total credits
+    fund: text("fund").notNull().default("unrestricted"),
+    currency: text("currency").notNull().default("SAR"),
+    periodId: text("period_id"),
+    projectId: text("project_id").references(() => projects.id),
+    source: text("source").notNull().default("manual"),
+    sourceType: text("source_type"),
+    sourceId: text("source_id"),
+    status: text("status").notNull().default("draft"),
+    postedBy: text("posted_by").references(() => users.id),
+    postedAt: text("posted_at"),
+    reversedBy: text("reversed_by"),
+    reversedAt: text("reversed_at"),
+    reversedOf: text("reversed_of"),
+    notes: text("notes").default(""),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+  },
+  (t) => ({
+    statusIdx: index("journal_entries_status_idx").on(t.status),
+    dateIdx: index("journal_entries_date_idx").on(t.date),
+    periodIdx: index("journal_entries_period_idx").on(t.periodId),
+  }),
+);
 
-export const journalLines = sqliteTable("journal_lines", {
-  id: text("id").primaryKey(),
-  journalEntryId: text("journal_entry_id")
-    .notNull()
-    .references(() => journalEntries.id, { onDelete: "cascade" }),
-  lineNumber: integer("line_number").notNull(),
-  accountId: text("account_id")
-    .notNull()
-    .references(() => accounts.id),
-  description: text("description").default(""),
-  debit: real("debit").notNull().default(0),
-  credit: real("credit").notNull().default(0),
-  costCenterId: text("cost_center_id").references(() => costCenters.id),
-  projectId: text("project_id").references(() => projects.id),
-  notes: text("notes").default(""),
-  createdAt: text("created_at").notNull().default(""),
-});
+export const journalLines = pgTable(
+  "journal_lines",
+  {
+    id: text("id").primaryKey(),
+    journalEntryId: text("journal_entry_id")
+      .notNull()
+      .references(() => journalEntries.id, { onDelete: "cascade" }),
+    lineNumber: integer("line_number").notNull(),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => accounts.id),
+    description: text("description").default(""),
+    debit: doublePrecision("debit").notNull().default(0),
+    credit: doublePrecision("credit").notNull().default(0),
+    fund: text("fund").notNull().default("unrestricted"),
+    costCenterId: text("cost_center_id").references(() => costCenters.id),
+    projectId: text("project_id").references(() => projects.id),
+    notes: text("notes").default(""),
+    createdAt: text("created_at").notNull().default(""),
+  },
+  (t) => ({
+    entryIdx: index("journal_lines_entry_idx").on(t.journalEntryId),
+    accountIdx: index("journal_lines_account_idx").on(t.accountId),
+  }),
+);
 
-export const costCenters = sqliteTable("cost_centers", {
+export const costCenters = pgTable("cost_centers", {
   id: text("id").primaryKey(),
   code: text("code").notNull(),
   name: text("name").notNull(),
   manager: text("manager").default(""),
-  budget: real("budget").notNull().default(0),
-  spent: real("spent").notNull().default(0),
-  status: text("status").notNull().default("نشط"),
+  budget: doublePrecision("budget").notNull().default(0),
+  spent: doublePrecision("spent").notNull().default(0),
+  status: text("status").notNull().default("active"),
   description: text("description").default(""),
   notes: text("notes").default(""),
   createdBy: text("created_by").references(() => users.id),
@@ -269,14 +369,14 @@ export const costCenters = sqliteTable("cost_centers", {
   updatedAt: text("updated_at").notNull().default(""),
 });
 
-export const budgets = sqliteTable("budgets", {
+export const budgets = pgTable("budgets", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   year: text("year").notNull(),
-  amount: real("amount").notNull(),
-  spent: real("spent").notNull().default(0),
+  amount: doublePrecision("amount").notNull(),
+  spent: doublePrecision("spent").notNull().default(0),
   department: text("department").default(""),
-  status: text("status").notNull().default("مخطط"),
+  status: text("status").notNull().default("draft"),
   currency: text("currency").notNull().default("SAR"),
   description: text("description").default(""),
   notes: text("notes").default(""),
@@ -289,7 +389,7 @@ export const budgets = sqliteTable("budgets", {
   updatedAt: text("updated_at").notNull().default(""),
 });
 
-export const budgetLines = sqliteTable("budget_lines", {
+export const budgetLines = pgTable("budget_lines", {
   id: text("id").primaryKey(),
   budgetId: text("budget_id")
     .notNull()
@@ -298,20 +398,20 @@ export const budgetLines = sqliteTable("budget_lines", {
   accountId: text("account_id").references(() => accounts.id),
   costCenterId: text("cost_center_id").references(() => costCenters.id),
   projectId: text("project_id").references(() => projects.id),
-  plannedAmount: real("planned_amount").notNull().default(0),
-  actualAmount: real("actual_amount").notNull().default(0),
+  plannedAmount: doublePrecision("planned_amount").notNull().default(0),
+  actualAmount: doublePrecision("actual_amount").notNull().default(0),
   notes: text("notes").default(""),
   createdAt: text("created_at").notNull().default(""),
 });
 
 // ============ FISCAL PERIODS ============
 
-export const fiscalPeriods = sqliteTable("fiscal_periods", {
+export const fiscalPeriods = pgTable("fiscal_periods", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   startDate: text("start_date").notNull().default(""),
   endDate: text("end_date").notNull().default(""),
-  status: text("status").notNull().default("مفتوحة"),
+  status: text("status").notNull().default("open"),
   closedAt: text("closed_at"),
   closedById: text("closed_by_id"),
   closedByName: text("closed_by_name"),
@@ -326,14 +426,14 @@ export const fiscalPeriods = sqliteTable("fiscal_periods", {
 
 // ============ APPROVALS ============
 
-export const approvals = sqliteTable("approvals", {
+export const approvals = pgTable("approvals", {
   id: text("id").primaryKey(),
   type: text("type").notNull(),
   subject: text("subject").notNull(),
   requester: text("requester").notNull(),
-  amount: real("amount").notNull().default(0),
-  status: text("status").notNull().default("بانتظار موافقتي"),
-  priority: text("priority").notNull().default("متوسطة"),
+  amount: doublePrecision("amount").notNull().default(0),
+  status: text("status").notNull().default("pending"),
+  priority: text("priority").notNull().default("medium"),
   level: integer("level").notNull().default(1),
   projectId: text("project_id").references(() => projects.id),
   notes: text("notes").default(""),
@@ -342,7 +442,7 @@ export const approvals = sqliteTable("approvals", {
 
 // ============ SUPPLIERS ============
 
-export const suppliers = sqliteTable("suppliers", {
+export const suppliers = pgTable("suppliers", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   activity: text("activity").default(""),
@@ -351,10 +451,10 @@ export const suppliers = sqliteTable("suppliers", {
   taxNumber: text("tax_number").default(""),
   contactPerson: text("contact_person").default(""),
   address: text("address").default(""),
-  rating: real("rating").notNull().default(0),
-  balance: real("balance").notNull().default(0),
+  rating: doublePrecision("rating").notNull().default(0),
+  balance: doublePrecision("balance").notNull().default(0),
   notes: text("notes").default(""),
-  status: text("status").notNull().default("نشط"),
+  status: text("status").notNull().default("active"),
   createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
   updatedAt: text("updated_at").notNull().default(""),
@@ -362,14 +462,14 @@ export const suppliers = sqliteTable("suppliers", {
 
 // ============ PURCHASES ============
 
-export const purchaseRequests = sqliteTable("purchase_requests", {
+export const purchaseRequests = pgTable("purchase_requests", {
   id: text("id").primaryKey(),
   subject: text("subject").notNull(),
   department: text("department").notNull(),
-  priority: text("priority").notNull().default("متوسطة"),
-  status: text("status").notNull().default("مسودة"),
+  priority: text("priority").notNull().default("medium"),
+  status: text("status").notNull().default("draft"),
   requester: text("requester").default(""),
-  amount: real("amount").notNull().default(0),
+  amount: doublePrecision("amount").notNull().default(0),
   deliveryDate: text("delivery_date").default(""),
   notes: text("notes").default(""),
   createdBy: text("created_by").references(() => users.id),
@@ -377,23 +477,24 @@ export const purchaseRequests = sqliteTable("purchase_requests", {
   updatedAt: text("updated_at").notNull().default(""),
 });
 
-export const purchaseOrders = sqliteTable("purchase_orders", {
+export const purchaseOrders = pgTable("purchase_orders", {
   id: text("id").primaryKey(),
   supplierId: text("supplier_id").references(() => suppliers.id),
   requestId: text("request_id").references(() => purchaseRequests.id),
   subject: text("subject").notNull(),
   date: text("date").notNull().default(""),
   deliveryDate: text("delivery_date").default(""),
-  status: text("status").notNull().default("مسودة"),
-  total: real("total").notNull().default(0),
-  receivedAmount: real("received_amount").notNull().default(0),
+  status: text("status").notNull().default("draft"),
+  total: doublePrecision("total").notNull().default(0),
+  receivedAmount: doublePrecision("received_amount").notNull().default(0),
+  journalEntryId: text("journal_entry_id"),
   notes: text("notes").default(""),
   createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
   updatedAt: text("updated_at").notNull().default(""),
 });
 
-export const purchaseOrderLines = sqliteTable("purchase_order_lines", {
+export const purchaseOrderLines = pgTable("purchase_order_lines", {
   id: text("id").primaryKey(),
   orderId: text("order_id")
     .notNull()
@@ -401,25 +502,25 @@ export const purchaseOrderLines = sqliteTable("purchase_order_lines", {
   lineNumber: integer("line_number").notNull(),
   itemId: text("item_id").references(() => inventoryItems.id),
   description: text("description").notNull().default(""),
-  quantity: real("quantity").notNull().default(0),
-  unitPrice: real("unit_price").notNull().default(0),
-  receivedQuantity: real("received_quantity").notNull().default(0),
+  quantity: doublePrecision("quantity").notNull().default(0),
+  unitPrice: doublePrecision("unit_price").notNull().default(0),
+  receivedQuantity: doublePrecision("received_quantity").notNull().default(0),
   unit: text("unit").default(""),
   notes: text("notes").default(""),
   createdAt: text("created_at").notNull().default(""),
 });
 
-export const quotes = sqliteTable("quotes", {
+export const quotes = pgTable("quotes", {
   id: text("id").primaryKey(),
   requestId: text("request_id").references(() => purchaseRequests.id),
   supplierId: text("supplier_id").references(() => suppliers.id),
   supplier: text("supplier").notNull(),
-  price: real("price").notNull().default(0),
+  price: doublePrecision("price").notNull().default(0),
   delivery: text("delivery").default(""),
   warranty: text("warranty").default(""),
-  rating: real("rating").notNull().default(0),
-  winner: integer("winner", { mode: "boolean" }).notNull().default(false),
-  status: text("status").notNull().default("بانتظار"),
+  rating: doublePrecision("rating").notNull().default(0),
+  winner: boolean("winner").notNull().default(false),
+  status: text("status").notNull().default("pending"),
   validUntil: text("valid_until").default(""),
   notes: text("notes").default(""),
   createdBy: text("created_by").references(() => users.id),
@@ -429,31 +530,31 @@ export const quotes = sqliteTable("quotes", {
 
 // ============ INVENTORY ============
 
-export const inventoryItems = sqliteTable("inventory_items", {
+export const inventoryItems = pgTable("inventory_items", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   sku: text("sku").default(""),
   unit: text("unit").notNull().default("قطعة"),
   category: text("category").default(""),
   warehouseId: text("warehouse_id"),
-  quantity: real("quantity").notNull().default(0),
-  minQuantity: real("min_quantity").notNull().default(0),
-  price: real("price").notNull().default(0),
-  status: text("status").notNull().default("نشط"),
+  quantity: doublePrecision("quantity").notNull().default(0),
+  minQuantity: doublePrecision("min_quantity").notNull().default(0),
+  price: doublePrecision("price").notNull().default(0),
+  status: text("status").notNull().default("active"),
   notes: text("notes").default(""),
   createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
   updatedAt: text("updated_at").notNull().default(""),
 });
 
-export const warehouses = sqliteTable("warehouses", {
+export const warehouses = pgTable("warehouses", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   location: text("location").default(""),
   manager: text("manager").default(""),
-  capacity: real("capacity").notNull().default(0),
-  occupancy: real("occupancy").notNull().default(0),
-  status: text("status").notNull().default("نشط"),
+  capacity: doublePrecision("capacity").notNull().default(0),
+  occupancy: doublePrecision("occupancy").notNull().default(0),
+  status: text("status").notNull().default("active"),
   notes: text("notes").default(""),
   createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
@@ -462,15 +563,15 @@ export const warehouses = sqliteTable("warehouses", {
 
 // ============ STOCK MOVEMENTS ============
 
-export const stockMovements = sqliteTable("stock_movements", {
+export const stockMovements = pgTable("stock_movements", {
   id: text("id").primaryKey(),
   itemId: text("item_id")
     .notNull()
     .references(() => inventoryItems.id),
   warehouseId: text("warehouse_id").references(() => warehouses.id),
   type: text("type").notNull(),
-  quantity: real("quantity").notNull().default(0),
-  balanceAfter: real("balance_after").notNull().default(0),
+  quantity: doublePrecision("quantity").notNull().default(0),
+  balanceAfter: doublePrecision("balance_after").notNull().default(0),
   relatedWarehouseId: text("related_warehouse_id").references(() => warehouses.id),
   relatedStocktakeId: text("related_stocktake_id"),
   sourceType: text("source_type"),
@@ -484,12 +585,12 @@ export const stockMovements = sqliteTable("stock_movements", {
 
 // ============ STOCKTAKES ============
 
-export const stocktakes = sqliteTable("stocktakes", {
+export const stocktakes = pgTable("stocktakes", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   warehouseId: text("warehouse_id").references(() => warehouses.id),
   date: text("date").notNull().default(""),
-  status: text("status").notNull().default("مسودة"),
+  status: text("status").notNull().default("draft"),
   approvedBy: text("approved_by").references(() => users.id),
   approvedAt: text("approved_at"),
   notes: text("notes").default(""),
@@ -498,7 +599,7 @@ export const stocktakes = sqliteTable("stocktakes", {
   updatedAt: text("updated_at").notNull().default(""),
 });
 
-export const stocktakeLines = sqliteTable("stocktake_lines", {
+export const stocktakeLines = pgTable("stocktake_lines", {
   id: text("id").primaryKey(),
   stocktakeId: text("stocktake_id")
     .notNull()
@@ -506,21 +607,21 @@ export const stocktakeLines = sqliteTable("stocktake_lines", {
   itemId: text("item_id")
     .notNull()
     .references(() => inventoryItems.id),
-  systemQuantity: real("system_quantity").notNull().default(0),
-  countedQuantity: real("counted_quantity").notNull().default(0),
-  difference: real("difference").notNull().default(0),
+  systemQuantity: doublePrecision("system_quantity").notNull().default(0),
+  countedQuantity: doublePrecision("counted_quantity").notNull().default(0),
+  difference: doublePrecision("difference").notNull().default(0),
   notes: text("notes").default(""),
   createdAt: text("created_at").notNull().default(""),
 });
 
 // ============ GRANTS & ENDOWMENTS ============
 
-export const grants = sqliteTable("grants", {
+export const grants = pgTable("grants", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   donor: text("donor").notNull(),
-  amount: real("amount").notNull().default(0),
-  status: text("status").notNull().default("معلق"),
+  amount: doublePrecision("amount").notNull().default(0),
+  status: text("status").notNull().default("pending"),
   startDate: text("start_date").default(""),
   endDate: text("end_date").default(""),
   notes: text("notes").default(""),
@@ -528,40 +629,40 @@ export const grants = sqliteTable("grants", {
   createdAt: text("created_at").notNull().default(""),
 });
 
-export const endowments = sqliteTable("endowments", {
+export const endowments = pgTable("endowments", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  type: text("type").notNull().default("وقف عام"),
-  value: real("value").notNull().default(0),
-  returns: real("returns").notNull().default(0),
-  status: text("status").notNull().default("نشط"),
+  type: text("type").notNull().default("general"),
+  value: doublePrecision("value").notNull().default(0),
+  returns: doublePrecision("returns").notNull().default(0),
+  status: text("status").notNull().default("active"),
   notes: text("notes").default(""),
   createdAt: text("created_at").notNull().default(""),
 });
 
 // ============ MEMBERSHIPS ============
 
-export const memberships = sqliteTable("memberships", {
+export const memberships = pgTable("memberships", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  role: text("role").notNull().default("عضو"),
-  type: text("type").notNull().default("مجلس إدارة"),
+  role: text("role").notNull().default("member"),
+  type: text("type").notNull().default("board"),
   phone: text("phone"),
   email: text("email"),
-  status: text("status").notNull().default("نشط"),
+  status: text("status").notNull().default("active"),
   joinedAt: text("joined_at").default(""),
   createdAt: text("created_at").notNull().default(""),
 });
 
 // ============ MEETINGS ============
 
-export const meetings = sqliteTable("meetings", {
+export const meetings = pgTable("meetings", {
   id: text("id").primaryKey(),
   title: text("title").notNull(),
   date: text("date").notNull().default(""),
   location: text("location").default(""),
   attendees: text("attendees").default("[]"),
-  status: text("status").notNull().default("مجدول"),
+  status: text("status").notNull().default("scheduled"),
   notes: text("notes").default(""),
   createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
@@ -569,35 +670,44 @@ export const meetings = sqliteTable("meetings", {
 
 // ============ AUDIT LOG ============
 
-export const auditLog = sqliteTable("audit_log", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").references(() => users.id),
-  userName: text("user_name").notNull().default(""),
-  action: text("action").notNull(),
-  entityType: text("entity_type").notNull(),
-  entityId: text("entity_id").notNull(),
-  description: text("description").default(""),
-  before: text("before"),
-  after: text("after"),
-  ip: text("ip").default(""),
-  timestamp: text("timestamp").notNull().default(""),
-});
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").references(() => users.id),
+    userName: text("user_name").notNull().default(""),
+    action: text("action").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id").notNull(),
+    description: text("description").default(""),
+    before: text("before"),
+    after: text("after"),
+    ip: text("ip").default(""),
+    timestamp: text("timestamp").notNull().default(""),
+  },
+  (t) => ({
+    entityIdx: index("audit_entity_idx").on(t.entityType, t.entityId),
+    tsIdx: index("audit_ts_idx").on(t.timestamp),
+  }),
+);
 
 // ============ FIXED ASSETS ============
 
-export const fixedAssets = sqliteTable("fixed_assets", {
+export const fixedAssets = pgTable("fixed_assets", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   code: text("code").default(""),
   category: text("category").default(""),
   location: text("location").default(""),
-  cost: real("cost").notNull().default(0),
-  salvageValue: real("salvage_value").notNull().default(0),
+  cost: doublePrecision("cost").notNull().default(0),
+  salvageValue: doublePrecision("salvage_value").notNull().default(0),
   usefulLifeMonths: integer("useful_life_months").notNull().default(60),
-  accumulatedDepreciation: real("accumulated_depreciation").notNull().default(0),
-  depreciationMethod: text("depreciation_method").notNull().default("قسط ثابت"),
-  status: text("status").notNull().default("نشط"),
-  condition: text("condition").default("جيد"),
+  accumulatedDepreciation: doublePrecision("accumulated_depreciation")
+    .notNull()
+    .default(0),
+  depreciationMethod: text("depreciation_method").notNull().default("straight_line"),
+  status: text("status").notNull().default("active"),
+  condition: text("condition").default("good"),
   purchaseDate: text("purchase_date").default(""),
   supplierId: text("supplier_id").references(() => suppliers.id),
   serialNumber: text("serial_number").default(""),
@@ -610,15 +720,15 @@ export const fixedAssets = sqliteTable("fixed_assets", {
   updatedAt: text("updated_at").notNull().default(""),
 });
 
-export const assetDepreciations = sqliteTable("asset_depreciations", {
+export const assetDepreciations = pgTable("asset_depreciations", {
   id: text("id").primaryKey(),
   assetId: text("asset_id")
     .notNull()
     .references(() => fixedAssets.id, { onDelete: "cascade" }),
   date: text("date").notNull().default(""),
-  amount: real("amount").notNull().default(0),
-  bookValueAfter: real("book_value_after").notNull().default(0),
-  method: text("method").notNull().default("قسط ثابت"),
+  amount: doublePrecision("amount").notNull().default(0),
+  bookValueAfter: doublePrecision("book_value_after").notNull().default(0),
+  method: text("method").notNull().default("straight_line"),
   notes: text("notes").default(""),
   sourceType: text("source_type"),
   sourceId: text("source_id"),
@@ -626,7 +736,7 @@ export const assetDepreciations = sqliteTable("asset_depreciations", {
   createdAt: text("created_at").notNull().default(""),
 });
 
-export const assetMovements = sqliteTable("asset_movements", {
+export const assetMovements = pgTable("asset_movements", {
   id: text("id").primaryKey(),
   assetId: text("asset_id")
     .notNull()
@@ -636,7 +746,7 @@ export const assetMovements = sqliteTable("asset_movements", {
   toLocation: text("to_location").default(""),
   fromResponsible: text("from_responsible").default(""),
   toResponsible: text("to_responsible").default(""),
-  cost: real("cost").notNull().default(0),
+  cost: doublePrecision("cost").notNull().default(0),
   date: text("date").notNull().default(""),
   reason: text("reason").default(""),
   notes: text("notes").default(""),

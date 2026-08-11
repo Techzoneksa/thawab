@@ -1,6 +1,8 @@
+import { QuoteStatus as QuoteStatusEnum } from "@/lib/enums";
+
 const API_BASE = "/api/procurement/quotes";
 
-export const QUOTE_STATUSES = ["بانتظار", "مقبول", "مرفوض"] as const;
+export const QUOTE_STATUSES = Object.values(QuoteStatusEnum);
 export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
 
 export interface Quote {
@@ -59,7 +61,7 @@ export async function getQuotes(
 ): Promise<{ items: Quote[]; total: number }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
+  if (filters.status) params.set("status", filters.status);
   if (filters.requestId) params.set("requestId", filters.requestId);
   const res = await fetch(`${API_BASE}?${params.toString()}`);
   if (!res.ok) throw new Error("فشل في جلب عروض الأسعار");
@@ -80,7 +82,7 @@ export async function createQuote(data: CreateQuoteInput): Promise<Quote> {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة عرض السعر");
+    throw new Error(err.message || err.error || "فشل في إضافة عرض السعر");
   }
   const d = await res.json();
   return d.item;
@@ -94,7 +96,7 @@ export async function updateQuote(data: UpdateQuoteInput): Promise<Quote> {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث عرض السعر");
+    throw new Error(err.message || err.error || "فشل في تحديث عرض السعر");
   }
   const d = await res.json();
   return d.item;
@@ -112,7 +114,7 @@ export async function acceptQuote(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في قبول عرض السعر");
+    throw new Error(err.message || err.error || "فشل في قبول عرض السعر");
   }
   const d = await res.json();
   return d.item;
@@ -130,7 +132,7 @@ export async function rejectQuote(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في رفض عرض السعر");
+    throw new Error(err.message || err.error || "فشل في رفض عرض السعر");
   }
   const d = await res.json();
   return d.item;
@@ -147,6 +149,6 @@ export async function deleteQuote(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف عرض السعر");
+    throw new Error(err.message || err.error || "فشل في حذف عرض السعر");
   }
 }

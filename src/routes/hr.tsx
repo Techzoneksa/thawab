@@ -10,7 +10,7 @@ import {
   MobileTable,
   MobilePageHeader,
 } from "@/components/erp/AppShell";
-import { EMPLOYEES, fmtSAR } from "@/data/sample";
+import { fmtSAR } from "@/data/sample";
 import { Plus, Briefcase, Calendar, FileText, BarChart3, Edit, Trash2, Eye } from "lucide-react";
 import { useState } from "react";
 import {
@@ -19,6 +19,7 @@ import {
   EntityFormDrawer,
   ActionMenu,
   ExportButton,
+  EmptyState,
 } from "@/components/erp/actions";
 
 type EmployeeItem = {
@@ -35,9 +36,7 @@ type EmployeeItem = {
 export const Route = createFileRoute("/hr")({
   head: () => ({ meta: [{ title: "الموارد البشرية — ثواب" }] }),
   component: () => {
-    const [data, setData] = useState<EmployeeItem[]>(
-      EMPLOYEES.map((e) => ({ ...e, phone: "05xxxxxxxx" })),
-    );
+    const [data, setData] = useState<EmployeeItem[]>([]);
     const [formOpen, setFormOpen] = useState(false);
     const [editIdx, setEditIdx] = useState(-1);
     const [confirmIdx, setConfirmIdx] = useState(-1);
@@ -147,6 +146,10 @@ export const Route = createFileRoute("/hr")({
           </div>
 
           <MobilePageHeader title="الموظفون" count={`${data.length} موظف`} />
+
+          {data.length === 0 && (
+            <EmptyState title="لا يوجد موظفون" description="ابدأ بإضافة أول موظف" />
+          )}
 
           <MobileTable
             columns={[

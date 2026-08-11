@@ -1,6 +1,8 @@
+import { BudgetStatus as BudgetStatusEnum } from "@/lib/enums";
+
 const API_BASE = "/api/finance/budgets";
 
-export const BUDGET_STATUSES = ["مسودة", "معتمد", "مقفل", "ملغى"] as const;
+export const BUDGET_STATUSES = Object.values(BudgetStatusEnum);
 export type BudgetStatus = (typeof BUDGET_STATUSES)[number];
 
 export interface BudgetLine {
@@ -93,8 +95,8 @@ export async function getBudgets(filters: BudgetFilters = {}): Promise<{
 }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
-  if (filters.year && filters.year !== "الكل") params.set("year", filters.year);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.year) params.set("year", filters.year);
   const res = await fetch(`${API_BASE}?${params.toString()}`);
   if (!res.ok) throw new Error("فشل في جلب الموازنات");
   return res.json();
@@ -118,7 +120,7 @@ export async function createBudget(data: CreateBudgetInput): Promise<Budget> {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة الموازنة");
+    throw new Error(err.message || err.error || "فشل في إضافة الموازنة");
   }
   const d = await res.json();
   return d.item;
@@ -132,7 +134,7 @@ export async function updateBudget(data: UpdateBudgetInput): Promise<Budget> {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث الموازنة");
+    throw new Error(err.message || err.error || "فشل في تحديث الموازنة");
   }
   const d = await res.json();
   return d.item;
@@ -149,7 +151,7 @@ export async function deleteBudget(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف الموازنة");
+    throw new Error(err.message || err.error || "فشل في حذف الموازنة");
   }
 }
 
@@ -165,7 +167,7 @@ export async function approveBudget(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في اعتماد الموازنة");
+    throw new Error(err.message || err.error || "فشل في اعتماد الموازنة");
   }
   const d = await res.json();
   return d.item;
@@ -183,7 +185,7 @@ export async function lockBudget(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في قفل الموازنة");
+    throw new Error(err.message || err.error || "فشل في قفل الموازنة");
   }
   const d = await res.json();
   return d.item;
@@ -201,7 +203,7 @@ export async function unlockBudget(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في فتح قفل الموازنة");
+    throw new Error(err.message || err.error || "فشل في فتح قفل الموازنة");
   }
   const d = await res.json();
   return d.item;

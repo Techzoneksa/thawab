@@ -1,38 +1,105 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
-import { login, logout, getCurrentUser } from "@/server/db/auth";
-import { safeHandler } from "@/server/db/api-utils";
+import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
+import {
+  login,
+  logout,
+  getCurrentUser,
+  changePassword,
+  verifyUserPassword,
+} from "@/server/db/auth";
+import {
+  safeHandler,
+  parseBody,
+  guard,
+  err,
+  getSessionToken,
+  clientIp,
+} from "@/server/db/api-utils";
 
-async function __handler_POST({ request }: { request: Request }) {
-  const body = await request.json();
-  const { email, password, action } = body;
+const COOKIE = "session_token";
+const MAX_AGE = 7 * 24 * 60 * 60;
 
-  if (action === "logout") {
-    const token = request.headers.get("x-session-token");
-    if (token) await logout(token);
-    return Response.json({ success: true });
-  }
-
-  if (!email || !password) {
-    return Response.json(
-      { error: "ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ ظˆظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ظ…ط·ظ„ظˆط¨ط§ظ†" },
-      { status: 400 },
-    );
-  }
-
-  const result = await login(email, password);
-  if (result.error) {
-    return Response.json({ error: result.error }, { status: 401 });
-  }
-
-  return Response.json({ user: result.user, token: result.token });
+function isSecure() {
+  if (process.env.SESSION_COOKIE_SECURE === "false") return false;
+  return process.env.NODE_ENV === "production";
 }
 
-async function __handler_GET({ request }: { request: Request }) {
-  const token = request.headers.get("x-session-token");
-  if (!token) {
-    return Response.json({ user: null });
-  }
+function sessionCookie(token: string) {
+  const parts = [
+    `${COOKIE}=${encodeURIComponent(token)}`,
+    "HttpOnly",
+    "Path=/",
+    "SameSite=Strict",
+    `Max-Age=${MAX_AGE}`,
+  ];
+  if (isSecure()) parts.push("Secure");
+  return parts.join("; ");
+}
 
+function clearCookie() {
+  const parts = [`${COOKIE}=`, "HttpOnly", "Path=/", "SameSite=Strict", "Max-Age=0"];
+  if (isSecure()) parts.push("Secure");
+  return parts.join("; ");
+}
+
+const loginSchema = z.object({
+  email: z.string().trim().email(),
+  password: z.string().min(1),
+});
+
+const changePwSchema = z.object({
+  action: z.literal("change_password"),
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
+});
+
+async function POST({ request }: { request: Request }) {
+  return guard(async () => {
+    // Peek at the action without consuming the stream twice.
+    const body = await request.json().catch(() => ({}) as Record<string, unknown>);
+    const action = (body as { action?: string }).action;
+
+    if (action === "logout") {
+      const token = getSessionToken(request);
+      if (token) await logout(token);
+      return Response.json({ success: true }, { headers: { "Set-Cookie": clearCookie() } });
+    }
+
+    if (action === "change_password") {
+      const token = getSessionToken(request);
+      const user = await getCurrentUser(token);
+      if (!user) return err("يجب تسجيل الدخول", 401, "UNAUTHENTICATED");
+      const parsed = changePwSchema.safeParse(body);
+      if (!parsed.success) return err("بيانات غير صالحة", 422, "VALIDATION_ERROR");
+      if (!(await verifyUserPassword(user.id, parsed.data.currentPassword))) {
+        return err("كلمة المرور الحالية غير صحيحة", 400, "BAD_PASSWORD");
+      }
+      await changePassword(user.id, parsed.data.newPassword);
+      return Response.json({ success: true }, { headers: { "Set-Cookie": clearCookie() } });
+    }
+
+    // Login
+    const parsed = loginSchema.safeParse(body);
+    if (!parsed.success) return err("البريد الإلكتروني وكلمة المرور مطلوبان", 400, "BAD_REQUEST");
+
+    const result = await login(
+      parsed.data.email,
+      parsed.data.password,
+      clientIp(request),
+      request.headers.get("user-agent") || "",
+    );
+    if ("error" in result) return err(result.error!, 401, result.code);
+
+    return Response.json(
+      { user: result.user, token: result.token, mustChangePassword: result.mustChangePassword },
+      { headers: { "Set-Cookie": sessionCookie(result.token!) } },
+    );
+  });
+}
+
+async function GET({ request }: { request: Request }) {
+  const token = getSessionToken(request);
+  if (!token) return Response.json({ user: null });
   const user = await getCurrentUser(token);
   return Response.json({ user });
 }
@@ -40,8 +107,8 @@ async function __handler_GET({ request }: { request: Request }) {
 export const Route = createFileRoute("/api/auth")({
   server: {
     handlers: {
-      POST: safeHandler(__handler_POST),
-      GET: safeHandler(__handler_GET),
+      POST: safeHandler(POST),
+      GET: safeHandler(GET),
     },
   },
 });

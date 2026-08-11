@@ -13,7 +13,7 @@ import {
   MobileFilterDrawer,
   MobilePageHeader,
 } from "@/components/erp/AppShell";
-import { APPROVALS, fmtSAR } from "@/data/sample";
+import { fmtSAR } from "@/data/sample";
 import {
   CheckCircle2,
   XCircle,
@@ -39,12 +39,23 @@ export const Route = createFileRoute("/approvals")({
   component: Page,
 });
 
+type ApprovalItem = {
+  id: string;
+  subject: string;
+  type: string;
+  priority: string;
+  requester: string;
+  level: number | string;
+  date: string;
+  amount: number;
+  status: string;
+};
+
 function Page() {
   const [tab, setTab] = useState("بانتظار موافقتي");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [approvals, setApprovals] = useState(
-    APPROVALS.map((a) => ({ ...a, status: "بانتظار الموافقة" as string })),
-  );
+  const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
+  const selected = approvals[0];
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [noteTarget, setNoteTarget] = useState<string | null>(null);
@@ -52,11 +63,11 @@ function Page() {
   const [priorityFilter, setPriorityFilter] = useState("الكل");
 
   const tabs = [
-    { name: "بانتظار موافقتي", count: 12, icon: Inbox },
-    { name: "قمت بإنشائها", count: 8, icon: Clock },
-    { name: "معتمدة", count: 142 },
-    { name: "مرفوضة", count: 6 },
-    { name: "مُعادة للتصحيح", count: 3 },
+    { name: "بانتظار موافقتي", count: 0, icon: Inbox },
+    { name: "قمت بإنشائها", count: 0, icon: Clock },
+    { name: "معتمدة", count: 0 },
+    { name: "مرفوضة", count: 0 },
+    { name: "مُعادة للتصحيح", count: 0 },
   ];
   const tabNames = tabs.map((t) => t.name);
   const [mobileTab, setMobileTab] = useState(tabNames[0]);
@@ -266,118 +277,82 @@ function Page() {
         </div>
 
         <Card className="hidden lg:block lg:col-span-2 p-5 h-fit sticky top-20">
-          <h3 className="font-bold mb-1">{APPROVALS[0].subject}</h3>
-          <p className="text-xs text-muted-foreground">
-            {APPROVALS[0].id} · {APPROVALS[0].type}
-          </p>
-          <div className="grid grid-cols-2 gap-3 mt-4 text-sm">
-            <div>
-              <div className="text-muted-foreground text-xs">المبلغ</div>
-              <div className="font-bold tabular-nums">{fmtSAR(APPROVALS[0].amount)}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground text-xs">مقدم الطلب</div>
-              <div className="font-semibold">{APPROVALS[0].requester}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground text-xs">المركز</div>
-              <div>المركز المالي 41</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground text-xs">المشروع</div>
-              <div>السلال الغذائية الشهرية</div>
-            </div>
-          </div>
+          {selected ? (
+            <>
+              <h3 className="font-bold mb-1">{selected.subject}</h3>
+              <p className="text-xs text-muted-foreground">
+                {selected.id} · {selected.type}
+              </p>
+              <div className="grid grid-cols-2 gap-3 mt-4 text-sm">
+                <div>
+                  <div className="text-muted-foreground text-xs">المبلغ</div>
+                  <div className="font-bold tabular-nums">{fmtSAR(selected.amount)}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground text-xs">مقدم الطلب</div>
+                  <div className="font-semibold">{selected.requester}</div>
+                </div>
+              </div>
 
-          <div className="mt-5">
-            <h4 className="font-semibold text-sm mb-3">مسار الاعتماد</h4>
-            <ol className="relative border-r-2 border-muted pr-4 space-y-4">
-              {[
-                {
-                  who: "محاسب: سارة الزهراني",
-                  when: "أمس 16:40",
-                  state: "تم الإنشاء",
-                  tone: "success" as const,
-                },
-                {
-                  who: "محاسب أول: محمد الغامدي",
-                  when: "اليوم 09:12",
-                  state: "تمت المراجعة",
-                  tone: "success" as const,
-                },
-                {
-                  who: "المدير المالي: سعد الغامدي",
-                  when: "بانتظار",
-                  state: "بانتظار الاعتماد",
-                  tone: "warning" as const,
-                },
-                { who: "المدير التنفيذي", when: "—", state: "غير مفعّل", tone: "muted" as const },
-              ].map((s, i) => (
-                <li key={i} className="relative">
-                  <span
-                    className={`absolute -right-[26px] top-1.5 h-3 w-3 rounded-full ring-4 ring-card ${s.tone === "success" ? "bg-success" : s.tone === "warning" ? "bg-warning" : "bg-muted-foreground/40"}`}
-                  />
-                  <div className="text-sm font-semibold">{s.who}</div>
-                  <div className="text-xs text-muted-foreground">{s.when}</div>
-                  <Badge tone={s.tone}>{s.state}</Badge>
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          <div className="mt-5">
-            <h4 className="font-semibold text-sm mb-2">ملاحظات</h4>
-            <textarea
-              rows={3}
-              className="w-full rounded-lg border bg-background p-2 text-sm"
-              placeholder="اكتب ملاحظتك على الموافقة..."
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-            />
-            <div className="flex justify-end gap-2 mt-2">
-              <Btn variant="outline" onClick={() => setNoteText("")}>
-                حفظ كمسودة
-              </Btn>
-              <Btn
-                variant="primary"
-                onClick={() => {
-                  if (noteText.trim()) {
-                    showToast(`تم إرسال الملاحظة: ${noteText}`, "success");
-                    setNoteText("");
-                  } else {
-                    showToast("الرجاء كتابة الملاحظة", "error");
-                  }
-                }}
-              >
-                اعتماد وإرسال
-              </Btn>
-            </div>
-          </div>
+              <div className="mt-5">
+                <h4 className="font-semibold text-sm mb-2">ملاحظات</h4>
+                <textarea
+                  rows={3}
+                  className="w-full rounded-lg border bg-background p-2 text-sm"
+                  placeholder="اكتب ملاحظتك على الموافقة..."
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                />
+                <div className="flex justify-end gap-2 mt-2">
+                  <Btn variant="outline" onClick={() => setNoteText("")}>
+                    حفظ كمسودة
+                  </Btn>
+                  <Btn
+                    variant="primary"
+                    onClick={() => {
+                      if (noteText.trim()) {
+                        showToast(`تم إرسال الملاحظة: ${noteText}`, "success");
+                        setNoteText("");
+                      } else {
+                        showToast("الرجاء كتابة الملاحظة", "error");
+                      }
+                    }}
+                  >
+                    اعتماد وإرسال
+                  </Btn>
+                </div>
+              </div>
+            </>
+          ) : (
+            <EmptyState title="لا توجد موافقات" description="اختر طلبًا لعرض تفاصيله" />
+          )}
         </Card>
       </div>
 
-      <div className="lg:hidden fixed bottom-16 right-0 left-0 z-20 border-t bg-surface/95 backdrop-blur px-4 py-3 safe-area-bottom shadow-[0_-2px_6px_rgba(0,0,0,0.06)]">
-        <div className="flex items-center justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="text-xs text-muted-foreground truncate">{APPROVALS[0].subject}</div>
-            <div className="text-sm font-bold tabular-nums">{fmtSAR(APPROVALS[0].amount)}</div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => handleApprove(APPROVALS[0].id)}
-              className="rounded-lg bg-success/15 text-success px-4 py-2 text-xs font-semibold min-h-[36px]"
-            >
-              اعتماد
-            </button>
-            <button
-              onClick={() => handleReject(APPROVALS[0].id)}
-              className="rounded-lg bg-destructive/15 text-destructive px-4 py-2 text-xs font-semibold min-h-[36px]"
-            >
-              رفض
-            </button>
+      {selected && (
+        <div className="lg:hidden fixed bottom-16 right-0 left-0 z-20 border-t bg-surface/95 backdrop-blur px-4 py-3 safe-area-bottom shadow-[0_-2px_6px_rgba(0,0,0,0.06)]">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="text-xs text-muted-foreground truncate">{selected.subject}</div>
+              <div className="text-sm font-bold tabular-nums">{fmtSAR(selected.amount)}</div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleApprove(selected.id)}
+                className="rounded-lg bg-success/15 text-success px-4 py-2 text-xs font-semibold min-h-[36px]"
+              >
+                اعتماد
+              </button>
+              <button
+                onClick={() => handleReject(selected.id)}
+                className="rounded-lg bg-destructive/15 text-destructive px-4 py-2 text-xs font-semibold min-h-[36px]"
+              >
+                رفض
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <EntityFormDrawer
         open={noteOpen}

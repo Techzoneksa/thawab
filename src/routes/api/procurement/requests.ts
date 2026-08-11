@@ -1,26 +1,20 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
+import { and, count, desc, eq, like, or } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { purchaseRequests, purchaseOrders } from "@/server/db/schema";
-import { eq, like, or, and, desc, sql } from "drizzle-orm";
-import { safeHandler } from "@/server/db/api-utils";
+import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
+import { PurchaseRequestStatus, Priority } from "@/lib/enums";
 
-export const REQUEST_STATUSES = [
-  "ظ…ط³ظˆط¯ط©",
-  "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©",
-  "ظ…ط¹طھظ…ط¯",
-  "ظ…ط±ظپظˆط¶",
-  "ظ…ط­ظˆظ„ ط¥ظ„ظ‰ ط£ظ…ط± ط´ط±ط§ط،",
-  "ظ…ظ„ط؛ظٹ",
-] as const;
-export type RequestStatus = (typeof REQUEST_STATUSES)[number];
+// NOTE: enums.ts PurchaseRequestStatus has no CANCELLED key. Business logic here
+// still needs a cancelled state, so we use the ASCII key "cancelled" until the
+// enum is extended. (Do not use Arabic — schema stores ASCII keys.)
+const REQUEST_CANCELLED = "cancelled";
 
-export const REQUEST_PRIORITIES = ["ط¹ط§ط¬ظ„", "ظ…طھظˆط³ط·ط©", "ظ…ظ†ط®ظپط¶ط©"] as const;
+const TERMINAL_STATUSES: string[] = [PurchaseRequestStatus.ORDERED, REQUEST_CANCELLED];
 
-const TERMINAL_STATUSES: RequestStatus[] = ["ظ…ط­ظˆظ„ ط¥ظ„ظ‰ ط£ظ…ط± ط´ط±ط§ط،", "ظ…ظ„ط؛ظٹ"];
-
-// GET /api/procurement/requests - list with search/filter
-// GET /api/procurement/requests?id=xxx - single with conversion info
-async function __handler_GET({ request }: { request: Request }) {
+// GET /api/procurement/requests?id=xxx — single with conversion info; else list.
+async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
@@ -29,24 +23,23 @@ async function __handler_GET({ request }: { request: Request }) {
       .select()
       .from(purchaseRequests)
       .where(eq(purchaseRequests.id, id))
-      .limit(1)
-      .all())[0];
-    if (!req)
-      return Response.json({ error: "ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+      .limit(1))[0];
+    if (!req) return err("طلب الشراء غير موجود", 404, "NOT_FOUND");
 
-    const orderCount =
-      (await db
-        .select({ count: sql<number>`count(*)` })
-        .from(purchaseOrders)
-        .where(eq(purchaseOrders.requestId, id))
-        .all())[0]?.count || 0;
+    const [{ c: orderCount }] = await db
+      .select({ c: count() })
+      .from(purchaseOrders)
+      .where(eq(purchaseOrders.requestId, id));
 
-    return Response.json({ item: req, orderCount });
+    return Response.json({ item: req, orderCount: Number(orderCount) });
   }
 
   const search = url.searchParams.get("search") || "";
   const status = url.searchParams.get("status") || "";
   const department = url.searchParams.get("department") || "";
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1") || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "50") || 50));
+  const offset = (page - 1) * limit;
 
   const conditions = [];
   if (search) {
@@ -59,409 +52,298 @@ async function __handler_GET({ request }: { request: Request }) {
       ),
     );
   }
-  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(purchaseRequests.status, status));
-  if (department && department !== "ط§ظ„ظƒظ„")
-    conditions.push(eq(purchaseRequests.department, department));
+  if (status) conditions.push(eq(purchaseRequests.status, status));
+  if (department) conditions.push(eq(purchaseRequests.department, department));
+  const where = conditions.length ? and(...conditions) : undefined;
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const [{ c: total }] = await db.select({ c: count() }).from(purchaseRequests).where(where);
+  const items = await db
+    .select()
+    .from(purchaseRequests)
+    .where(where)
+    .orderBy(desc(purchaseRequests.createdAt))
+    .limit(limit)
+    .offset(offset);
 
-  const items = whereClause
-    ? await db
+  return Response.json({ items, total: Number(total), page, limit });
+}
+
+const createSchema = z.object({
+  subject: z.string().trim().min(1, "موضوع الطلب مطلوب"),
+  department: z.string().trim().min(1, "القسم مطلوب"),
+  priority: z.nativeEnum(Priority).optional(),
+  requester: z.string().optional(),
+  amount: z.coerce.number().optional(),
+  deliveryDate: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+const actionSchema = z.object({
+  action: z.enum(["submit", "approve", "reject", "returnToDraft", "cancel"]),
+  id: z.string().min(1, "معرف الطلب مطلوب"),
+  reason: z.string().optional(),
+});
+
+// POST /api/procurement/requests — create or workflow action.
+async function POST(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, z.union([actionSchema, createSchema]));
+
+    if ("action" in b) {
+      const existing = (await db
         .select()
         .from(purchaseRequests)
-        .where(whereClause)
-        .orderBy(desc(purchaseRequests.createdAt))
-        .all()
-    : await db.select().from(purchaseRequests).orderBy(desc(purchaseRequests.createdAt)).all();
-  const total = items.length;
+        .where(eq(purchaseRequests.id, b.id))
+        .limit(1))[0];
+      if (!existing) return err("طلب الشراء غير موجود", 404, "NOT_FOUND");
 
-  return Response.json({ items, total });
-}
+      const before = JSON.stringify(existing);
 
-// POST /api/procurement/requests - create or workflow action
-async function __handler_POST({ request }: { request: Request }) {
-  const body = await request.json();
-  const { action } = body;
+      if (b.action === "submit") {
+        if (existing.status !== PurchaseRequestStatus.DRAFT)
+          return err("يمكن إرسال المسودة فقط", 400, "INVALID_STATE");
+        await db
+          .update(purchaseRequests)
+          .set({ status: PurchaseRequestStatus.SUBMITTED, updatedAt: now() })
+          .where(eq(purchaseRequests.id, b.id));
+        await addAudit({
+          action: "submit",
+          entityType: "purchase_request",
+          entityId: b.id,
+          description: `تم إرسال طلب الشراء للموافقة: ${existing.subject}`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          before,
+          ip: ctx.ip,
+        });
+      } else if (b.action === "approve") {
+        if (existing.status !== PurchaseRequestStatus.SUBMITTED)
+          return err("الطلب ليس بانتظار الموافقة", 400, "INVALID_STATE");
+        await db
+          .update(purchaseRequests)
+          .set({ status: PurchaseRequestStatus.APPROVED, updatedAt: now() })
+          .where(eq(purchaseRequests.id, b.id));
+        await addAudit({
+          action: "approve",
+          entityType: "purchase_request",
+          entityId: b.id,
+          description: `تم اعتماد طلب الشراء: ${existing.subject}`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          before,
+          ip: ctx.ip,
+        });
+      } else if (b.action === "reject") {
+        if (existing.status !== PurchaseRequestStatus.SUBMITTED)
+          return err("الطلب ليس بانتظار الموافقة", 400, "INVALID_STATE");
+        const newNotes = b.reason
+          ? `${existing.notes || ""}\n[رفض: ${b.reason}]`.trim()
+          : existing.notes;
+        await db
+          .update(purchaseRequests)
+          .set({ status: PurchaseRequestStatus.REJECTED, notes: newNotes, updatedAt: now() })
+          .where(eq(purchaseRequests.id, b.id));
+        await addAudit({
+          action: "reject",
+          entityType: "purchase_request",
+          entityId: b.id,
+          description: `تم رفض طلب الشراء: ${existing.subject}${b.reason ? ` — السبب: ${b.reason}` : ""}`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          before,
+          ip: ctx.ip,
+        });
+      } else if (b.action === "returnToDraft") {
+        if (existing.status === PurchaseRequestStatus.DRAFT)
+          return err("الطلب مسودة بالفعل", 400, "INVALID_STATE");
+        if (TERMINAL_STATUSES.includes(existing.status))
+          return err("لا يمكن إرجاع طلب محوّل أو ملغي إلى المسودة", 400, "INVALID_STATE");
+        await db
+          .update(purchaseRequests)
+          .set({ status: PurchaseRequestStatus.DRAFT, updatedAt: now() })
+          .where(eq(purchaseRequests.id, b.id));
+        await addAudit({
+          action: "return_to_draft",
+          entityType: "purchase_request",
+          entityId: b.id,
+          description: `تم إرجاع طلب الشراء للمسودة: ${existing.subject}`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          before,
+          ip: ctx.ip,
+        });
+      } else {
+        // cancel
+        if (existing.status === REQUEST_CANCELLED)
+          return err("الطلب ملغي بالفعل", 400, "INVALID_STATE");
+        if (existing.status === PurchaseRequestStatus.ORDERED)
+          return err("لا يمكن إلغاء طلب محوّل إلى أمر شراء", 400, "INVALID_STATE");
+        await db
+          .update(purchaseRequests)
+          .set({ status: REQUEST_CANCELLED, updatedAt: now() })
+          .where(eq(purchaseRequests.id, b.id));
+        await addAudit({
+          action: "cancel",
+          entityType: "purchase_request",
+          entityId: b.id,
+          description: `تم إلغاء طلب الشراء: ${existing.subject}`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          before,
+          ip: ctx.ip,
+        });
+      }
 
-  if (action === "submit") {
-    const { id, userId, userName } = body;
-    const existing = (await db
-      .select()
-      .from(purchaseRequests)
-      .where(eq(purchaseRequests.id, id))
-      .limit(1)
-      .all())[0];
-    if (!existing)
-      return Response.json({ error: "ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (existing.status !== "ظ…ط³ظˆط¯ط©")
-      return Response.json({ error: "ظٹظ…ظƒظ† ط¥ط±ط³ط§ظ„ ط§ظ„ظ…ط³ظˆط¯ط© ظپظ‚ط·" }, { status: 400 });
+      const updated = (await db
+        .select()
+        .from(purchaseRequests)
+        .where(eq(purchaseRequests.id, b.id))
+        .limit(1))[0];
+      return Response.json({ item: updated });
+    }
 
-    const before = JSON.stringify(existing);
-    await db.update(purchaseRequests)
-      .set({ status: "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©", updatedAt: now() })
-      .where(eq(purchaseRequests.id, id))
-      .run();
-    await addAudit(
-      "ط¥ط±ط³ط§ظ„ ظ„ظ„ظ…ظˆط§ظپظ‚ط©",
-      "ط·ظ„ط¨ ط´ط±ط§ط،",
+    const id = genId("PR");
+    const ts = now();
+
+    await db.insert(purchaseRequests).values({
       id,
-      `طھظ… ط¥ط±ط³ط§ظ„ ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ظ„ظ„ظ…ظˆط§ظپظ‚ط©: ${existing.subject}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db
-      .select()
-      .from(purchaseRequests)
-      .where(eq(purchaseRequests.id, id))
-      .limit(1)
-      .all())[0];
-    return Response.json({ item: updated });
-  }
-
-  if (action === "approve") {
-    const { id, userId, userName } = body;
-    const existing = (await db
-      .select()
-      .from(purchaseRequests)
-      .where(eq(purchaseRequests.id, id))
-      .limit(1)
-      .all())[0];
-    if (!existing)
-      return Response.json({ error: "ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (existing.status !== "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©")
-      return Response.json(
-        { error: "ط§ظ„ط·ظ„ط¨ ظ„ظٹط³ ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©" },
-        { status: 400 },
-      );
-
-    const before = JSON.stringify(existing);
-    await db.update(purchaseRequests)
-      .set({ status: "ظ…ط¹طھظ…ط¯", updatedAt: now() })
-      .where(eq(purchaseRequests.id, id))
-      .run();
-    await addAudit(
-      "ط§ط¹طھظ…ط§ط¯",
-      "ط·ظ„ط¨ ط´ط±ط§ط،",
-      id,
-      `طھظ… ط§ط¹طھظ…ط§ط¯ ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط،: ${existing.subject}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db
-      .select()
-      .from(purchaseRequests)
-      .where(eq(purchaseRequests.id, id))
-      .limit(1)
-      .all())[0];
-    return Response.json({ item: updated });
-  }
-
-  if (action === "reject") {
-    const { id, reason, userId, userName } = body;
-    const existing = (await db
-      .select()
-      .from(purchaseRequests)
-      .where(eq(purchaseRequests.id, id))
-      .limit(1)
-      .all())[0];
-    if (!existing)
-      return Response.json({ error: "ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (existing.status !== "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©")
-      return Response.json(
-        { error: "ط§ظ„ط·ظ„ط¨ ظ„ظٹط³ ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©" },
-        { status: 400 },
-      );
-
-    const before = JSON.stringify(existing);
-    const newNotes = reason
-      ? `${existing.notes || ""}\n[ط±ظپط¶: ${reason}]`.trim()
-      : existing.notes;
-    await db.update(purchaseRequests)
-      .set({ status: "ظ…ط±ظپظˆط¶", notes: newNotes, updatedAt: now() })
-      .where(eq(purchaseRequests.id, id))
-      .run();
-    await addAudit(
-      "ط±ظپط¶",
-      "ط·ظ„ط¨ ط´ط±ط§ط،",
-      id,
-      `طھظ… ط±ظپط¶ ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط،: ${existing.subject}${reason ? ` â€” ط§ظ„ط³ط¨ط¨: ${reason}` : ""}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db
-      .select()
-      .from(purchaseRequests)
-      .where(eq(purchaseRequests.id, id))
-      .limit(1)
-      .all())[0];
-    return Response.json({ item: updated });
-  }
-
-  if (action === "returnToDraft") {
-    const { id, userId, userName } = body;
-    const existing = (await db
-      .select()
-      .from(purchaseRequests)
-      .where(eq(purchaseRequests.id, id))
-      .limit(1)
-      .all())[0];
-    if (!existing)
-      return Response.json({ error: "ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (existing.status === "ظ…ط³ظˆط¯ط©")
-      return Response.json({ error: "ط§ظ„ط·ظ„ط¨ ظ…ط³ظˆط¯ط© ط¨ط§ظ„ظپط¹ظ„" }, { status: 400 });
-    if (TERMINAL_STATUSES.includes(existing.status as RequestStatus))
-      return Response.json(
-        { error: "ظ„ط§ ظٹظ…ظƒظ† ط¥ط±ط¬ط§ط¹ ط·ظ„ط¨ ظ…ط­ظˆظ‘ظ„ ط£ظˆ ظ…ظ„ط؛ظٹ ط¥ظ„ظ‰ ط§ظ„ظ…ط³ظˆط¯ط©" },
-        { status: 400 },
-      );
-
-    const before = JSON.stringify(existing);
-    await db.update(purchaseRequests)
-      .set({ status: "ظ…ط³ظˆط¯ط©", updatedAt: now() })
-      .where(eq(purchaseRequests.id, id))
-      .run();
-    await addAudit(
-      "ط¥ط¹ط§ط¯ط© ظ„ظ…ط³ظˆط¯ط©",
-      "ط·ظ„ط¨ ط´ط±ط§ط،",
-      id,
-      `طھظ… ط¥ط±ط¬ط§ط¹ ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ظ„ظ„ظ…ط³ظˆط¯ط©: ${existing.subject}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db
-      .select()
-      .from(purchaseRequests)
-      .where(eq(purchaseRequests.id, id))
-      .limit(1)
-      .all())[0];
-    return Response.json({ item: updated });
-  }
-
-  if (action === "cancel") {
-    const { id, userId, userName } = body;
-    const existing = (await db
-      .select()
-      .from(purchaseRequests)
-      .where(eq(purchaseRequests.id, id))
-      .limit(1)
-      .all())[0];
-    if (!existing)
-      return Response.json({ error: "ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (existing.status === "ظ…ظ„ط؛ظٹ")
-      return Response.json({ error: "ط§ظ„ط·ظ„ط¨ ظ…ظ„ط؛ظٹ ط¨ط§ظ„ظپط¹ظ„" }, { status: 400 });
-    if (existing.status === "ظ…ط­ظˆظ„ ط¥ظ„ظ‰ ط£ظ…ط± ط´ط±ط§ط،")
-      return Response.json(
-        { error: "ظ„ط§ ظٹظ…ظƒظ† ط¥ظ„ط؛ط§ط، ط·ظ„ط¨ ظ…ط­ظˆظ‘ظ„ ط¥ظ„ظ‰ ط£ظ…ط± ط´ط±ط§ط،" },
-        { status: 400 },
-      );
-
-    const before = JSON.stringify(existing);
-    await db.update(purchaseRequests)
-      .set({ status: "ظ…ظ„ط؛ظٹ", updatedAt: now() })
-      .where(eq(purchaseRequests.id, id))
-      .run();
-    await addAudit(
-      "ط¥ظ„ط؛ط§ط،",
-      "ط·ظ„ط¨ ط´ط±ط§ط،",
-      id,
-      `طھظ… ط¥ظ„ط؛ط§ط، ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط،: ${existing.subject}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db
-      .select()
-      .from(purchaseRequests)
-      .where(eq(purchaseRequests.id, id))
-      .limit(1)
-      .all())[0];
-    return Response.json({ item: updated });
-  }
-
-  // Create
-  const {
-    subject,
-    department,
-    priority,
-    requester,
-    amount,
-    deliveryDate,
-    notes,
-    userId,
-    userName,
-  } = body;
-  if (!subject?.trim())
-    return Response.json({ error: "ظ…ظˆط¶ظˆط¹ ط§ظ„ط·ظ„ط¨ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-  if (!department?.trim())
-    return Response.json({ error: "ط§ظ„ظ‚ط³ظ… ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-
-  const reqId = genId("PR");
-  const ts = now();
-
-  await db.insert(purchaseRequests)
-    .values({
-      id: reqId,
-      subject: subject.trim(),
-      department: department.trim(),
-      priority: priority || "ظ…طھظˆط³ط·ط©",
-      status: "ظ…ط³ظˆط¯ط©",
-      requester: requester || "",
-      amount: parseFloat(amount) || 0,
-      deliveryDate: deliveryDate || "",
-      notes: notes || "",
-      createdBy: userId || null,
+      subject: b.subject,
+      department: b.department,
+      priority: b.priority ?? Priority.MEDIUM,
+      status: PurchaseRequestStatus.DRAFT,
+      requester: b.requester ?? "",
+      amount: b.amount ?? 0,
+      deliveryDate: b.deliveryDate ?? "",
+      notes: b.notes ?? "",
+      createdBy: ctx.user.id,
       createdAt: ts,
       updatedAt: ts,
-    })
-    .run();
+    });
 
-  await addAudit(
-    "ط¥ط¶ط§ظپط©",
-    "ط·ظ„ط¨ ط´ط±ط§ط،",
-    reqId,
-    `طھظ… ط¥ط¶ط§ظپط© ط·ظ„ط¨ ط´ط±ط§ط،: ${subject}`,
-    userId,
-    userName,
-  );
-  const created = (await db
-    .select()
-    .from(purchaseRequests)
-    .where(eq(purchaseRequests.id, reqId))
-    .limit(1)
-    .all())[0];
-  return Response.json({ item: created }, { status: 201 });
+    await addAudit({
+      action: "create",
+      entityType: "purchase_request",
+      entityId: id,
+      description: `تم إضافة طلب شراء: ${b.subject}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      ip: ctx.ip,
+    });
+
+    const created = (await db
+      .select()
+      .from(purchaseRequests)
+      .where(eq(purchaseRequests.id, id))
+      .limit(1))[0];
+    return Response.json({ item: created }, { status: 201 });
+  });
 }
 
-// PUT /api/procurement/requests - update (only for draft/rejected)
-async function __handler_PUT({ request }: { request: Request }) {
-  const body = await request.json();
-  const {
-    id,
-    subject,
-    department,
-    priority,
-    requester,
-    amount,
-    deliveryDate,
-    notes,
-    userId,
-    userName,
-  } = body;
+const updateSchema = createSchema.partial().extend({
+  id: z.string().min(1, "معرف الطلب مطلوب"),
+});
 
-  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط·ظ„ط¨ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+// PUT /api/procurement/requests — update (only draft/rejected).
+async function PUT(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, updateSchema);
+    const existing = (await db
+      .select()
+      .from(purchaseRequests)
+      .where(eq(purchaseRequests.id, b.id))
+      .limit(1))[0];
+    if (!existing) return err("طلب الشراء غير موجود", 404, "NOT_FOUND");
+    if (
+      existing.status !== PurchaseRequestStatus.DRAFT &&
+      existing.status !== PurchaseRequestStatus.REJECTED
+    ) {
+      return err("لا يمكن تعديل طلب في حالته الحالية. أعده إلى المسودة أولاً.", 400, "INVALID_STATE");
+    }
+
+    const before = JSON.stringify(existing);
+    await db
+      .update(purchaseRequests)
+      .set({
+        subject: b.subject ?? existing.subject,
+        department: b.department ?? existing.department,
+        priority: b.priority ?? existing.priority,
+        requester: b.requester ?? existing.requester,
+        amount: b.amount ?? existing.amount,
+        deliveryDate: b.deliveryDate ?? existing.deliveryDate,
+        notes: b.notes ?? existing.notes,
+        updatedAt: now(),
+      })
+      .where(eq(purchaseRequests.id, b.id));
+
+    await addAudit({
+      action: "update",
+      entityType: "purchase_request",
+      entityId: b.id,
+      description: `تم تحديث طلب الشراء: ${existing.subject}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      before,
+      ip: ctx.ip,
+    });
+
+    const updated = (await db
+      .select()
+      .from(purchaseRequests)
+      .where(eq(purchaseRequests.id, b.id))
+      .limit(1))[0];
+    return Response.json({ item: updated });
+  });
+}
+
+// DELETE /api/procurement/requests?id=xxx — only draft/rejected/cancelled. Actor from session.
+async function DELETE({ request }: { request: Request }, ctx: Ctx) {
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return err("معرف الطلب مطلوب", 400, "BAD_REQUEST");
 
   const existing = (await db
     .select()
     .from(purchaseRequests)
     .where(eq(purchaseRequests.id, id))
-    .limit(1)
-    .all())[0];
-  if (!existing)
-    return Response.json({ error: "ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-  if (existing.status !== "ظ…ط³ظˆط¯ط©" && existing.status !== "ظ…ط±ظپظˆط¶") {
-    return Response.json(
-      {
-        error:
-          "ظ„ط§ ظٹظ…ظƒظ† طھط¹ط¯ظٹظ„ ط·ظ„ط¨ ظپظٹ ط­ط§ظ„ط© ط­ط§ظ„ظٹط©. ط£ط¹ط¯ظ‡ ط¥ظ„ظ‰ ط§ظ„ظ…ط³ظˆط¯ط© ط£ظˆظ„ط§ظ‹.",
-      },
-      { status: 400 },
+    .limit(1))[0];
+  if (!existing) return err("طلب الشراء غير موجود", 404, "NOT_FOUND");
+  if (
+    existing.status === PurchaseRequestStatus.APPROVED ||
+    existing.status === PurchaseRequestStatus.SUBMITTED
+  ) {
+    return err("لا يمكن حذف طلب معتمد أو بانتظار الموافقة. ألغِه أولاً.", 400, "INVALID_STATE");
+  }
+  if (existing.status === PurchaseRequestStatus.ORDERED) {
+    return err(
+      "لا يمكن حذف طلب محوّل إلى أمر شراء. يحتفظ النظام به للسجل التاريخي.",
+      400,
+      "INVALID_STATE",
     );
   }
 
   const before = JSON.stringify(existing);
-  await db.update(purchaseRequests)
-    .set({
-      subject: subject?.trim() ?? existing.subject,
-      department: department?.trim() ?? existing.department,
-      priority: priority ?? existing.priority,
-      requester: requester ?? existing.requester,
-      amount: amount !== undefined ? parseFloat(amount) : existing.amount,
-      deliveryDate: deliveryDate ?? existing.deliveryDate,
-      notes: notes ?? existing.notes,
-      updatedAt: now(),
-    })
-    .where(eq(purchaseRequests.id, id))
-    .run();
+  await db.delete(purchaseRequests).where(eq(purchaseRequests.id, id));
 
-  await addAudit(
-    "طھط¹ط¯ظٹظ„",
-    "ط·ظ„ط¨ ط´ط±ط§ط،",
-    id,
-    `طھظ… طھط­ط¯ظٹط« ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط،: ${existing.subject}`,
-    userId,
-    userName,
+  await addAudit({
+    action: "delete",
+    entityType: "purchase_request",
+    entityId: id,
+    description: `تم حذف طلب الشراء: ${existing.subject}`,
+    userId: ctx.user.id,
+    userName: ctx.user.name,
     before,
-  );
-  const updated = (await db
-    .select()
-    .from(purchaseRequests)
-    .where(eq(purchaseRequests.id, id))
-    .limit(1)
-    .all())[0];
-  return Response.json({ item: updated });
-}
+    ip: ctx.ip,
+  });
 
-// DELETE /api/procurement/requests - only if draft/rejected/cancelled
-async function __handler_DELETE({ request }: { request: Request }) {
-  const url = new URL(request.url);
-  const id = url.searchParams.get("id");
-  const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
-
-  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط·ظ„ط¨ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-
-  const existing = (await db
-    .select()
-    .from(purchaseRequests)
-    .where(eq(purchaseRequests.id, id))
-    .limit(1)
-    .all())[0];
-  if (!existing)
-    return Response.json({ error: "ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-  if (existing.status === "ظ…ط¹طھظ…ط¯" || existing.status === "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©") {
-    return Response.json(
-      {
-        error:
-          "ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ط·ظ„ط¨ ظ…ط¹طھظ…ط¯ ط£ظˆ ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©. ط£ظ„ط؛ظگظ‡ ط£ظˆظ„ط§ظ‹.",
-      },
-      { status: 400 },
-    );
-  }
-  if (existing.status === "ظ…ط­ظˆظ„ ط¥ظ„ظ‰ ط£ظ…ط± ط´ط±ط§ط،") {
-    return Response.json(
-      {
-        error:
-          "ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ط·ظ„ط¨ ظ…ط­ظˆظ‘ظ„ ط¥ظ„ظ‰ ط£ظ…ط± ط´ط±ط§ط،. ظٹط­طھظپط¸ ط§ظ„ظ†ط¸ط§ظ… ط¨ظ‡ ظ„ظ„ط³ط¬ظ„ ط§ظ„طھط§ط±ظٹط®ظٹ.",
-      },
-      { status: 400 },
-    );
-  }
-
-  const before = JSON.stringify(existing);
-  await db.delete(purchaseRequests).where(eq(purchaseRequests.id, id)).run();
-  await addAudit(
-    "ط­ط°ظپ",
-    "ط·ظ„ط¨ ط´ط±ط§ط،",
-    id,
-    `طھظ… ط­ط°ظپ ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط،: ${existing.subject}`,
-    userId,
-    userName,
-    before,
-  );
   return Response.json({ success: true });
 }
 
 export const Route = createFileRoute("/api/procurement/requests")({
   server: {
     handlers: {
-      GET: safeHandler(__handler_GET),
-      POST: safeHandler(__handler_POST),
-      PUT: safeHandler(__handler_PUT),
-      DELETE: safeHandler(__handler_DELETE),
+      GET: authHandler("procurement.view", GET),
+      POST: authHandler("procurement.create", POST),
+      PUT: authHandler("procurement.update", PUT),
+      DELETE: authHandler("procurement.delete", DELETE),
     },
   },
 });

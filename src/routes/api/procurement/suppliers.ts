@@ -1,57 +1,49 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
+import { and, count, desc, eq, like, or } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { suppliers, purchaseOrders, stockMovements, fixedAssets } from "@/server/db/schema";
-import { eq, like, or, and, desc, sql } from "drizzle-orm";
-import { safeHandler } from "@/server/db/api-utils";
+import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
+import { SupplierStatus } from "@/lib/enums";
 
-export const SUPPLIER_STATUSES = ["ظ†ط´ط·", "ظ…ظˆظ‚ظˆظپ"] as const;
-export type SupplierStatus = (typeof SUPPLIER_STATUSES)[number];
-
-// GET /api/procurement/suppliers - list with search/filter
-// GET /api/procurement/suppliers?id=xxx - single with usage info
-async function __handler_GET({ request }: { request: Request }) {
+// GET /api/procurement/suppliers?id=xxx — single with usage info; else list.
+async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
   if (id) {
-    const supplier = (await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all())[0];
-    if (!supplier)
-      return Response.json({ error: "ط§ظ„ظ…ظˆط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    const supplier = (await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1))[0];
+    if (!supplier) return err("المورد غير موجود", 404, "NOT_FOUND");
 
-    const orderCount =
-      (await db
-        .select({ count: sql<number>`count(*)` })
-        .from(purchaseOrders)
-        .where(eq(purchaseOrders.supplierId, id))
-        .all())[0]?.count || 0;
+    const [{ c: orderCount }] = await db
+      .select({ c: count() })
+      .from(purchaseOrders)
+      .where(eq(purchaseOrders.supplierId, id));
+    const [{ c: movementCount }] = await db
+      .select({ c: count() })
+      .from(stockMovements)
+      .where(and(eq(stockMovements.sourceType, "supplier"), eq(stockMovements.sourceId, id)));
+    const [{ c: assetCount }] = await db
+      .select({ c: count() })
+      .from(fixedAssets)
+      .where(eq(fixedAssets.supplierId, id));
 
-    const movementCount =
-      (await db
-        .select({ count: sql<number>`count(*)` })
-        .from(stockMovements)
-        .where(and(eq(stockMovements.sourceType, "supplier"), eq(stockMovements.sourceId, id)))
-        .all())[0]?.count || 0;
-
-    const assetCount =
-      (await db
-        .select({ count: sql<number>`count(*)` })
-        .from(fixedAssets)
-        .where(eq(fixedAssets.supplierId, id))
-        .all())[0]?.count || 0;
-
-    const usage = orderCount + assetCount;
+    const usage = Number(orderCount) + Number(assetCount);
 
     return Response.json({
       item: supplier,
-      orderCount,
-      assetCount,
-      movementCount,
+      orderCount: Number(orderCount),
+      assetCount: Number(assetCount),
+      movementCount: Number(movementCount),
       hasTransactions: usage > 0,
     });
   }
 
   const search = url.searchParams.get("search") || "";
   const status = url.searchParams.get("status") || "";
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1") || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "50") || 50));
+  const offset = (page - 1) * limit;
 
   const conditions = [];
   if (search) {
@@ -64,216 +56,211 @@ async function __handler_GET({ request }: { request: Request }) {
       ),
     );
   }
-  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(suppliers.status, status));
+  if (status) conditions.push(eq(suppliers.status, status));
+  const where = conditions.length ? and(...conditions) : undefined;
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const [{ c: total }] = await db.select({ c: count() }).from(suppliers).where(where);
+  const items = await db
+    .select()
+    .from(suppliers)
+    .where(where)
+    .orderBy(desc(suppliers.createdAt))
+    .limit(limit)
+    .offset(offset);
 
-  const items = whereClause
-    ? await db.select().from(suppliers).where(whereClause).orderBy(desc(suppliers.createdAt)).all()
-    : await db.select().from(suppliers).orderBy(desc(suppliers.createdAt)).all();
-  const total = items.length;
-
-  return Response.json({ items, total });
+  return Response.json({ items, total: Number(total), page, limit });
 }
 
-// POST /api/procurement/suppliers - create or activate/deactivate
-async function __handler_POST({ request }: { request: Request }) {
-  const body = await request.json();
-  const { action } = body;
+const createSchema = z.object({
+  name: z.string().trim().min(1, "اسم المورد مطلوب"),
+  activity: z.string().optional(),
+  phone: z.string().nullish(),
+  email: z.string().email().nullish().or(z.literal("")),
+  taxNumber: z.string().optional(),
+  contactPerson: z.string().optional(),
+  address: z.string().optional(),
+  rating: z.coerce.number().optional(),
+  notes: z.string().optional(),
+  status: z.nativeEnum(SupplierStatus).optional(),
+});
 
-  if (action === "activate" || action === "deactivate") {
-    const { id, userId, userName } = body;
-    const existing = (await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all())[0];
-    if (!existing)
-      return Response.json({ error: "ط§ظ„ظ…ظˆط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+const actionSchema = z.object({
+  action: z.enum(["activate", "deactivate"]),
+  id: z.string().min(1, "معرف المورد مطلوب"),
+});
 
-    const newStatus: SupplierStatus = action === "activate" ? "ظ†ط´ط·" : "ظ…ظˆظ‚ظˆظپ";
-    if (existing.status === newStatus) {
-      return Response.json(
-        { error: `ط§ظ„ظ…ظˆط±ط¯ ${newStatus === "ظ†ط´ط·" ? "ظ†ط´ط·" : "ظ…ظˆظ‚ظˆظپ"} ط¨ط§ظ„ظپط¹ظ„` },
-        { status: 400 },
-      );
+// POST /api/procurement/suppliers — create, or activate/deactivate.
+async function POST(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, z.union([actionSchema, createSchema]));
+
+    if ("action" in b) {
+      const existing = (await db.select().from(suppliers).where(eq(suppliers.id, b.id)).limit(1))[0];
+      if (!existing) return err("المورد غير موجود", 404, "NOT_FOUND");
+
+      const newStatus =
+        b.action === "activate" ? SupplierStatus.ACTIVE : SupplierStatus.INACTIVE;
+      if (existing.status === newStatus) {
+        return err(
+          `المورد ${b.action === "activate" ? "نشط" : "موقوف"} بالفعل`,
+          400,
+          "INVALID_STATE",
+        );
+      }
+
+      const before = JSON.stringify(existing);
+      await db
+        .update(suppliers)
+        .set({ status: newStatus, updatedAt: now() })
+        .where(eq(suppliers.id, b.id));
+
+      await addAudit({
+        action: b.action,
+        entityType: "supplier",
+        entityId: b.id,
+        description: `تم ${b.action === "activate" ? "تفعيل" : "تعطيل"} المورد: ${existing.name}`,
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        before,
+        ip: ctx.ip,
+      });
+
+      const updated = (await db.select().from(suppliers).where(eq(suppliers.id, b.id)).limit(1))[0];
+      return Response.json({ item: updated });
     }
 
-    const before = JSON.stringify(existing);
-    await db.update(suppliers)
-      .set({ status: newStatus, updatedAt: now() })
-      .where(eq(suppliers.id, id))
-      .run();
-    await addAudit(
-      action === "activate" ? "طھظپط¹ظٹظ„" : "طھط¹ط·ظٹظ„",
-      "ظ…ظˆط±ط¯",
+    const id = genId("SUP");
+    const ts = now();
+
+    await db.insert(suppliers).values({
       id,
-      `طھظ… ${action === "activate" ? "طھظپط¹ظٹظ„" : "طھط¹ط·ظٹظ„"} ط§ظ„ظ…ظˆط±ط¯: ${existing.name}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all())[0];
-    return Response.json({ item: updated });
-  }
-
-  const {
-    name,
-    activity,
-    phone,
-    email,
-    taxNumber,
-    contactPerson,
-    address,
-    rating,
-    notes,
-    status,
-    userId,
-    userName,
-  } = body;
-
-  if (!name?.trim())
-    return Response.json({ error: "ط§ط³ظ… ط§ظ„ظ…ظˆط±ط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-
-  const supId = genId("SUP");
-  const ts = now();
-
-  await db.insert(suppliers)
-    .values({
-      id: supId,
-      name: name.trim(),
-      activity: activity || "",
-      phone: phone || null,
-      email: email || null,
-      taxNumber: taxNumber || "",
-      contactPerson: contactPerson || "",
-      address: address || "",
-      rating: parseFloat(rating) || 0,
-      notes: notes || "",
-      status: status || "ظ†ط´ط·",
-      createdBy: userId || null,
+      name: b.name,
+      activity: b.activity ?? "",
+      phone: b.phone || null,
+      email: b.email || null,
+      taxNumber: b.taxNumber ?? "",
+      contactPerson: b.contactPerson ?? "",
+      address: b.address ?? "",
+      rating: b.rating ?? 0,
+      notes: b.notes ?? "",
+      status: b.status ?? SupplierStatus.ACTIVE,
+      createdBy: ctx.user.id,
       createdAt: ts,
       updatedAt: ts,
-    })
-    .run();
+    });
 
-  await addAudit("ط¥ط¶ط§ظپط©", "ظ…ظˆط±ط¯", supId, `طھظ… ط¥ط¶ط§ظپط© ظ…ظˆط±ط¯: ${name}`, userId, userName);
-  const created = (await db.select().from(suppliers).where(eq(suppliers.id, supId)).limit(1).all())[0];
-  return Response.json({ item: created }, { status: 201 });
+    await addAudit({
+      action: "create",
+      entityType: "supplier",
+      entityId: id,
+      description: `تم إضافة مورد: ${b.name}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      ip: ctx.ip,
+    });
+
+    const created = (await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1))[0];
+    return Response.json({ item: created }, { status: 201 });
+  });
 }
 
-// PUT /api/procurement/suppliers - update
-async function __handler_PUT({ request }: { request: Request }) {
-  const body = await request.json();
-  const {
-    id,
-    name,
-    activity,
-    phone,
-    email,
-    taxNumber,
-    contactPerson,
-    address,
-    rating,
-    notes,
-    status,
-    userId,
-    userName,
-  } = body;
+const updateSchema = createSchema.partial().extend({
+  id: z.string().min(1, "معرف المورد مطلوب"),
+});
 
-  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ظˆط±ط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+// PUT /api/procurement/suppliers — update.
+async function PUT(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, updateSchema);
+    const existing = (await db.select().from(suppliers).where(eq(suppliers.id, b.id)).limit(1))[0];
+    if (!existing) return err("المورد غير موجود", 404, "NOT_FOUND");
 
-  const existing = (await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all())[0];
-  if (!existing) return Response.json({ error: "ط§ظ„ظ…ظˆط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    const before = JSON.stringify(existing);
+    await db
+      .update(suppliers)
+      .set({
+        name: b.name ?? existing.name,
+        activity: b.activity ?? existing.activity,
+        phone: b.phone ?? existing.phone,
+        email: b.email === undefined ? existing.email : b.email || null,
+        taxNumber: b.taxNumber ?? existing.taxNumber,
+        contactPerson: b.contactPerson ?? existing.contactPerson,
+        address: b.address ?? existing.address,
+        rating: b.rating ?? existing.rating,
+        notes: b.notes ?? existing.notes,
+        status: b.status ?? existing.status,
+        updatedAt: now(),
+      })
+      .where(eq(suppliers.id, b.id));
 
-  const before = JSON.stringify(existing);
-  const ts = now();
+    await addAudit({
+      action: "update",
+      entityType: "supplier",
+      entityId: b.id,
+      description: `تم تحديث المورد: ${b.name || existing.name}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      before,
+      ip: ctx.ip,
+    });
 
-  await db.update(suppliers)
-    .set({
-      name: name?.trim() ?? existing.name,
-      activity: activity ?? existing.activity,
-      phone: phone ?? existing.phone,
-      email: email ?? existing.email,
-      taxNumber: taxNumber ?? existing.taxNumber,
-      contactPerson: contactPerson ?? existing.contactPerson,
-      address: address ?? existing.address,
-      rating: rating !== undefined ? parseFloat(rating) : existing.rating,
-      notes: notes ?? existing.notes,
-      status: status ?? existing.status,
-      updatedAt: ts,
-    })
-    .where(eq(suppliers.id, id))
-    .run();
-
-  await addAudit(
-    "طھط¹ط¯ظٹظ„",
-    "ظ…ظˆط±ط¯",
-    id,
-    `طھظ… طھط­ط¯ظٹط« ط§ظ„ظ…ظˆط±ط¯: ${name || existing.name}`,
-    userId,
-    userName,
-    before,
-  );
-  const updated = (await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all())[0];
-  return Response.json({ item: updated });
+    const updated = (await db.select().from(suppliers).where(eq(suppliers.id, b.id)).limit(1))[0];
+    return Response.json({ item: updated });
+  });
 }
 
-// DELETE /api/procurement/suppliers - only if no orders/assets/movements
-async function __handler_DELETE({ request }: { request: Request }) {
-  const url = new URL(request.url);
-  const id = url.searchParams.get("id");
-  const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
+// DELETE /api/procurement/suppliers?id=xxx — only if no orders/assets. Actor from session.
+async function DELETE({ request }: { request: Request }, ctx: Ctx) {
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return err("معرف المورد مطلوب", 400, "BAD_REQUEST");
 
-  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ظˆط±ط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+  const existing = (await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1))[0];
+  if (!existing) return err("المورد غير موجود", 404, "NOT_FOUND");
 
-  const existing = (await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1).all())[0];
-  if (!existing) return Response.json({ error: "ط§ظ„ظ…ظˆط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+  const [{ c: orderCount }] = await db
+    .select({ c: count() })
+    .from(purchaseOrders)
+    .where(eq(purchaseOrders.supplierId, id));
+  const [{ c: assetCount }] = await db
+    .select({ c: count() })
+    .from(fixedAssets)
+    .where(eq(fixedAssets.supplierId, id));
 
-  const orderCount =
-    (await db
-      .select({ count: sql<number>`count(*)` })
-      .from(purchaseOrders)
-      .where(eq(purchaseOrders.supplierId, id))
-      .all())[0]?.count || 0;
-
-  const assetCount =
-    (await db
-      .select({ count: sql<number>`count(*)` })
-      .from(fixedAssets)
-      .where(eq(fixedAssets.supplierId, id))
-      .all())[0]?.count || 0;
-
-  if (orderCount > 0 || assetCount > 0) {
+  if (Number(orderCount) > 0 || Number(assetCount) > 0) {
     const parts: string[] = [];
-    if (orderCount > 0) parts.push(`${orderCount} ط£ظ…ط± ط´ط±ط§ط،`);
-    if (assetCount > 0) parts.push(`${assetCount} ط£طµظ„`);
-    return Response.json(
-      {
-        error: `ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ط§ظ„ظ…ظˆط±ط¯ ظ„ط§ط±طھط¨ط§ط·ظ‡ ط¨ظ€ ${parts.join(" ظˆ ")}. ظ‚ظ… ط¨طھط¹ط·ظٹظ„ ط§ظ„ظ…ظˆط±ط¯ ط¨ط¯ظ„ط§ظ‹ ظ…ظ† ط°ظ„ظƒ.`,
-      },
-      { status: 400 },
+    if (Number(orderCount) > 0) parts.push(`${orderCount} أمر شراء`);
+    if (Number(assetCount) > 0) parts.push(`${assetCount} أصل`);
+    return err(
+      `لا يمكن حذف المورد لارتباطه بـ ${parts.join(" و ")}. قم بتعطيل المورد بدلاً من ذلك.`,
+      400,
+      "HAS_TRANSACTIONS",
     );
   }
 
   const before = JSON.stringify(existing);
-  await db.delete(suppliers).where(eq(suppliers.id, id)).run();
-  await addAudit(
-    "ط­ط°ظپ",
-    "ظ…ظˆط±ط¯",
-    id,
-    `طھظ… ط­ط°ظپ ط§ظ„ظ…ظˆط±ط¯: ${existing.name}`,
-    userId,
-    userName,
+  await db.delete(suppliers).where(eq(suppliers.id, id));
+
+  await addAudit({
+    action: "delete",
+    entityType: "supplier",
+    entityId: id,
+    description: `تم حذف المورد: ${existing.name}`,
+    userId: ctx.user.id,
+    userName: ctx.user.name,
     before,
-  );
+    ip: ctx.ip,
+  });
+
   return Response.json({ success: true });
 }
 
 export const Route = createFileRoute("/api/procurement/suppliers")({
   server: {
     handlers: {
-      GET: safeHandler(__handler_GET),
-      POST: safeHandler(__handler_POST),
-      PUT: safeHandler(__handler_PUT),
-      DELETE: safeHandler(__handler_DELETE),
+      GET: authHandler("suppliers.view", GET),
+      POST: authHandler("suppliers.create", POST),
+      PUT: authHandler("suppliers.update", PUT),
+      DELETE: authHandler("suppliers.delete", DELETE),
     },
   },
 });

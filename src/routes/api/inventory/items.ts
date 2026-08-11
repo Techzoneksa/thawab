@@ -1,55 +1,34 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
+import { and, count, desc, eq, like, or } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { inventoryItems, warehouses, stockMovements, purchaseOrderLines } from "@/server/db/schema";
-import { eq, like, or, and, desc, sql } from "drizzle-orm";
-import { safeHandler } from "@/server/db/api-utils";
+import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
+import { InventoryItemStatus, StockMovementType } from "@/lib/enums";
 
-export const ITEM_STATUSES = ["ظ†ط´ط·", "ظ…ظˆظ‚ظˆظپ", "ظ…ط؛ظ„ظ‚"] as const;
-export type ItemStatus = (typeof ITEM_STATUSES)[number];
-
-export const MOVEMENT_TYPES = [
-  "ط§ط³طھظ„ط§ظ…",
-  "طµط±ظپ",
-  "طھط­ظˆظٹظ„",
-  "طھط³ظˆظٹط©",
-  "ط¬ط±ط¯",
-] as const;
-export type MovementType = (typeof MOVEMENT_TYPES)[number];
-
-// GET /api/inventory/items - list
-// GET /api/inventory/items?id=xxx - single with movement count
-async function __handler_GET({ request }: { request: Request }) {
+// GET /api/inventory/items?id=xxx — single with movement/PO usage; else list.
+async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
   if (id) {
-    const item = (await db
-      .select()
-      .from(inventoryItems)
-      .where(eq(inventoryItems.id, id))
-      .limit(1)
-      .all())[0];
-    if (!item) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    const item = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1))[0];
+    if (!item) return err("الصنف غير موجود", 404, "NOT_FOUND");
 
-    const movementCount =
-      (await db
-        .select({ count: sql<number>`count(*)` })
-        .from(stockMovements)
-        .where(eq(stockMovements.itemId, id))
-        .all())[0]?.count || 0;
-
-    const poLineCount =
-      (await db
-        .select({ count: sql<number>`count(*)` })
-        .from(purchaseOrderLines)
-        .where(eq(purchaseOrderLines.itemId, id))
-        .all())[0]?.count || 0;
+    const [{ c: movementCount }] = await db
+      .select({ c: count() })
+      .from(stockMovements)
+      .where(eq(stockMovements.itemId, id));
+    const [{ c: poLineCount }] = await db
+      .select({ c: count() })
+      .from(purchaseOrderLines)
+      .where(eq(purchaseOrderLines.itemId, id));
 
     return Response.json({
       item,
-      movementCount,
-      poLineCount,
-      hasMovements: movementCount > 0 || poLineCount > 0,
+      movementCount: Number(movementCount),
+      poLineCount: Number(poLineCount),
+      hasMovements: Number(movementCount) > 0 || Number(poLineCount) > 0,
     });
   }
 
@@ -57,6 +36,9 @@ async function __handler_GET({ request }: { request: Request }) {
   const status = url.searchParams.get("status") || "";
   const category = url.searchParams.get("category") || "";
   const warehouseId = url.searchParams.get("warehouseId") || "";
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1") || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "50") || 50));
+  const offset = (page - 1) * limit;
 
   const conditions = [];
   if (search) {
@@ -68,211 +50,197 @@ async function __handler_GET({ request }: { request: Request }) {
       ),
     );
   }
-  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(inventoryItems.status, status));
-  if (category && category !== "ط§ظ„ظƒظ„") conditions.push(eq(inventoryItems.category, category));
+  if (status) conditions.push(eq(inventoryItems.status, status));
+  if (category) conditions.push(eq(inventoryItems.category, category));
   if (warehouseId) conditions.push(eq(inventoryItems.warehouseId, warehouseId));
+  const where = conditions.length ? and(...conditions) : undefined;
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-  const items = whereClause
-    ? await db
-        .select()
-        .from(inventoryItems)
-        .where(whereClause)
-        .orderBy(desc(inventoryItems.createdAt))
-        .all()
-    : await db.select().from(inventoryItems).orderBy(desc(inventoryItems.createdAt)).all();
-
-  return Response.json({ items, total: items.length });
-}
-
-// POST /api/inventory/items - create or activate/deactivate/move
-async function __handler_POST({ request }: { request: Request }) {
-  const body = await request.json();
-  const { action } = body;
-
-  if (action === "activate" || action === "deactivate") {
-    const { id, userId, userName } = body;
-    const existing = (await db
-      .select()
-      .from(inventoryItems)
-      .where(eq(inventoryItems.id, id))
-      .limit(1)
-      .all())[0];
-    if (!existing) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-
-    const newStatus: ItemStatus = action === "activate" ? "ظ†ط´ط·" : "ظ…ظˆظ‚ظˆظپ";
-    if (existing.status === newStatus) {
-      return Response.json(
-        { error: `ط§ظ„طµظ†ظپ ${newStatus === "ظ†ط´ط·" ? "ظ†ط´ط·" : "ظ…ظˆظ‚ظˆظپ"} ط¨ط§ظ„ظپط¹ظ„` },
-        { status: 400 },
-      );
-    }
-
-    const before = JSON.stringify(existing);
-    await db.update(inventoryItems)
-      .set({ status: newStatus, updatedAt: now() })
-      .where(eq(inventoryItems.id, id))
-      .run();
-    await addAudit(
-      action === "activate" ? "طھظپط¹ظٹظ„" : "طھط¹ط·ظٹظ„",
-      "طµظ†ظپ",
-      id,
-      `طھظ… ${action === "activate" ? "طھظپط¹ظٹظ„" : "طھط¹ط·ظٹظ„"} ط§ظ„طµظ†ظپ: ${existing.name}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db
-      .select()
-      .from(inventoryItems)
-      .where(eq(inventoryItems.id, id))
-      .limit(1)
-      .all())[0];
-    return Response.json({ item: updated });
-  }
-
-  if (action === "receive" || action === "issue" || action === "adjust") {
-    return handleStockMovement(body);
-  }
-
-  if (action === "transfer") {
-    return handleTransfer(body);
-  }
-
-  // Create item
-  const {
-    name,
-    sku,
-    unit,
-    category,
-    warehouseId,
-    quantity,
-    minQuantity,
-    price,
-    notes,
-    status,
-    userId,
-    userName,
-  } = body;
-
-  if (!name?.trim())
-    return Response.json({ error: "ط§ط³ظ… ط§ظ„طµظ†ظپ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-  if (!unit?.trim()) return Response.json({ error: "ط§ظ„ظˆط­ط¯ط© ظ…ط·ظ„ظˆط¨ط©" }, { status: 400 });
-
-  if (warehouseId) {
-    const wh = (await db.select().from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1).all())[0];
-    if (!wh) return Response.json({ error: "ط§ظ„ظ…ط³طھظˆط¯ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 400 });
-  }
-
-  const itemId = genId("INV");
-  const ts = now();
-  const qty = parseFloat(quantity) || 0;
-
-  await db.insert(inventoryItems)
-    .values({
-      id: itemId,
-      name: name.trim(),
-      sku: sku || "",
-      unit: unit.trim(),
-      category: category || "",
-      warehouseId: warehouseId || null,
-      quantity: qty,
-      minQuantity: parseFloat(minQuantity) || 0,
-      price: parseFloat(price) || 0,
-      notes: notes || "",
-      status: status || "ظ†ط´ط·",
-      createdBy: userId || null,
-      createdAt: ts,
-      updatedAt: ts,
-    })
-    .run();
-
-  if (qty > 0 && warehouseId) {
-    await db.insert(stockMovements)
-      .values({
-        id: genId("MV"),
-        itemId,
-        warehouseId,
-        type: "ط§ط³طھظ„ط§ظ…",
-        quantity: qty,
-        balanceAfter: qty,
-        sourceType: "manual",
-        reference: "ط±طµظٹط¯ ط§ظپطھطھط§ط­ظٹ",
-        date: ts,
-        notes: "ط±طµظٹط¯ ط§ظپطھطھط§ط­ظٹ ط¹ظ†ط¯ ط¥ظ†ط´ط§ط، ط§ظ„طµظ†ظپ",
-        createdBy: userId || null,
-        createdAt: ts,
-      })
-      .run();
-  }
-
-  await addAudit("ط¥ط¶ط§ظپط©", "طµظ†ظپ", itemId, `طھظ… ط¥ط¶ط§ظپط© طµظ†ظپ: ${name}`, userId, userName);
-  const created = (await db
+  const [{ c: total }] = await db.select({ c: count() }).from(inventoryItems).where(where);
+  const items = await db
     .select()
     .from(inventoryItems)
-    .where(eq(inventoryItems.id, itemId))
-    .limit(1)
-    .all())[0];
-  return Response.json({ item: created }, { status: 201 });
+    .where(where)
+    .orderBy(desc(inventoryItems.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  return Response.json({ items, total: Number(total), page, limit });
 }
 
-async function handleStockMovement(body: {
-  id: string;
-  action: string;
-  warehouseId?: string;
-  quantity?: number;
-  notes?: string;
-  userId?: string;
-  userName?: string;
-}) {
-  const { id, action, warehouseId, quantity, notes, userId, userName } = body;
-  const qty = parseFloat(String(quantity)) || 0;
-  if (qty <= 0)
-    return Response.json(
-      { error: "ط§ظ„ظƒظ…ظٹط© ظٹط¬ط¨ ط£ظ† طھظƒظˆظ† ط£ظƒط¨ط± ظ…ظ† طµظپط±" },
-      { status: 400 },
-    );
+const postSchema = z.object({
+  action: z.enum(["activate", "deactivate", "receive", "issue", "adjust", "transfer", "create"]).optional(),
+  id: z.string().optional(),
+  name: z.string().optional(),
+  sku: z.string().optional(),
+  unit: z.string().optional(),
+  category: z.string().optional(),
+  warehouseId: z.string().nullish(),
+  fromWarehouseId: z.string().optional(),
+  toWarehouseId: z.string().optional(),
+  quantity: z.coerce.number().optional(),
+  minQuantity: z.coerce.number().optional(),
+  price: z.coerce.number().optional(),
+  notes: z.string().optional(),
+  status: z.nativeEnum(InventoryItemStatus).optional(),
+});
+type PostBody = z.infer<typeof postSchema>;
 
-  const item = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1).all())[0];
-  if (!item) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-  if (item.status === "ظ…ط؛ظ„ظ‚")
-    return Response.json(
-      { error: "ط§ظ„طµظ†ظپ ظ…ط؛ظ„ظ‚. ظ„ط§ ظٹظ…ظƒظ† ط¥ط¬ط±ط§ط، ط­ط±ظƒط§طھ ط¹ظ„ظٹظ‡." },
-      { status: 400 },
-    );
+// POST /api/inventory/items — create, activate/deactivate, or stock movement/transfer.
+async function POST(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, postSchema);
 
-  const movementType: MovementType =
-    action === "receive" ? "ط§ط³طھظ„ط§ظ…" : action === "issue" ? "طµط±ظپ" : "طھط³ظˆظٹط©";
+    if (b.action === "activate" || b.action === "deactivate") {
+      if (!b.id) return err("معرف الصنف مطلوب", 400, "BAD_REQUEST");
+      const existing = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
+      if (!existing) return err("الصنف غير موجود", 404, "NOT_FOUND");
+
+      const newStatus =
+        b.action === "activate" ? InventoryItemStatus.ACTIVE : InventoryItemStatus.INACTIVE;
+      if (existing.status === newStatus) {
+        return err(
+          b.action === "activate" ? "الصنف نشط بالفعل" : "الصنف موقوف بالفعل",
+          400,
+          "ALREADY_IN_STATE",
+        );
+      }
+
+      const before = JSON.stringify(existing);
+      await db
+        .update(inventoryItems)
+        .set({ status: newStatus, updatedAt: now() })
+        .where(eq(inventoryItems.id, b.id));
+      await addAudit({
+        action: b.action,
+        entityType: "inventory_item",
+        entityId: b.id,
+        description: `تم ${b.action === "activate" ? "تفعيل" : "تعطيل"} الصنف: ${existing.name}`,
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        before,
+        ip: ctx.ip,
+      });
+      const updated = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
+      return Response.json({ item: updated });
+    }
+
+    if (b.action === "receive" || b.action === "issue" || b.action === "adjust") {
+      return handleStockMovement(b, ctx);
+    }
+
+    if (b.action === "transfer") {
+      return handleTransfer(b, ctx);
+    }
+
+    // Create item
+    if (!b.name?.trim()) return err("اسم الصنف مطلوب", 400, "BAD_REQUEST");
+    if (!b.unit?.trim()) return err("الوحدة مطلوبة", 400, "BAD_REQUEST");
+
+    if (b.warehouseId) {
+      const wh = (await db.select().from(warehouses).where(eq(warehouses.id, b.warehouseId)).limit(1))[0];
+      if (!wh) return err("المستودع غير موجود", 400, "BAD_REQUEST");
+    }
+
+    const itemId = genId("INV");
+    const ts = now();
+    const qty = b.quantity ?? 0;
+
+    await db.transaction(async (tx) => {
+      await tx.insert(inventoryItems).values({
+        id: itemId,
+        name: b.name!.trim(),
+        sku: b.sku || "",
+        unit: b.unit!.trim(),
+        category: b.category || "",
+        warehouseId: b.warehouseId || null,
+        quantity: qty,
+        minQuantity: b.minQuantity ?? 0,
+        price: b.price ?? 0,
+        notes: b.notes || "",
+        status: b.status ?? InventoryItemStatus.ACTIVE,
+        createdBy: ctx.user.id,
+        createdAt: ts,
+        updatedAt: ts,
+      });
+
+      if (qty > 0 && b.warehouseId) {
+        await tx.insert(stockMovements).values({
+          id: genId("MV"),
+          itemId,
+          warehouseId: b.warehouseId,
+          type: StockMovementType.IN,
+          quantity: qty,
+          balanceAfter: qty,
+          sourceType: "manual",
+          reference: "رصيد افتتاحي",
+          date: ts,
+          notes: "رصيد افتتاحي عند إنشاء الصنف",
+          createdBy: ctx.user.id,
+          createdAt: ts,
+        });
+      }
+    });
+
+    await addAudit({
+      action: "create",
+      entityType: "inventory_item",
+      entityId: itemId,
+      description: `تم إضافة صنف: ${b.name}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      ip: ctx.ip,
+    });
+
+    const created = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, itemId)).limit(1))[0];
+    return Response.json({ item: created }, { status: 201 });
+  });
+}
+
+// Receive / issue / adjust — item quantity update + movement, atomic.
+async function handleStockMovement(b: PostBody, ctx: Ctx) {
+  if (!b.id) return err("معرف الصنف مطلوب", 400, "BAD_REQUEST");
+  const qty = b.quantity ?? 0;
+  if (qty <= 0) return err("الكمية يجب أن تكون أكبر من صفر", 400, "BAD_REQUEST");
+
+  const item = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
+  if (!item) return err("الصنف غير موجود", 404, "NOT_FOUND");
+  if (item.status === InventoryItemStatus.INACTIVE)
+    return err("الصنف موقوف. لا يمكن إجراء حركات عليه.", 400, "ITEM_INACTIVE");
+
+  const movementType =
+    b.action === "receive"
+      ? StockMovementType.IN
+      : b.action === "issue"
+        ? StockMovementType.OUT
+        : StockMovementType.ADJUSTMENT;
 
   let newQty = item.quantity;
-  if (movementType === "ط§ط³طھظ„ط§ظ…") {
+  if (movementType === StockMovementType.IN) {
     newQty = item.quantity + qty;
-  } else if (movementType === "طµط±ظپ") {
+  } else if (movementType === StockMovementType.OUT) {
     if (qty > item.quantity)
-      return Response.json(
-        {
-          error: `ط§ظ„ظƒظ…ظٹط© ط؛ظٹط± ظƒط§ظپظٹط©. ط§ظ„ظ…طھط§ط­: ${item.quantity} ${item.unit}طŒ ط§ظ„ظ…ط·ظ„ظˆط¨: ${qty} ${item.unit}.`,
-        },
-        { status: 400 },
+      return err(
+        `الكمية غير كافية. المتاح: ${item.quantity} ${item.unit}، المطلوب: ${qty} ${item.unit}.`,
+        400,
+        "INSUFFICIENT_QTY",
       );
     newQty = item.quantity - qty;
-  } else if (movementType === "طھط³ظˆظٹط©") {
+  } else {
     newQty = qty;
   }
 
-  const whId = warehouseId || item.warehouseId;
+  const whId = b.warehouseId || item.warehouseId;
   const ts = now();
 
-  await db.update(inventoryItems)
-    .set({ quantity: newQty, warehouseId: whId || null, updatedAt: ts })
-    .where(eq(inventoryItems.id, id))
-    .run();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(inventoryItems)
+      .set({ quantity: newQty, warehouseId: whId || null, updatedAt: ts })
+      .where(eq(inventoryItems.id, b.id!));
 
-  await db.insert(stockMovements)
-    .values({
+    await tx.insert(stockMovements).values({
       id: genId("MV"),
-      itemId: id,
+      itemId: b.id!,
       warehouseId: whId || null,
       type: movementType,
       quantity: qty,
@@ -280,265 +248,210 @@ async function handleStockMovement(body: {
       sourceType: "manual",
       reference: movementType,
       date: ts,
-      notes: notes || "",
-      createdBy: userId || null,
+      notes: b.notes || "",
+      createdBy: ctx.user.id,
       createdAt: ts,
-    })
-    .run();
+    });
+  });
 
-  await addAudit(
-    movementType,
-    "طµظ†ظپ",
-    id,
-    `ط­ط±ظƒط© ${movementType} ط¹ظ„ظ‰ ط§ظ„طµظ†ظپ ${item.name}: ${qty} ${item.unit} (ط§ظ„ط±طµظٹط¯ ${newQty})`,
-    userId,
-    userName,
-  );
+  await addAudit({
+    action: movementType,
+    entityType: "inventory_item",
+    entityId: b.id,
+    description: `حركة ${movementType} على الصنف ${item.name}: ${qty} ${item.unit} (الرصيد ${newQty})`,
+    userId: ctx.user.id,
+    userName: ctx.user.name,
+    ip: ctx.ip,
+  });
 
-  const updated = (await db
-    .select()
-    .from(inventoryItems)
-    .where(eq(inventoryItems.id, id))
-    .limit(1)
-    .all())[0];
+  const updated = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
   return Response.json({ item: updated });
 }
 
-async function handleTransfer(body: {
-  id: string;
-  fromWarehouseId?: string;
-  toWarehouseId?: string;
-  quantity?: number;
-  notes?: string;
-  userId?: string;
-  userName?: string;
-}) {
-  const { id, fromWarehouseId, toWarehouseId, quantity, notes, userId, userName } = body;
-  const qty = parseFloat(String(quantity)) || 0;
-  if (qty <= 0)
-    return Response.json(
-      { error: "ط§ظ„ظƒظ…ظٹط© ظٹط¬ط¨ ط£ظ† طھظƒظˆظ† ط£ظƒط¨ط± ظ…ظ† طµظپط±" },
-      { status: 400 },
-    );
-  if (!fromWarehouseId || !toWarehouseId)
-    return Response.json(
-      { error: "ظٹط¬ط¨ طھط­ط¯ظٹط¯ ط§ظ„ظ…ط³طھظˆط¯ط¹ ط§ظ„ظ…طµط¯ط± ظˆط§ظ„ظ‡ط¯ظپ" },
-      { status: 400 },
-    );
-  if (fromWarehouseId === toWarehouseId)
-    return Response.json(
-      { error: "ط§ظ„ظ…ط³طھظˆط¯ط¹ ط§ظ„ظ…طµط¯ط± ظˆط§ظ„ظ‡ط¯ظپ ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ†ط§ ظ…ط®طھظ„ظپظٹظ†" },
-      { status: 400 },
-    );
+// Transfer between warehouses — item update + paired out/in movements, atomic.
+async function handleTransfer(b: PostBody, ctx: Ctx) {
+  if (!b.id) return err("معرف الصنف مطلوب", 400, "BAD_REQUEST");
+  const qty = b.quantity ?? 0;
+  if (qty <= 0) return err("الكمية يجب أن تكون أكبر من صفر", 400, "BAD_REQUEST");
+  if (!b.fromWarehouseId || !b.toWarehouseId)
+    return err("يجب تحديد المستودع المصدر والهدف", 400, "BAD_REQUEST");
+  if (b.fromWarehouseId === b.toWarehouseId)
+    return err("المستودع المصدر والهدف يجب أن يكونا مختلفين", 400, "BAD_REQUEST");
 
-  const item = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1).all())[0];
-  if (!item) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-  if (item.status === "ظ…ط؛ظ„ظ‚")
-    return Response.json(
-      { error: "ط§ظ„طµظ†ظپ ظ…ط؛ظ„ظ‚. ظ„ط§ ظٹظ…ظƒظ† ط¥ط¬ط±ط§ط، طھط­ظˆظٹظ„ ط¹ظ„ظٹظ‡." },
-      { status: 400 },
-    );
-
+  const item = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
+  if (!item) return err("الصنف غير موجود", 404, "NOT_FOUND");
+  if (item.status === InventoryItemStatus.INACTIVE)
+    return err("الصنف موقوف. لا يمكن إجراء تحويل عليه.", 400, "ITEM_INACTIVE");
   if (qty > item.quantity)
-    return Response.json(
-      {
-        error: `ط§ظ„ظƒظ…ظٹط© ط؛ظٹط± ظƒط§ظپظٹط© ظ„ظ„طھط­ظˆظٹظ„. ط§ظ„ظ…طھط§ط­: ${item.quantity} ${item.unit}طŒ ط§ظ„ظ…ط·ظ„ظˆط¨: ${qty} ${item.unit}.`,
-      },
-      { status: 400 },
+    return err(
+      `الكمية غير كافية للتحويل. المتاح: ${item.quantity} ${item.unit}، المطلوب: ${qty} ${item.unit}.`,
+      400,
+      "INSUFFICIENT_QTY",
     );
 
   const ts = now();
   const mvId = genId("MV");
   const balanceAfter = item.quantity - qty;
 
-  await db.update(inventoryItems)
-    .set({ quantity: balanceAfter, warehouseId: toWarehouseId, updatedAt: ts })
-    .where(eq(inventoryItems.id, id))
-    .run();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(inventoryItems)
+      .set({ quantity: balanceAfter, warehouseId: b.toWarehouseId, updatedAt: ts })
+      .where(eq(inventoryItems.id, b.id!));
 
-  // Out movement
-  await db.insert(stockMovements)
-    .values({
+    // Out movement
+    await tx.insert(stockMovements).values({
       id: mvId,
-      itemId: id,
-      warehouseId: fromWarehouseId,
-      type: "طھط­ظˆظٹظ„",
+      itemId: b.id!,
+      warehouseId: b.fromWarehouseId,
+      type: StockMovementType.TRANSFER,
       quantity: -qty,
       balanceAfter,
-      relatedWarehouseId: toWarehouseId,
+      relatedWarehouseId: b.toWarehouseId,
       sourceType: "transfer",
-      reference: "طھط­ظˆظٹظ„ طµط§ط¯ط±",
+      reference: "تحويل صادر",
       date: ts,
-      notes: notes || "",
-      createdBy: userId || null,
+      notes: b.notes || "",
+      createdBy: ctx.user.id,
       createdAt: ts,
-    })
-    .run();
+    });
 
-  // In movement
-  await db.insert(stockMovements)
-    .values({
+    // In movement
+    await tx.insert(stockMovements).values({
       id: genId("MV"),
-      itemId: id,
-      warehouseId: toWarehouseId,
-      type: "طھط­ظˆظٹظ„",
+      itemId: b.id!,
+      warehouseId: b.toWarehouseId,
+      type: StockMovementType.TRANSFER,
       quantity: qty,
-      balanceAfter: balanceAfter, // Note: item is single-quantity tracked
-      relatedWarehouseId: fromWarehouseId,
+      balanceAfter, // item is single-quantity tracked
+      relatedWarehouseId: b.fromWarehouseId,
       relatedStocktakeId: mvId,
       sourceType: "transfer",
-      reference: "طھط­ظˆظٹظ„ ظˆط§ط±ط¯",
+      reference: "تحويل وارد",
       date: ts,
-      notes: notes || "",
-      createdBy: userId || null,
+      notes: b.notes || "",
+      createdBy: ctx.user.id,
       createdAt: ts,
-    })
-    .run();
+    });
+  });
 
-  await addAudit(
-    "طھط­ظˆظٹظ„",
-    "طµظ†ظپ",
-    id,
-    `طھظ… طھط­ظˆظٹظ„ ${qty} ${item.unit} ظ…ظ† ظ…ط³طھظˆط¯ط¹ ${fromWarehouseId} ط¥ظ„ظ‰ ${toWarehouseId} ظ„ظ„طµظ†ظپ ${item.name}`,
-    userId,
-    userName,
-  );
+  await addAudit({
+    action: StockMovementType.TRANSFER,
+    entityType: "inventory_item",
+    entityId: b.id,
+    description: `تم تحويل ${qty} ${item.unit} من مستودع ${b.fromWarehouseId} إلى ${b.toWarehouseId} للصنف ${item.name}`,
+    userId: ctx.user.id,
+    userName: ctx.user.name,
+    ip: ctx.ip,
+  });
 
-  const updated = (await db
-    .select()
-    .from(inventoryItems)
-    .where(eq(inventoryItems.id, id))
-    .limit(1)
-    .all())[0];
+  const updated = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
   return Response.json({ item: updated });
 }
 
-// PUT /api/inventory/items - update
-async function __handler_PUT({ request }: { request: Request }) {
-  const body = await request.json();
-  const {
-    id,
-    name,
-    sku,
-    unit,
-    category,
-    warehouseId,
-    minQuantity,
-    price,
-    notes,
-    status,
-    userId,
-    userName,
-  } = body;
-  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„طµظ†ظپ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+const updateSchema = z.object({
+  id: z.string().min(1, "معرف الصنف مطلوب"),
+  name: z.string().optional(),
+  sku: z.string().optional(),
+  unit: z.string().optional(),
+  category: z.string().optional(),
+  warehouseId: z.string().nullish(),
+  minQuantity: z.coerce.number().optional(),
+  price: z.coerce.number().optional(),
+  notes: z.string().optional(),
+  status: z.nativeEnum(InventoryItemStatus).optional(),
+});
 
-  const existing = (await db
-    .select()
-    .from(inventoryItems)
-    .where(eq(inventoryItems.id, id))
-    .limit(1)
-    .all())[0];
-  if (!existing) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+// PUT /api/inventory/items — update item.
+async function PUT(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, updateSchema);
+    const existing = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
+    if (!existing) return err("الصنف غير موجود", 404, "NOT_FOUND");
 
-  const before = JSON.stringify(existing);
-  await db.update(inventoryItems)
-    .set({
-      name: name?.trim() ?? existing.name,
-      sku: sku ?? existing.sku,
-      unit: unit ?? existing.unit,
-      category: category ?? existing.category,
-      warehouseId: warehouseId ?? existing.warehouseId,
-      minQuantity: minQuantity !== undefined ? parseFloat(minQuantity) : existing.minQuantity,
-      price: price !== undefined ? parseFloat(price) : existing.price,
-      notes: notes ?? existing.notes,
-      status: status ?? existing.status,
-      updatedAt: now(),
-    })
-    .where(eq(inventoryItems.id, id))
-    .run();
+    const before = JSON.stringify(existing);
+    await db
+      .update(inventoryItems)
+      .set({
+        name: b.name?.trim() ?? existing.name,
+        sku: b.sku ?? existing.sku,
+        unit: b.unit ?? existing.unit,
+        category: b.category ?? existing.category,
+        warehouseId: b.warehouseId ?? existing.warehouseId,
+        minQuantity: b.minQuantity ?? existing.minQuantity,
+        price: b.price ?? existing.price,
+        notes: b.notes ?? existing.notes,
+        status: b.status ?? existing.status,
+        updatedAt: now(),
+      })
+      .where(eq(inventoryItems.id, b.id));
 
-  await addAudit(
-    "طھط¹ط¯ظٹظ„",
-    "طµظ†ظپ",
-    id,
-    `طھظ… طھط­ط¯ظٹط« ط§ظ„طµظ†ظپ: ${existing.name}`,
-    userId,
-    userName,
-    before,
-  );
-  const updated = (await db
-    .select()
-    .from(inventoryItems)
-    .where(eq(inventoryItems.id, id))
-    .limit(1)
-    .all())[0];
-  return Response.json({ item: updated });
+    await addAudit({
+      action: "update",
+      entityType: "inventory_item",
+      entityId: b.id,
+      description: `تم تحديث الصنف: ${existing.name}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      before,
+      ip: ctx.ip,
+    });
+
+    const updated = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
+    return Response.json({ item: updated });
+  });
 }
 
-// DELETE /api/inventory/items - only if no movements and no PO lines
-async function __handler_DELETE({ request }: { request: Request }) {
-  const url = new URL(request.url);
-  const id = url.searchParams.get("id");
-  const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
+// DELETE /api/inventory/items?id=xxx — hard delete only when no movements/PO lines.
+async function DELETE({ request }: { request: Request }, ctx: Ctx) {
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return err("معرف الصنف مطلوب", 400, "BAD_REQUEST");
 
-  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„طµظ†ظپ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+  const existing = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1))[0];
+  if (!existing) return err("الصنف غير موجود", 404, "NOT_FOUND");
 
-  const existing = (await db
-    .select()
-    .from(inventoryItems)
-    .where(eq(inventoryItems.id, id))
-    .limit(1)
-    .all())[0];
-  if (!existing) return Response.json({ error: "ط§ظ„طµظ†ظپ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+  const [{ c: movementCount }] = await db
+    .select({ c: count() })
+    .from(stockMovements)
+    .where(eq(stockMovements.itemId, id));
+  const [{ c: poLineCount }] = await db
+    .select({ c: count() })
+    .from(purchaseOrderLines)
+    .where(eq(purchaseOrderLines.itemId, id));
 
-  const movementCount =
-    (await db
-      .select({ count: sql<number>`count(*)` })
-      .from(stockMovements)
-      .where(eq(stockMovements.itemId, id))
-      .all())[0]?.count || 0;
-
-  const poLineCount =
-    (await db
-      .select({ count: sql<number>`count(*)` })
-      .from(purchaseOrderLines)
-      .where(eq(purchaseOrderLines.itemId, id))
-      .all())[0]?.count || 0;
-
-  if (movementCount > 0 || poLineCount > 0) {
+  if (Number(movementCount) > 0 || Number(poLineCount) > 0) {
     const parts: string[] = [];
-    if (movementCount > 0) parts.push(`${movementCount} ط­ط±ظƒط© ظ…ط®ط²ظˆظ†`);
-    if (poLineCount > 0) parts.push(`${poLineCount} ط³ط·ط± ط£ظ…ط± ط´ط±ط§ط،`);
-    return Response.json(
-      {
-        error: `ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ط§ظ„طµظ†ظپ ظ„ط§ط±طھط¨ط§ط·ظ‡ ط¨ظ€ ${parts.join(" ظˆ ")}. ظ‚ظ… ط¨ط¥ظٹظ‚ط§ظپ ط§ظ„طµظ†ظپ ط¨ط¯ظ„ط§ظ‹ ظ…ظ† ط°ظ„ظƒ.`,
-      },
-      { status: 400 },
+    if (Number(movementCount) > 0) parts.push(`${Number(movementCount)} حركة مخزون`);
+    if (Number(poLineCount) > 0) parts.push(`${Number(poLineCount)} سطر أمر شراء`);
+    return err(
+      `لا يمكن حذف الصنف لارتباطه بـ ${parts.join(" و ")}. قم بإيقاف الصنف بدلاً من ذلك.`,
+      400,
+      "HAS_REFERENCES",
     );
   }
 
   const before = JSON.stringify(existing);
-  await db.delete(inventoryItems).where(eq(inventoryItems.id, id)).run();
-  await addAudit(
-    "ط­ط°ظپ",
-    "طµظ†ظپ",
-    id,
-    `طھظ… ط­ط°ظپ ط§ظ„طµظ†ظپ: ${existing.name}`,
-    userId,
-    userName,
+  await db.delete(inventoryItems).where(eq(inventoryItems.id, id));
+  await addAudit({
+    action: "delete",
+    entityType: "inventory_item",
+    entityId: id,
+    description: `تم حذف الصنف: ${existing.name}`,
+    userId: ctx.user.id,
+    userName: ctx.user.name,
     before,
-  );
+    ip: ctx.ip,
+  });
   return Response.json({ success: true });
 }
 
 export const Route = createFileRoute("/api/inventory/items")({
   server: {
     handlers: {
-      GET: safeHandler(__handler_GET),
-      POST: safeHandler(__handler_POST),
-      PUT: safeHandler(__handler_PUT),
-      DELETE: safeHandler(__handler_DELETE),
+      GET: authHandler("inventory.view", GET),
+      POST: authHandler("inventory.create", POST),
+      PUT: authHandler("inventory.update", PUT),
+      DELETE: authHandler("inventory.delete", DELETE),
     },
   },
 });

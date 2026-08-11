@@ -1,17 +1,11 @@
+import { AccountClassification, AccountStatus as AccountStatusEnum } from "@/lib/enums";
+
 const API_BASE = "/api/finance/accounts";
 
-export const ACCOUNT_TYPES = [
-  "أصل",
-  "التزام",
-  "حقوق ملكية",
-  "إيراد",
-  "مصروف",
-  "رئيسي",
-  "تفصيلي",
-] as const;
+export const ACCOUNT_TYPES = Object.values(AccountClassification);
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
-export const ACCOUNT_STATUSES = ["نشط", "موقوف", "مغلق"] as const;
+export const ACCOUNT_STATUSES = Object.values(AccountStatusEnum);
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 
 export interface Account {
@@ -74,8 +68,8 @@ export async function getAccounts(filters: AccountFilters = {}): Promise<{
 }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.type && filters.type !== "الكل") params.set("type", filters.type);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
+  if (filters.type) params.set("type", filters.type);
+  if (filters.status) params.set("status", filters.status);
   const res = await fetch(`${API_BASE}?${params.toString()}`);
   if (!res.ok) throw new Error("فشل في جلب الحسابات");
   return res.json();
@@ -100,7 +94,7 @@ export async function createAccount(data: CreateAccountInput): Promise<Account> 
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة الحساب");
+    throw new Error(err.message || err.error || "فشل في إضافة الحساب");
   }
   const d = await res.json();
   return d.item;
@@ -114,7 +108,7 @@ export async function updateAccount(data: UpdateAccountInput): Promise<Account> 
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث الحساب");
+    throw new Error(err.message || err.error || "فشل في تحديث الحساب");
   }
   const d = await res.json();
   return d.item;
@@ -131,7 +125,7 @@ export async function deleteAccount(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف الحساب");
+    throw new Error(err.message || err.error || "فشل في حذف الحساب");
   }
 }
 
@@ -147,7 +141,7 @@ export async function deactivateAccount(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إيقاف الحساب");
+    throw new Error(err.message || err.error || "فشل في إيقاف الحساب");
   }
   const d = await res.json();
   return d.item;
@@ -165,7 +159,7 @@ export async function activateAccount(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تفعيل الحساب");
+    throw new Error(err.message || err.error || "فشل في تفعيل الحساب");
   }
   const d = await res.json();
   return d.item;

@@ -1,13 +1,8 @@
+import { PurchaseOrderStatus } from "@/lib/enums";
+
 const API_BASE = "/api/procurement/orders";
 
-export const ORDER_STATUSES = [
-  "مسودة",
-  "معتمد",
-  "تم الاستلام جزئيًا",
-  "تم الاستلام",
-  "مغلق",
-  "ملغي",
-] as const;
+export const ORDER_STATUSES = Object.values(PurchaseOrderStatus);
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 export interface PurchaseOrder {
@@ -87,7 +82,7 @@ export async function getPurchaseOrders(
 ): Promise<{ items: PurchaseOrder[]; total: number }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
+  if (filters.status) params.set("status", filters.status);
   if (filters.supplierId) params.set("supplierId", filters.supplierId);
   const res = await fetch(`${API_BASE}?${params.toString()}`);
   if (!res.ok) throw new Error("فشل في جلب أوامر الشراء");
@@ -110,7 +105,7 @@ export async function createPurchaseOrder(data: CreatePurchaseOrderInput): Promi
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة أمر الشراء");
+    throw new Error(err.message || err.error || "فشل في إضافة أمر الشراء");
   }
   const d = await res.json();
   return d.item;
@@ -124,7 +119,7 @@ export async function updatePurchaseOrder(data: UpdatePurchaseOrderInput): Promi
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث أمر الشراء");
+    throw new Error(err.message || err.error || "فشل في تحديث أمر الشراء");
   }
   const d = await res.json();
   return d.item;
@@ -142,7 +137,7 @@ export async function approvePurchaseOrder(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في اعتماد أمر الشراء");
+    throw new Error(err.message || err.error || "فشل في اعتماد أمر الشراء");
   }
   const d = await res.json();
   return d.item;
@@ -160,7 +155,7 @@ export async function cancelPurchaseOrder(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إلغاء أمر الشراء");
+    throw new Error(err.message || err.error || "فشل في إلغاء أمر الشراء");
   }
   const d = await res.json();
   return d.item;
@@ -179,7 +174,7 @@ export async function receivePurchaseOrder(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في استلام أمر الشراء");
+    throw new Error(err.message || err.error || "فشل في استلام أمر الشراء");
   }
   const d = await res.json();
   return d.item;
@@ -197,7 +192,7 @@ export async function closePurchaseOrder(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إغلاق أمر الشراء");
+    throw new Error(err.message || err.error || "فشل في إغلاق أمر الشراء");
   }
   const d = await res.json();
   return d.item;
@@ -214,6 +209,6 @@ export async function deletePurchaseOrder(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف أمر الشراء");
+    throw new Error(err.message || err.error || "فشل في حذف أمر الشراء");
   }
 }

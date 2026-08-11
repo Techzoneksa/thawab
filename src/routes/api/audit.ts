@@ -1,18 +1,18 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { and, count, desc, eq, like, or, sql } from "drizzle-orm";
 import { db } from "@/server/db/index";
-import { auditLog, users } from "@/server/db/schema";
-import { eq, like, or, and, desc, sql, gte, lte } from "drizzle-orm";
-import { safeHandler } from "@/server/db/api-utils";
+import { auditLog } from "@/server/db/schema";
+import { authHandler, err, type Ctx } from "@/server/db/api-utils";
 
-// GET /api/audit - list with filters and pagination
-// GET /api/audit?id=xxx - single audit entry with before/after
-async function __handler_GET({ request }: { request: Request }) {
+// GET /api/audit — list with filters and pagination.
+// GET /api/audit?id=xxx — single audit entry with parsed before/after.
+async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
   if (id) {
-    const entry = (await db.select().from(auditLog).where(eq(auditLog.id, id)).limit(1).all())[0];
-    if (!entry) return Response.json({ error: "ط§ظ„ط³ط¬ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    const entry = (await db.select().from(auditLog).where(eq(auditLog.id, id)).limit(1))[0];
+    if (!entry) return err("السجل غير موجود", 404, "NOT_FOUND");
 
     // Parse before/after as JSON if possible
     let beforeParsed: unknown = null;
@@ -42,8 +42,8 @@ async function __handler_GET({ request }: { request: Request }) {
   const entityId = url.searchParams.get("entityId") || "";
   const dateFrom = url.searchParams.get("dateFrom") || "";
   const dateTo = url.searchParams.get("dateTo") || "";
-  const page = parseInt(url.searchParams.get("page") || "1");
-  const limit = parseInt(url.searchParams.get("limit") || "50");
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1") || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "50") || 50));
   const offset = (page - 1) * limit;
 
   const conditions = [];
@@ -58,46 +58,44 @@ async function __handler_GET({ request }: { request: Request }) {
       ),
     );
   }
-  if (userName && userName !== "ط§ظ„ظƒظ„") conditions.push(eq(auditLog.userName, userName));
-  if (action && action !== "ط§ظ„ظƒظ„") conditions.push(eq(auditLog.action, action));
-  if (entityType && entityType !== "ط§ظ„ظƒظ„") conditions.push(eq(auditLog.entityType, entityType));
+  if (userName) conditions.push(eq(auditLog.userName, userName));
+  if (action) conditions.push(eq(auditLog.action, action));
+  if (entityType) conditions.push(eq(auditLog.entityType, entityType));
   if (entityId) conditions.push(eq(auditLog.entityId, entityId));
-  if (dateFrom) {
-    conditions.push(sql`${auditLog.timestamp} >= ${dateFrom}`);
-  }
-  if (dateTo) {
-    conditions.push(sql`${auditLog.timestamp} <= ${dateTo}`);
-  }
+  if (dateFrom) conditions.push(sql`${auditLog.timestamp} >= ${dateFrom}`);
+  if (dateTo) conditions.push(sql`${auditLog.timestamp} <= ${dateTo}`);
+  const where = conditions.length ? and(...conditions) : undefined;
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const [{ c: total }] = await db.select({ c: count() }).from(auditLog).where(where);
+  const items = await db
+    .select()
+    .from(auditLog)
+    .where(where)
+    .orderBy(desc(auditLog.timestamp))
+    .limit(limit)
+    .offset(offset);
 
-  const allQuery = db.select().from(auditLog).$dynamic();
-  const all = whereClause
-    ? await allQuery.where(whereClause).orderBy(desc(auditLog.timestamp)).all()
-    : await allQuery.orderBy(desc(auditLog.timestamp)).all();
-  const total = all.length;
+  // Distinct filter options — derived without loading every row.
+  const userRows = await db.selectDistinct({ v: auditLog.userName }).from(auditLog);
+  const actionRows = await db.selectDistinct({ v: auditLog.action }).from(auditLog);
+  const entityRows = await db.selectDistinct({ v: auditLog.entityType }).from(auditLog);
 
-  const itemsQuery = db.select().from(auditLog).$dynamic();
-  const items = whereClause
-    ? await itemsQuery
-        .where(whereClause)
-        .orderBy(desc(auditLog.timestamp))
-        .limit(limit)
-        .offset(offset)
-        .all()
-    : await itemsQuery.orderBy(desc(auditLog.timestamp)).limit(limit).offset(offset).all();
-
-  // Derive distinct options for filters
-  const allEntries = await db.select().from(auditLog).all();
-  const userOptions = Array.from(
-    new Set(allEntries.map((e) => e.userName).filter((u): u is string => Boolean(u))),
-  ).sort();
-  const actionOptions = Array.from(new Set(allEntries.map((e) => e.action))).sort();
-  const entityOptions = Array.from(new Set(allEntries.map((e) => e.entityType))).sort();
+  const userOptions = userRows
+    .map((r) => r.v)
+    .filter((u): u is string => Boolean(u))
+    .sort();
+  const actionOptions = actionRows
+    .map((r) => r.v)
+    .filter((a): a is string => Boolean(a))
+    .sort();
+  const entityOptions = entityRows
+    .map((r) => r.v)
+    .filter((e): e is string => Boolean(e))
+    .sort();
 
   return Response.json({
     items,
-    total,
+    total: Number(total),
     page,
     limit,
     options: {
@@ -111,7 +109,7 @@ async function __handler_GET({ request }: { request: Request }) {
 export const Route = createFileRoute("/api/audit")({
   server: {
     handlers: {
-      GET: safeHandler(__handler_GET),
+      GET: authHandler("audit.view", GET),
     },
   },
 });

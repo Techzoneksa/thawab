@@ -1,11 +1,12 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { db } from "@/server/db/index";
 import { accounts, journalLines, journalEntries, budgetLines, budgets } from "@/server/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
-import { safeHandler } from "@/server/db/api-utils";
+import { authHandler, err, type Ctx } from "@/server/db/api-utils";
+import { AccountClassification, JournalStatus, BudgetStatus } from "@/lib/enums";
 
 // GET /api/finance/statements?type=...&startDate=...&endDate=...&costCenterId=...&projectId=...&budgetId=...
-async function __handler_GET({ request }: { request: Request }) {
+async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
   const type = url.searchParams.get("type") || "trial-balance";
   const startDate = url.searchParams.get("startDate") || "";
@@ -28,8 +29,14 @@ async function __handler_GET({ request }: { request: Request }) {
     return getBudgetVsActual({ budgetId, startDate, endDate });
   }
 
-  return Response.json({ error: "ظ†ظˆط¹ ط§ظ„طھظ‚ط±ظٹط± ط؛ظٹط± ظ…ط¹ط±ظˆظپ" }, { status: 400 });
+  return err("نوع التقرير غير معروف", 400, "UNKNOWN_REPORT");
 }
+
+// Posted, non-reversed entries only.
+const postedFilter = () => [
+  eq(journalEntries.status, JournalStatus.POSTED),
+  sql`${journalEntries.reversedAt} IS NULL`,
+];
 
 // ============ TRIAL BALANCE ============
 async function getTrialBalance(filters: {
@@ -38,7 +45,7 @@ async function getTrialBalance(filters: {
   costCenterId: string;
   projectId: string;
 }) {
-  const conditions = [eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„")];
+  const conditions = postedFilter();
   if (filters.startDate) conditions.push(sql`${journalEntries.date} >= ${filters.startDate}`);
   if (filters.endDate) conditions.push(sql`${journalEntries.date} <= ${filters.endDate}`);
   if (filters.costCenterId) conditions.push(eq(journalLines.costCenterId, filters.costCenterId));
@@ -49,7 +56,7 @@ async function getTrialBalance(filters: {
       accountId: journalLines.accountId,
       accountCode: accounts.code,
       accountName: accounts.name,
-      accountType: accounts.type,
+      accountType: accounts.classification,
       totalDebit: sql<number>`COALESCE(SUM(${journalLines.debit}), 0)`,
       totalCredit: sql<number>`COALESCE(SUM(${journalLines.credit}), 0)`,
     })
@@ -57,8 +64,7 @@ async function getTrialBalance(filters: {
     .innerJoin(journalEntries, eq(journalLines.journalEntryId, journalEntries.id))
     .innerJoin(accounts, eq(journalLines.accountId, accounts.id))
     .where(and(...conditions))
-    .groupBy(journalLines.accountId, accounts.code, accounts.name, accounts.type)
-    .all();
+    .groupBy(journalLines.accountId, accounts.code, accounts.name, accounts.classification);
 
   // Order by account code for trial balance
   rows.sort((a, b) => a.accountCode.localeCompare(b.accountCode, "ar"));
@@ -82,7 +88,7 @@ async function getTrialBalance(filters: {
   });
 }
 
-// ============ INCOME / EXPENSE ============
+// ============ INCOME / EXPENSE (قائمة الأنشطة) ============
 async function getIncomeExpense(filters: {
   startDate: string;
   endDate: string;
@@ -90,8 +96,11 @@ async function getIncomeExpense(filters: {
   projectId: string;
 }) {
   const conditions = [
-    eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„"),
-    inArray(accounts.type, ["ط¥ظٹط±ط§ط¯", "ظ…طµط±ظˆظپ"]),
+    ...postedFilter(),
+    inArray(accounts.classification, [
+      AccountClassification.REVENUE,
+      AccountClassification.EXPENSE,
+    ]),
   ];
   if (filters.startDate) conditions.push(sql`${journalEntries.date} >= ${filters.startDate}`);
   if (filters.endDate) conditions.push(sql`${journalEntries.date} <= ${filters.endDate}`);
@@ -103,7 +112,7 @@ async function getIncomeExpense(filters: {
       accountId: journalLines.accountId,
       accountCode: accounts.code,
       accountName: accounts.name,
-      accountType: accounts.type,
+      accountType: accounts.classification,
       totalDebit: sql<number>`COALESCE(SUM(${journalLines.debit}), 0)`,
       totalCredit: sql<number>`COALESCE(SUM(${journalLines.credit}), 0)`,
     })
@@ -111,21 +120,22 @@ async function getIncomeExpense(filters: {
     .innerJoin(journalEntries, eq(journalLines.journalEntryId, journalEntries.id))
     .innerJoin(accounts, eq(journalLines.accountId, accounts.id))
     .where(and(...conditions))
-    .groupBy(journalLines.accountId, accounts.code, accounts.name, accounts.type)
-    .all();
+    .groupBy(journalLines.accountId, accounts.code, accounts.name, accounts.classification);
 
   // For revenue: credit - debit (positive = revenue)
   // For expense: debit - credit (positive = expense)
   const enriched = rows.map((r) => {
     const net =
-      r.accountType === "ط¥ظٹط±ط§ط¯" ? r.totalCredit - r.totalDebit : r.totalDebit - r.totalCredit;
+      r.accountType === AccountClassification.REVENUE
+        ? r.totalCredit - r.totalDebit
+        : r.totalDebit - r.totalCredit;
     return { ...r, netAmount: net };
   });
 
   enriched.sort((a, b) => a.accountCode.localeCompare(b.accountCode, "ar"));
 
-  const revenues = enriched.filter((r) => r.accountType === "ط¥ظٹط±ط§ط¯");
-  const expenses = enriched.filter((r) => r.accountType === "ظ…طµط±ظˆظپ");
+  const revenues = enriched.filter((r) => r.accountType === AccountClassification.REVENUE);
+  const expenses = enriched.filter((r) => r.accountType === AccountClassification.EXPENSE);
   const totalRevenue = revenues.reduce((s, r) => s + Math.max(0, r.netAmount), 0);
   const totalExpense = expenses.reduce((s, r) => s + Math.max(0, r.netAmount), 0);
   const surplus = totalRevenue - totalExpense;
@@ -138,9 +148,13 @@ async function getIncomeExpense(filters: {
   });
 }
 
-// ============ FINANCIAL POSITION (BALANCE SHEET) ============
-async function getFinancialPosition(filters: { asOf: string; costCenterId: string; projectId: string }) {
-  const conditions = [eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„")];
+// ============ FINANCIAL POSITION (المركز المالي / BALANCE SHEET) ============
+async function getFinancialPosition(filters: {
+  asOf: string;
+  costCenterId: string;
+  projectId: string;
+}) {
+  const conditions = postedFilter();
   if (filters.asOf) conditions.push(sql`${journalEntries.date} <= ${filters.asOf}`);
   if (filters.costCenterId) conditions.push(eq(journalLines.costCenterId, filters.costCenterId));
   if (filters.projectId) conditions.push(eq(journalLines.projectId, filters.projectId));
@@ -150,7 +164,7 @@ async function getFinancialPosition(filters: { asOf: string; costCenterId: strin
       accountId: journalLines.accountId,
       accountCode: accounts.code,
       accountName: accounts.name,
-      accountType: accounts.type,
+      accountType: accounts.classification,
       accountLevel: accounts.level,
       parentId: accounts.parentId,
       totalDebit: sql<number>`COALESCE(SUM(${journalLines.debit}), 0)`,
@@ -164,36 +178,41 @@ async function getFinancialPosition(filters: { asOf: string; costCenterId: strin
       journalLines.accountId,
       accounts.code,
       accounts.name,
-      accounts.type,
+      accounts.classification,
       accounts.level,
       accounts.parentId,
-    )
-    .all();
+    );
 
   // Compute balance per account: debit - credit for assets, credit - debit for liabilities/equity
   const enriched = rows.map((r) => {
     let balance: number;
-    if (r.accountType === "ط£طµظ„") balance = r.totalDebit - r.totalCredit;
-    else if (r.accountType === "ط§ظ„طھط²ط§ظ…" || r.accountType === "ط­ظ‚ظˆظ‚ ظ…ظ„ظƒظٹط©")
+    if (r.accountType === AccountClassification.ASSET) balance = r.totalDebit - r.totalCredit;
+    else if (
+      r.accountType === AccountClassification.LIABILITY ||
+      r.accountType === AccountClassification.EQUITY
+    )
       balance = r.totalCredit - r.totalDebit;
     else balance = r.totalDebit - r.totalCredit;
     return { ...r, balance };
   });
 
-  // Group by account type
-  const assets = enriched.filter((r) => r.accountType === "ط£طµظ„");
-  const liabilities = enriched.filter((r) => r.accountType === "ط§ظ„طھط²ط§ظ…");
-  const equity = enriched.filter((r) => r.accountType === "ط­ظ‚ظˆظ‚ ظ…ظ„ظƒظٹط©");
+  // Group by classification
+  const assets = enriched.filter((r) => r.accountType === AccountClassification.ASSET);
+  const liabilities = enriched.filter((r) => r.accountType === AccountClassification.LIABILITY);
+  const equity = enriched.filter((r) => r.accountType === AccountClassification.EQUITY);
 
   const totalAssets = assets.reduce((s, r) => s + r.balance, 0);
   const totalLiabilities = liabilities.reduce((s, r) => s + r.balance, 0);
   const totalEquity = equity.reduce((s, r) => s + r.balance, 0);
 
-  // For non-profit, equity includes current period surplus (revenue - expense)
-  // Compute net surplus as of date
+  // For non-profit, equity includes current period surplus (revenue - expense).
+  // Compute net surplus as of date.
   const surplusConditions = [
-    eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„"),
-    inArray(accounts.type, ["ط¥ظٹط±ط§ط¯", "ظ…طµط±ظˆظپ"]),
+    ...postedFilter(),
+    inArray(accounts.classification, [
+      AccountClassification.REVENUE,
+      AccountClassification.EXPENSE,
+    ]),
   ];
   if (filters.asOf) surplusConditions.push(sql`${journalEntries.date} <= ${filters.asOf}`);
   if (filters.costCenterId)
@@ -202,7 +221,7 @@ async function getFinancialPosition(filters: { asOf: string; costCenterId: strin
 
   const surplusRows = await db
     .select({
-      accountType: accounts.type,
+      accountType: accounts.classification,
       totalDebit: sql<number>`COALESCE(SUM(${journalLines.debit}), 0)`,
       totalCredit: sql<number>`COALESCE(SUM(${journalLines.credit}), 0)`,
     })
@@ -210,11 +229,10 @@ async function getFinancialPosition(filters: { asOf: string; costCenterId: strin
     .innerJoin(journalEntries, eq(journalLines.journalEntryId, journalEntries.id))
     .innerJoin(accounts, eq(journalLines.accountId, accounts.id))
     .where(and(...surplusConditions))
-    .groupBy(accounts.type)
-    .all();
+    .groupBy(accounts.classification);
 
-  const revenueTotal = surplusRows.find((r) => r.accountType === "ط¥ظٹط±ط§ط¯");
-  const expenseTotal = surplusRows.find((r) => r.accountType === "ظ…طµط±ظˆظپ");
+  const revenueTotal = surplusRows.find((r) => r.accountType === AccountClassification.REVENUE);
+  const expenseTotal = surplusRows.find((r) => r.accountType === AccountClassification.EXPENSE);
   const revenueBalance = (revenueTotal?.totalCredit || 0) - (revenueTotal?.totalDebit || 0);
   const expenseBalance = (expenseTotal?.totalDebit || 0) - (expenseTotal?.totalCredit || 0);
   const periodSurplus = revenueBalance - expenseBalance;
@@ -239,111 +257,126 @@ async function getFinancialPosition(filters: { asOf: string; costCenterId: strin
 }
 
 // ============ BUDGET vs ACTUAL ============
-async function getBudgetVsActual(filters: { budgetId: string; startDate: string; endDate: string }) {
-  // 1. Get all approved budgets if budgetId not given
+async function getBudgetVsActual(filters: {
+  budgetId: string;
+  startDate: string;
+  endDate: string;
+}) {
+  // 1. Get target budgets (single by id, else all approved/locked).
   let targetBudgets;
   if (filters.budgetId) {
-    targetBudgets = await db.select().from(budgets).where(eq(budgets.id, filters.budgetId)).all();
+    targetBudgets = await db.select().from(budgets).where(eq(budgets.id, filters.budgetId));
     if (targetBudgets.length === 0) {
-      return Response.json({ error: "ط§ظ„ظ…ظˆط§ط²ظ†ط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯ط©" }, { status: 404 });
+      return err("الموازنة غير موجودة", 404, "NOT_FOUND");
     }
   } else {
-    targetBudgets = db
+    targetBudgets = await db
       .select()
       .from(budgets)
-      .where(inArray(budgets.status, ["ظ…ط¹طھظ…ط¯", "ظ…ظ‚ظپظ„"]))
-      .all();
+      .where(inArray(budgets.status, [BudgetStatus.APPROVED, BudgetStatus.LOCKED]));
   }
 
-  // 2. For each budget, compute planned vs actual
-  const result = targetBudgets.map(async (budget) => {
-    const lines = await db.select().from(budgetLines).where(eq(budgetLines.budgetId, budget.id)).all();
+  // 2. For each budget, compute planned vs actual. Every async map MUST be awaited
+  //    (an un-awaited .map(async …) serializes to {} and reduces to NaN).
+  const enriched = await Promise.all(
+    targetBudgets.map(async (budget) => {
+      const lines = await db
+        .select()
+        .from(budgetLines)
+        .where(eq(budgetLines.budgetId, budget.id));
 
-    const enrichedLines = lines.map(async (line) => {
-      // Compute actual from posted journal lines that match this line's account/cost center/project
-      const conditions = [
-        eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„"),
-        inArray(accounts.type, ["ط¥ظٹط±ط§ط¯", "ظ…طµط±ظˆظپ"]),
-      ];
-      if (line.accountId) conditions.push(eq(journalLines.accountId, line.accountId));
-      if (line.costCenterId) conditions.push(eq(journalLines.costCenterId, line.costCenterId));
-      if (line.projectId) conditions.push(eq(journalLines.projectId, line.projectId));
-      if (filters.startDate) conditions.push(sql`${journalEntries.date} >= ${filters.startDate}`);
-      if (filters.endDate) conditions.push(sql`${journalEntries.date} <= ${filters.endDate}`);
+      const enrichedLines = await Promise.all(
+        lines.map(async (line) => {
+          // Compute actual from posted journal lines matching this line's account/cost-center/project.
+          const conditions = [
+            ...postedFilter(),
+            inArray(accounts.classification, [
+              AccountClassification.REVENUE,
+              AccountClassification.EXPENSE,
+            ]),
+          ];
+          if (line.accountId) conditions.push(eq(journalLines.accountId, line.accountId));
+          if (line.costCenterId) conditions.push(eq(journalLines.costCenterId, line.costCenterId));
+          if (line.projectId) conditions.push(eq(journalLines.projectId, line.projectId));
+          if (filters.startDate)
+            conditions.push(sql`${journalEntries.date} >= ${filters.startDate}`);
+          if (filters.endDate) conditions.push(sql`${journalEntries.date} <= ${filters.endDate}`);
 
-      const actuals = await db
-        .select({
-          accountType: accounts.type,
-          totalDebit: sql<number>`COALESCE(SUM(${journalLines.debit}), 0)`,
-          totalCredit: sql<number>`COALESCE(SUM(${journalLines.credit}), 0)`,
-        })
-        .from(journalLines)
-        .innerJoin(journalEntries, eq(journalLines.journalEntryId, journalEntries.id))
-        .innerJoin(accounts, eq(journalLines.accountId, accounts.id))
-        .where(and(...conditions))
-        .groupBy(accounts.type)
-        .all();
-
-      const revenueActual =
-        (actuals.find((a) => a.accountType === "ط¥ظٹط±ط§ط¯")?.totalCredit || 0) -
-        (actuals.find((a) => a.accountType === "ط¥ظٹط±ط§ط¯")?.totalDebit || 0);
-      const expenseActual =
-        (actuals.find((a) => a.accountType === "ظ…طµط±ظˆظپ")?.totalDebit || 0) -
-        (actuals.find((a) => a.accountType === "ظ…طµط±ظˆظپ")?.totalCredit || 0);
-
-      // Use expense actual (most common case for budget lines)
-      const actual = line.accountId
-        ? (await db
+          const actuals = await db
             .select({
-              type: accounts.type,
+              accountType: accounts.classification,
+              totalDebit: sql<number>`COALESCE(SUM(${journalLines.debit}), 0)`,
+              totalCredit: sql<number>`COALESCE(SUM(${journalLines.credit}), 0)`,
             })
-            .from(accounts)
-            .where(eq(accounts.id, line.accountId))
-            .limit(1)
-            .all())[0]
-        : null;
-      const actualAmount = actual?.type === "ط¥ظٹط±ط§ط¯" ? revenueActual : expenseActual;
+            .from(journalLines)
+            .innerJoin(journalEntries, eq(journalLines.journalEntryId, journalEntries.id))
+            .innerJoin(accounts, eq(journalLines.accountId, accounts.id))
+            .where(and(...conditions))
+            .groupBy(accounts.classification);
+
+          const revenueActual =
+            (actuals.find((a) => a.accountType === AccountClassification.REVENUE)?.totalCredit ||
+              0) -
+            (actuals.find((a) => a.accountType === AccountClassification.REVENUE)?.totalDebit || 0);
+          const expenseActual =
+            (actuals.find((a) => a.accountType === AccountClassification.EXPENSE)?.totalDebit ||
+              0) -
+            (actuals.find((a) => a.accountType === AccountClassification.EXPENSE)?.totalCredit ||
+              0);
+
+          // Choose revenue vs expense actual based on the line's account classification.
+          const acc = line.accountId
+            ? (await db
+                .select({ classification: accounts.classification })
+                .from(accounts)
+                .where(eq(accounts.id, line.accountId))
+                .limit(1))[0]
+            : null;
+          const actualAmount =
+            acc?.classification === AccountClassification.REVENUE ? revenueActual : expenseActual;
+
+          return {
+            ...line,
+            actualAmount,
+            variance: line.plannedAmount - actualAmount,
+            utilization:
+              line.plannedAmount > 0 ? Math.round((actualAmount / line.plannedAmount) * 100) : 0,
+          };
+        }),
+      );
+
+      const totalPlanned = lines.reduce((s, l) => s + l.plannedAmount, 0);
+      const totalActual = enrichedLines.reduce((s, l) => s + l.actualAmount, 0);
 
       return {
-        ...line,
-        actualAmount,
-        variance: line.plannedAmount - actualAmount,
-        utilization:
-          line.plannedAmount > 0 ? Math.round((actualAmount / line.plannedAmount) * 100) : 0,
+        budget: {
+          id: budget.id,
+          name: budget.name,
+          year: budget.year,
+          status: budget.status,
+          currency: budget.currency,
+        },
+        lines: enrichedLines,
+        totals: {
+          planned: totalPlanned,
+          actual: totalActual,
+          variance: totalPlanned - totalActual,
+          utilization: totalPlanned > 0 ? Math.round((totalActual / totalPlanned) * 100) : 0,
+        },
       };
-    });
-
-    const totalPlanned = lines.reduce((s, l) => s + l.plannedAmount, 0);
-    const totalActual = enrichedLines.reduce((s, l) => s + l.actualAmount, 0);
-
-    return {
-      budget: {
-        id: budget.id,
-        name: budget.name,
-        year: budget.year,
-        status: budget.status,
-        currency: budget.currency,
-      },
-      lines: enrichedLines,
-      totals: {
-        planned: totalPlanned,
-        actual: totalActual,
-        variance: totalPlanned - totalActual,
-        utilization: totalPlanned > 0 ? Math.round((totalActual / totalPlanned) * 100) : 0,
-      },
-    };
-  });
+    }),
+  );
 
   return Response.json({
     type: "budget-vs-actual",
-    budgets: result,
+    budgets: enriched,
   });
 }
 
 export const Route = createFileRoute("/api/finance/statements")({
   server: {
     handlers: {
-      GET: safeHandler(__handler_GET),
+      GET: authHandler("finance.view", GET),
     },
   },
 });

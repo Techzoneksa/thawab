@@ -10,7 +10,7 @@ import {
   MobileTable,
   MobilePageHeader,
 } from "@/components/erp/AppShell";
-import { ENDOWMENTS, fmtSAR } from "@/data/sample";
+import { fmtSAR } from "@/data/sample";
 import { Landmark, Plus, Edit, Trash2, Eye } from "lucide-react";
 import { useState } from "react";
 import {
@@ -19,6 +19,7 @@ import {
   EntityFormDrawer,
   ActionMenu,
   ExportButton,
+  EmptyState,
 } from "@/components/erp/actions";
 
 type EndowmentItem = {
@@ -33,7 +34,7 @@ type EndowmentItem = {
 export const Route = createFileRoute("/endowments")({
   head: () => ({ meta: [{ title: "الأوقاف — ثواب" }] }),
   component: () => {
-    const [data, setData] = useState<EndowmentItem[]>(ENDOWMENTS as EndowmentItem[]);
+    const [data, setData] = useState<EndowmentItem[]>([]);
     const [formOpen, setFormOpen] = useState(false);
     const [confirmIdx, setConfirmIdx] = useState(-1);
     const [formName, setFormName] = useState("");
@@ -114,6 +115,9 @@ export const Route = createFileRoute("/endowments")({
           </div>
           <>
             <MobilePageHeader title="إدارة الأوقاف" count={`${data.length} وقف`} />
+            {data.length === 0 && (
+              <EmptyState title="لا توجد أوقاف" description="ابدأ بإضافة أول وقف" />
+            )}
             <MobileTable
               columns={["الرقم", "اسم الوقف", "النوع", "القيمة", "العائد السنوي", "الحالة", ""]}
               rows={data}

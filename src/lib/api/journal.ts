@@ -1,9 +1,11 @@
+import { JournalStatus as JournalStatusEnum, Fund } from "@/lib/enums";
+
 const API_BASE = "/api/finance/journal";
 
-export const JOURNAL_STATUSES = ["مسودة", "بانتظار الاعتماد", "مرحّل", "ملغى", "معكوس"] as const;
+export const JOURNAL_STATUSES = Object.values(JournalStatusEnum);
 export type JournalStatus = (typeof JOURNAL_STATUSES)[number];
 
-export const JOURNAL_FUNDS = ["مقيد", "غير مقيد", "أوقاف"] as const;
+export const JOURNAL_FUNDS = Object.values(Fund);
 export type JournalFund = (typeof JOURNAL_FUNDS)[number];
 
 export interface JournalLine {
@@ -112,8 +114,8 @@ export async function getJournalEntries(filters: JournalFilters = {}): Promise<{
 }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
-  if (filters.fund && filters.fund !== "الكل") params.set("fund", filters.fund);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.fund) params.set("fund", filters.fund);
   if (filters.projectId) params.set("projectId", filters.projectId);
   if (filters.page) params.set("page", String(filters.page));
   if (filters.limit) params.set("limit", String(filters.limit));
@@ -143,7 +145,7 @@ export async function createJournalEntry(data: CreateJournalInput): Promise<Jour
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة القيد");
+    throw new Error(err.message || err.error || "فشل في إضافة القيد");
   }
   const d = await res.json();
   return d.item;
@@ -157,7 +159,7 @@ export async function updateJournalEntry(data: UpdateJournalInput): Promise<Jour
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث القيد");
+    throw new Error(err.message || err.error || "فشل في تحديث القيد");
   }
   const d = await res.json();
   return d.item;
@@ -174,7 +176,7 @@ export async function deleteJournalEntry(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف القيد");
+    throw new Error(err.message || err.error || "فشل في حذف القيد");
   }
 }
 
@@ -190,7 +192,7 @@ export async function postJournalEntry(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في ترحيل القيد");
+    throw new Error(err.message || err.error || "فشل في ترحيل القيد");
   }
   const d = await res.json();
   return d.item;
@@ -208,7 +210,7 @@ export async function reverseJournalEntry(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في عكس القيد");
+    throw new Error(err.message || err.error || "فشل في عكس القيد");
   }
   const d = await res.json();
   return d.item;
@@ -226,7 +228,7 @@ export async function cancelJournalEntry(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إلغاء القيد");
+    throw new Error(err.message || err.error || "فشل في إلغاء القيد");
   }
   const d = await res.json();
   return d.item;

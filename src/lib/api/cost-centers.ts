@@ -1,6 +1,8 @@
+import { CostCenterStatus as CostCenterStatusEnum } from "@/lib/enums";
+
 const API_BASE = "/api/finance/cost-centers";
 
-export const COST_CENTER_STATUSES = ["نشط", "موقوف", "مغلق"] as const;
+export const COST_CENTER_STATUSES = Object.values(CostCenterStatusEnum);
 export type CostCenterStatus = (typeof COST_CENTER_STATUSES)[number];
 
 export interface CostCenter {
@@ -55,7 +57,7 @@ export async function getCostCenters(filters: CostCenterFilters = {}): Promise<{
 }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
+  if (filters.status) params.set("status", filters.status);
   const res = await fetch(`${API_BASE}?${params.toString()}`);
   if (!res.ok) throw new Error("فشل في جلب مراكز التكلفة");
   return res.json();
@@ -80,7 +82,7 @@ export async function createCostCenter(data: CreateCostCenterInput): Promise<Cos
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة مركز التكلفة");
+    throw new Error(err.message || err.error || "فشل في إضافة مركز التكلفة");
   }
   const d = await res.json();
   return d.item;
@@ -94,7 +96,7 @@ export async function updateCostCenter(data: UpdateCostCenterInput): Promise<Cos
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث مركز التكلفة");
+    throw new Error(err.message || err.error || "فشل في تحديث مركز التكلفة");
   }
   const d = await res.json();
   return d.item;
@@ -111,7 +113,7 @@ export async function deleteCostCenter(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف مركز التكلفة");
+    throw new Error(err.message || err.error || "فشل في حذف مركز التكلفة");
   }
 }
 
@@ -127,7 +129,7 @@ export async function deactivateCostCenter(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إيقاف مركز التكلفة");
+    throw new Error(err.message || err.error || "فشل في إيقاف مركز التكلفة");
   }
   const d = await res.json();
   return d.item;
@@ -145,7 +147,7 @@ export async function activateCostCenter(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تفعيل مركز التكلفة");
+    throw new Error(err.message || err.error || "فشل في تفعيل مركز التكلفة");
   }
   const d = await res.json();
   return d.item;

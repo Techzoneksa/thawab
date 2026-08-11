@@ -9,9 +9,11 @@ import {
   MobilePageHeader,
   MobileActionRow,
 } from "@/components/erp/AppShell";
-import { INTEGRATIONS as INTEGRATIONS_DATA } from "@/data/sample";
-import { showToast, EntityFormDrawer, ActionMenu } from "@/components/erp/actions";
+import { showToast, EntityFormDrawer, ActionMenu, EmptyState } from "@/components/erp/actions";
 import { Plug, Pencil, Ban, CheckCircle2, Network, Eye, KeyRound, Webhook } from "lucide-react";
+
+type Integration = { name: string; category: string; status: string; info: string };
+const INTEGRATIONS_DATA: Integration[] = [];
 
 export const Route = createFileRoute("/settings/integrations")({
   head: () => ({ meta: [{ title: "التكاملات — ثواب" }] }),
@@ -184,6 +186,15 @@ function Page() {
           <Plug size={15} /> إضافة تكامل
         </Btn>
       </MobileActionRow>
+      {integrations.length === 0 ? (
+        <Card className="p-2 mt-3 lg:mt-0">
+          <EmptyState
+            icon={<Plug size={40} />}
+            title="لا توجد تكاملات مُفعّلة"
+            description="لم تتم إضافة أي تكامل بعد. استخدم زر «تكامل جديد» لإضافة أول تكامل"
+          />
+        </Card>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-3 lg:mt-0">
         {integrations.map((it, i) => (
           <Card key={it.name} className="p-5">
@@ -217,6 +228,7 @@ function Page() {
           </Card>
         ))}
       </div>
+      )}
 
       <EntityFormDrawer
         open={addOpen}

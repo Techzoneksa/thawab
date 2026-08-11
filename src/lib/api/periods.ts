@@ -1,6 +1,8 @@
+import { FiscalPeriodStatus } from "@/lib/enums";
+
 const API_BASE = "/api/finance/periods";
 
-export const PERIOD_STATUSES = ["مفتوحة", "قيد الإقفال", "مقفلة", "معاد فتحتها"] as const;
+export const PERIOD_STATUSES = Object.values(FiscalPeriodStatus);
 export type PeriodStatus = (typeof PERIOD_STATUSES)[number];
 
 export interface FiscalPeriod {
@@ -50,7 +52,7 @@ export async function getPeriods(
 ): Promise<{ items: FiscalPeriod[]; total: number }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
+  if (filters.status) params.set("status", filters.status);
   const res = await fetch(`${API_BASE}?${params.toString()}`);
   if (!res.ok) throw new Error("فشل في جلب الفترات المالية");
   return res.json();
@@ -73,7 +75,7 @@ export async function createPeriod(data: CreatePeriodInput): Promise<FiscalPerio
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة الفترة المالية");
+    throw new Error(err.message || err.error || "فشل في إضافة الفترة المالية");
   }
   const d = await res.json();
   return d.item;
@@ -87,7 +89,7 @@ export async function updatePeriod(data: UpdatePeriodInput): Promise<FiscalPerio
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث الفترة المالية");
+    throw new Error(err.message || err.error || "فشل في تحديث الفترة المالية");
   }
   const d = await res.json();
   return d.item;
@@ -106,7 +108,7 @@ export async function closePeriod(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إقفال الفترة المالية");
+    throw new Error(err.message || err.error || "فشل في إقفال الفترة المالية");
   }
   const d = await res.json();
   return d.item;
@@ -124,7 +126,7 @@ export async function reopenPeriod(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إعادة فتح الفترة المالية");
+    throw new Error(err.message || err.error || "فشل في إعادة فتح الفترة المالية");
   }
   const d = await res.json();
   return d.item;
@@ -141,6 +143,6 @@ export async function deletePeriod(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف الفترة المالية");
+    throw new Error(err.message || err.error || "فشل في حذف الفترة المالية");
   }
 }

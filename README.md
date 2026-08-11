@@ -1,71 +1,83 @@
 # ثواب
 
-**نظام خاص لإدارة الجمعيات والجهات الخيرية** — وليس SaaS.
+**نظام ERP لإدارة الجمعيات والجهات الخيرية السعودية** — عربي أولاً (RTL)، نظام خاص وليس SaaS.
 
-نظام ERP متكامل عربي أولاً، مُصمم للجمعيات الخيرية السعودية لإدارة المالية، المتبرعين، المستفيدين، المشاريع، المشتريات، المخزون، الموارد البشرية، والحوكمة.
+يغطّي: المالية (محاسبة قيد مزدوج، شجرة حسابات، دفتر أستاذ، قوائم مالية، موازنات، فترات مالية)، المتبرعون والتبرعات، المستفيدون والمساعدات، المشاريع، المشتريات، المخزون، الأصول الثابتة، والحوكمة.
 
-## الحالة الحالية
+## التقنيات
 
-- **الواجهة**: 47 صفحة وظيفية كاملة (UI Shell)
-- **البيانات**: بيانات تجريبية (Mock Data) في `src/data/sample.ts`
-- **Backend**: غير موجود بعد
-- **Auth**: غير منفّذ
-- **قاعدة بيانات**: غير موجودة
+| التقنية | الإصدار |
+| --- | --- |
+| React | 19 |
+| TanStack Start / Router / Query | v1 / file-based / v5 |
+| قاعدة البيانات | **PostgreSQL** (فقط) |
+| ORM + الهجرات | Drizzle ORM + drizzle-kit |
+| التحقق | Zod |
+| الواجهة | Tailwind v4 + shadcn/ui (Radix) |
+| المصادقة | جلسات في قاعدة البيانات + scrypt + كوكي httpOnly |
+| الخادم | Nitro (node-server) |
 
-## التقنيات المستخدمة
+## المعمارية والأمن
 
-| التقنية         | الإصدار                 |
-| --------------- | ----------------------- |
-| React           | 19.x                    |
-| TanStack Start  | v1 (SSR-capable)        |
-| TanStack Router | File-based routing      |
-| TanStack Query  | v5                      |
-| Tailwind CSS    | v4                      |
-| shadcn/ui       | كامل (Radix Primitives) |
-| Vite            | v8                      |
-| Nitro           | Node.js server preset   |
+- **مصادقة إجبارية** على كل نقاط الـ API (عدا `/api/auth` و `/api/health`) عبر `authHandler` مع فحص صلاحيات (RBAC).
+- كلمات المرور بـ **scrypt**، توكِن الجلسة عشوائي تشفيرياً، والهوية تُشتق من الجلسة فقط (سجل تدقيق غير قابل للتزوير).
+- تحقق **Zod** على كل عمليات الكتابة، و**transactions** حول كل الكتابات المالية.
+- محاسبة **قيد مزدوج حقيقي**: كل العمليات (تبرع/مساعدة/…) تُرحَّل تلقائياً لقيود متوازنة عبر خدمة الترحيل `src/server/db/gl.ts`، مع فرض **قفل الفترات المالية** وتتبّع **الأموال المقيّدة/غير المقيّدة/الأوقاف**.
+- كل قيم الحالات/الأنواع تُخزَّن كمفاتيح إنجليزية ثابتة (`src/lib/enums.ts`) وتُترجَم للعربية في الواجهة فقط (`src/lib/i18n/labels.ts`).
 
-## التشغيل محلياً
+## الإعداد والتشغيل
+
+المتطلبات: Node.js 22+، PostgreSQL.
 
 ```bash
 npm install
-npm run dev     # تطوير على http://localhost:8080
+cp .env.example .env      # ثم عبّئ DATABASE_URL
+npm run db:migrate        # تطبيق الهجرات
+npm run seed              # بيانات أولية: الأدوار + شجرة الحسابات + مستخدم مدير (كلمة مرور تُطبع مرة واحدة)
+npm run dev               # تطوير على http://localhost:8080
 ```
 
-## البناء
+> الـ seed **لا يحتوي أي بيانات تجريبية** — فقط الأدوار وشجرة حسابات جمعية قياسية وحساب مدير واحد (يُجبر على تغيير كلمة المرور عند أول دخول).
+
+## البناء والإنتاج
 
 ```bash
-npm run build
+npm run build            # يكتب .output/ ويعكسها إلى server/ و public/
+npm run start            # node server/index.mjs
 ```
 
-## تشغيل الإنتاج
+راجع `HOSTINGER_DEPLOYMENT.md` للنشر (استخدم preset **Node.js** لا Next.js).
 
-```bash
-npm run start   # يشغل node .output/server/index.mjs
-```
+## أوامر مفيدة
 
-## النشر على Hostinger
-
-راجع `HOSTINGER_DEPLOYMENT.md` للتعليمات الكاملة.
+| الأمر | الوظيفة |
+| --- | --- |
+| `npm run db:generate` | توليد هجرة من تعديلات الـ schema |
+| `npm run db:migrate` | تطبيق الهجرات |
+| `npm run db:studio` | واجهة Drizzle Studio |
+| `npm run seed` | التهيئة الأولية (idempotent) |
+| `npm run check:encoding` | حارس ضد تلف الترميز (mojibake) |
+| `npm run lint` | ESLint |
 
 ## هيكلة المشروع
 
 ```
 src/
-├── routes/              # 47 صفحة (TanStack Router file-based)
-├── components/
-│   ├── erp/             # مكونات مخصصة (AppShell, ListPage)
-│   └── ui/              # shadcn/ui (45+ مكون)
-├── data/
-│   └── sample.ts        # بيانات تجريبية
-├── lib/                 # أدوات مساعدة
-├── styles.css           # نظام التصميم
-└── router.tsx           # تهيئة Router
+├── routes/               # الصفحات + مسارات الـ API (routes/api/**)
+├── server/db/
+│   ├── schema.ts         # مخطط Postgres الموحّد
+│   ├── client.ts         # اتصال drizzle/postgres-js
+│   ├── auth.ts           # المصادقة (scrypt، جلسات، RBAC)
+│   ├── api-utils.ts      # authHandler / parseBody / الصلاحيات
+│   ├── gl.ts             # خدمة ترحيل القيد المزدوج
+│   └── errors.ts         # AppError
+├── lib/
+│   ├── enums.ts          # مفاتيح الحالات/الأنواع (المصدر الوحيد)
+│   ├── i18n/labels.ts    # الترجمة العربية للعرض
+│   ├── format.ts         # دوال التنسيق
+│   └── api/              # عملاء الـ API للواجهة
+drizzle/                  # ملفات الهجرات المُولّدة
+scripts/                  # seed / أدوات الصيانة
 ```
 
-## الخطوات القادمة
-
-1. بناء Backend (NestJS + PostgreSQL)
-2. إضافة Auth
-3. ربط API
-4. نشر إنتاجي
+راجع `AUDIT_REPORT.md` لتقرير الفحص الأمني/المعماري/المحاسبي الكامل الذي بُني عليه هذا الإصلاح.

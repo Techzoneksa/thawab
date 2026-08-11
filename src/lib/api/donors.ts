@@ -37,9 +37,9 @@ export async function getDonors(filters: DonorFilters = {}): Promise<{
 }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.type && filters.type !== "الكل") params.set("type", filters.type);
-  if (filters.tag && filters.tag !== "الكل") params.set("tag", filters.tag);
-  if (filters.city && filters.city !== "الكل") params.set("city", filters.city);
+  if (filters.type) params.set("type", filters.type);
+  if (filters.tag) params.set("tag", filters.tag);
+  if (filters.city) params.set("city", filters.city);
   if (filters.page) params.set("page", String(filters.page));
   if (filters.limit) params.set("limit", String(filters.limit));
 
@@ -63,7 +63,7 @@ export async function createDonor(data: Partial<Donor>): Promise<Donor> {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة المتبرع");
+    throw new Error(err.message || err.error || "فشل في إضافة المتبرع");
   }
   const d = await res.json();
   return d.item;
@@ -77,7 +77,7 @@ export async function updateDonor(data: Partial<Donor> & { id: string }): Promis
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث المتبرع");
+    throw new Error(err.message || err.error || "فشل في تحديث المتبرع");
   }
   const d = await res.json();
   return d.item;

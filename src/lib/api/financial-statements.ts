@@ -115,7 +115,7 @@ export async function getStatement(filters: StatementFilters): Promise<Statement
   const res = await fetch(`${API_BASE}?${params.toString()}`);
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في جلب القائمة المالية");
+    throw new Error(err.message || err.error || "فشل في جلب القائمة المالية");
   }
   return res.json();
 }

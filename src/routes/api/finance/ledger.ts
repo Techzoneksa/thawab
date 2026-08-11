@@ -1,11 +1,12 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { db } from "@/server/db/index";
 import { journalEntries, journalLines, accounts, costCenters, projects } from "@/server/db/schema";
 import { and, eq, gte, lte, like, or, sql } from "drizzle-orm";
-import { safeHandler } from "@/server/db/api-utils";
+import { authHandler, type Ctx } from "@/server/db/api-utils";
+import { JournalStatus, AccountStatus, CostCenterStatus } from "@/lib/enums";
 
 // GET /api/finance/ledger - computed movements from posted journal entries joined with lines
-async function __handler_GET({ request }: { request: Request }) {
+async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
   const accountId = url.searchParams.get("accountId") || "";
   const costCenterId = url.searchParams.get("costCenterId") || "";
@@ -14,10 +15,10 @@ async function __handler_GET({ request }: { request: Request }) {
   const dateTo = url.searchParams.get("dateTo") || "";
   const search = url.searchParams.get("search") || "";
 
-  // Build conditions for journal entries that are posted (not draft/cancelled/reversed)
-  // Posted = status = "ظ…ط±ط­ظ‘ظ„" AND reversedAt IS NULL
+  // Build conditions for journal entries that are posted (excludes draft/pending/reversed).
+  // Posted = status = POSTED AND reversedAt IS NULL.
   const entryConditions = [
-    eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„"),
+    eq(journalEntries.status, JournalStatus.POSTED),
     sql`${journalEntries.reversedAt} IS NULL`,
   ];
   if (dateFrom) entryConditions.push(gte(journalEntries.date, dateFrom));
@@ -38,39 +39,40 @@ async function __handler_GET({ request }: { request: Request }) {
     .select()
     .from(journalEntries)
     .where(entryWhere)
-    .orderBy(journalEntries.date, journalEntries.number)
-    .all();
+    .orderBy(journalEntries.date, journalEntries.number);
 
   const matchingEntryIds = matchingEntries.map((e) => e.id);
 
-  // Get lines for those entries, applying line-level filters
-  const lineConditions = [
-    sql`${journalLines.journalEntryId} IN (${sql.join(
-      matchingEntryIds.map((id) => sql`${id}`),
-      sql`, `,
-    )})`,
-  ];
-  if (accountId) lineConditions.push(eq(journalLines.accountId, accountId));
-  if (costCenterId) lineConditions.push(eq(journalLines.costCenterId, costCenterId));
-  if (projectId) lineConditions.push(eq(journalLines.projectId, projectId));
-  const lineWhere = and(...lineConditions);
-
-  const lines = await db
-    .select()
-    .from(journalLines)
-    .where(lineWhere)
-    .orderBy(journalLines.lineNumber)
-    .all();
-
-  // Build lookups for accounts, costCenters, projects
-  const accountList = await db.select().from(accounts).all();
+  // Lookups for accounts, costCenters, projects
+  const accountList = await db.select().from(accounts);
   const accountMap = new Map(accountList.map((a) => [a.id, a]));
 
-  const ccList = await db.select().from(costCenters).all();
+  const ccList = await db.select().from(costCenters);
   const ccMap = new Map(ccList.map((c) => [c.id, c]));
 
-  const projList = await db.select().from(projects).all();
+  const projList = await db.select().from(projects);
   const projMap = new Map(projList.map((p) => [p.id, p]));
+
+  // Get lines for those entries, applying line-level filters
+  const lines =
+    matchingEntryIds.length > 0
+      ? await (() => {
+          const lineConditions = [
+            sql`${journalLines.journalEntryId} IN (${sql.join(
+              matchingEntryIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})`,
+          ];
+          if (accountId) lineConditions.push(eq(journalLines.accountId, accountId));
+          if (costCenterId) lineConditions.push(eq(journalLines.costCenterId, costCenterId));
+          if (projectId) lineConditions.push(eq(journalLines.projectId, projectId));
+          return db
+            .select()
+            .from(journalLines)
+            .where(and(...lineConditions))
+            .orderBy(journalLines.lineNumber);
+        })()
+      : [];
 
   // Build movement rows from lines joined with entries
   const movements: Array<{
@@ -126,20 +128,20 @@ async function __handler_GET({ request }: { request: Request }) {
     return a.lineId < b.lineId ? -1 : 1;
   });
 
-  // Compute opening balance for selected account (or all if no account selected)
-  // Opening = sum of (debit - credit) for lines of posted entries before dateFrom
+  // Compute opening balance for selected account (only meaningful when an account is selected).
+  // Opening = sum of (debit - credit) for that account's lines of posted entries before dateFrom.
   let openingBalance = 0;
   if (accountId && dateFrom) {
-    const openingEntryConditions = [
-      eq(journalEntries.status, "ظ…ط±ط­ظ‘ظ„"),
-      sql`${journalEntries.reversedAt} IS NULL`,
-      sql`${journalEntries.date} < ${dateFrom}`,
-    ];
     const openingEntries = await db
       .select()
       .from(journalEntries)
-      .where(and(...openingEntryConditions))
-      .all();
+      .where(
+        and(
+          eq(journalEntries.status, JournalStatus.POSTED),
+          sql`${journalEntries.reversedAt} IS NULL`,
+          sql`${journalEntries.date} < ${dateFrom}`,
+        ),
+      );
     const openingEntryIds = openingEntries.map((e) => e.id);
     if (openingEntryIds.length > 0) {
       const openingLines = await db
@@ -153,8 +155,7 @@ async function __handler_GET({ request }: { request: Request }) {
               sql`, `,
             )})`,
           ),
-        )
-        .all();
+        );
       openingBalance = openingLines.reduce((sum, l) => sum + (l.debit - l.credit), 0);
     }
   }
@@ -174,10 +175,10 @@ async function __handler_GET({ request }: { request: Request }) {
   // Filter options for dropdowns
   const options = {
     accounts: accountList
-      .filter((a) => a.status === "ظ†ط´ط·")
+      .filter((a) => a.status === AccountStatus.ACTIVE)
       .map((a) => ({ id: a.id, code: a.code, name: a.name })),
     costCenters: ccList
-      .filter((c) => c.status === "ظ†ط´ط·")
+      .filter((c) => c.status === CostCenterStatus.ACTIVE)
       .map((c) => ({ id: c.id, name: c.name })),
     projects: projList.map((p) => ({ id: p.id, name: p.name })),
   };
@@ -201,7 +202,7 @@ async function __handler_GET({ request }: { request: Request }) {
 export const Route = createFileRoute("/api/finance/ledger")({
   server: {
     handlers: {
-      GET: safeHandler(__handler_GET),
+      GET: authHandler("finance.view", GET),
     },
   },
 });

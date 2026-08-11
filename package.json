@@ -12,7 +12,13 @@
     "start": "node server/index.mjs",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "seed": "node --experimental-strip-types scripts/seed.ts",
+    "check:encoding": "node scripts/check-encoding.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

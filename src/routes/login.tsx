@@ -56,7 +56,7 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok || data.error) {
-        setError(data.error || "حدث خطأ أثناء تسجيل الدخول");
+        setError(data.message || "حدث خطأ أثناء تسجيل الدخول");
         setIsLoading(false);
         return;
       }
@@ -64,7 +64,8 @@ export default function LoginPage() {
       localStorage.setItem("session_token", data.token);
       queryClient.setQueryData(["currentUser"], data.user);
       showToast(`مرحباً ${data.user.name}!`, "success");
-      window.location.href = "/";
+      // Force a password change on first login if required.
+      window.location.href = data.mustChangePassword ? "/settings/users" : "/";
     } catch {
       setError("حدث خطأ في الاتصال بالخادم");
       setIsLoading(false);
@@ -154,22 +155,6 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
-
-          <div className="mt-6 p-4 rounded-lg bg-muted/50 text-xs space-y-2">
-            <div className="font-semibold text-muted-foreground mb-2">بيانات الدخول التجريبية:</div>
-            <div className="grid grid-cols-2 gap-2 text-muted-foreground">
-              <span>مدير النظام:</span>
-              <span dir="ltr">saud@albir.org.sa / admin123</span>
-              <span>محاسب:</span>
-              <span dir="ltr">sara@albir.org.sa / acc123</span>
-              <span>مدير:</span>
-              <span dir="ltr">mohammed@albir.org.sa / mgr123</span>
-              <span>موظف تبرعات:</span>
-              <span dir="ltr">noura@albir.org.sa / don123</span>
-              <span>منسق مشاريع:</span>
-              <span dir="ltr">fahad@albir.org.sa / proj123</span>
-            </div>
-          </div>
         </Card>
       </div>
     </div>

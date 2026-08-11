@@ -7,7 +7,6 @@ import {
   Select,
   MobileFilterDrawer,
 } from "@/components/erp/AppShell";
-import { REPORT_CATEGORIES } from "@/data/sample";
 import * as Icons from "lucide-react";
 import {
   FileText,
@@ -28,6 +27,46 @@ import {
   EmptyState,
   PrintStyle,
 } from "@/components/erp/actions";
+
+// Static UI configuration of available report categories (not business data).
+type ReportCategory = { title: string; icon: string; items: string[] };
+const REPORT_CATEGORIES: ReportCategory[] = [
+  {
+    title: "التقارير المالية",
+    icon: "Wallet",
+    items: ["قائمة المركز المالي", "قائمة الأنشطة", "قائمة التدفقات النقدية", "ميزان المراجعة"],
+  },
+  {
+    title: "تقارير التبرعات",
+    icon: "HandCoins",
+    items: [
+      "التبرعات حسب المشروع",
+      "التبرعات حسب المتبرع",
+      "التبرعات الشهرية",
+      "الإيصالات والشهادات",
+    ],
+  },
+  {
+    title: "تقارير المشاريع",
+    icon: "FolderKanban",
+    items: ["حالة المشاريع", "نسب الإنجاز", "ميزانيات المشاريع", "الأثر والمخرجات"],
+  },
+  {
+    title: "تقارير المستفيدين",
+    icon: "Users",
+    items: ["سجل المستفيدين", "المساعدات المصروفة", "التوزيع الجغرافي", "الفئات المستهدفة"],
+  },
+  {
+    title: "تقارير المشتريات",
+    icon: "ShoppingCart",
+    items: ["أوامر الشراء", "الموردون", "تحليل الإنفاق", "أوامر التوريد"],
+  },
+  {
+    title: "تقارير المخزون",
+    icon: "Package",
+    items: ["حركة المخزون", "أرصدة المخزون", "أصناف تحت حد الطلب", "جرد المستودعات"],
+  },
+];
 
 export const Route = createFileRoute("/reports")({
   head: () => ({ meta: [{ title: "مركز التقارير — ثواب" }] }),

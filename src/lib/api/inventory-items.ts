@@ -1,9 +1,11 @@
+import { InventoryItemStatus, StockMovementType } from "@/lib/enums";
+
 const API_BASE = "/api/inventory/items";
 
-export const ITEM_STATUSES = ["نشط", "موقوف", "مغلق"] as const;
+export const ITEM_STATUSES = Object.values(InventoryItemStatus);
 export type ItemStatus = (typeof ITEM_STATUSES)[number];
 
-export const MOVEMENT_TYPES = ["استلام", "صرف", "تحويل", "تسوية", "جرد"] as const;
+export const MOVEMENT_TYPES = Object.values(StockMovementType);
 
 export interface InventoryItem {
   id: string;
@@ -64,8 +66,8 @@ export async function getInventoryItems(
 ): Promise<{ items: InventoryItem[]; total: number }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
-  if (filters.category && filters.category !== "الكل") params.set("category", filters.category);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.category) params.set("category", filters.category);
   if (filters.warehouseId) params.set("warehouseId", filters.warehouseId);
   const res = await fetch(`${API_BASE}?${params.toString()}`);
   if (!res.ok) throw new Error("فشل في جلب الأصناف");
@@ -91,7 +93,7 @@ export async function createInventoryItem(data: CreateInventoryItemInput): Promi
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة الصنف");
+    throw new Error(err.message || err.error || "فشل في إضافة الصنف");
   }
   const d = await res.json();
   return d.item;
@@ -105,7 +107,7 @@ export async function updateInventoryItem(data: UpdateInventoryItemInput): Promi
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث الصنف");
+    throw new Error(err.message || err.error || "فشل في تحديث الصنف");
   }
   const d = await res.json();
   return d.item;
@@ -123,7 +125,7 @@ export async function activateInventoryItem(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تفعيل الصنف");
+    throw new Error(err.message || err.error || "فشل في تفعيل الصنف");
   }
   const d = await res.json();
   return d.item;
@@ -141,7 +143,7 @@ export async function deactivateInventoryItem(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تعطيل الصنف");
+    throw new Error(err.message || err.error || "فشل في تعطيل الصنف");
   }
   const d = await res.json();
   return d.item;
@@ -162,7 +164,7 @@ export async function receiveInventoryItem(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في استلام الصنف");
+    throw new Error(err.message || err.error || "فشل في استلام الصنف");
   }
   const d = await res.json();
   return d.item;
@@ -183,7 +185,7 @@ export async function issueInventoryItem(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في صرف الصنف");
+    throw new Error(err.message || err.error || "فشل في صرف الصنف");
   }
   const d = await res.json();
   return d.item;
@@ -204,7 +206,7 @@ export async function adjustInventoryItem(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تسوية الصنف");
+    throw new Error(err.message || err.error || "فشل في تسوية الصنف");
   }
   const d = await res.json();
   return d.item;
@@ -226,7 +228,7 @@ export async function transferInventoryItem(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحويل الصنف");
+    throw new Error(err.message || err.error || "فشل في تحويل الصنف");
   }
   const d = await res.json();
   return d.item;
@@ -243,6 +245,6 @@ export async function deleteInventoryItem(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف الصنف");
+    throw new Error(err.message || err.error || "فشل في حذف الصنف");
   }
 }

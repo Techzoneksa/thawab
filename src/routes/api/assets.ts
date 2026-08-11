@@ -1,68 +1,35 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
+import { and, count, desc, eq, like, or } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { fixedAssets, assetDepreciations, assetMovements, suppliers } from "@/server/db/schema";
-import { eq, like, or, and, desc, sql } from "drizzle-orm";
-import { safeHandler } from "@/server/db/api-utils";
+import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
+import { AssetStatus, AssetCondition, DepreciationMethod, AssetMovementType } from "@/lib/enums";
 
-export const ASSET_STATUSES = [
-  "ظ†ط´ط·",
-  "طھط­طھ ط§ظ„طµظٹط§ظ†ط©",
-  "ظ…ظ†ظ‚ظˆظ„",
-  "ظ…ط³طھط¨ط¹ط¯",
-  "ظ…ط¨ط§ط¹",
-  "ظ…ظ„ط؛ظٹ",
-] as const;
-export type AssetStatus = (typeof ASSET_STATUSES)[number];
-
-export const ASSET_CONDITIONS = [
-  "ط¬ظٹط¯",
-  "ظ…طھظˆط³ط·",
-  "ظٹط­طھط§ط¬ طµظٹط§ظ†ط©",
-  "طھط§ظ„ظپ",
-] as const;
-
-export const ASSET_DEPRECIATION_METHODS = ["ظ‚ط³ط· ط«ط§ط¨طھ", "ظ‚ط³ط· ظ…طھظ†ط§ظ‚طµ"] as const;
-
-export const ASSET_MOVEMENT_TYPES = [
-  "طھط­ظˆظٹظ„",
-  "طµظٹط§ظ†ط©",
-  "ط¥ظ‡ظ„ط§ظƒ",
-  "ط§ط³طھط¨ط¹ط§ط¯",
-  "ط¨ظٹط¹",
-] as const;
-export type AssetMovementType = (typeof ASSET_MOVEMENT_TYPES)[number];
-
-const READ_ONLY_STATUSES: AssetStatus[] = ["ظ…ط³طھط¨ط¹ط¯", "ظ…ط¨ط§ط¹", "ظ…ظ„ط؛ظٹ"];
-
-// GET /api/assets - list
-// GET /api/assets?id=xxx - single with depreciation info
-async function __handler_GET({ request }: { request: Request }) {
+// GET /api/assets?id=xxx — single asset with depreciation/movement summary.
+// GET /api/assets      — list with search/filter/pagination.
+async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
   if (id) {
-    const asset = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-    if (!asset) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    const asset = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1))[0];
+    if (!asset) return err("الأصل غير موجود", 404, "NOT_FOUND");
 
-    const depCount =
-      (await db
-        .select({ count: sql<number>`count(*)` })
-        .from(assetDepreciations)
-        .where(eq(assetDepreciations.assetId, id))
-        .all())[0]?.count || 0;
-
-    const mvCount =
-      (await db
-        .select({ count: sql<number>`count(*)` })
-        .from(assetMovements)
-        .where(eq(assetMovements.assetId, id))
-        .all())[0]?.count || 0;
+    const [{ c: depCount }] = await db
+      .select({ c: count() })
+      .from(assetDepreciations)
+      .where(eq(assetDepreciations.assetId, id));
+    const [{ c: mvCount }] = await db
+      .select({ c: count() })
+      .from(assetMovements)
+      .where(eq(assetMovements.assetId, id));
 
     return Response.json({
       item: asset,
-      depreciationCount: depCount,
-      movementCount: mvCount,
-      hasHistory: depCount > 0 || mvCount > 0,
+      depreciationCount: Number(depCount),
+      movementCount: Number(mvCount),
+      hasHistory: Number(depCount) > 0 || Number(mvCount) > 0,
       bookValue: asset.cost - asset.accumulatedDepreciation,
     });
   }
@@ -70,6 +37,9 @@ async function __handler_GET({ request }: { request: Request }) {
   const search = url.searchParams.get("search") || "";
   const status = url.searchParams.get("status") || "";
   const category = url.searchParams.get("category") || "";
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1") || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "50") || 50));
+  const offset = (page - 1) * limit;
 
   const conditions = [];
   if (search) {
@@ -83,517 +53,438 @@ async function __handler_GET({ request }: { request: Request }) {
       ),
     );
   }
-  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(fixedAssets.status, status));
-  if (category && category !== "ط§ظ„ظƒظ„") conditions.push(eq(fixedAssets.category, category));
+  if (status) conditions.push(eq(fixedAssets.status, status));
+  if (category) conditions.push(eq(fixedAssets.category, category));
+  const where = conditions.length ? and(...conditions) : undefined;
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-  const items = whereClause
-    ? await db.select().from(fixedAssets).where(whereClause).orderBy(desc(fixedAssets.createdAt)).all()
-    : await db.select().from(fixedAssets).orderBy(desc(fixedAssets.createdAt)).all();
-
-  return Response.json({ items, total: items.length });
-}
-
-// POST /api/assets - create or workflow actions
-async function __handler_POST({ request }: { request: Request }) {
-  const body = await request.json();
-  const { action } = body;
-
-  if (action === "transfer") {
-    const { id, toLocation, toResponsible, date, reason, notes, userId, userName } = body;
-    const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-    if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (READ_ONLY_STATUSES.includes(existing.status as AssetStatus)) {
-      return Response.json(
-        { error: `ظ„ط§ ظٹظ…ظƒظ† ظ†ظ‚ظ„ ط£طµظ„ ظپظٹ ط­ط§ظ„ط© ${existing.status}` },
-        { status: 400 },
-      );
-    }
-
-    const before = JSON.stringify(existing);
-    const ts = now();
-    await db.update(fixedAssets)
-      .set({
-        location: toLocation || existing.location,
-        responsiblePerson: toResponsible || existing.responsiblePerson,
-        status: "ظ…ظ†ظ‚ظˆظ„",
-        updatedAt: ts,
-      })
-      .where(eq(fixedAssets.id, id))
-      .run();
-
-    await db.insert(assetMovements)
-      .values({
-        id: genId("AMV"),
-        assetId: id,
-        type: "طھط­ظˆظٹظ„",
-        fromLocation: existing.location || "",
-        toLocation: toLocation || "",
-        fromResponsible: existing.responsiblePerson || "",
-        toResponsible: toResponsible || "",
-        date: date || ts,
-        reason: reason || "",
-        notes: notes || "",
-        createdBy: userId || null,
-        createdAt: ts,
-      })
-      .run();
-
-    await addAudit(
-      "طھط­ظˆظٹظ„",
-      "ط£طµظ„ ط«ط§ط¨طھ",
-      id,
-      `طھظ… ظ†ظ‚ظ„ ط§ظ„ط£طµظ„ ${existing.name} ظ…ظ† ${existing.location || "â€”"} ط¥ظ„ظ‰ ${toLocation || "â€”"}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-    return Response.json({ item: updated });
-  }
-
-  if (action === "maintain") {
-    const { id, date, cost, reason, notes, userId, userName } = body;
-    const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-    if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (READ_ONLY_STATUSES.includes(existing.status as AssetStatus)) {
-      return Response.json(
-        {
-          error: `ظ„ط§ ظٹظ…ظƒظ† طھط³ط¬ظٹظ„ طµظٹط§ظ†ط© ط¹ظ„ظ‰ ط£طµظ„ ظپظٹ ط­ط§ظ„ط© ${existing.status}`,
-        },
-        { status: 400 },
-      );
-    }
-
-    const before = JSON.stringify(existing);
-    const ts = now();
-    await db.insert(assetMovements)
-      .values({
-        id: genId("AMV"),
-        assetId: id,
-        type: "طµظٹط§ظ†ط©",
-        cost: parseFloat(cost) || 0,
-        date: date || ts,
-        reason: reason || "",
-        notes: notes || "",
-        createdBy: userId || null,
-        createdAt: ts,
-      })
-      .run();
-
-    await db.update(fixedAssets)
-      .set({ status: "طھط­طھ ط§ظ„طµظٹط§ظ†ط©", updatedAt: ts })
-      .where(eq(fixedAssets.id, id))
-      .run();
-
-    await addAudit(
-      "طµظٹط§ظ†ط©",
-      "ط£طµظ„ ط«ط§ط¨طھ",
-      id,
-      `طھظ… طھط³ط¬ظٹظ„ طµظٹط§ظ†ط© ظ„ظ„ط£طµظ„ ${existing.name} ط¨طھظƒظ„ظپط© ${cost || 0}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-    return Response.json({ item: updated });
-  }
-
-  if (action === "returnFromMaintenance") {
-    const { id, condition, userId, userName } = body;
-    const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-    if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (existing.status !== "طھط­طھ ط§ظ„طµظٹط§ظ†ط©") {
-      return Response.json({ error: "ط§ظ„ط£طµظ„ ظ„ظٹط³ طھط­طھ ط§ظ„طµظٹط§ظ†ط©" }, { status: 400 });
-    }
-
-    const before = JSON.stringify(existing);
-    await db.update(fixedAssets)
-      .set({
-        status: "ظ†ط´ط·",
-        condition: condition || existing.condition,
-        updatedAt: now(),
-      })
-      .where(eq(fixedAssets.id, id))
-      .run();
-    await addAudit(
-      "ط¥ظ†ظ‡ط§ط، طµظٹط§ظ†ط©",
-      "ط£طµظ„ ط«ط§ط¨طھ",
-      id,
-      `طھظ… ط¥ظ†ظ‡ط§ط، طµظٹط§ظ†ط© ط§ظ„ط£طµظ„ ${existing.name} (ط§ظ„ط­ط§ظ„ط©: ${condition || existing.condition})`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-    return Response.json({ item: updated });
-  }
-
-  if (action === "depreciate") {
-    const { id, amount, date, notes, userId, userName } = body;
-    const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-    if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (READ_ONLY_STATUSES.includes(existing.status as AssetStatus)) {
-      return Response.json(
-        { error: `ظ„ط§ ظٹظ…ظƒظ† ط¥ظ‡ظ„ط§ظƒ ط£طµظ„ ظپظٹ ط­ط§ظ„ط© ${existing.status}` },
-        { status: 400 },
-      );
-    }
-
-    const depAmount = parseFloat(amount) || 0;
-    if (depAmount <= 0)
-      return Response.json(
-        { error: "ظ…ط¨ظ„ط؛ ط§ظ„ط¥ظ‡ظ„ط§ظƒ ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ط£ظƒط¨ط± ظ…ظ† طµظپط±" },
-        { status: 400 },
-      );
-
-    const newAccumulated = (existing.accumulated_depreciation ?? 0) + depAmount;
-    const bookValue = existing.cost - newAccumulated;
-
-    if (bookValue < -0.0001) {
-      return Response.json(
-        {
-          error: `Ø§Ù„Ø¥Ù‡Ù„Ø§Ùƒ Ø³ÙŠØ¬Ø¹Ù„ Ø§Ù„Ù‚ÙŠÙ…Ø© Ø§Ù„Ø¯ÙØªØ±ÙŠØ© Ø³Ø§Ù„Ø¨Ø©. Ø§Ù„ØØ¯ Ø§Ù„Ø£Ù‚ØµÙ‰ Ù„Ù„Ø¥Ù‡Ù„Ø§Ùƒ: ${existing.cost - (existing.accumulated_depreciation ?? 0) - (existing.salvage_value || 0)}`,
-        },
-        { status: 400 },
-      );
-    }
-
-    const maxDepreciable = existing.cost - (existing.salvage_value || 0);
-    if (newAccumulated > maxDepreciable + 0.0001) {
-      return Response.json(
-        {
-          error: `Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ø¥Ù‡Ù„Ø§Ùƒ Ø³ÙŠØªØ¬Ø§ÙˆØ² (Ø§Ù„ØªÙƒÙ„ÙØ© - Ø§Ù„Ù‚ÙŠÙ…Ø© Ø§Ù„Ù…ØªØ¨Ù‚ÙŠØ©). Ø§Ù„ØØ¯ Ø§Ù„Ù…ØªØ¨Ù‚ÙŠ: ${maxDepreciable - (existing.accumulated_depreciation ?? 0)}`,
-        },
-        { status: 400 },
-      );
-    }
-
-    const before = JSON.stringify(existing);
-    const ts = now();
-
-    await db.insert(assetDepreciations)
-      .values({
-        id: genId("DEP"),
-        assetId: id,
-        date: date || ts,
-        amount: depAmount,
-        bookValueAfter: bookValue,
-        method: existing.depreciation_method,
-        notes: notes || "",
-        createdBy: userId || null,
-        createdAt: ts,
-      })
-      .run();
-
-    await db.update(fixedAssets)
-      .set({ accumulatedDepreciation: newAccumulated, updatedAt: ts })
-      .where(eq(fixedAssets.id, id))
-      .run();
-
-    await addAudit(
-      "ط¥ظ‡ظ„ط§ظƒ",
-      "ط£طµظ„ ط«ط§ط¨طھ",
-      id,
-      `طھظ… طھط³ط¬ظٹظ„ ط¥ظ‡ظ„ط§ظƒ ${depAmount} ظ„ظ„ط£طµظ„ ${existing.name} (ط§ظ„ظ‚ظٹظ…ط© ط§ظ„ط¯ظپطھط±ظٹط© ط¨ط¹ط¯: ${bookValue.toFixed(2)})`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-    return Response.json({ item: updated });
-  }
-
-  if (action === "dispose") {
-    const { id, date, reason, notes, userId, userName } = body;
-    const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-    if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (READ_ONLY_STATUSES.includes(existing.status as AssetStatus)) {
-      return Response.json(
-        { error: `ط§ظ„ط£طµظ„ ط¨ط§ظ„ظپط¹ظ„ ظپظٹ ط­ط§ظ„ط© ${existing.status}` },
-        { status: 400 },
-      );
-    }
-
-    const before = JSON.stringify(existing);
-    const ts = now();
-    await db.update(fixedAssets)
-      .set({ status: "ظ…ط³طھط¨ط¹ط¯", updatedAt: ts })
-      .where(eq(fixedAssets.id, id))
-      .run();
-
-    await db.insert(assetMovements)
-      .values({
-        id: genId("AMV"),
-        assetId: id,
-        type: "ط§ط³طھط¨ط¹ط§ط¯",
-        date: date || ts,
-        reason: reason || "",
-        notes: notes || "",
-        createdBy: userId || null,
-        createdAt: ts,
-      })
-      .run();
-
-    await addAudit(
-      "ط§ط³طھط¨ط¹ط§ط¯",
-      "ط£طµظ„ ط«ط§ط¨طھ",
-      id,
-      `طھظ… ط§ط³طھط¨ط¹ط§ط¯ ط§ظ„ط£طµظ„ ${existing.name}${reason ? ` â€” ط§ظ„ط³ط¨ط¨: ${reason}` : ""}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-    return Response.json({ item: updated });
-  }
-
-  if (action === "sell") {
-    const { id, salePrice, date, buyer, notes, userId, userName } = body;
-    const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-    if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (READ_ONLY_STATUSES.includes(existing.status as AssetStatus)) {
-      return Response.json(
-        { error: `ط§ظ„ط£طµظ„ ط¨ط§ظ„ظپط¹ظ„ ظپظٹ ط­ط§ظ„ط© ${existing.status}` },
-        { status: 400 },
-      );
-    }
-
-    const before = JSON.stringify(existing);
-    const ts = now();
-    await db.update(fixedAssets)
-      .set({ status: "ظ…ط¨ط§ط¹", updatedAt: ts })
-      .where(eq(fixedAssets.id, id))
-      .run();
-
-    await db.insert(assetMovements)
-      .values({
-        id: genId("AMV"),
-        assetId: id,
-        type: "ط¨ظٹط¹",
-        cost: parseFloat(salePrice) || 0,
-        date: date || ts,
-        reason: buyer ? `ط§ظ„ظ…ط´طھط±ظٹ: ${buyer}` : "",
-        notes: notes || "",
-        createdBy: userId || null,
-        createdAt: ts,
-      })
-      .run();
-
-    await addAudit(
-      "ط¨ظٹط¹",
-      "ط£طµظ„ ط«ط§ط¨طھ",
-      id,
-      `طھظ… ط¨ظٹط¹ ط§ظ„ط£طµظ„ ${existing.name} ط¨ط³ط¹ط± ${salePrice || 0}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-    return Response.json({ item: updated });
-  }
-
-  // Create
-  const {
-    name,
-    code,
-    category,
-    location,
-    cost,
-    salvageValue,
-    usefulLifeMonths,
-    depreciationMethod,
-    condition,
-    purchaseDate,
-    supplierId,
-    serialNumber,
-    responsiblePerson,
-    notes,
-    userId,
-    userName,
-  } = body;
-  if (!name?.trim())
-    return Response.json({ error: "ط§ط³ظ… ط§ظ„ط£طµظ„ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-
-  if (supplierId) {
-    const sup = (await db.select().from(suppliers).where(eq(suppliers.id, supplierId)).limit(1).all())[0];
-    if (!sup) return Response.json({ error: "ط§ظ„ظ…ظˆط±ط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 400 });
-  }
-
-  const assetId = genId("AST");
-  const ts = now();
-
-  await db.insert(fixedAssets)
-    .values({
-      id: assetId,
-      name: name.trim(),
-      code: code || "",
-      category: category || "",
-      location: location || "",
-      cost: parseFloat(cost) || 0,
-      salvageValue: parseFloat(salvageValue) || 0,
-      usefulLifeMonths: parseInt(usefulLifeMonths) || 60,
-      accumulatedDepreciation: 0,
-      depreciationMethod: depreciationMethod || "ظ‚ط³ط· ط«ط§ط¨طھ",
-      status: "ظ†ط´ط·",
-      condition: condition || "ط¬ظٹط¯",
-      purchaseDate: purchaseDate || "",
-      supplierId: supplierId || null,
-      serialNumber: serialNumber || "",
-      responsiblePerson: responsiblePerson || "",
-      notes: notes || "",
-      createdBy: userId || null,
-      createdAt: ts,
-      updatedAt: ts,
-    })
-    .run();
-
-  await addAudit(
-    "ط¥ط¶ط§ظپط©",
-    "ط£طµظ„ ط«ط§ط¨طھ",
-    assetId,
-    `طھظ… ط¥ط¶ط§ظپط© ط£طµظ„: ${name} (ط§ظ„طھظƒظ„ظپط© ${cost || 0})`,
-    userId,
-    userName,
-  );
-  const created = (await db
+  const [{ c: total }] = await db.select({ c: count() }).from(fixedAssets).where(where);
+  const items = await db
     .select()
     .from(fixedAssets)
-    .where(eq(fixedAssets.id, assetId))
-    .limit(1)
-    .all())[0];
-  return Response.json({ item: created }, { status: 201 });
+    .where(where)
+    .orderBy(desc(fixedAssets.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  return Response.json({ items, total: Number(total), page, limit });
 }
 
-// PUT /api/assets - update (only active assets)
-async function __handler_PUT({ request }: { request: Request }) {
-  const body = await request.json();
-  const {
-    id,
-    name,
-    code,
-    category,
-    location,
-    cost,
-    salvageValue,
-    usefulLifeMonths,
-    depreciationMethod,
-    condition,
-    purchaseDate,
-    supplierId,
-    serialNumber,
-    responsiblePerson,
-    notes,
-    userId,
-    userName,
-  } = body;
-  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط£طµظ„ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+const createSchema = z.object({
+  name: z.string().trim().min(1, "اسم الأصل مطلوب"),
+  code: z.string().optional(),
+  category: z.string().optional(),
+  location: z.string().optional(),
+  cost: z.coerce.number().min(0, "التكلفة يجب ألا تكون سالبة").optional(),
+  salvageValue: z.coerce.number().min(0, "القيمة المتبقية يجب ألا تكون سالبة").optional(),
+  usefulLifeMonths: z.coerce.number().int().positive("العمر الإنتاجي يجب أن يكون أكبر من صفر").optional(),
+  depreciationMethod: z.nativeEnum(DepreciationMethod).optional(),
+  condition: z.nativeEnum(AssetCondition).optional(),
+  purchaseDate: z.string().optional(),
+  supplierId: z.string().nullish(),
+  serialNumber: z.string().optional(),
+  responsiblePerson: z.string().optional(),
+  notes: z.string().optional(),
+});
 
-  const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-  if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-  if (READ_ONLY_STATUSES.includes(existing.status as AssetStatus)) {
-    return Response.json(
-      { error: `ظ„ط§ ظٹظ…ظƒظ† طھط¹ط¯ظٹظ„ ط£طµظ„ ظپظٹ ط­ط§ظ„ط© ${existing.status}` },
-      { status: 400 },
-    );
-  }
+// Discriminated union for the asset workflow actions (transfer / maintenance / return / depreciate / dispose).
+const actionSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("transfer"),
+    id: z.string().min(1, "معرف الأصل مطلوب"),
+    toLocation: z.string().optional(),
+    toResponsible: z.string().optional(),
+    date: z.string().optional(),
+    reason: z.string().optional(),
+    notes: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal("maintenance"),
+    id: z.string().min(1, "معرف الأصل مطلوب"),
+    cost: z.coerce.number().min(0, "تكلفة الصيانة يجب ألا تكون سالبة").optional(),
+    date: z.string().optional(),
+    reason: z.string().optional(),
+    notes: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal("return"),
+    id: z.string().min(1, "معرف الأصل مطلوب"),
+    condition: z.nativeEnum(AssetCondition).optional(),
+    notes: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal("depreciate"),
+    id: z.string().min(1, "معرف الأصل مطلوب"),
+    amount: z.coerce.number().positive("مبلغ الإهلاك يجب أن يكون أكبر من صفر"),
+    method: z.nativeEnum(DepreciationMethod).optional(),
+    date: z.string().optional(),
+    notes: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal("dispose"),
+    id: z.string().min(1, "معرف الأصل مطلوب"),
+    proceeds: z.coerce.number().min(0, "قيمة البيع يجب ألا تكون سالبة").optional(),
+    buyer: z.string().optional(),
+    date: z.string().optional(),
+    reason: z.string().optional(),
+    notes: z.string().optional(),
+  }),
+]);
 
-  const before = JSON.stringify(existing);
-  await db.update(fixedAssets)
-    .set({
-      name: name?.trim() ?? existing.name,
-      code: code ?? existing.code,
-      category: category ?? existing.category,
-      location: location ?? existing.location,
-      cost: cost !== undefined ? parseFloat(cost) : existing.cost,
-      salvageValue: salvageValue !== undefined ? parseFloat(salvageValue) : existing.salvageValue,
-      usefulLifeMonths:
-        usefulLifeMonths !== undefined ? parseInt(usefulLifeMonths) : existing.usefulLifeMonths,
-      depreciationMethod: depreciationMethod ?? existing.depreciationMethod,
-      condition: condition ?? existing.condition,
-      purchaseDate: purchaseDate ?? existing.purchaseDate,
-      supplierId: supplierId ?? existing.supplierId,
-      serialNumber: serialNumber ?? existing.serialNumber,
-      responsiblePerson: responsiblePerson ?? existing.responsiblePerson,
-      notes: notes ?? existing.notes,
-      updatedAt: now(),
-    })
-    .where(eq(fixedAssets.id, id))
-    .run();
+// POST /api/assets — create a new asset, or run a workflow action when `action` is present.
+async function POST(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const body = await event.request.json().catch(() => ({}));
 
-  await addAudit(
-    "طھط¹ط¯ظٹظ„",
-    "ط£طµظ„ ط«ط§ط¨طھ",
-    id,
-    `طھظ… طھط­ط¯ظٹط« ط§ظ„ط£طµظ„: ${existing.name}`,
-    userId,
-    userName,
-    before,
-  );
-  const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-  return Response.json({ item: updated });
+    if (body && typeof body === "object" && "action" in body) {
+      const a = actionSchema.parse(body);
+      const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, a.id)).limit(1))[0];
+      if (!existing) return err("الأصل غير موجود", 404, "NOT_FOUND");
+
+      const before = JSON.stringify(existing);
+      const ts = now();
+
+      if (a.action === "transfer") {
+        if (existing.status === AssetStatus.DISPOSED)
+          return err("لا يمكن نقل أصل مستبعد", 400, "BAD_STATE");
+
+        await db.transaction(async (tx) => {
+          await tx.insert(assetMovements).values({
+            id: genId("AMV"),
+            assetId: a.id,
+            type: AssetMovementType.TRANSFER,
+            fromLocation: existing.location || "",
+            toLocation: a.toLocation || existing.location || "",
+            fromResponsible: existing.responsiblePerson || "",
+            toResponsible: a.toResponsible || existing.responsiblePerson || "",
+            date: a.date || ts,
+            reason: a.reason || "",
+            notes: a.notes || "",
+            createdBy: ctx.user.id,
+            createdAt: ts,
+          });
+          await tx
+            .update(fixedAssets)
+            .set({
+              location: a.toLocation || existing.location,
+              responsiblePerson: a.toResponsible || existing.responsiblePerson,
+              updatedAt: ts,
+            })
+            .where(eq(fixedAssets.id, a.id));
+        });
+
+        await addAudit({
+          action: "transfer",
+          entityType: "asset",
+          entityId: a.id,
+          description: `تم نقل الأصل ${existing.name} من "${existing.location || "غير محدد"}" إلى "${a.toLocation || existing.location || "غير محدد"}"`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          before,
+          ip: ctx.ip,
+        });
+      } else if (a.action === "maintenance") {
+        if (existing.status === AssetStatus.DISPOSED)
+          return err("لا يمكن تسجيل صيانة على أصل مستبعد", 400, "BAD_STATE");
+
+        await db.transaction(async (tx) => {
+          await tx.insert(assetMovements).values({
+            id: genId("AMV"),
+            assetId: a.id,
+            type: AssetMovementType.MAINTENANCE,
+            cost: a.cost ?? 0,
+            date: a.date || ts,
+            reason: a.reason || "",
+            notes: a.notes || "",
+            createdBy: ctx.user.id,
+            createdAt: ts,
+          });
+          await tx
+            .update(fixedAssets)
+            .set({ status: AssetStatus.UNDER_MAINTENANCE, updatedAt: ts })
+            .where(eq(fixedAssets.id, a.id));
+        });
+
+        await addAudit({
+          action: "maintenance",
+          entityType: "asset",
+          entityId: a.id,
+          description: `تم تسجيل صيانة للأصل ${existing.name} بتكلفة ${a.cost ?? 0} ر.س`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          before,
+          ip: ctx.ip,
+        });
+      } else if (a.action === "return") {
+        if (existing.status !== AssetStatus.UNDER_MAINTENANCE)
+          return err("الأصل ليس تحت الصيانة", 400, "BAD_STATE");
+
+        await db
+          .update(fixedAssets)
+          .set({
+            status: AssetStatus.ACTIVE,
+            condition: a.condition ?? existing.condition,
+            updatedAt: ts,
+          })
+          .where(eq(fixedAssets.id, a.id));
+
+        await addAudit({
+          action: "return",
+          entityType: "asset",
+          entityId: a.id,
+          description: `تم إنهاء صيانة الأصل ${existing.name} وإعادته للخدمة (الحالة: ${a.condition ?? existing.condition})`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          before,
+          ip: ctx.ip,
+        });
+      } else if (a.action === "depreciate") {
+        if (existing.status === AssetStatus.DISPOSED)
+          return err("لا يمكن إهلاك أصل مستبعد", 400, "BAD_STATE");
+
+        const maxDepreciable = existing.cost - existing.salvageValue;
+        const remaining = maxDepreciable - existing.accumulatedDepreciation;
+        const newAccumulated = existing.accumulatedDepreciation + a.amount;
+        const bookValue = existing.cost - newAccumulated;
+
+        if (bookValue < -0.0001)
+          return err(
+            `الإهلاك سيجعل القيمة الدفترية سالبة. الحد الأقصى للإهلاك: ${remaining}`,
+            400,
+            "OVER_DEPRECIATION",
+          );
+        if (newAccumulated > maxDepreciable + 0.0001)
+          return err(
+            `إجمالي الإهلاك سيتجاوز (التكلفة − القيمة المتبقية). المتبقي القابل للإهلاك: ${remaining}`,
+            400,
+            "OVER_DEPRECIATION",
+          );
+
+        await db.transaction(async (tx) => {
+          await tx.insert(assetDepreciations).values({
+            id: genId("DEP"),
+            assetId: a.id,
+            date: a.date || ts,
+            amount: a.amount,
+            bookValueAfter: bookValue,
+            method: a.method ?? existing.depreciationMethod,
+            notes: a.notes || "",
+            createdBy: ctx.user.id,
+            createdAt: ts,
+          });
+          await tx
+            .update(fixedAssets)
+            .set({ accumulatedDepreciation: newAccumulated, updatedAt: ts })
+            .where(eq(fixedAssets.id, a.id));
+        });
+
+        await addAudit({
+          action: "depreciate",
+          entityType: "asset",
+          entityId: a.id,
+          description: `تم تسجيل إهلاك بمبلغ ${a.amount} ر.س للأصل ${existing.name} (القيمة الدفترية بعد الإهلاك: ${bookValue.toFixed(2)})`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          before,
+          ip: ctx.ip,
+        });
+      } else if (a.action === "dispose") {
+        if (existing.status === AssetStatus.DISPOSED)
+          return err("الأصل مستبعد بالفعل", 400, "BAD_STATE");
+
+        const reason = a.reason || (a.buyer ? `المشتري: ${a.buyer}` : "");
+
+        await db.transaction(async (tx) => {
+          await tx.insert(assetMovements).values({
+            id: genId("AMV"),
+            assetId: a.id,
+            type: AssetMovementType.DISPOSAL,
+            cost: a.proceeds ?? 0,
+            date: a.date || ts,
+            reason,
+            notes: a.notes || "",
+            createdBy: ctx.user.id,
+            createdAt: ts,
+          });
+          await tx
+            .update(fixedAssets)
+            .set({ status: AssetStatus.DISPOSED, updatedAt: ts })
+            .where(eq(fixedAssets.id, a.id));
+        });
+
+        await addAudit({
+          action: "dispose",
+          entityType: "asset",
+          entityId: a.id,
+          description: `تم استبعاد الأصل ${existing.name}${a.proceeds ? ` بقيمة بيع ${a.proceeds} ر.س` : ""}${reason ? ` — السبب: ${reason}` : ""}`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          before,
+          ip: ctx.ip,
+        });
+      }
+
+      const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, a.id)).limit(1))[0];
+      return Response.json({ item: updated });
+    }
+
+    // Create a new asset.
+    const b = createSchema.parse(body);
+
+    if (b.supplierId) {
+      const sup = (await db.select().from(suppliers).where(eq(suppliers.id, b.supplierId)).limit(1))[0];
+      if (!sup) return err("المورد غير موجود", 400, "INVALID_SUPPLIER");
+    }
+
+    const assetId = genId("AST");
+    const ts = now();
+
+    await db.insert(fixedAssets).values({
+      id: assetId,
+      name: b.name,
+      code: b.code ?? "",
+      category: b.category ?? "",
+      location: b.location ?? "",
+      cost: b.cost ?? 0,
+      salvageValue: b.salvageValue ?? 0,
+      usefulLifeMonths: b.usefulLifeMonths ?? 60,
+      accumulatedDepreciation: 0,
+      depreciationMethod: b.depreciationMethod ?? DepreciationMethod.STRAIGHT_LINE,
+      status: AssetStatus.ACTIVE,
+      condition: b.condition ?? AssetCondition.GOOD,
+      purchaseDate: b.purchaseDate ?? "",
+      supplierId: b.supplierId ?? null,
+      serialNumber: b.serialNumber ?? "",
+      responsiblePerson: b.responsiblePerson ?? "",
+      notes: b.notes ?? "",
+      createdBy: ctx.user.id,
+      createdAt: ts,
+      updatedAt: ts,
+    });
+
+    await addAudit({
+      action: "create",
+      entityType: "asset",
+      entityId: assetId,
+      description: `تم إضافة أصل جديد: ${b.name} (التكلفة ${b.cost ?? 0} ر.س)`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      ip: ctx.ip,
+    });
+
+    const created = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, assetId)).limit(1))[0];
+    return Response.json({ item: created }, { status: 201 });
+  });
 }
 
-// DELETE /api/assets - only if no depreciation and no movements
-async function __handler_DELETE({ request }: { request: Request }) {
-  const url = new URL(request.url);
-  const id = url.searchParams.get("id");
-  const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
+const updateSchema = createSchema.partial().extend({
+  id: z.string().min(1, "معرف الأصل مطلوب"),
+});
 
-  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط£طµظ„ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+// PUT /api/assets — update an asset (not permitted once disposed).
+async function PUT(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, updateSchema);
+    const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, b.id)).limit(1))[0];
+    if (!existing) return err("الأصل غير موجود", 404, "NOT_FOUND");
+    if (existing.status === AssetStatus.DISPOSED)
+      return err("لا يمكن تعديل أصل مستبعد", 400, "BAD_STATE");
 
-  const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1).all())[0];
-  if (!existing) return Response.json({ error: "ط§ظ„ط£طµظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    if (b.supplierId) {
+      const sup = (await db.select().from(suppliers).where(eq(suppliers.id, b.supplierId)).limit(1))[0];
+      if (!sup) return err("المورد غير موجود", 400, "INVALID_SUPPLIER");
+    }
 
-  const depCount =
-    (await db
-      .select({ count: sql<number>`count(*)` })
-      .from(assetDepreciations)
-      .where(eq(assetDepreciations.assetId, id))
-      .all())[0]?.count || 0;
+    const before = JSON.stringify(existing);
+    await db
+      .update(fixedAssets)
+      .set({
+        name: b.name ?? existing.name,
+        code: b.code ?? existing.code,
+        category: b.category ?? existing.category,
+        location: b.location ?? existing.location,
+        cost: b.cost ?? existing.cost,
+        salvageValue: b.salvageValue ?? existing.salvageValue,
+        usefulLifeMonths: b.usefulLifeMonths ?? existing.usefulLifeMonths,
+        depreciationMethod: b.depreciationMethod ?? existing.depreciationMethod,
+        condition: b.condition ?? existing.condition,
+        purchaseDate: b.purchaseDate ?? existing.purchaseDate,
+        supplierId: b.supplierId === undefined ? existing.supplierId : b.supplierId,
+        serialNumber: b.serialNumber ?? existing.serialNumber,
+        responsiblePerson: b.responsiblePerson ?? existing.responsiblePerson,
+        notes: b.notes ?? existing.notes,
+        updatedAt: now(),
+      })
+      .where(eq(fixedAssets.id, b.id));
 
-  const mvCount =
-    (await db
-      .select({ count: sql<number>`count(*)` })
-      .from(assetMovements)
-      .where(eq(assetMovements.assetId, id))
-      .all())[0]?.count || 0;
+    await addAudit({
+      action: "update",
+      entityType: "asset",
+      entityId: b.id,
+      description: `تم تحديث بيانات الأصل: ${b.name || existing.name}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      before,
+      ip: ctx.ip,
+    });
 
-  if (depCount > 0 || mvCount > 0) {
+    const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, b.id)).limit(1))[0];
+    return Response.json({ item: updated });
+  });
+}
+
+// DELETE /api/assets?id=xxx — hard delete, only when the asset has no history.
+// Identity comes from the session, never the query.
+async function DELETE({ request }: { request: Request }, ctx: Ctx) {
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return err("معرف الأصل مطلوب", 400, "BAD_REQUEST");
+
+  const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, id)).limit(1))[0];
+  if (!existing) return err("الأصل غير موجود", 404, "NOT_FOUND");
+
+  const [{ c: depCount }] = await db
+    .select({ c: count() })
+    .from(assetDepreciations)
+    .where(eq(assetDepreciations.assetId, id));
+  const [{ c: mvCount }] = await db
+    .select({ c: count() })
+    .from(assetMovements)
+    .where(eq(assetMovements.assetId, id));
+
+  if (Number(depCount) > 0 || Number(mvCount) > 0) {
     const parts: string[] = [];
-    if (depCount > 0) parts.push(`${depCount} ظ‚ظٹط¯ ط¥ظ‡ظ„ط§ظƒ`);
-    if (mvCount > 0) parts.push(`${mvCount} ط­ط±ظƒط©`);
-    return Response.json(
-      {
-        error: `ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ط§ظ„ط£طµظ„ ظ„ط§ط±طھط¨ط§ط·ظ‡ ط¨ظ€ ${parts.join(" ظˆ ")}. ظ‚ظ… ط¨ط§ط³طھط¨ط¹ط§ط¯ ط§ظ„ط£طµظ„ ط¨ط¯ظ„ط§ظ‹ ظ…ظ† ط°ظ„ظƒ.`,
-      },
-      { status: 400 },
+    if (Number(depCount) > 0) parts.push(`${Number(depCount)} قيد إهلاك`);
+    if (Number(mvCount) > 0) parts.push(`${Number(mvCount)} حركة`);
+    return err(
+      `لا يمكن حذف الأصل لارتباطه بـ ${parts.join(" و ")}. قم باستبعاد الأصل بدلاً من حذفه.`,
+      400,
+      "HAS_HISTORY",
     );
   }
 
   const before = JSON.stringify(existing);
-  await db.delete(fixedAssets).where(eq(fixedAssets.id, id)).run();
-  await addAudit(
-    "ط­ط°ظپ",
-    "ط£طµظ„ ط«ط§ط¨طھ",
-    id,
-    `طھظ… ط­ط°ظپ ط§ظ„ط£طµظ„: ${existing.name}`,
-    userId,
-    userName,
+  await db.delete(fixedAssets).where(eq(fixedAssets.id, id));
+
+  await addAudit({
+    action: "delete",
+    entityType: "asset",
+    entityId: id,
+    description: `تم حذف الأصل: ${existing.name}`,
+    userId: ctx.user.id,
+    userName: ctx.user.name,
     before,
-  );
+    ip: ctx.ip,
+  });
+
   return Response.json({ success: true });
 }
 
 export const Route = createFileRoute("/api/assets")({
   server: {
     handlers: {
-      GET: safeHandler(__handler_GET),
-      POST: safeHandler(__handler_POST),
-      PUT: safeHandler(__handler_PUT),
-      DELETE: safeHandler(__handler_DELETE),
+      GET: authHandler("assets.view", GET),
+      POST: authHandler("assets.create", POST),
+      PUT: authHandler("assets.update", PUT),
+      DELETE: authHandler("assets.delete", DELETE),
     },
   },
 });

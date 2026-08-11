@@ -7,7 +7,7 @@ import {
   statusTone,
   MobilePageHeader,
 } from "@/components/erp/AppShell";
-import { CAMPAIGNS, fmtSAR, fmtNum } from "@/data/sample";
+import { fmtSAR, fmtNum } from "@/data/sample";
 import { Plus, Megaphone, Edit, Trash2, Eye, CheckCircle, XCircle } from "lucide-react";
 import { useState } from "react";
 import {
@@ -16,6 +16,7 @@ import {
   EntityFormDrawer,
   ActionMenu,
   ExportButton,
+  EmptyState,
 } from "@/components/erp/actions";
 
 type CampaignItem = {
@@ -31,7 +32,7 @@ type CampaignItem = {
 export const Route = createFileRoute("/campaigns")({
   head: () => ({ meta: [{ title: "حملات التبرع — ثواب" }] }),
   component: () => {
-    const [data, setData] = useState<CampaignItem[]>(CAMPAIGNS as CampaignItem[]);
+    const [data, setData] = useState<CampaignItem[]>([]);
     const [formOpen, setFormOpen] = useState(false);
     const [confirmIdx, setConfirmIdx] = useState(-1);
     const [formName, setFormName] = useState("");
@@ -96,6 +97,9 @@ export const Route = createFileRoute("/campaigns")({
         }
       >
         <MobilePageHeader title="حملات التبرع" count={`${data.length} حملة`} />
+        {data.length === 0 && (
+          <EmptyState title="لا توجد حملات" description="ابدأ بإضافة أول حملة تبرع" />
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {data.map((c, idx) => {
             const pct = Math.round((c.raised / c.target) * 100) || 0;

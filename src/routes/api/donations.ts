@@ -1,64 +1,75 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
+import { and, count, desc, eq, gte, inArray, like, lte, sql } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { donations, donors, campaigns, projects } from "@/server/db/schema";
-import { eq, and, gte, lte, like, desc } from "drizzle-orm";
-import { safeHandler } from "@/server/db/api-utils";
+import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
+import {
+  postBalancedEntry,
+  reverseEntry,
+  resolveSystemAccountId,
+  cashOrBankAccountId,
+  SYS,
+} from "@/server/db/gl";
+import {
+  DonationMethod,
+  DonationChannel,
+  DonationStatus,
+  DonorTag,
+  Fund,
+  JournalSource,
+} from "@/lib/enums";
 
-// GET /api/donations - List with filters and aggregation
-async function __handler_GET({ request }: { request: Request }) {
+function tagFor(total: number): string {
+  if (total >= 100000) return DonorTag.GOLD;
+  if (total >= 50000) return DonorTag.SILVER;
+  return DonorTag.BRONZE;
+}
+
+async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
   const donorId = url.searchParams.get("donorId");
   const campaignId = url.searchParams.get("campaignId");
-  const status = url.searchParams.get("status");
+  const status = url.searchParams.get("status") || "";
   const dateFrom = url.searchParams.get("dateFrom");
   const dateTo = url.searchParams.get("dateTo");
   const search = url.searchParams.get("search");
   const stats = url.searchParams.get("stats");
 
   const conditions = [];
-
   if (donorId) conditions.push(eq(donations.donorId, donorId));
   if (campaignId) conditions.push(eq(donations.campaignId, campaignId));
-  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(donations.status, status));
+  if (status) conditions.push(eq(donations.status, status));
   if (dateFrom) conditions.push(gte(donations.date, dateFrom));
   if (dateTo) conditions.push(lte(donations.date, dateTo));
   if (search) conditions.push(like(donations.notes, `%${search}%`));
-
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-  const baseQuery = db.select().from(donations).orderBy(desc(donations.date));
+  const where = conditions.length ? and(...conditions) : undefined;
 
   if (stats === "1") {
-    const all = whereClause ? await baseQuery.where(whereClause).all() : await baseQuery.all();
-
-    const totalAmount = all.reduce((sum, d) => sum + (d.amount || 0), 0);
+    const all = await db.select().from(donations).where(where);
+    const totalAmount = all.reduce((s, d) => s + (d.amount || 0), 0);
     const totalCount = all.length;
-
     const byChannel: Record<string, number> = {};
     const byCampaign: Record<string, number> = {};
     const byDonor: Record<string, { name: string; total: number; count: number }> = {};
 
+    const campIds = [...new Set(all.map((d) => d.campaignId).filter(Boolean))] as string[];
+    const donorIds = [...new Set(all.map((d) => d.donorId).filter(Boolean))] as string[];
+    const campRows = campIds.length ? await db.select().from(campaigns).where(inArray(campaigns.id, campIds)) : [];
+    const donorRows = donorIds.length ? await db.select().from(donors).where(inArray(donors.id, donorIds)) : [];
+    const campMap = new Map(campRows.map((c) => [c.id, c.name]));
+    const donorMap = new Map(donorRows.map((d) => [d.id, d.name]));
+
     for (const d of all) {
       const amount = d.amount || 0;
-      const channel = d.channel || "ط£ط®ط±ظ‰";
-      byChannel[channel] = (byChannel[channel] || 0) + amount;
-
+      byChannel[d.channel || "other"] = (byChannel[d.channel || "other"] || 0) + amount;
       if (d.campaignId) {
-        const campaign = (await db
-          .select()
-          .from(campaigns)
-          .where(eq(campaigns.id, d.campaignId))
-          .limit(1)
-          .all())[0];
-        const name = campaign?.name || "ط؛ظٹط± ظ…ط­ط¯ط¯";
+        const name = campMap.get(d.campaignId) || "غير محدد";
         byCampaign[name] = (byCampaign[name] || 0) + amount;
       }
-
       if (d.donorId) {
-        const donor = (await db.select().from(donors).where(eq(donors.id, d.donorId)).limit(1).all())[0];
-        const name = donor?.name || "ط؛ظٹط± ظ…ط­ط¯ط¯";
-        if (!byDonor[d.donorId]) {
-          byDonor[d.donorId] = { name, total: 0, count: 0 };
-        }
+        const name = donorMap.get(d.donorId) || "غير محدد";
+        if (!byDonor[d.donorId]) byDonor[d.donorId] = { name, total: 0, count: 0 };
         byDonor[d.donorId].total += amount;
         byDonor[d.donorId].count += 1;
       }
@@ -77,185 +88,189 @@ async function __handler_GET({ request }: { request: Request }) {
     });
   }
 
-  const items = whereClause ? await baseQuery.where(whereClause).all() : await baseQuery.all();
-  const total = items.length;
-  return Response.json({ items, total });
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1") || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "100") || 100));
+  const [{ c: total }] = await db.select({ c: count() }).from(donations).where(where);
+  const items = await db
+    .select()
+    .from(donations)
+    .where(where)
+    .orderBy(desc(donations.date))
+    .limit(limit)
+    .offset((page - 1) * limit);
+  return Response.json({ items, total: Number(total), page, limit });
 }
 
-// POST /api/donations - Create new donation + update donor stats
-async function __handler_POST({ request }: { request: Request }) {
-  const body = await request.json();
-  const {
-    donorId,
-    amount,
-    channel,
-    campaignId,
-    projectId,
-    notes,
-    date,
-    status,
-    method,
-    userId,
-    userName,
-  } = body;
+const createSchema = z.object({
+  donorId: z.string().min(1, "معرف المتبرع مطلوب"),
+  amount: z.coerce.number().positive("قيمة التبرع يجب أن تكون رقماً موجباً"),
+  method: z.nativeEnum(DonationMethod).optional(),
+  channel: z.nativeEnum(DonationChannel).optional(),
+  fund: z.nativeEnum(Fund).optional(),
+  status: z.nativeEnum(DonationStatus).optional(),
+  campaignId: z.string().nullish(),
+  projectId: z.string().nullish(),
+  notes: z.string().optional(),
+  date: z.string().optional(),
+});
 
-  if (!donorId) {
-    return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…طھط¨ط±ط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-  }
+async function POST(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, createSchema);
+    const donor = (await db.select().from(donors).where(eq(donors.id, b.donorId)).limit(1))[0];
+    if (!donor) return err("المتبرع غير موجود", 404, "NOT_FOUND");
 
-  const donor = (await db.select().from(donors).where(eq(donors.id, donorId)).limit(1).all())[0];
-  if (!donor) {
-    return Response.json({ error: "ط§ظ„ظ…طھط¨ط±ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-  }
+    const id = genId("DON");
+    const ts = now();
+    const amount = b.amount;
+    const status = b.status ?? DonationStatus.CONFIRMED;
+    const fund = b.fund ?? Fund.UNRESTRICTED;
+    const date = (b.date || ts).slice(0, 10);
 
-  if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
-    return Response.json(
-      { error: "ظ‚ظٹظ…ط© ط§ظ„طھط¨ط±ط¹ ظٹط¬ط¨ ط£ظ† طھظƒظˆظ† ط±ظ‚ظ…ط§ظ‹ ظ…ظˆط¬ط¨ط§ظ‹" },
-      { status: 400 },
-    );
-  }
+    await db.transaction(async (tx) => {
+      let journalEntryId: string | null = null;
 
-  const id = genId("DON");
-  const ts = now();
-  const amountNum = Number(amount);
+      if (status === DonationStatus.CONFIRMED) {
+        // Post to the GL: Dr Cash/Bank, Cr Donations Revenue.
+        const cashBank = await cashOrBankAccountId(tx as any, b.method);
+        const revenue = await resolveSystemAccountId(tx as any, SYS.DONATIONS_REVENUE);
+        journalEntryId = await postBalancedEntry(tx as any, {
+          date,
+          description: `تبرع من ${donor.name}`,
+          fund,
+          projectId: b.projectId ?? null,
+          source: JournalSource.DONATION,
+          sourceType: "donation",
+          sourceId: id,
+          lines: [
+            { accountId: cashBank, debit: amount, fund },
+            { accountId: revenue, credit: amount, fund },
+          ],
+          userId: ctx.user.id,
+        });
+      }
 
-  await db.insert(donations)
-    .values({
-      id,
-      donorId,
-      amount: amountNum,
-      method: method || "ظ†ظ‚ط¯ظٹ",
-      channel: channel || "ظ†ظ‚ط¯ظٹ",
-      status: status || "ظ…ظƒطھظ…ظ„",
-      campaignId: campaignId || null,
-      projectId: projectId || null,
-      notes: notes || "",
-      date: date || ts,
-      createdBy: userId || null,
-      createdAt: ts,
-      updatedAt: ts,
-    })
-    .run();
+      await tx.insert(donations).values({
+        id,
+        donorId: b.donorId,
+        amount,
+        method: b.method ?? DonationMethod.CASH,
+        channel: b.channel ?? DonationChannel.DIRECT,
+        fund,
+        status,
+        campaignId: b.campaignId ?? null,
+        projectId: b.projectId ?? null,
+        journalEntryId,
+        notes: b.notes ?? "",
+        date,
+        createdBy: ctx.user.id,
+        createdAt: ts,
+        updatedAt: ts,
+      });
 
-  const newTotal = (donor.totalDonations || 0) + amountNum;
-  const newCount = (donor.donationCount || 0) + 1;
-  let newTag = donor.tag || "ط¨ط±ظˆظ†ط²ظٹ";
-  if (newTotal >= 100000) newTag = "ط°ظ‡ط¨ظٹ";
-  else if (newTotal >= 50000) newTag = "ظپط¶ظٹ";
-  else if (newTotal >= 10000) newTag = "ط¨ط±ظˆظ†ط²ظٹ";
+      if (status === DonationStatus.CONFIRMED) {
+        const newTotal = (donor.totalDonations || 0) + amount;
+        await tx
+          .update(donors)
+          .set({
+            totalDonations: newTotal,
+            donationCount: (donor.donationCount || 0) + 1,
+            tag: tagFor(newTotal),
+            lastDonation: date,
+            updatedAt: ts,
+          })
+          .where(eq(donors.id, b.donorId));
 
-  await db.update(donors)
-    .set({
-      totalDonations: newTotal,
-      donationCount: newCount,
-      tag: newTag,
-      lastDonation: date || ts,
-      updatedAt: ts,
-    })
-    .where(eq(donors.id, donorId))
-    .run();
+        if (b.campaignId) {
+          await tx
+            .update(campaigns)
+            .set({ raised: sql`${campaigns.raised} + ${amount}` })
+            .where(eq(campaigns.id, b.campaignId));
+        }
+        if (b.projectId) {
+          await tx
+            .update(projects)
+            .set({ donations: sql`${projects.donations} + ${amount}`, updatedAt: ts })
+            .where(eq(projects.id, b.projectId));
+        }
+      }
+    });
 
-  if (campaignId) {
-    const campaign = (await db
-      .select()
-      .from(campaigns)
-      .where(eq(campaigns.id, campaignId))
-      .limit(1)
-      .all())[0];
-    if (campaign) {
-      await db.update(campaigns)
-        .set({ raised: (campaign.raised || 0) + amountNum, updatedAt: ts })
-        .where(eq(campaigns.id, campaignId))
-        .run();
-    }
-  }
+    await addAudit({
+      action: "create",
+      entityType: "donation",
+      entityId: id,
+      description: `تسجيل تبرع بمبلغ ${amount} من ${donor.name}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      ip: ctx.ip,
+    });
 
-  if (projectId) {
-    const project = (await db.select().from(projects).where(eq(projects.id, projectId)).limit(1).all())[0];
-    if (project) {
-      await db.update(projects)
-        .set({ donations: (project.donations || 0) + amountNum, updatedAt: ts })
-        .where(eq(projects.id, projectId))
-        .run();
-    }
-  }
-
-  await addAudit(
-    "ط¥ط¶ط§ظپط©",
-    "طھط¨ط±ط¹",
-    id,
-    `طھظ… طھط³ط¬ظٹظ„ طھط¨ط±ط¹ ط¬ط¯ظٹط¯ ط¨ظ…ط¨ظ„ط؛ ${amountNum} ظ…ظ† ${donor.name}`,
-    userId,
-    userName,
-  );
-
-  const created = (await db.select().from(donations).where(eq(donations.id, id)).limit(1).all())[0];
-  return Response.json({ item: created }, { status: 201 });
+    const created = (await db.select().from(donations).where(eq(donations.id, id)).limit(1))[0];
+    return Response.json({ item: created }, { status: 201 });
+  });
 }
 
-// DELETE /api/donations - Soft delete + reverse donor stats
-async function __handler_DELETE({ request }: { request: Request }) {
-  const url = new URL(request.url);
-  const id = url.searchParams.get("id");
-  const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
+// DELETE /api/donations?id=xxx — cancel: reverse GL + donor/campaign/project stats.
+async function DELETE({ request }: { request: Request }, ctx: Ctx) {
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return err("معرف التبرع مطلوب", 400, "BAD_REQUEST");
 
-  if (!id) {
-    return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„طھط¨ط±ط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-  }
+  const donation = (await db.select().from(donations).where(eq(donations.id, id)).limit(1))[0];
+  if (!donation) return err("التبرع غير موجود", 404, "NOT_FOUND");
+  if (donation.status === DonationStatus.CANCELLED)
+    return err("التبرع ملغى بالفعل", 400, "BAD_STATE");
 
-  const donation = (await db.select().from(donations).where(eq(donations.id, id)).limit(1).all())[0];
-  if (!donation) {
-    return Response.json({ error: "ط§ظ„طھط¨ط±ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-  }
+  const amount = donation.amount || 0;
+  const wasConfirmed = donation.status === DonationStatus.CONFIRMED;
 
-  const refundAmount = donation.amount || 0;
-
-  await db.update(donations)
-    .set({ status: "ظ…ظ„ط؛ظٹ", updatedAt: now() })
-    .where(eq(donations.id, id))
-    .run();
-
-  if (donation.donorId) {
-    const donor = (await db.select().from(donors).where(eq(donors.id, donation.donorId)).limit(1).all())[0];
-    if (donor) {
-      const newTotal = Math.max(0, (donor.totalDonations || 0) - refundAmount);
-      const newCount = Math.max(0, (donor.donationCount || 0) - 1);
-      let newTag = "ط¨ط±ظˆظ†ط²ظٹ";
-      if (newTotal >= 100000) newTag = "ط°ظ‡ط¨ظٹ";
-      else if (newTotal >= 50000) newTag = "ظپط¶ظٹ";
-      else if (newTotal >= 10000) newTag = "ط¨ط±ظˆظ†ط²ظٹ";
-
-      await db.update(donors)
-        .set({ totalDonations: newTotal, donationCount: newCount, tag: newTag, updatedAt: now() })
-        .where(eq(donors.id, donation.donorId))
-        .run();
+  await db.transaction(async (tx) => {
+    if (donation.journalEntryId) {
+      await reverseEntry(tx as any, donation.journalEntryId, ctx.user.id);
     }
-  }
+    await tx
+      .update(donations)
+      .set({ status: DonationStatus.CANCELLED, updatedAt: now() })
+      .where(eq(donations.id, id));
 
-  if (donation.campaignId) {
-    const campaign = (await db
-      .select()
-      .from(campaigns)
-      .where(eq(campaigns.id, donation.campaignId))
-      .limit(1)
-      .all())[0];
-    if (campaign) {
-      await db.update(campaigns)
-        .set({ raised: Math.max(0, (campaign.raised || 0) - refundAmount), updatedAt: now() })
-        .where(eq(campaigns.id, donation.campaignId))
-        .run();
+    if (wasConfirmed && donation.donorId) {
+      const donor = (await tx.select().from(donors).where(eq(donors.id, donation.donorId)).limit(1))[0];
+      if (donor) {
+        const newTotal = Math.max(0, (donor.totalDonations || 0) - amount);
+        await tx
+          .update(donors)
+          .set({
+            totalDonations: newTotal,
+            donationCount: Math.max(0, (donor.donationCount || 0) - 1),
+            tag: tagFor(newTotal),
+            updatedAt: now(),
+          })
+          .where(eq(donors.id, donation.donorId));
+      }
     }
-  }
+    if (wasConfirmed && donation.campaignId) {
+      await tx
+        .update(campaigns)
+        .set({ raised: sql`GREATEST(0, ${campaigns.raised} - ${amount})` })
+        .where(eq(campaigns.id, donation.campaignId));
+    }
+    if (wasConfirmed && donation.projectId) {
+      await tx
+        .update(projects)
+        .set({ donations: sql`GREATEST(0, ${projects.donations} - ${amount})`, updatedAt: now() })
+        .where(eq(projects.id, donation.projectId));
+    }
+  });
 
-  await addAudit(
-    "ط­ط°ظپ",
-    "طھط¨ط±ط¹",
-    id,
-    `طھظ… ط¥ظ„ط؛ط§ط، ط§ظ„طھط¨ط±ط¹ ط¨ظ…ط¨ظ„ط؛ ${refundAmount}`,
-    userId,
-    userName,
-  );
+  await addAudit({
+    action: "cancel",
+    entityType: "donation",
+    entityId: id,
+    description: `إلغاء تبرع بمبلغ ${amount}`,
+    userId: ctx.user.id,
+    userName: ctx.user.name,
+    ip: ctx.ip,
+  });
 
   return Response.json({ success: true });
 }
@@ -263,9 +278,9 @@ async function __handler_DELETE({ request }: { request: Request }) {
 export const Route = createFileRoute("/api/donations")({
   server: {
     handlers: {
-      GET: safeHandler(__handler_GET),
-      POST: safeHandler(__handler_POST),
-      DELETE: safeHandler(__handler_DELETE),
+      GET: authHandler("donations.view", GET),
+      POST: authHandler("donations.create", POST),
+      DELETE: authHandler("donations.delete", DELETE),
     },
   },
 });

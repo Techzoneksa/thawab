@@ -38,9 +38,9 @@ export async function getDonations(filters: DonationFilters = {}): Promise<{
 }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
-  if (filters.method && filters.method !== "الكل") params.set("method", filters.method);
-  if (filters.channel && filters.channel !== "الكل") params.set("channel", filters.channel);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.method) params.set("method", filters.method);
+  if (filters.channel) params.set("channel", filters.channel);
   if (filters.donorId) params.set("donorId", filters.donorId);
   if (filters.projectId) params.set("projectId", filters.projectId);
   if (filters.page) params.set("page", String(filters.page));
@@ -78,7 +78,7 @@ export async function createDonation(data: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة التبرع");
+    throw new Error(err.message || err.error || "فشل في إضافة التبرع");
   }
   const d = await res.json();
   return d.item;
@@ -104,7 +104,7 @@ export async function updateDonation(data: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث التبرع");
+    throw new Error(err.message || err.error || "فشل في تحديث التبرع");
   }
   const d = await res.json();
   return d.item;
@@ -121,7 +121,7 @@ export async function deleteDonation(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف التبرع");
+    throw new Error(err.message || err.error || "فشل في حذف التبرع");
   }
 }
 
@@ -138,7 +138,7 @@ export async function confirmDonation(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تأكيد التبرع");
+    throw new Error(err.message || err.error || "فشل في تأكيد التبرع");
   }
   const d = await res.json();
   return d.item;
@@ -156,7 +156,7 @@ export async function cancelDonation(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إلغاء التبرع");
+    throw new Error(err.message || err.error || "فشل في إلغاء التبرع");
   }
   const d = await res.json();
   return d.item;
@@ -174,7 +174,7 @@ export async function issueReceipt(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إصدار إيصال");
+    throw new Error(err.message || err.error || "فشل في إصدار إيصال");
   }
   const d = await res.json();
   return { donation: d.item, receiptId: d.receiptId };

@@ -1,175 +1,126 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
+import { desc, eq, inArray } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { receipts, donations, donors } from "@/server/db/schema";
-import { eq, desc } from "drizzle-orm";
-import { safeHandler } from "@/server/db/api-utils";
+import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
+import { ReceiptType, ReceiptStatus } from "@/lib/enums";
 
-// GET /api/receipts - List all receipts (newest first)
-async function __handler_GET({ request }: { request: Request }) {
+async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
   const donationId = url.searchParams.get("donationId");
 
-  const baseQuery = db.select().from(receipts).orderBy(desc(receipts.createdAt));
   const items = donationId
-    ? await baseQuery.where(eq(receipts.donationId, donationId)).all()
-    : await baseQuery.all();
+    ? await db.select().from(receipts).where(eq(receipts.donationId, donationId)).orderBy(desc(receipts.createdAt))
+    : await db.select().from(receipts).orderBy(desc(receipts.createdAt));
 
-  const enriched = items.map(async (receipt) => {
-    let donation = null;
-    let donor = null;
-    if (receipt.donationId) {
-      donation = (await db
-        .select()
-        .from(donations)
-        .where(eq(donations.id, receipt.donationId))
-        .limit(1)
-        .all())[0];
-      if (donation?.donorId) {
-        donor = (await db.select().from(donors).where(eq(donors.id, donation.donorId)).limit(1).all())[0];
-      }
-    }
-    return { ...receipt, donation, donor };
+  // Enrich with donation + donor, no N+1.
+  const donIds = [...new Set(items.map((r) => r.donationId).filter(Boolean))] as string[];
+  const dons = donIds.length ? await db.select().from(donations).where(inArray(donations.id, donIds)) : [];
+  const donorIds = [...new Set(dons.map((d) => d.donorId).filter(Boolean))] as string[];
+  const donorRows = donorIds.length ? await db.select().from(donors).where(inArray(donors.id, donorIds)) : [];
+  const donMap = new Map(dons.map((d) => [d.id, d]));
+  const donorMap = new Map(donorRows.map((d) => [d.id, d]));
+
+  const enriched = items.map((r) => {
+    const donation = r.donationId ? donMap.get(r.donationId) || null : null;
+    const donor = donation?.donorId ? donorMap.get(donation.donorId) || null : null;
+    return { ...r, donation, donor };
   });
 
   return Response.json({ items: enriched, total: enriched.length });
 }
 
-// POST /api/receipts - Create new receipt
-async function __handler_POST({ request }: { request: Request }) {
-  const body = await request.json();
-  const { donationId, number, amount, date, type, status, userId, userName } = body;
+const createSchema = z.object({
+  donationId: z.string().min(1, "معرف التبرع مطلوب"),
+  number: z.string().optional(),
+  amount: z.coerce.number().positive("قيمة الإيصال يجب أن تكون رقماً موجباً"),
+  date: z.string().optional(),
+  type: z.nativeEnum(ReceiptType).optional(),
+});
 
-  if (!donationId) {
-    return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„طھط¨ط±ط¹ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-  }
+async function POST(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, createSchema);
+    const donation = (await db.select().from(donations).where(eq(donations.id, b.donationId)).limit(1))[0];
+    if (!donation) return err("التبرع غير موجود", 404, "NOT_FOUND");
 
-  if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
-    return Response.json(
-      { error: "ظ‚ظٹظ…ط© ط§ظ„ط¥ظٹطµط§ظ„ ظٹط¬ط¨ ط£ظ† طھظƒظˆظ† ط±ظ‚ظ…ط§ظ‹ ظ…ظˆط¬ط¨ط§ظ‹" },
-      { status: 400 },
-    );
-  }
+    const id = genId("REC");
+    const ts = now();
+    const finalNumber = b.number || genId("REC");
+    const donor = (await db.select().from(donors).where(eq(donors.id, donation.donorId)).limit(1))[0];
 
-  const donation = (await db
-    .select()
-    .from(donations)
-    .where(eq(donations.id, donationId))
-    .limit(1)
-    .all())[0];
-  if (!donation) {
-    return Response.json({ error: "ط§ظ„طھط¨ط±ط¹ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-  }
-
-  const id = genId("REC");
-  const ts = now();
-  const finalNumber = number || `REC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
-  await db.insert(receipts)
-    .values({
+    await db.insert(receipts).values({
       id,
-      donationId,
+      donationId: b.donationId,
       number: finalNumber,
-      amount: Number(amount),
-      date: date || ts,
-      type: type || "ط¥ظٹطµط§ظ„ طھط¨ط±ط¹",
-      status: status || "طµط§ط¯ط±",
+      amount: b.amount,
+      date: (b.date || ts).slice(0, 10),
+      type: b.type ?? ReceiptType.DONATION,
+      status: ReceiptStatus.ISSUED,
       printed: false,
-      createdBy: userId || null,
+      createdBy: ctx.user.id,
       createdAt: ts,
-    })
-    .run();
+    });
 
-  const donor = (await db.select().from(donors).where(eq(donors.id, donation.donorId)).limit(1).all())[0];
+    await db.update(donations).set({ receiptId: id, updatedAt: ts }).where(eq(donations.id, b.donationId));
 
-  await addAudit(
-    "ط¥ط¶ط§ظپط©",
-    "ط¥ظٹطµط§ظ„",
-    id,
-    `طھظ… ط¥طµط¯ط§ط± ط¥ظٹطµط§ظ„ ط±ظ‚ظ… ${finalNumber} ط¨ظ…ط¨ظ„ط؛ ${amount} ظ„ظ„ظ…طھط¨ط±ط¹ ${donor?.name || donation.donorName || ""}`,
-    userId,
-    userName,
-  );
+    await addAudit({
+      action: "create",
+      entityType: "receipt",
+      entityId: id,
+      description: `إصدار إيصال رقم ${finalNumber} بمبلغ ${b.amount} للمتبرع ${donor?.name || ""}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      ip: ctx.ip,
+    });
 
-  const created = (await db.select().from(receipts).where(eq(receipts.id, id)).limit(1).all())[0];
-  return Response.json({ item: created }, { status: 201 });
+    const created = (await db.select().from(receipts).where(eq(receipts.id, id)).limit(1))[0];
+    return Response.json({ item: created }, { status: 201 });
+  });
 }
 
-// PUT /api/receipts - Update receipt (void or reprint)
-async function __handler_PUT({ request }: { request: Request }) {
-  const body = await request.json();
-  const { id, action, userId, userName } = body;
+const putSchema = z.object({
+  id: z.string().min(1),
+  action: z.enum(["void", "reprint"]),
+});
 
-  if (!id) {
-    return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط¥ظٹطµط§ظ„ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-  }
+async function PUT(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, putSchema);
+    const existing = (await db.select().from(receipts).where(eq(receipts.id, b.id)).limit(1))[0];
+    if (!existing) return err("الإيصال غير موجود", 404, "NOT_FOUND");
 
-  const existing = (await db.select().from(receipts).where(eq(receipts.id, id)).limit(1).all())[0];
-  if (!existing) {
-    return Response.json({ error: "ط§ظ„ط¥ظٹطµط§ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-  }
+    if (b.action === "void") {
+      await db.update(receipts).set({ status: ReceiptStatus.CANCELLED }).where(eq(receipts.id, b.id));
+      await addAudit({ action: "void", entityType: "receipt", entityId: b.id, description: `إلغاء الإيصال رقم ${existing.number}`, userId: ctx.user.id, userName: ctx.user.name, ip: ctx.ip });
+    } else {
+      await db.update(receipts).set({ printed: true }).where(eq(receipts.id, b.id));
+      await addAudit({ action: "reprint", entityType: "receipt", entityId: b.id, description: `إعادة طباعة الإيصال رقم ${existing.number}`, userId: ctx.user.id, userName: ctx.user.name, ip: ctx.ip });
+    }
 
-  if (action === "void") {
-    await db.update(receipts).set({ status: "ظ…ظ„ط؛ظٹ" }).where(eq(receipts.id, id)).run();
-    await addAudit(
-      "طھط¹ط¯ظٹظ„",
-      "ط¥ظٹطµط§ظ„",
-      id,
-      `طھظ… ط¥ظ„ط؛ط§ط، ط§ظ„ط¥ظٹطµط§ظ„ ط±ظ‚ظ… ${existing.number}`,
-      userId,
-      userName,
-    );
-  } else if (action === "reprint") {
-    await db.update(receipts).set({ printed: true }).where(eq(receipts.id, id)).run();
-    await addAudit(
-      "طھط¹ط¯ظٹظ„",
-      "ط¥ظٹطµط§ظ„",
-      id,
-      `طھظ… ط¥ط¹ط§ط¯ط© ط·ط¨ط§ط¹ط© ط§ظ„ط¥ظٹطµط§ظ„ ط±ظ‚ظ… ${existing.number}`,
-      userId,
-      userName,
-    );
-  }
-
-  const updated = (await db.select().from(receipts).where(eq(receipts.id, id)).limit(1).all())[0];
-  return Response.json({ item: updated });
+    const updated = (await db.select().from(receipts).where(eq(receipts.id, b.id)).limit(1))[0];
+    return Response.json({ item: updated });
+  });
 }
 
-// DELETE /api/receipts - Delete receipt
-async function __handler_DELETE({ request }: { request: Request }) {
-  const url = new URL(request.url);
-  const id = url.searchParams.get("id");
-  const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
-
-  if (!id) {
-    return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ط¥ظٹطµط§ظ„ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-  }
-
-  const existing = (await db.select().from(receipts).where(eq(receipts.id, id)).limit(1).all())[0];
-  if (!existing) {
-    return Response.json({ error: "ط§ظ„ط¥ظٹطµط§ظ„ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-  }
-
-  await db.delete(receipts).where(eq(receipts.id, id)).run();
-  await addAudit(
-    "ط­ط°ظپ",
-    "ط¥ظٹطµط§ظ„",
-    id,
-    `طھظ… ط­ط°ظپ ط§ظ„ط¥ظٹطµط§ظ„ ط±ظ‚ظ… ${existing.number}`,
-    userId,
-    userName,
-  );
-
+async function DELETE({ request }: { request: Request }, ctx: Ctx) {
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return err("معرف الإيصال مطلوب", 400, "BAD_REQUEST");
+  const existing = (await db.select().from(receipts).where(eq(receipts.id, id)).limit(1))[0];
+  if (!existing) return err("الإيصال غير موجود", 404, "NOT_FOUND");
+  await db.delete(receipts).where(eq(receipts.id, id));
+  await addAudit({ action: "delete", entityType: "receipt", entityId: id, description: `حذف الإيصال رقم ${existing.number}`, userId: ctx.user.id, userName: ctx.user.name, ip: ctx.ip });
   return Response.json({ success: true });
 }
 
 export const Route = createFileRoute("/api/receipts")({
   server: {
     handlers: {
-      GET: safeHandler(__handler_GET),
-      POST: safeHandler(__handler_POST),
-      PUT: safeHandler(__handler_PUT),
-      DELETE: safeHandler(__handler_DELETE),
+      GET: authHandler("receipts.view", GET),
+      POST: authHandler("receipts.create", POST),
+      PUT: authHandler("receipts.update", PUT),
+      DELETE: authHandler("receipts.delete", DELETE),
     },
   },
 });

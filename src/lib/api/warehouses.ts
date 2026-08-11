@@ -1,6 +1,8 @@
+import { WarehouseStatus as WarehouseStatusEnum } from "@/lib/enums";
+
 const API_BASE = "/api/inventory/warehouses";
 
-export const WAREHOUSE_STATUSES = ["نشط", "موقوف"] as const;
+export const WAREHOUSE_STATUSES = Object.values(WarehouseStatusEnum);
 export type WarehouseStatus = (typeof WAREHOUSE_STATUSES)[number];
 
 export interface Warehouse {
@@ -52,7 +54,7 @@ export async function getWarehouses(
 ): Promise<{ items: Warehouse[]; total: number }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
+  if (filters.status) params.set("status", filters.status);
   const res = await fetch(`${API_BASE}?${params.toString()}`);
   if (!res.ok) throw new Error("فشل في جلب المستودعات");
   return res.json();
@@ -78,7 +80,7 @@ export async function createWarehouse(data: CreateWarehouseInput): Promise<Wareh
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة المستودع");
+    throw new Error(err.message || err.error || "فشل في إضافة المستودع");
   }
   const d = await res.json();
   return d.item;
@@ -92,7 +94,7 @@ export async function updateWarehouse(data: UpdateWarehouseInput): Promise<Wareh
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث المستودع");
+    throw new Error(err.message || err.error || "فشل في تحديث المستودع");
   }
   const d = await res.json();
   return d.item;
@@ -110,7 +112,7 @@ export async function activateWarehouse(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تفعيل المستودع");
+    throw new Error(err.message || err.error || "فشل في تفعيل المستودع");
   }
   const d = await res.json();
   return d.item;
@@ -128,7 +130,7 @@ export async function deactivateWarehouse(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تعطيل المستودع");
+    throw new Error(err.message || err.error || "فشل في تعطيل المستودع");
   }
   const d = await res.json();
   return d.item;
@@ -145,6 +147,6 @@ export async function deleteWarehouse(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف المستودع");
+    throw new Error(err.message || err.error || "فشل في حذف المستودع");
   }
 }

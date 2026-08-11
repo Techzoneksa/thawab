@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { AppShell, Card, Btn, Badge, MobilePageHeader } from "@/components/erp/AppShell";
-import { showToast, ConfirmDialog } from "@/components/erp/actions";
-import { TENANTS } from "@/data/sample";
+import { AppShell, Card, Btn, MobilePageHeader } from "@/components/erp/AppShell";
+import { showToast, ConfirmDialog, EmptyState } from "@/components/erp/actions";
 import { ShieldCheck, Globe, Wrench } from "lucide-react";
+
+const TENANTS: string[] = [];
 
 export const Route = createFileRoute("/settings/system")({
   head: () => ({ meta: [{ title: "إعدادات النظام — ثواب" }] }),
@@ -44,19 +45,24 @@ export const Route = createFileRoute("/settings/system")({
             <p className="text-sm text-muted-foreground mb-3">
               نظام خاص بإدارة الجمعية مع عزل كامل للبيانات لكل فرع.
             </p>
-            <ul className="space-y-2">
-              {TENANTS.map((t, i) => (
-                <li
-                  key={t}
-                  className="flex items-center justify-between rounded-lg border p-3 text-sm"
-                >
-                  <span>{t}</span>
-                  <Badge tone={i === 0 ? "primary" : "muted"}>
-                    {i === 0 ? "المستأجر الحالي" : "نشط"}
-                  </Badge>
-                </li>
-              ))}
-            </ul>
+            {TENANTS.length === 0 ? (
+              <EmptyState
+                icon={<Globe size={40} />}
+                title="لا توجد فروع مُعرّفة"
+                description="لم تتم إضافة أي فرع أو مستأجر بعد"
+              />
+            ) : (
+              <ul className="space-y-2">
+                {TENANTS.map((t) => (
+                  <li
+                    key={t}
+                    className="flex items-center justify-between rounded-lg border p-3 text-sm"
+                  >
+                    <span>{t}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
           <Card className="p-5">
             <h3 className="font-bold mb-3 inline-flex items-center gap-2">

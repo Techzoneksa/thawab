@@ -41,8 +41,8 @@ export async function getAidRecords(filters: AidFilters = {}): Promise<{
 }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
-  if (filters.type && filters.type !== "الكل") params.set("type", filters.type);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.type) params.set("type", filters.type);
   if (filters.beneficiaryId) params.set("beneficiaryId", filters.beneficiaryId);
   if (filters.projectId) params.set("projectId", filters.projectId);
   if (filters.page) params.set("page", String(filters.page));
@@ -77,7 +77,7 @@ export async function createAidRecord(data: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة المساعدة");
+    throw new Error(err.message || err.error || "فشل في إضافة المساعدة");
   }
   const d = await res.json();
   return d.item;
@@ -101,7 +101,7 @@ export async function updateAidRecord(data: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث المساعدة");
+    throw new Error(err.message || err.error || "فشل في تحديث المساعدة");
   }
   const d = await res.json();
   return d.item;
@@ -118,7 +118,7 @@ export async function deleteAidRecord(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف المساعدة");
+    throw new Error(err.message || err.error || "فشل في حذف المساعدة");
   }
 }
 
@@ -134,7 +134,7 @@ export async function approveAidRecord(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في اعتماد المساعدة");
+    throw new Error(err.message || err.error || "فشل في اعتماد المساعدة");
   }
   const d = await res.json();
   return d.item;
@@ -152,7 +152,7 @@ export async function rejectAidRecord(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في رفض المساعدة");
+    throw new Error(err.message || err.error || "فشل في رفض المساعدة");
   }
   const d = await res.json();
   return d.item;
@@ -172,7 +172,7 @@ export async function deliverAidRecord(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تسليم المساعدة");
+    throw new Error(err.message || err.error || "فشل في تسليم المساعدة");
   }
   const d = await res.json();
   return d.item;
@@ -190,7 +190,7 @@ export async function returnAidRecord(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إرجاع المساعدة");
+    throw new Error(err.message || err.error || "فشل في إرجاع المساعدة");
   }
   const d = await res.json();
   return d.item;

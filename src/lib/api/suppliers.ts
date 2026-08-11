@@ -1,6 +1,8 @@
+import { SupplierStatus as SupplierStatusEnum } from "@/lib/enums";
+
 const API_BASE = "/api/procurement/suppliers";
 
-export const SUPPLIER_STATUSES = ["نشط", "موقوف"] as const;
+export const SUPPLIER_STATUSES = Object.values(SupplierStatusEnum);
 export type SupplierStatus = (typeof SUPPLIER_STATUSES)[number];
 
 export interface Supplier {
@@ -62,7 +64,7 @@ export async function getSuppliers(
 ): Promise<{ items: Supplier[]; total: number }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
+  if (filters.status) params.set("status", filters.status);
   const res = await fetch(`${API_BASE}?${params.toString()}`);
   if (!res.ok) throw new Error("فشل في جلب الموردين");
   return res.json();
@@ -88,7 +90,7 @@ export async function createSupplier(data: CreateSupplierInput): Promise<Supplie
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة المورد");
+    throw new Error(err.message || err.error || "فشل في إضافة المورد");
   }
   const d = await res.json();
   return d.item;
@@ -102,7 +104,7 @@ export async function updateSupplier(data: UpdateSupplierInput): Promise<Supplie
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث المورد");
+    throw new Error(err.message || err.error || "فشل في تحديث المورد");
   }
   const d = await res.json();
   return d.item;
@@ -120,7 +122,7 @@ export async function activateSupplier(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تفعيل المورد");
+    throw new Error(err.message || err.error || "فشل في تفعيل المورد");
   }
   const d = await res.json();
   return d.item;
@@ -138,7 +140,7 @@ export async function deactivateSupplier(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تعطيل المورد");
+    throw new Error(err.message || err.error || "فشل في تعطيل المورد");
   }
   const d = await res.json();
   return d.item;
@@ -155,6 +157,6 @@ export async function deleteSupplier(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف المورد");
+    throw new Error(err.message || err.error || "فشل في حذف المورد");
   }
 }

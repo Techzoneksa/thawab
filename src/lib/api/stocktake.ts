@@ -1,6 +1,8 @@
+import { StocktakeStatus as StocktakeStatusEnum } from "@/lib/enums";
+
 const API_BASE = "/api/inventory/stocktake";
 
-export const STOCKTAKE_STATUSES = ["مسودة", "بانتظار الاعتماد", "معتمد", "مغلق"] as const;
+export const STOCKTAKE_STATUSES = Object.values(StocktakeStatusEnum);
 export type StocktakeStatus = (typeof STOCKTAKE_STATUSES)[number];
 
 export interface Stocktake {
@@ -62,7 +64,7 @@ export async function getStocktakes(
   filters: StocktakeFilters = {},
 ): Promise<{ items: Stocktake[]; total: number }> {
   const params = new URLSearchParams();
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
+  if (filters.status) params.set("status", filters.status);
   const res = await fetch(`${API_BASE}?${params.toString()}`);
   if (!res.ok) throw new Error("فشل في جلب عمليات الجرد");
   return res.json();
@@ -84,7 +86,7 @@ export async function createStocktake(data: CreateStocktakeInput): Promise<Stock
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة الجرد");
+    throw new Error(err.message || err.error || "فشل في إضافة الجرد");
   }
   const d = await res.json();
   return d.item;
@@ -98,7 +100,7 @@ export async function updateStocktake(data: UpdateStocktakeInput): Promise<Stock
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث الجرد");
+    throw new Error(err.message || err.error || "فشل في تحديث الجرد");
   }
   const d = await res.json();
   return d.item;
@@ -116,7 +118,7 @@ export async function submitStocktake(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إرسال الجرد للاعتماد");
+    throw new Error(err.message || err.error || "فشل في إرسال الجرد للاعتماد");
   }
   const d = await res.json();
   return d.item;
@@ -134,7 +136,7 @@ export async function approveStocktake(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في اعتماد الجرد");
+    throw new Error(err.message || err.error || "فشل في اعتماد الجرد");
   }
   const d = await res.json();
   return d.item;
@@ -152,7 +154,7 @@ export async function closeStocktake(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إغلاق الجرد");
+    throw new Error(err.message || err.error || "فشل في إغلاق الجرد");
   }
   const d = await res.json();
   return d.item;
@@ -169,6 +171,6 @@ export async function deleteStocktake(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف الجرد");
+    throw new Error(err.message || err.error || "فشل في حذف الجرد");
   }
 }

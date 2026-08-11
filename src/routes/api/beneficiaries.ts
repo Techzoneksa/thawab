@@ -1,13 +1,15 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
+import { and, count, desc, eq, like, or } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { beneficiaries, aidRecords, projects } from "@/server/db/schema";
-import { eq, like, or, and, desc, ne } from "drizzle-orm";
-import { safeHandler } from "@/server/db/api-utils";
+import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
+import { BeneficiaryCategory, BeneficiaryStatus, MaritalStatus, AidStatus } from "@/lib/enums";
 
-// GET /api/beneficiaries - List with search, filters, pagination
-// GET /api/beneficiaries?id=xxx - Single beneficiary by ID with aid history
-// GET /api/beneficiaries?id=xxx&summary=true - Beneficiary summary calculations
-async function __handler_GET({ request }: { request: Request }) {
+// GET /api/beneficiaries — list with search/filter/pagination.
+// GET /api/beneficiaries?id=xxx — single beneficiary with aid history.
+// GET /api/beneficiaries?id=xxx&summary=true — beneficiary summary calculations.
+async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   const summary = url.searchParams.get("summary");
@@ -17,31 +19,28 @@ async function __handler_GET({ request }: { request: Request }) {
       .select()
       .from(beneficiaries)
       .where(eq(beneficiaries.id, id))
-      .limit(1)
-      .all())[0];
-    if (!beneficiary)
-      return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+      .limit(1))[0];
+    if (!beneficiary) return err("المستفيد غير موجود", 404, "NOT_FOUND");
 
-    // Get aid history
+    // Aid history
     const aidHistory = await db
       .select()
       .from(aidRecords)
       .where(eq(aidRecords.beneficiaryId, id))
-      .orderBy(desc(aidRecords.createdAt))
-      .all();
+      .orderBy(desc(aidRecords.createdAt));
 
     const totalAid = aidHistory
-      .filter((a) => a.status === "طھظ… ط§ظ„طھط³ظ„ظٹظ…")
+      .filter((a) => a.status === AidStatus.DELIVERED)
       .reduce((s, a) => s + a.amount, 0);
-    const aidCount = aidHistory.filter((a) => a.status === "طھظ… ط§ظ„طھط³ظ„ظٹظ…").length;
+    const aidCount = aidHistory.filter((a) => a.status === AidStatus.DELIVERED).length;
     const pendingAidCount = aidHistory.filter(
-      (a) => a.status === "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©" || a.status === "ظ…ط¹طھظ…ط¯",
+      (a) => a.status === AidStatus.PENDING || a.status === AidStatus.APPROVED,
     ).length;
     const lastAidDate = aidHistory.length > 0 ? aidHistory[0].createdAt : null;
 
-    // Get unique project IDs from aid history
+    // Unique project IDs from aid history
     const linkedProjectIds = Array.from(
-      new Set(aidHistory.map((a) => a.projectId).filter((id): id is string => Boolean(id))),
+      new Set(aidHistory.map((a) => a.projectId).filter((pid): pid is string => Boolean(pid))),
     );
     const linkedProjects =
       linkedProjectIds.length > 0
@@ -49,7 +48,6 @@ async function __handler_GET({ request }: { request: Request }) {
             .select()
             .from(projects)
             .where(or(...linkedProjectIds.map((pid) => eq(projects.id, pid))))
-            .all()
         : [];
     const linkedProjectsCount = linkedProjects.length;
 
@@ -90,8 +88,8 @@ async function __handler_GET({ request }: { request: Request }) {
   const status = url.searchParams.get("status") || "";
   const category = url.searchParams.get("category") || "";
   const city = url.searchParams.get("city") || "";
-  const page = parseInt(url.searchParams.get("page") || "1");
-  const limit = parseInt(url.searchParams.get("limit") || "50");
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1") || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "50") || 50));
   const offset = (page - 1) * limit;
 
   const conditions = [];
@@ -105,368 +103,322 @@ async function __handler_GET({ request }: { request: Request }) {
       ),
     );
   }
-  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(beneficiaries.status, status));
-  if (category && category !== "ط§ظ„ظƒظ„") conditions.push(eq(beneficiaries.category, category));
-  if (city && city !== "ط§ظ„ظƒظ„") conditions.push(eq(beneficiaries.city, city));
+  if (status) conditions.push(eq(beneficiaries.status, status));
+  if (category) conditions.push(eq(beneficiaries.category, category));
+  if (city) conditions.push(eq(beneficiaries.city, city));
+  const where = conditions.length ? and(...conditions) : undefined;
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const [{ c: total }] = await db.select({ c: count() }).from(beneficiaries).where(where);
+  const items = await db
+    .select()
+    .from(beneficiaries)
+    .where(where)
+    .orderBy(desc(beneficiaries.createdAt))
+    .limit(limit)
+    .offset(offset);
 
-  const allQuery = db.select().from(beneficiaries).$dynamic();
-  const all = whereClause
-    ? await allQuery.where(whereClause).orderBy(desc(beneficiaries.createdAt)).all()
-    : await allQuery.orderBy(desc(beneficiaries.createdAt)).all();
-  const total = all.length;
-
-  const itemsQuery = db.select().from(beneficiaries).$dynamic();
-  const items = whereClause
-    ? await itemsQuery
-        .where(whereClause)
-        .orderBy(desc(beneficiaries.createdAt))
-        .limit(limit)
-        .offset(offset)
-        .all()
-    : await itemsQuery.orderBy(desc(beneficiaries.createdAt)).limit(limit).offset(offset).all();
-
-  return Response.json({ items, total, page, limit });
+  return Response.json({ items, total: Number(total), page, limit });
 }
 
-// POST /api/beneficiaries - Create beneficiary or change status (workflow actions)
-async function __handler_POST({ request }: { request: Request }) {
-  const body = await request.json();
-  const { action, id, userId, userName } = body;
+const WORKFLOW_ACTIONS = ["review", "qualify", "disqualify", "suspend", "reactivate"] as const;
 
-  // Eligibility workflow actions
-  if (
-    action === "review" ||
-    action === "qualify" ||
-    action === "disqualify" ||
-    action === "suspend" ||
-    action === "reactivate"
-  ) {
-    const statusMap: Record<string, string> = {
-      review: "ظ‚ظٹط¯ ط§ظ„ظ…ط±ط§ط¬ط¹ط©",
-      qualify: "ظ…ط¤ظ‡ظ„",
-      disqualify: "ط؛ظٹط± ظ…ط¤ظ‡ظ„",
-      suspend: "ظ…ظˆظ‚ظˆظپ",
-      reactivate: "ظ…ط¤ظ‡ظ„",
-    };
+// Broad body schema: covers create fields and workflow actions. Enum values are
+// validated as canonical English keys. Identity NEVER comes from the body.
+const upsertSchema = z.object({
+  action: z.enum([...WORKFLOW_ACTIONS, "status"]).optional(),
+  id: z.string().optional(),
+  name: z.string().optional(),
+  fileNumber: z.string().optional(),
+  idNumber: z.string().optional(),
+  phone: z.string().nullish(),
+  city: z.string().optional(),
+  address: z.string().optional(),
+  category: z.nativeEnum(BeneficiaryCategory).optional(),
+  status: z.nativeEnum(BeneficiaryStatus).optional(),
+  familyMembers: z.coerce.number().int().optional(),
+  monthlyIncome: z.coerce.number().optional(),
+  maritalStatus: z.nativeEnum(MaritalStatus).optional(),
+  notes: z.string().optional(),
+});
 
-    const newStatus = statusMap[action];
-    const beneficiary = (await db
-      .select()
-      .from(beneficiaries)
-      .where(eq(beneficiaries.id, id))
-      .limit(1)
-      .all())[0];
-    if (!beneficiary)
-      return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+// POST /api/beneficiaries — create beneficiary, or run an eligibility workflow action.
+async function POST(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, upsertSchema);
 
-    // Workflow rules
-    if (action === "qualify" && beneficiary.status === "ظ…ظˆظ‚ظˆظپ") {
-      return Response.json(
-        {
-          error:
-            "ظ„ط§ ظٹظ…ظƒظ† طھط£ظ‡ظٹظ„ ظ…ط³طھظپظٹط¯ ظ…ظˆظ‚ظˆظپ. ط£ط¹ط¯ طھظپط¹ظٹظ„ظ‡ ط£ظˆظ„ط§ظ‹.",
-        },
-        { status: 400 },
-      );
+    // Eligibility workflow actions
+    if (b.action && b.action !== "status") {
+      if (!b.id) return err("معرف المستفيد مطلوب", 400, "BAD_REQUEST");
+
+      const statusMap = {
+        review: BeneficiaryStatus.NEW,
+        qualify: BeneficiaryStatus.ACTIVE,
+        disqualify: BeneficiaryStatus.ARCHIVED,
+        suspend: BeneficiaryStatus.SUSPENDED,
+        reactivate: BeneficiaryStatus.ACTIVE,
+      } as const;
+      const newStatus = statusMap[b.action];
+
+      const beneficiary = (await db
+        .select()
+        .from(beneficiaries)
+        .where(eq(beneficiaries.id, b.id))
+        .limit(1))[0];
+      if (!beneficiary) return err("المستفيد غير موجود", 404, "NOT_FOUND");
+
+      // Workflow rules
+      if (b.action === "qualify" && beneficiary.status === BeneficiaryStatus.SUSPENDED) {
+        return err("لا يمكن تأهيل مستفيد موقوف. أعد تفعيله أولاً.", 400, "INVALID_TRANSITION");
+      }
+      if (b.action === "reactivate" && beneficiary.status !== BeneficiaryStatus.SUSPENDED) {
+        return err("لا يمكن إعادة تفعيل مستفيد غير موقوف.", 400, "INVALID_TRANSITION");
+      }
+      if (b.action === "suspend" && beneficiary.status === BeneficiaryStatus.ARCHIVED) {
+        return err("لا يمكن إيقاف مستفيد غير مؤهل.", 400, "INVALID_TRANSITION");
+      }
+
+      const before = JSON.stringify(beneficiary);
+      await db
+        .update(beneficiaries)
+        .set({ status: newStatus, updatedAt: now() })
+        .where(eq(beneficiaries.id, b.id));
+
+      const actionLabels: Record<(typeof WORKFLOW_ACTIONS)[number], string> = {
+        review: "إرسال للمراجعة",
+        qualify: "تأهيل",
+        disqualify: "عدم تأهيل",
+        suspend: "إيقاف",
+        reactivate: "إعادة تفعيل",
+      };
+
+      await addAudit({
+        action: "update",
+        entityType: "beneficiary",
+        entityId: b.id,
+        description: `تم ${actionLabels[b.action]} المستفيد: ${beneficiary.name} (الحالة: ${newStatus})`,
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        before,
+        ip: ctx.ip,
+      });
+
+      const updated = (await db
+        .select()
+        .from(beneficiaries)
+        .where(eq(beneficiaries.id, b.id))
+        .limit(1))[0];
+      return Response.json({ item: updated });
     }
 
-    if (action === "reactivate" && beneficiary.status !== "ظ…ظˆظ‚ظˆظپ") {
-      return Response.json(
-        { error: "ظ„ط§ ظٹظ…ظƒظ† ط¥ط¹ط§ط¯ط© طھظپط¹ظٹظ„ ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆظ‚ظˆظپ." },
-        { status: 400 },
-      );
+    // Legacy direct "status" action — keep for backward compat.
+    if (b.action === "status") {
+      if (!b.id) return err("معرف المستفيد مطلوب", 400, "BAD_REQUEST");
+      if (!b.status) return err("الحالة مطلوبة", 400, "BAD_REQUEST");
+
+      const beneficiary = (await db
+        .select()
+        .from(beneficiaries)
+        .where(eq(beneficiaries.id, b.id))
+        .limit(1))[0];
+      if (!beneficiary) return err("المستفيد غير موجود", 404, "NOT_FOUND");
+
+      const before = JSON.stringify(beneficiary);
+      await db
+        .update(beneficiaries)
+        .set({ status: b.status, updatedAt: now() })
+        .where(eq(beneficiaries.id, b.id));
+
+      await addAudit({
+        action: "update",
+        entityType: "beneficiary",
+        entityId: b.id,
+        description: `تم تغيير حالة المستفيد إلى: ${b.status}`,
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        before,
+        ip: ctx.ip,
+      });
+
+      const updated = (await db
+        .select()
+        .from(beneficiaries)
+        .where(eq(beneficiaries.id, b.id))
+        .limit(1))[0];
+      return Response.json({ item: updated });
     }
 
-    if (action === "suspend" && beneficiary.status === "ط؛ظٹط± ظ…ط¤ظ‡ظ„") {
-      return Response.json(
-        { error: "ظ„ط§ ظٹظ…ظƒظ† ط¥ظٹظ‚ط§ظپ ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ط¤ظ‡ظ„." },
-        { status: 400 },
-      );
-    }
+    // Create new beneficiary
+    if (!b.name?.trim()) return err("اسم المستفيد مطلوب", 400, "BAD_REQUEST");
 
-    const before = JSON.stringify(beneficiary);
+    const benId = genId("BEN");
     const ts = now();
-    await db.update(beneficiaries)
-      .set({ status: newStatus, updatedAt: ts })
-      .where(eq(beneficiaries.id, id))
-      .run();
 
-    const actionLabels: Record<string, string> = {
-      review: "ط¥ط±ط³ط§ظ„ ظ„ظ„ظ…ط±ط§ط¬ط¹ط©",
-      qualify: "طھط£ظ‡ظٹظ„",
-      disqualify: "ط¹ط¯ظ… طھط£ظ‡ظٹظ„",
-      suspend: "ط¥ظٹظ‚ط§ظپ",
-      reactivate: "ط¥ط¹ط§ط¯ط© طھظپط¹ظٹظ„",
-    };
-
-    await addAudit(
-      actionLabels[action],
-      "ظ…ط³طھظپظٹط¯",
-      id,
-      `طھظ… ${actionLabels[action]} ط§ظ„ظ…ط³طھظپظٹط¯: ${beneficiary.name} (ط§ظ„ط­ط§ظ„ط©: ${newStatus})`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db
-      .select()
-      .from(beneficiaries)
-      .where(eq(beneficiaries.id, id))
-      .limit(1)
-      .all())[0];
-    return Response.json({ item: updated });
-  }
-
-  // Legacy "status" action - keep for backward compat
-  if (action === "status") {
-    const { status } = body;
-    const beneficiary = (await db
-      .select()
-      .from(beneficiaries)
-      .where(eq(beneficiaries.id, id))
-      .limit(1)
-      .all())[0];
-    if (!beneficiary)
-      return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-
-    const before = JSON.stringify(beneficiary);
-    await db.update(beneficiaries)
-      .set({ status, updatedAt: now() })
-      .where(eq(beneficiaries.id, id))
-      .run();
-    await addAudit(
-      "طھط؛ظٹظٹط± ط§ظ„ط­ط§ظ„ط©",
-      "ظ…ط³طھظپظٹط¯",
-      id,
-      `طھظ… طھط؛ظٹظٹط± ط­ط§ظ„ط© ط§ظ„ظ…ط³طھظپظٹط¯ ط¥ظ„ظ‰: ${status}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db
-      .select()
-      .from(beneficiaries)
-      .where(eq(beneficiaries.id, id))
-      .limit(1)
-      .all())[0];
-    return Response.json({ item: updated });
-  }
-
-  // Create new beneficiary
-  const {
-    name,
-    fileNumber,
-    idNumber,
-    phone,
-    city,
-    address,
-    category,
-    status,
-    familyMembers,
-    monthlyIncome,
-    maritalStatus,
-    notes,
-    userId: uid,
-    userName: uname,
-  } = body;
-
-  if (!name?.trim())
-    return Response.json({ error: "ط§ط³ظ… ط§ظ„ظ…ط³طھظپظٹط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-
-  const benId = genId("BEN");
-  const ts = now();
-
-  await db.insert(beneficiaries)
-    .values({
+    await db.insert(beneficiaries).values({
       id: benId,
-      name: name.trim(),
-      fileNumber: fileNumber || "",
-      idNumber: idNumber || "",
-      phone: phone || "",
-      city: city || "",
-      address: address || "",
-      category: category || "ط£ط³ط± ظ…ط­طھط§ط¬ط©",
-      status: status || "ط¬ط¯ظٹط¯",
-      familyMembers: parseInt(familyMembers) || 1,
-      monthlyIncome: parseFloat(monthlyIncome) || 0,
-      maritalStatus: maritalStatus || "",
-      notes: notes || "",
-      createdBy: uid || null,
+      name: b.name.trim(),
+      fileNumber: b.fileNumber ?? "",
+      idNumber: b.idNumber ?? "",
+      phone: b.phone || null,
+      city: b.city ?? "",
+      address: b.address ?? "",
+      category: b.category ?? BeneficiaryCategory.NEEDY_FAMILY,
+      status: b.status ?? BeneficiaryStatus.NEW,
+      familyMembers: b.familyMembers ?? 1,
+      monthlyIncome: b.monthlyIncome ?? 0,
+      maritalStatus: b.maritalStatus ?? "",
+      notes: b.notes ?? "",
+      createdBy: ctx.user.id,
       createdAt: ts,
       updatedAt: ts,
-    })
-    .run();
+    });
 
-  await addAudit(
-    "ط¥ط¶ط§ظپط©",
-    "ظ…ط³طھظپظٹط¯",
-    benId,
-    `طھظ… ط¥ط¶ط§ظپط© ظ…ط³طھظپظٹط¯ ط¬ط¯ظٹط¯: ${name}`,
-    uid,
-    uname,
-  );
-  const created = (await db
-    .select()
-    .from(beneficiaries)
-    .where(eq(beneficiaries.id, benId))
-    .limit(1)
-    .all())[0];
-  return Response.json({ item: created }, { status: 201 });
+    await addAudit({
+      action: "create",
+      entityType: "beneficiary",
+      entityId: benId,
+      description: `تم إضافة مستفيد جديد: ${b.name}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      ip: ctx.ip,
+    });
+
+    const created = (await db
+      .select()
+      .from(beneficiaries)
+      .where(eq(beneficiaries.id, benId))
+      .limit(1))[0];
+    return Response.json({ item: created }, { status: 201 });
+  });
 }
 
-// PUT /api/beneficiaries - Update beneficiary
-async function __handler_PUT({ request }: { request: Request }) {
-  const body = await request.json();
-  const {
-    id,
-    name,
-    fileNumber,
-    idNumber,
-    phone,
-    city,
-    address,
-    category,
-    status,
-    familyMembers,
-    monthlyIncome,
-    maritalStatus,
-    notes,
-    userId,
-    userName,
-  } = body;
+const updateSchema = z.object({
+  id: z.string().min(1, "معرف المستفيد مطلوب"),
+  name: z.string().optional(),
+  fileNumber: z.string().optional(),
+  idNumber: z.string().optional(),
+  phone: z.string().nullish(),
+  city: z.string().optional(),
+  address: z.string().optional(),
+  category: z.nativeEnum(BeneficiaryCategory).optional(),
+  status: z.nativeEnum(BeneficiaryStatus).optional(),
+  familyMembers: z.coerce.number().int().optional(),
+  monthlyIncome: z.coerce.number().optional(),
+  maritalStatus: z.nativeEnum(MaritalStatus).optional(),
+  notes: z.string().optional(),
+});
 
-  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ط³طھظپظٹط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+// PUT /api/beneficiaries — update beneficiary.
+async function PUT(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, updateSchema);
+
+    const existing = (await db
+      .select()
+      .from(beneficiaries)
+      .where(eq(beneficiaries.id, b.id))
+      .limit(1))[0];
+    if (!existing) return err("المستفيد غير موجود", 404, "NOT_FOUND");
+
+    // Cannot qualify a suspended beneficiary directly.
+    if (b.status === BeneficiaryStatus.ACTIVE && existing.status === BeneficiaryStatus.SUSPENDED) {
+      return err("لا يمكن تأهيل مستفيد موقوف. أعد تفعيله أولاً.", 400, "INVALID_TRANSITION");
+    }
+
+    const before = JSON.stringify(existing);
+    await db
+      .update(beneficiaries)
+      .set({
+        name: b.name?.trim() ?? existing.name,
+        fileNumber: b.fileNumber ?? existing.fileNumber,
+        idNumber: b.idNumber ?? existing.idNumber,
+        phone: b.phone ?? existing.phone,
+        city: b.city ?? existing.city,
+        address: b.address ?? existing.address,
+        category: b.category ?? existing.category,
+        status: b.status ?? existing.status,
+        familyMembers: b.familyMembers ?? existing.familyMembers,
+        monthlyIncome: b.monthlyIncome ?? existing.monthlyIncome,
+        maritalStatus: b.maritalStatus ?? existing.maritalStatus,
+        notes: b.notes ?? existing.notes,
+        updatedAt: now(),
+      })
+      .where(eq(beneficiaries.id, b.id));
+
+    await addAudit({
+      action: "update",
+      entityType: "beneficiary",
+      entityId: b.id,
+      description: `تم تحديث بيانات المستفيد: ${b.name || existing.name}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      before,
+      ip: ctx.ip,
+    });
+
+    const updated = (await db
+      .select()
+      .from(beneficiaries)
+      .where(eq(beneficiaries.id, b.id))
+      .limit(1))[0];
+    return Response.json({ item: updated });
+  });
+}
+
+// DELETE /api/beneficiaries?id=xxx — hard delete, only if no delivered/pending aid.
+// Identity comes from the session, never the query.
+async function DELETE({ request }: { request: Request }, ctx: Ctx) {
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return err("معرف المستفيد مطلوب", 400, "BAD_REQUEST");
 
   const existing = (await db
     .select()
     .from(beneficiaries)
     .where(eq(beneficiaries.id, id))
-    .limit(1)
-    .all())[0];
-  if (!existing)
-    return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    .limit(1))[0];
+  if (!existing) return err("المستفيد غير موجود", 404, "NOT_FOUND");
 
-  // If trying to qualify, check that beneficiary is eligible
-  if (status === "ظ…ط¤ظ‡ظ„" && existing.status === "ظ…ظˆظ‚ظˆظپ") {
-    return Response.json(
-      {
-        error: "ظ„ط§ ظٹظ…ظƒظ† طھط£ظ‡ظٹظ„ ظ…ط³طھظپظٹط¯ ظ…ظˆظ‚ظˆظپ. ط£ط¹ط¯ طھظپط¹ظٹظ„ظ‡ ط£ظˆظ„ط§ظ‹.",
-      },
-      { status: 400 },
-    );
-  }
-
-  const before = JSON.stringify(existing);
-  const ts = now();
-
-  await db.update(beneficiaries)
-    .set({
-      name: name?.trim() ?? existing.name,
-      fileNumber: fileNumber ?? existing.fileNumber,
-      idNumber: idNumber ?? existing.idNumber,
-      phone: phone ?? existing.phone,
-      city: city ?? existing.city,
-      address: address ?? existing.address,
-      category: category ?? existing.category,
-      status: status ?? existing.status,
-      familyMembers: familyMembers !== undefined ? parseInt(familyMembers) : existing.familyMembers,
-      monthlyIncome:
-        monthlyIncome !== undefined ? parseFloat(monthlyIncome) : existing.monthlyIncome,
-      maritalStatus: maritalStatus ?? existing.maritalStatus,
-      notes: notes ?? existing.notes,
-      updatedAt: ts,
-    })
-    .where(eq(beneficiaries.id, id))
-    .run();
-
-  await addAudit(
-    "طھط¹ط¯ظٹظ„",
-    "ظ…ط³طھظپظٹط¯",
-    id,
-    `طھظ… طھط­ط¯ظٹط« ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط³طھظپظٹط¯: ${name || existing.name}`,
-    userId,
-    userName,
-    before,
-  );
-  const updated = (await db.select().from(beneficiaries).where(eq(beneficiaries.id, id)).limit(1).all())[0];
-  return Response.json({ item: updated });
-}
-
-// DELETE /api/beneficiaries - Delete beneficiary (only if no delivered aid)
-async function __handler_DELETE({ request }: { request: Request }) {
-  const url = new URL(request.url);
-  const id = url.searchParams.get("id");
-  const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
-
-  if (!id) return Response.json({ error: "ظ…ط¹ط±ظپ ط§ظ„ظ…ط³طھظپظٹط¯ ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-
-  const existing = (await db
-    .select()
-    .from(beneficiaries)
-    .where(eq(beneficiaries.id, id))
-    .limit(1)
-    .all())[0];
-  if (!existing)
-    return Response.json({ error: "ط§ظ„ظ…ط³طھظپظٹط¯ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-
-  // Check for delivered aid records
+  // Block deletion if there are delivered aid records.
   const linkedAid = await db
     .select()
     .from(aidRecords)
-    .where(and(eq(aidRecords.beneficiaryId, id), eq(aidRecords.status, "طھظ… ط§ظ„طھط³ظ„ظٹظ…")))
-    .limit(1)
-    .all();
-
+    .where(and(eq(aidRecords.beneficiaryId, id), eq(aidRecords.status, AidStatus.DELIVERED)))
+    .limit(1);
   if (linkedAid.length > 0) {
-    return Response.json(
-      {
-        error:
-          "ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ظ…ط³طھظپظٹط¯ ظ„ظ‡ ظ…ط³ط§ط¹ط¯ط§طھ ظ…ط³طھظ„ظ…ط©. ظٹظ…ظƒظ† ط¥ظٹظ‚ط§ظپظ‡ ظپظ‚ط·.",
-      },
-      { status: 400 },
-    );
+    return err("لا يمكن حذف مستفيد له مساعدات مستلمة. يمكن إيقافه فقط.", 400, "HAS_LINKED_RECORDS");
   }
 
-  // Check for pending aid records
+  // Block deletion if there are pending/approved aid records.
   const pendingAid = await db
     .select()
     .from(aidRecords)
     .where(
       and(
         eq(aidRecords.beneficiaryId, id),
-        or(
-          eq(aidRecords.status, "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©"),
-          eq(aidRecords.status, "ظ…ط¹طھظ…ط¯"),
-        ) as any,
+        or(eq(aidRecords.status, AidStatus.PENDING), eq(aidRecords.status, AidStatus.APPROVED)),
       ),
     )
-    .limit(1)
-    .all();
-
+    .limit(1);
   if (pendingAid.length > 0) {
-    return Response.json(
-      {
-        error:
-          "ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ظ…ط³طھظپظٹط¯ ظ„ظ‡ ظ…ط³ط§ط¹ط¯ط§طھ ظ‚ظٹط¯ ط§ظ„ظ…ط¹ط§ظ„ط¬ط©. ط¹ط§ظ„ط¬ ط§ظ„ظ…ط³ط§ط¹ط¯ط§طھ ط£ظˆظ„ط§ظ‹ ط£ظˆ ط£ظˆظ‚ظپ ط§ظ„ظ…ط³طھظپظٹط¯.",
-      },
-      { status: 400 },
+    return err(
+      "لا يمكن حذف مستفيد له مساعدات قيد المعالجة. عالج المساعدات أولاً أو أوقف المستفيد.",
+      400,
+      "HAS_LINKED_RECORDS",
     );
   }
 
   const before = JSON.stringify(existing);
-  await db.delete(beneficiaries).where(eq(beneficiaries.id, id)).run();
-  await addAudit(
-    "ط­ط°ظپ",
-    "ظ…ط³طھظپظٹط¯",
-    id,
-    `طھظ… ط­ط°ظپ ط§ظ„ظ…ط³طھظپظٹط¯: ${existing.name}`,
-    userId,
-    userName,
+  await db.delete(beneficiaries).where(eq(beneficiaries.id, id));
+
+  await addAudit({
+    action: "delete",
+    entityType: "beneficiary",
+    entityId: id,
+    description: `تم حذف المستفيد: ${existing.name}`,
+    userId: ctx.user.id,
+    userName: ctx.user.name,
     before,
-  );
+    ip: ctx.ip,
+  });
 
   return Response.json({ success: true });
 }
@@ -474,10 +426,10 @@ async function __handler_DELETE({ request }: { request: Request }) {
 export const Route = createFileRoute("/api/beneficiaries")({
   server: {
     handlers: {
-      GET: safeHandler(__handler_GET),
-      POST: safeHandler(__handler_POST),
-      PUT: safeHandler(__handler_PUT),
-      DELETE: safeHandler(__handler_DELETE),
+      GET: authHandler("beneficiaries.view", GET),
+      POST: authHandler("beneficiaries.create", POST),
+      PUT: authHandler("beneficiaries.update", PUT),
+      DELETE: authHandler("beneficiaries.delete", DELETE),
     },
   },
 });

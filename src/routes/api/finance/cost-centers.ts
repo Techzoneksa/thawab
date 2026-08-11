@@ -1,45 +1,42 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
+import { and, count, eq, like, or } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { costCenters, journalLines, budgetLines } from "@/server/db/schema";
-import { eq, like, or, and, sql } from "drizzle-orm";
-import { safeHandler } from "@/server/db/api-utils";
+import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
+import { CostCenterStatus } from "@/lib/enums";
 
-export const COST_CENTER_STATUSES = ["ظ†ط´ط·", "ظ…ظˆظ‚ظˆظپ", "ظ…ط؛ظ„ظ‚"] as const;
-
-// GET /api/finance/cost-centers - list
-// GET /api/finance/cost-centers?id=xxx - single with usage info
-async function __handler_GET({ request }: { request: Request }) {
+// GET /api/finance/cost-centers?id=xxx — single with usage info; else list.
+async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
   if (id) {
-    const cc = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
-    if (!cc)
-      return Response.json({ error: "ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    const cc = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1))[0];
+    if (!cc) return err("مركز التكلفة غير موجود", 404, "NOT_FOUND");
 
-    const journalUsage =
-      (await db
-        .select({ count: sql<number>`count(*)` })
-        .from(journalLines)
-        .where(eq(journalLines.costCenterId, id))
-        .all())[0]?.count || 0;
-    const budgetUsage =
-      (await db
-        .select({ count: sql<number>`count(*)` })
-        .from(budgetLines)
-        .where(eq(budgetLines.costCenterId, id))
-        .all())[0]?.count || 0;
+    const [{ c: journalUsage }] = await db
+      .select({ c: count() })
+      .from(journalLines)
+      .where(eq(journalLines.costCenterId, id));
+    const [{ c: budgetUsage }] = await db
+      .select({ c: count() })
+      .from(budgetLines)
+      .where(eq(budgetLines.costCenterId, id));
 
     return Response.json({
       item: cc,
-      journalUsage,
-      budgetUsage,
-      hasUsage: journalUsage > 0 || budgetUsage > 0,
+      journalUsage: Number(journalUsage),
+      budgetUsage: Number(budgetUsage),
+      hasUsage: Number(journalUsage) > 0 || Number(budgetUsage) > 0,
     });
   }
 
   const search = url.searchParams.get("search") || "";
   const status = url.searchParams.get("status") || "";
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1") || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "50") || 50));
+  const offset = (page - 1) * limit;
 
   const conditions = [];
   if (search) {
@@ -47,232 +44,230 @@ async function __handler_GET({ request }: { request: Request }) {
       or(like(costCenters.code, `%${search}%`), like(costCenters.name, `%${search}%`)),
     );
   }
-  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(costCenters.status, status));
+  if (status) conditions.push(eq(costCenters.status, status));
+  const where = conditions.length ? and(...conditions) : undefined;
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-  const items = whereClause
-    ? await db.select().from(costCenters).where(whereClause).orderBy(costCenters.code).all()
-    : await db.select().from(costCenters).orderBy(costCenters.code).all();
-  const total = items.length;
-
-  return Response.json({ items, total });
-}
-
-// POST /api/finance/cost-centers - create or status change
-async function __handler_POST({ request }: { request: Request }) {
-  const body = await request.json();
-  const { action } = body;
-
-  if (action === "deactivate") {
-    const { id, userId, userName } = body;
-    const existing = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
-    if (!existing)
-      return Response.json({ error: "ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (existing.status === "ظ…ظˆظ‚ظˆظپ")
-      return Response.json(
-        { error: "ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ظ…ظˆظ‚ظˆظپ ط¨ط§ظ„ظپط¹ظ„" },
-        { status: 400 },
-      );
-
-    const before = JSON.stringify(existing);
-    await db.update(costCenters)
-      .set({ status: "ظ…ظˆظ‚ظˆظپ", updatedAt: now() })
-      .where(eq(costCenters.id, id))
-      .run();
-    await addAudit(
-      "ط¥ظٹظ‚ط§ظپ",
-      "ظ…ط±ظƒط² طھظƒظ„ظپط©",
-      id,
-      `طھظ… ط¥ظٹظ‚ط§ظپ ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط©: ${existing.code} - ${existing.name}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
-    return Response.json({ item: updated });
-  }
-
-  if (action === "activate") {
-    const { id, userId, userName } = body;
-    const existing = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
-    if (!existing)
-      return Response.json({ error: "ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (existing.status === "ظ†ط´ط·")
-      return Response.json(
-        { error: "ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ظ†ط´ط· ط¨ط§ظ„ظپط¹ظ„" },
-        { status: 400 },
-      );
-
-    const before = JSON.stringify(existing);
-    await db.update(costCenters)
-      .set({ status: "ظ†ط´ط·", updatedAt: now() })
-      .where(eq(costCenters.id, id))
-      .run();
-    await addAudit(
-      "طھظپط¹ظٹظ„",
-      "ظ…ط±ظƒط² طھظƒظ„ظپط©",
-      id,
-      `طھظ… طھظپط¹ظٹظ„ ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط©: ${existing.code} - ${existing.name}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
-    return Response.json({ item: updated });
-  }
-
-  // Create
-  const { code, name, manager, budget, spent, status, description, notes, userId, userName } = body;
-
-  if (!code?.trim())
-    return Response.json({ error: "ط±ظ…ط² ط§ظ„ظ…ط±ظƒط² ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-  if (!name?.trim())
-    return Response.json({ error: "ط§ط³ظ… ط§ظ„ظ…ط±ظƒط² ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-
-  const existing = (await db
+  const [{ c: total }] = await db.select({ c: count() }).from(costCenters).where(where);
+  const items = await db
     .select()
     .from(costCenters)
-    .where(eq(costCenters.code, code.trim()))
-    .limit(1)
-    .all())[0];
-  if (existing)
-    return Response.json(
-      { error: "ط±ظ…ط² ط§ظ„ظ…ط±ظƒط² ظ…ط³طھط®ط¯ظ… ط¨ط§ظ„ظپط¹ظ„" },
-      { status: 400 },
-    );
+    .where(where)
+    .orderBy(costCenters.code)
+    .limit(limit)
+    .offset(offset);
 
-  const ccId = genId("CC");
-  const ts = now();
+  return Response.json({ items, total: Number(total), page, limit });
+}
 
-  await db.insert(costCenters)
-    .values({
+const createSchema = z.object({
+  code: z.string().trim().min(1, "رمز المركز مطلوب"),
+  name: z.string().trim().min(1, "اسم المركز مطلوب"),
+  manager: z.string().optional(),
+  budget: z.coerce.number().optional(),
+  spent: z.coerce.number().optional(),
+  status: z.nativeEnum(CostCenterStatus).optional(),
+  description: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+// The client also POSTs { action: "activate" | "deactivate", id } for status changes.
+const postSchema = createSchema.partial().extend({
+  action: z.enum(["activate", "deactivate"]).optional(),
+  id: z.string().optional(),
+});
+
+async function POST(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, postSchema);
+
+    // Workflow: activate / deactivate
+    if (b.action === "activate" || b.action === "deactivate") {
+      if (!b.id) return err("معرف مركز التكلفة مطلوب", 400, "BAD_REQUEST");
+      const existing = (
+        await db.select().from(costCenters).where(eq(costCenters.id, b.id)).limit(1)
+      )[0];
+      if (!existing) return err("مركز التكلفة غير موجود", 404, "NOT_FOUND");
+
+      if (b.action === "deactivate" && existing.status === CostCenterStatus.INACTIVE) {
+        return err("مركز التكلفة موقوف بالفعل", 400, "INVALID_STATE");
+      }
+      if (b.action === "activate" && existing.status === CostCenterStatus.ACTIVE) {
+        return err("مركز التكلفة نشط بالفعل", 400, "INVALID_STATE");
+      }
+
+      const before = JSON.stringify(existing);
+      const target =
+        b.action === "deactivate" ? CostCenterStatus.INACTIVE : CostCenterStatus.ACTIVE;
+      await db
+        .update(costCenters)
+        .set({ status: target, updatedAt: now() })
+        .where(eq(costCenters.id, b.id));
+
+      await addAudit({
+        action: b.action,
+        entityType: "cost_center",
+        entityId: b.id,
+        description: `${b.action === "deactivate" ? "تم إيقاف" : "تم تفعيل"} مركز التكلفة: ${existing.code} - ${existing.name}`,
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        before,
+        ip: ctx.ip,
+      });
+
+      const updated = (
+        await db.select().from(costCenters).where(eq(costCenters.id, b.id)).limit(1)
+      )[0];
+      return Response.json({ item: updated });
+    }
+
+    // Create
+    const parsed = createSchema.safeParse(b);
+    if (!parsed.success) {
+      const msg = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+      return err(msg || "بيانات غير صالحة", 422, "VALIDATION_ERROR");
+    }
+    const c = parsed.data;
+
+    const dup = (
+      await db.select().from(costCenters).where(eq(costCenters.code, c.code)).limit(1)
+    )[0];
+    if (dup) return err("رمز المركز مستخدم بالفعل", 400, "DUPLICATE");
+
+    const ccId = genId("CC");
+    const ts = now();
+
+    await db.insert(costCenters).values({
       id: ccId,
-      code: code.trim(),
-      name: name.trim(),
-      manager: manager || "",
-      budget: parseFloat(budget) || 0,
-      spent: parseFloat(spent) || 0,
-      status: status || "ظ†ط´ط·",
-      description: description || "",
-      notes: notes || "",
-      createdBy: userId || null,
+      code: c.code,
+      name: c.name,
+      manager: c.manager ?? "",
+      budget: c.budget ?? 0,
+      spent: c.spent ?? 0,
+      status: c.status ?? CostCenterStatus.ACTIVE,
+      description: c.description ?? "",
+      notes: c.notes ?? "",
+      createdBy: ctx.user.id,
       createdAt: ts,
       updatedAt: ts,
-    })
-    .run();
+    });
 
-  await addAudit(
-    "ط¥ط¶ط§ظپط©",
-    "ظ…ط±ظƒط² طھظƒظ„ظپط©",
-    ccId,
-    `طھظ… ط¥ط¶ط§ظپط© ظ…ط±ظƒط² طھظƒظ„ظپط©: ${code} - ${name}`,
-    userId,
-    userName,
-  );
-  const created = (await db.select().from(costCenters).where(eq(costCenters.id, ccId)).limit(1).all())[0];
-  return Response.json({ item: created }, { status: 201 });
+    await addAudit({
+      action: "create",
+      entityType: "cost_center",
+      entityId: ccId,
+      description: `تم إضافة مركز تكلفة: ${c.code} - ${c.name}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      ip: ctx.ip,
+    });
+
+    const created = (
+      await db.select().from(costCenters).where(eq(costCenters.id, ccId)).limit(1)
+    )[0];
+    return Response.json({ item: created }, { status: 201 });
+  });
 }
 
-// PUT - update
-async function __handler_PUT({ request }: { request: Request }) {
-  const body = await request.json();
-  const { id, name, manager, budget, spent, status, description, notes, userId, userName } = body;
+const updateSchema = z.object({
+  id: z.string().min(1, "معرف مركز التكلفة مطلوب"),
+  name: z.string().trim().min(1).optional(),
+  manager: z.string().optional(),
+  budget: z.coerce.number().optional(),
+  spent: z.coerce.number().optional(),
+  status: z.nativeEnum(CostCenterStatus).optional(),
+  description: z.string().optional(),
+  notes: z.string().optional(),
+});
 
-  if (!id)
-    return Response.json({ error: "ظ…ط¹ط±ظپ ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+async function PUT(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, updateSchema);
+    const existing = (
+      await db.select().from(costCenters).where(eq(costCenters.id, b.id)).limit(1)
+    )[0];
+    if (!existing) return err("مركز التكلفة غير موجود", 404, "NOT_FOUND");
 
-  const existing = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
-  if (!existing)
-    return Response.json({ error: "ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+    const before = JSON.stringify(existing);
+    await db
+      .update(costCenters)
+      .set({
+        name: b.name ?? existing.name,
+        manager: b.manager ?? existing.manager,
+        budget: b.budget ?? existing.budget,
+        spent: b.spent ?? existing.spent,
+        status: b.status ?? existing.status,
+        description: b.description ?? existing.description,
+        notes: b.notes ?? existing.notes,
+        updatedAt: now(),
+      })
+      .where(eq(costCenters.id, b.id));
 
-  const before = JSON.stringify(existing);
-  const ts = now();
+    await addAudit({
+      action: "update",
+      entityType: "cost_center",
+      entityId: b.id,
+      description: `تم تحديث مركز التكلفة: ${existing.code} - ${b.name || existing.name}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      before,
+      ip: ctx.ip,
+    });
 
-  await db.update(costCenters)
-    .set({
-      name: name?.trim() ?? existing.name,
-      manager: manager ?? existing.manager,
-      budget: budget !== undefined ? parseFloat(budget) : existing.budget,
-      spent: spent !== undefined ? parseFloat(spent) : existing.spent,
-      status: status ?? existing.status,
-      description: description ?? existing.description,
-      notes: notes ?? existing.notes,
-      updatedAt: ts,
-    })
-    .where(eq(costCenters.id, id))
-    .run();
-
-  await addAudit(
-    "طھط¹ط¯ظٹظ„",
-    "ظ…ط±ظƒط² طھظƒظ„ظپط©",
-    id,
-    `طھظ… طھط­ط¯ظٹط« ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط©: ${existing.code} - ${name || existing.name}`,
-    userId,
-    userName,
-    before,
-  );
-  const updated = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
-  return Response.json({ item: updated });
+    const updated = (
+      await db.select().from(costCenters).where(eq(costCenters.id, b.id)).limit(1)
+    )[0];
+    return Response.json({ item: updated });
+  });
 }
 
-// DELETE - only if no usage
-async function __handler_DELETE({ request }: { request: Request }) {
-  const url = new URL(request.url);
-  const id = url.searchParams.get("id");
-  const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
+// DELETE /api/finance/cost-centers?id=xxx — only if unused. Identity from session.
+async function DELETE({ request }: { request: Request }, ctx: Ctx) {
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return err("معرف مركز التكلفة مطلوب", 400, "BAD_REQUEST");
 
-  if (!id)
-    return Response.json({ error: "ظ…ط¹ط±ظپ ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ظ…ط·ظ„ظˆط¨" }, { status: 400 });
+  const existing = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1))[0];
+  if (!existing) return err("مركز التكلفة غير موجود", 404, "NOT_FOUND");
 
-  const existing = (await db.select().from(costCenters).where(eq(costCenters.id, id)).limit(1).all())[0];
-  if (!existing)
-    return Response.json({ error: "ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط© ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+  const [{ c: journalUsage }] = await db
+    .select({ c: count() })
+    .from(journalLines)
+    .where(eq(journalLines.costCenterId, id));
+  const [{ c: budgetUsage }] = await db
+    .select({ c: count() })
+    .from(budgetLines)
+    .where(eq(budgetLines.costCenterId, id));
 
-  const journalUsage =
-    (await db
-      .select({ count: sql<number>`count(*)` })
-      .from(journalLines)
-      .where(eq(journalLines.costCenterId, id))
-      .all())[0]?.count || 0;
-  const budgetUsage =
-    (await db
-      .select({ count: sql<number>`count(*)` })
-      .from(budgetLines)
-      .where(eq(budgetLines.costCenterId, id))
-      .all())[0]?.count || 0;
-
-  if (journalUsage > 0 || budgetUsage > 0) {
-    return Response.json(
-      {
-        error: `ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ظ…ط±ظƒط² طھظƒظ„ظپط© ظ…ط³طھط®ط¯ظ… ظپظٹ ${journalUsage} ط³ط·ط± ظ‚ظٹط¯ ظˆ ${budgetUsage} ط³ط·ط± ظ…ظˆط§ط²ظ†ط©. ط£ظˆظ‚ظپ ط§ظ„ظ…ط±ظƒط² ط¨ط¯ظ„ط§ظ‹ ظ…ظ† ط°ظ„ظƒ.`,
-      },
-      { status: 400 },
+  if (Number(journalUsage) > 0 || Number(budgetUsage) > 0) {
+    return err(
+      `لا يمكن حذف مركز تكلفة مستخدم في ${Number(journalUsage)} سطر قيد و ${Number(budgetUsage)} سطر موازنة. أوقف المركز بدلاً من ذلك.`,
+      400,
+      "IN_USE",
     );
   }
 
   const before = JSON.stringify(existing);
-  await db.delete(costCenters).where(eq(costCenters.id, id)).run();
-  await addAudit(
-    "ط­ط°ظپ",
-    "ظ…ط±ظƒط² طھظƒظ„ظپط©",
-    id,
-    `طھظ… ط­ط°ظپ ظ…ط±ظƒط² ط§ظ„طھظƒظ„ظپط©: ${existing.code} - ${existing.name}`,
-    userId,
-    userName,
+  await db.delete(costCenters).where(eq(costCenters.id, id));
+  await addAudit({
+    action: "delete",
+    entityType: "cost_center",
+    entityId: id,
+    description: `تم حذف مركز التكلفة: ${existing.code} - ${existing.name}`,
+    userId: ctx.user.id,
+    userName: ctx.user.name,
     before,
-  );
+    ip: ctx.ip,
+  });
+
   return Response.json({ success: true });
 }
 
 export const Route = createFileRoute("/api/finance/cost-centers")({
   server: {
     handlers: {
-      GET: safeHandler(__handler_GET),
-      POST: safeHandler(__handler_POST),
-      PUT: safeHandler(__handler_PUT),
-      DELETE: safeHandler(__handler_DELETE),
+      GET: authHandler("finance.view", GET),
+      POST: authHandler("finance.create", POST),
+      PUT: authHandler("finance.update", PUT),
+      DELETE: authHandler("finance.delete", DELETE),
     },
   },
 });

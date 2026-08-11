@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell, Card, Btn, Badge, MobilePageHeader } from "@/components/erp/AppShell";
-import { BOARD_MEMBERS } from "@/data/sample";
 import { UsersRound, Plus, Edit, Trash2, Eye, UserPlus } from "lucide-react";
 import { useState } from "react";
 import {
@@ -9,6 +8,7 @@ import {
   EntityFormDrawer,
   ActionMenu,
   ExportButton,
+  EmptyState,
 } from "@/components/erp/actions";
 
 type MemberItem = {
@@ -23,9 +23,7 @@ type MemberItem = {
 export const Route = createFileRoute("/memberships")({
   head: () => ({ meta: [{ title: "العضويات — ثواب" }] }),
   component: () => {
-    const [data, setData] = useState<MemberItem[]>(
-      BOARD_MEMBERS.map((m) => ({ ...m, phone: "05xxxxxxxx", active: true })),
-    );
+    const [data, setData] = useState<MemberItem[]>([]);
     const [formOpen, setFormOpen] = useState(false);
     const [subFormOpen, setSubFormOpen] = useState(false);
     const [confirmIdx, setConfirmIdx] = useState(-1);
@@ -136,10 +134,10 @@ export const Route = createFileRoute("/memberships")({
         <MobilePageHeader title="العضويات ومجلس الإدارة" count={`${data.length} عضو مجلس`} />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
           {[
-            { l: "أعضاء الجمعية العمومية", v: "84" },
+            { l: "أعضاء الجمعية العمومية", v: "0" },
             { l: "مجلس الإدارة", v: String(data.length) },
-            { l: "اشتراكات نشطة", v: "78" },
-            { l: "حضور آخر اجتماع", v: "92%" },
+            { l: "اشتراكات نشطة", v: "0" },
+            { l: "حضور آخر اجتماع", v: "0%" },
           ].map((s) => (
             <Card key={s.l} className="p-4">
               <div className="text-xs text-muted-foreground">{s.l}</div>
@@ -149,6 +147,9 @@ export const Route = createFileRoute("/memberships")({
         </div>
         <Card className="p-5">
           <h3 className="font-bold mb-3">مجلس الإدارة الحالي</h3>
+          {data.length === 0 && (
+            <EmptyState title="لا يوجد أعضاء" description="ابدأ بإضافة أعضاء مجلس الإدارة" />
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {data.map((m, idx) => (
               <div key={m.name} className="flex items-center gap-3 rounded-xl border p-4">

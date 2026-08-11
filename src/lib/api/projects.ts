@@ -52,9 +52,9 @@ export async function getProjects(
 ): Promise<{ items: Project[]; total: number; page: number; limit: number }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
-  if (filters.category && filters.category !== "الكل") params.set("category", filters.category);
-  if (filters.branch && filters.branch !== "الكل") params.set("branch", filters.branch);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.category) params.set("category", filters.category);
+  if (filters.branch) params.set("branch", filters.branch);
   if (filters.page) params.set("page", String(filters.page));
   if (filters.limit) params.set("limit", String(filters.limit));
 
@@ -102,7 +102,7 @@ export async function createProject(data: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة المشروع");
+    throw new Error(err.message || err.error || "فشل في إضافة المشروع");
   }
   const d = await res.json();
   return d.item;
@@ -133,7 +133,7 @@ export async function updateProject(data: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث المشروع");
+    throw new Error(err.message || err.error || "فشل في تحديث المشروع");
   }
   const d = await res.json();
   return d.item;
@@ -150,7 +150,7 @@ export async function deleteProject(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف المشروع");
+    throw new Error(err.message || err.error || "فشل في حذف المشروع");
   }
 }
 
@@ -199,7 +199,7 @@ async function workflowAction(
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || `فشل في تنفيذ العملية: ${action}`);
+    throw new Error(err.message || err.error || `فشل في تنفيذ العملية: ${action}`);
   }
   const d = await res.json();
   return d.item;
@@ -218,7 +218,7 @@ export async function changeProjectStatus(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تغيير حالة المشروع");
+    throw new Error(err.message || err.error || "فشل في تغيير حالة المشروع");
   }
   const d = await res.json();
   return d.item;

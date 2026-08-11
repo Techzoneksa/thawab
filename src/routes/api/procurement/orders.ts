@@ -1,4 +1,6 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
+import { and, count, desc, eq, like, or } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import {
   purchaseOrders,
@@ -7,22 +9,16 @@ import {
   inventoryItems,
   stockMovements,
 } from "@/server/db/schema";
-import { eq, like, or, and, desc, sql } from "drizzle-orm";
-import { safeHandler } from "@/server/db/api-utils";
+import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
+import { PurchaseOrderStatus, PurchaseRequestStatus, StockMovementType } from "@/lib/enums";
 
-export const ORDER_STATUSES = [
-  "ظ…ط³ظˆط¯ط©",
-  "ظ…ط¹طھظ…ط¯",
-  "طھظ… ط§ظ„ط§ط³طھظ„ط§ظ… ط¬ط²ط¦ظٹظ‹ط§",
-  "طھظ… ط§ظ„ط§ط³طھظ„ط§ظ…",
-  "ظ…ط؛ظ„ظ‚",
-  "ظ…ظ„ط؛ظٹ",
-] as const;
-export type OrderStatus = (typeof ORDER_STATUSES)[number];
+// NOTE: enums.ts PurchaseOrderStatus has no CLOSED key. The "close" workflow still
+// needs a distinct terminal state, so we use the ASCII key "closed" until the enum
+// is extended. Also, the legacy "approved" state maps to PurchaseOrderStatus.SENT.
+const ORDER_CLOSED = "closed";
 
-// GET /api/procurement/orders - list with search/filter
-// GET /api/procurement/orders?id=xxx - single with lines
-async function __handler_GET({ request }: { request: Request }) {
+// GET /api/procurement/orders?id=xxx — single with lines; else list.
+async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
 
@@ -31,22 +27,22 @@ async function __handler_GET({ request }: { request: Request }) {
       .select()
       .from(purchaseOrders)
       .where(eq(purchaseOrders.id, id))
-      .limit(1)
-      .all())[0];
-    if (!order)
-      return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
+      .limit(1))[0];
+    if (!order) return err("أمر الشراء غير موجود", 404, "NOT_FOUND");
     const lines = await db
       .select()
       .from(purchaseOrderLines)
       .where(eq(purchaseOrderLines.orderId, id))
-      .orderBy(purchaseOrderLines.lineNumber)
-      .all();
+      .orderBy(purchaseOrderLines.lineNumber);
     return Response.json({ item: order, lines });
   }
 
   const search = url.searchParams.get("search") || "";
   const status = url.searchParams.get("status") || "";
   const supplierId = url.searchParams.get("supplierId") || "";
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1") || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "50") || 50));
+  const offset = (page - 1) * limit;
 
   const conditions = [];
   if (search) {
@@ -54,502 +50,446 @@ async function __handler_GET({ request }: { request: Request }) {
       or(like(purchaseOrders.subject, `%${search}%`), like(purchaseOrders.notes, `%${search}%`)),
     );
   }
-  if (status && status !== "ط§ظ„ظƒظ„") conditions.push(eq(purchaseOrders.status, status));
+  if (status) conditions.push(eq(purchaseOrders.status, status));
   if (supplierId) conditions.push(eq(purchaseOrders.supplierId, supplierId));
+  const where = conditions.length ? and(...conditions) : undefined;
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const [{ c: total }] = await db.select({ c: count() }).from(purchaseOrders).where(where);
+  const items = await db
+    .select()
+    .from(purchaseOrders)
+    .where(where)
+    .orderBy(desc(purchaseOrders.createdAt))
+    .limit(limit)
+    .offset(offset);
 
-  const items = whereClause
-    ? await db
+  return Response.json({ items, total: Number(total), page, limit });
+}
+
+const createSchema = z.object({
+  supplierId: z.string().nullish(),
+  requestId: z.string().nullish(),
+  subject: z.string().trim().min(1, "موضوع أمر الشراء مطلوب"),
+  date: z.string().optional(),
+  deliveryDate: z.string().optional(),
+  notes: z.string().optional(),
+  lines: z
+    .array(
+      z.object({
+        itemId: z.string().nullish(),
+        description: z.string().optional(),
+        quantity: z.coerce.number().optional(),
+        unitPrice: z.coerce.number().optional(),
+        unit: z.string().optional(),
+        notes: z.string().optional(),
+      }),
+    )
+    .min(1, "يجب إضافة سطر واحد على الأقل"),
+});
+
+const simpleActionSchema = z.object({
+  action: z.enum(["approve", "cancel", "close"]),
+  id: z.string().min(1, "معرف أمر الشراء مطلوب"),
+});
+
+const receiveSchema = z.object({
+  action: z.literal("receive"),
+  id: z.string().min(1, "معرف أمر الشراء مطلوب"),
+  receipts: z
+    .array(
+      z.object({
+        lineId: z.string().min(1),
+        receivedQty: z.coerce.number(),
+      }),
+    )
+    .min(1, "يجب تحديد الكميات المستلمة"),
+});
+
+// POST /api/procurement/orders — create or workflow action.
+async function POST(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(
+      event.request,
+      z.union([receiveSchema, simpleActionSchema, createSchema]),
+    );
+
+    if ("action" in b) {
+      const order = (await db
         .select()
         .from(purchaseOrders)
-        .where(whereClause)
-        .orderBy(desc(purchaseOrders.createdAt))
-        .all()
-    : await db.select().from(purchaseOrders).orderBy(desc(purchaseOrders.createdAt)).all();
+        .where(eq(purchaseOrders.id, b.id))
+        .limit(1))[0];
+      if (!order) return err("أمر الشراء غير موجود", 404, "NOT_FOUND");
 
-  return Response.json({ items, total: items.length });
-}
+      const before = JSON.stringify(order);
 
-// POST /api/procurement/orders - create or workflow action
-async function __handler_POST({ request }: { request: Request }) {
-  const body = await request.json();
-  const { action } = body;
+      if (b.action === "approve") {
+        if (order.status !== PurchaseOrderStatus.DRAFT)
+          return err("يمكن اعتماد المسودة فقط", 400, "INVALID_STATE");
+        await db
+          .update(purchaseOrders)
+          .set({ status: PurchaseOrderStatus.SENT, updatedAt: now() })
+          .where(eq(purchaseOrders.id, b.id));
+        await addAudit({
+          action: "approve",
+          entityType: "purchase_order",
+          entityId: b.id,
+          description: `تم اعتماد أمر الشراء: ${order.subject}`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          before,
+          ip: ctx.ip,
+        });
+      } else if (b.action === "cancel") {
+        if (order.status === PurchaseOrderStatus.CANCELLED)
+          return err("الأمر ملغي بالفعل", 400, "INVALID_STATE");
+        if (order.status === ORDER_CLOSED)
+          return err("لا يمكن إلغاء أمر مغلق", 400, "INVALID_STATE");
+        // Atomic: cancel the order and roll back the linked request if converted.
+        await db.transaction(async (tx) => {
+          await tx
+            .update(purchaseOrders)
+            .set({ status: PurchaseOrderStatus.CANCELLED, updatedAt: now() })
+            .where(eq(purchaseOrders.id, b.id));
+          if (order.requestId) {
+            const linked = (await tx
+              .select()
+              .from(purchaseRequests)
+              .where(eq(purchaseRequests.id, order.requestId))
+              .limit(1))[0];
+            if (linked && linked.status === PurchaseRequestStatus.ORDERED) {
+              await tx
+                .update(purchaseRequests)
+                .set({ status: PurchaseRequestStatus.APPROVED, updatedAt: now() })
+                .where(eq(purchaseRequests.id, order.requestId));
+            }
+          }
+        });
+        await addAudit({
+          action: "cancel",
+          entityType: "purchase_order",
+          entityId: b.id,
+          description: `تم إلغاء أمر الشراء: ${order.subject}`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          before,
+          ip: ctx.ip,
+        });
+      } else if (b.action === "close") {
+        if (order.status === ORDER_CLOSED)
+          return err("الأمر مغلق بالفعل", 400, "INVALID_STATE");
+        await db
+          .update(purchaseOrders)
+          .set({ status: ORDER_CLOSED, updatedAt: now() })
+          .where(eq(purchaseOrders.id, b.id));
+        await addAudit({
+          action: "close",
+          entityType: "purchase_order",
+          entityId: b.id,
+          description: `تم إغلاق أمر الشراء: ${order.subject}`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          before,
+          ip: ctx.ip,
+        });
+      } else {
+        // receive
+        if (order.status !== PurchaseOrderStatus.SENT && order.status !== PurchaseOrderStatus.PARTIAL) {
+          return err(
+            "يمكن الاستلام فقط للأوامر المعتمدة أو المستلمة جزئياً",
+            400,
+            "INVALID_STATE",
+          );
+        }
 
-  if (action === "approve") {
-    const { id, userId, userName } = body;
-    const existing = (await db
-      .select()
-      .from(purchaseOrders)
-      .where(eq(purchaseOrders.id, id))
-      .limit(1)
-      .all())[0];
-    if (!existing)
-      return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (existing.status !== "ظ…ط³ظˆط¯ط©")
-      return Response.json(
-        { error: "ظٹظ…ظƒظ† ط§ط¹طھظ…ط§ط¯ ط§ظ„ظ…ط³ظˆط¯ط© ظپظ‚ط·" },
-        { status: 400 },
-      );
+        const lines = await db
+          .select()
+          .from(purchaseOrderLines)
+          .where(eq(purchaseOrderLines.orderId, b.id));
+        const lineMap = new Map(lines.map((l) => [l.id, l]));
 
-    const before = JSON.stringify(existing);
-    await db.update(purchaseOrders)
-      .set({ status: "ظ…ط¹طھظ…ط¯", updatedAt: now() })
-      .where(eq(purchaseOrders.id, id))
-      .run();
-    await addAudit(
-      "ط§ط¹طھظ…ط§ط¯",
-      "ط£ظ…ط± ط´ط±ط§ط،",
-      id,
-      `طھظ… ط§ط¹طھظ…ط§ط¯ ط£ظ…ط± ط§ظ„ط´ط±ط§ط،: ${existing.subject}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db
-      .select()
-      .from(purchaseOrders)
-      .where(eq(purchaseOrders.id, id))
-      .limit(1)
-      .all())[0];
-    return Response.json({ item: updated });
-  }
+        // Validate all quantities before writing anything.
+        for (const r of b.receipts) {
+          const line = lineMap.get(r.lineId);
+          if (!line) continue;
+          const newReceived = (line.receivedQuantity || 0) + (r.receivedQty || 0);
+          if (newReceived > line.quantity + 0.0001) {
+            return err(
+              `الكمية المستلمة للسطر "${line.description}" تتجاوز المطلوب (${line.quantity})`,
+              400,
+              "QTY_EXCEEDED",
+            );
+          }
+        }
 
-  if (action === "cancel") {
-    const { id, userId, userName } = body;
-    const existing = (await db
-      .select()
-      .from(purchaseOrders)
-      .where(eq(purchaseOrders.id, id))
-      .limit(1)
-      .all())[0];
-    if (!existing)
-      return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (existing.status === "ظ…ظ„ط؛ظٹ")
-      return Response.json({ error: "ط§ظ„ط£ظ…ط± ظ…ظ„ط؛ظٹ ط¨ط§ظ„ظپط¹ظ„" }, { status: 400 });
-    if (existing.status === "ظ…ط؛ظ„ظ‚")
-      return Response.json({ error: "ظ„ط§ ظٹظ…ظƒظ† ط¥ظ„ط؛ط§ط، ط£ظ…ط± ظ…ط؛ظ„ظ‚" }, { status: 400 });
+        const ts = now();
+        let anyReceived = false;
+        let allComplete = true;
 
-    const before = JSON.stringify(existing);
-    await db.update(purchaseOrders)
-      .set({ status: "ظ…ظ„ط؛ظٹ", updatedAt: now() })
-      .where(eq(purchaseOrders.id, id))
-      .run();
+        // Atomic: update lines, inventory, stock movements, and the order header.
+        await db.transaction(async (tx) => {
+          for (const r of b.receipts) {
+            const line = lineMap.get(r.lineId);
+            if (!line) continue;
+            const newReceived = (line.receivedQuantity || 0) + (r.receivedQty || 0);
+            await tx
+              .update(purchaseOrderLines)
+              .set({ receivedQuantity: newReceived })
+              .where(eq(purchaseOrderLines.id, line.id));
 
-    // If linked to a request, mark it as not converted
-    if (existing.requestId) {
-      const linked = (await db
+            if (r.receivedQty > 0 && line.itemId) {
+              anyReceived = true;
+              const item = (await tx
+                .select()
+                .from(inventoryItems)
+                .where(eq(inventoryItems.id, line.itemId))
+                .limit(1))[0];
+              if (item) {
+                const newQty = (item.quantity || 0) + r.receivedQty;
+                await tx
+                  .update(inventoryItems)
+                  .set({ quantity: newQty, updatedAt: ts })
+                  .where(eq(inventoryItems.id, line.itemId));
+                await tx.insert(stockMovements).values({
+                  id: genId("MV"),
+                  itemId: line.itemId,
+                  warehouseId: item.warehouseId || null,
+                  type: StockMovementType.IN,
+                  quantity: r.receivedQty,
+                  balanceAfter: newQty,
+                  sourceType: "purchase_order",
+                  sourceId: order.id,
+                  reference: `PO ${order.id}`,
+                  date: ts,
+                  notes: `استلام من أمر شراء ${order.id}`,
+                  createdBy: ctx.user.id,
+                  createdAt: ts,
+                });
+              }
+            }
+
+            if (newReceived < line.quantity - 0.0001) {
+              allComplete = false;
+            }
+          }
+
+          const newStatus = allComplete
+            ? PurchaseOrderStatus.RECEIVED
+            : PurchaseOrderStatus.PARTIAL;
+          const totalReceived = lines.reduce((sum, l) => {
+            const r = b.receipts.find((x) => x.lineId === l.id);
+            return sum + (l.receivedQuantity || 0) + (r?.receivedQty || 0);
+          }, 0);
+          await tx
+            .update(purchaseOrders)
+            .set({ status: newStatus, receivedAmount: totalReceived, updatedAt: ts })
+            .where(eq(purchaseOrders.id, b.id));
+        });
+
+        await addAudit({
+          action: "receive",
+          entityType: "purchase_order",
+          entityId: b.id,
+          description: `تم استلام ${anyReceived ? "أصناف" : "تحديث"} لأمر الشراء: ${order.subject}`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          before,
+          ip: ctx.ip,
+        });
+      }
+
+      const updated = (await db
+        .select()
+        .from(purchaseOrders)
+        .where(eq(purchaseOrders.id, b.id))
+        .limit(1))[0];
+      return Response.json({ item: updated });
+    }
+
+    // Create
+    if (b.requestId) {
+      const req = (await db
         .select()
         .from(purchaseRequests)
-        .where(eq(purchaseRequests.id, existing.requestId))
-        .limit(1)
-        .all())[0];
-      if (linked && linked.status === "ظ…ط­ظˆظ„ ط¥ظ„ظ‰ ط£ظ…ط± ط´ط±ط§ط،") {
-        await db.update(purchaseRequests)
-          .set({ status: "ظ…ط¹طھظ…ط¯", updatedAt: now() })
-          .where(eq(purchaseRequests.id, existing.requestId))
-          .run();
+        .where(eq(purchaseRequests.id, b.requestId))
+        .limit(1))[0];
+      if (!req) return err("طلب الشراء غير موجود", 404, "NOT_FOUND");
+      if (req.status !== PurchaseRequestStatus.APPROVED) {
+        return err("يجب أن يكون طلب الشراء معتمداً قبل إنشاء أمر شراء", 400, "INVALID_STATE");
       }
     }
 
-    await addAudit(
-      "ط¥ظ„ط؛ط§ط،",
-      "ط£ظ…ط± ط´ط±ط§ط،",
-      id,
-      `طھظ… ط¥ظ„ط؛ط§ط، ط£ظ…ط± ط§ظ„ط´ط±ط§ط،: ${existing.subject}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db
-      .select()
-      .from(purchaseOrders)
-      .where(eq(purchaseOrders.id, id))
-      .limit(1)
-      .all())[0];
-    return Response.json({ item: updated });
-  }
-
-  if (action === "receive") {
-    const { id, receipts, userId, userName } = body as {
-      id: string;
-      receipts: Array<{ lineId: string; receivedQty: number }>;
-      userId?: string;
-      userName?: string;
-    };
-
-    const order = (await db
-      .select()
-      .from(purchaseOrders)
-      .where(eq(purchaseOrders.id, id))
-      .limit(1)
-      .all())[0];
-    if (!order)
-      return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (order.status !== "ظ…ط¹طھظ…ط¯" && order.status !== "طھظ… ط§ظ„ط§ط³طھظ„ط§ظ… ط¬ط²ط¦ظٹظ‹ط§") {
-      return Response.json(
-        {
-          error:
-            "ظٹظ…ظƒظ† ط§ظ„ط§ط³طھظ„ط§ظ… ظپظ‚ط· ظ„ظ„ط£ظˆط§ظ…ط± ط§ظ„ظ…ط¹طھظ…ط¯ط© ط£ظˆ ط§ظ„ظ…ط³طھظ„ظ…ط© ط¬ط²ط¦ظٹط§ظ‹",
-        },
-        { status: 400 },
-      );
-    }
-    if (!receipts || !Array.isArray(receipts) || receipts.length === 0) {
-      return Response.json(
-        { error: "ظٹط¬ط¨ طھط­ط¯ظٹط¯ ط§ظ„ظƒظ…ظٹط§طھ ط§ظ„ظ…ط³طھظ„ظ…ط©" },
-        { status: 400 },
-      );
-    }
-
-    const lines = await db
-      .select()
-      .from(purchaseOrderLines)
-      .where(eq(purchaseOrderLines.orderId, id))
-      .all();
-
-    let anyReceived = false;
-    let allComplete = true;
+    const orderId = genId("PO");
     const ts = now();
-    const lineMap = new Map(lines.map((l) => [l.id, l]));
-
-    for (const r of receipts) {
-      const line = lineMap.get(r.lineId);
-      if (!line) continue;
-      const newReceived = (line.receivedQuantity || 0) + (r.receivedQty || 0);
-      if (newReceived > line.quantity + 0.0001) {
-        return Response.json(
-          {
-            error: `ط§ظ„ظƒظ…ظٹط© ط§ظ„ظ…ط³طھظ„ظ…ط© ظ„ظ„ط³ط·ط± "${line.description}" طھطھط¬ط§ظˆط² ط§ظ„ظ…ط·ظ„ظˆط¨ (${line.quantity})`,
-          },
-          { status: 400 },
-        );
-      }
-      await db.update(purchaseOrderLines)
-        .set({ receivedQuantity: newReceived })
-        .where(eq(purchaseOrderLines.id, line.id))
-        .run();
-
-      if (r.receivedQty > 0 && line.itemId) {
-        anyReceived = true;
-        // Update inventory item quantity
-        const item = (await db
-          .select()
-          .from(inventoryItems)
-          .where(eq(inventoryItems.id, line.itemId))
-          .limit(1)
-          .all())[0];
-        if (item) {
-          const newQty = (item.quantity || 0) + r.receivedQty;
-          await db.update(inventoryItems)
-            .set({ quantity: newQty, updatedAt: ts })
-            .where(eq(inventoryItems.id, line.itemId))
-            .run();
-          // Record stock movement
-          await db.insert(stockMovements)
-            .values({
-              id: genId("MV"),
-              itemId: line.itemId,
-              warehouseId: item.warehouseId || null,
-              type: "ط§ط³طھظ„ط§ظ…",
-              quantity: r.receivedQty,
-              balanceAfter: newQty,
-              sourceType: "purchase_order",
-              sourceId: order.id,
-              reference: `PO ${order.id}`,
-              date: ts,
-              notes: `ط§ط³طھظ„ط§ظ… ظ…ظ† ط£ظ…ط± ط´ط±ط§ط، ${order.id}`,
-              createdBy: userId || null,
-              createdAt: ts,
-            })
-            .run();
-        }
-      }
-
-      if (newReceived < line.quantity - 0.0001) {
-        allComplete = false;
-      }
+    let total = 0;
+    for (const l of b.lines) {
+      total += (l.quantity || 0) * (l.unitPrice || 0);
     }
 
-    const before = JSON.stringify(order);
-    const newStatus: OrderStatus = allComplete
-      ? "طھظ… ط§ظ„ط§ط³طھظ„ط§ظ…"
-      : "طھظ… ط§ظ„ط§ط³طھظ„ط§ظ… ط¬ط²ط¦ظٹظ‹ط§";
-    const totalReceived = lines.reduce((sum, l) => {
-      const r = receipts.find((x) => x.lineId === l.id);
-      return sum + (l.receivedQuantity || 0) + (r?.receivedQty || 0);
-    }, 0);
-    await db.update(purchaseOrders)
-      .set({ status: newStatus, receivedAmount: totalReceived, updatedAt: ts })
-      .where(eq(purchaseOrders.id, id))
-      .run();
+    // Atomic: insert order header + all lines + link the source request.
+    await db.transaction(async (tx) => {
+      await tx.insert(purchaseOrders).values({
+        id: orderId,
+        supplierId: b.supplierId || null,
+        requestId: b.requestId || null,
+        subject: b.subject,
+        date: b.date || ts,
+        deliveryDate: b.deliveryDate ?? "",
+        status: PurchaseOrderStatus.DRAFT,
+        total,
+        receivedAmount: 0,
+        notes: b.notes ?? "",
+        createdBy: ctx.user.id,
+        createdAt: ts,
+        updatedAt: ts,
+      });
 
-    await addAudit(
-      "ط§ط³طھظ„ط§ظ…",
-      "ط£ظ…ط± ط´ط±ط§ط،",
-      id,
-      `طھظ… ط§ط³طھظ„ط§ظ… ${anyReceived ? "ط£طµظ†ط§ظپ" : "طھط­ط¯ظٹط«"} ظ„ط£ظ…ط± ط§ظ„ط´ط±ط§ط،: ${order.subject}`,
-      userId,
-      userName,
-      before,
-    );
-    const updated = (await db
+      for (let i = 0; i < b.lines.length; i++) {
+        const l = b.lines[i];
+        await tx.insert(purchaseOrderLines).values({
+          id: genId("POL"),
+          orderId,
+          lineNumber: i + 1,
+          itemId: l.itemId || null,
+          description: l.description || "",
+          quantity: l.quantity || 0,
+          unitPrice: l.unitPrice || 0,
+          receivedQuantity: 0,
+          unit: l.unit || "",
+          notes: l.notes || "",
+          createdAt: ts,
+        });
+      }
+
+      if (b.requestId) {
+        await tx
+          .update(purchaseRequests)
+          .set({ status: PurchaseRequestStatus.ORDERED, updatedAt: ts })
+          .where(eq(purchaseRequests.id, b.requestId));
+      }
+    });
+
+    await addAudit({
+      action: "create",
+      entityType: "purchase_order",
+      entityId: orderId,
+      description: `تم إضافة أمر شراء: ${b.subject} (${b.lines.length} سطر، الإجمالي ${total})`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      ip: ctx.ip,
+    });
+
+    const created = (await db
       .select()
       .from(purchaseOrders)
-      .where(eq(purchaseOrders.id, id))
-      .limit(1)
-      .all())[0];
-    return Response.json({ item: updated });
-  }
+      .where(eq(purchaseOrders.id, orderId))
+      .limit(1))[0];
+    return Response.json({ item: created }, { status: 201 });
+  });
+}
 
-  if (action === "close") {
-    const { id, userId, userName } = body;
+const updateSchema = z.object({
+  id: z.string().min(1, "معرف أمر الشراء مطلوب"),
+  subject: z.string().trim().min(1).optional(),
+  date: z.string().optional(),
+  deliveryDate: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+// PUT /api/procurement/orders — update (only draft).
+async function PUT(event: { request: Request }, ctx: Ctx) {
+  return guard(async () => {
+    const b = await parseBody(event.request, updateSchema);
     const existing = (await db
       .select()
       .from(purchaseOrders)
-      .where(eq(purchaseOrders.id, id))
-      .limit(1)
-      .all())[0];
-    if (!existing)
-      return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (existing.status === "ظ…ط؛ظ„ظ‚")
-      return Response.json({ error: "ط§ظ„ط£ظ…ط± ظ…ط؛ظ„ظ‚ ط¨ط§ظ„ظپط¹ظ„" }, { status: 400 });
+      .where(eq(purchaseOrders.id, b.id))
+      .limit(1))[0];
+    if (!existing) return err("أمر الشراء غير موجود", 404, "NOT_FOUND");
+    if (existing.status !== PurchaseOrderStatus.DRAFT) {
+      return err("لا يمكن تعديل أمر شراء في حالته الحالية", 400, "INVALID_STATE");
+    }
 
     const before = JSON.stringify(existing);
-    await db.update(purchaseOrders)
-      .set({ status: "ظ…ط؛ظ„ظ‚", updatedAt: now() })
-      .where(eq(purchaseOrders.id, id))
-      .run();
-    await addAudit(
-      "ط¥ط؛ظ„ط§ظ‚",
-      "ط£ظ…ط± ط´ط±ط§ط،",
-      id,
-      `طھظ… ط¥ط؛ظ„ط§ظ‚ ط£ظ…ط± ط§ظ„ط´ط±ط§ط،: ${existing.subject}`,
-      userId,
-      userName,
+    await db
+      .update(purchaseOrders)
+      .set({
+        subject: b.subject ?? existing.subject,
+        date: b.date ?? existing.date,
+        deliveryDate: b.deliveryDate ?? existing.deliveryDate,
+        notes: b.notes ?? existing.notes,
+        updatedAt: now(),
+      })
+      .where(eq(purchaseOrders.id, b.id));
+
+    await addAudit({
+      action: "update",
+      entityType: "purchase_order",
+      entityId: b.id,
+      description: `تم تحديث أمر الشراء: ${existing.subject}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
       before,
-    );
+      ip: ctx.ip,
+    });
+
     const updated = (await db
       .select()
       .from(purchaseOrders)
-      .where(eq(purchaseOrders.id, id))
-      .limit(1)
-      .all())[0];
+      .where(eq(purchaseOrders.id, b.id))
+      .limit(1))[0];
     return Response.json({ item: updated });
+  });
+}
+
+// DELETE /api/procurement/orders?id=xxx — only draft. Actor from session.
+async function DELETE({ request }: { request: Request }, ctx: Ctx) {
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return err("معرف أمر الشراء مطلوب", 400, "BAD_REQUEST");
+
+  const existing = (await db
+    .select()
+    .from(purchaseOrders)
+    .where(eq(purchaseOrders.id, id))
+    .limit(1))[0];
+  if (!existing) return err("أمر الشراء غير موجود", 404, "NOT_FOUND");
+  if (existing.status !== PurchaseOrderStatus.DRAFT) {
+    return err("لا يمكن حذف أمر شراء غير مسودة. ألغِه بدلاً من ذلك.", 400, "INVALID_STATE");
   }
 
-  // Create
-  const { supplierId, requestId, subject, date, deliveryDate, notes, lines, userId, userName } =
-    body;
-
-  if (!subject?.trim())
-    return Response.json({ error: "ظ…ظˆط¶ظˆط¹ ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-  if (!Array.isArray(lines) || lines.length === 0) {
-    return Response.json(
-      { error: "ظٹط¬ط¨ ط¥ط¶ط§ظپط© ط³ط·ط± ظˆط§ط­ط¯ ط¹ظ„ظ‰ ط§ظ„ط£ظ‚ظ„" },
-      { status: 400 },
-    );
-  }
-
-  // If linked to request, verify status
-  if (requestId) {
-    const req = (await db
-      .select()
-      .from(purchaseRequests)
-      .where(eq(purchaseRequests.id, requestId))
-      .limit(1)
-      .all())[0];
-    if (!req)
-      return Response.json({ error: "ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-    if (req.status !== "ظ…ط¹طھظ…ط¯") {
-      return Response.json(
-        {
-          error:
-            "ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ط·ظ„ط¨ ط§ظ„ط´ط±ط§ط، ظ…ط¹طھظ…ط¯ط§ظ‹ ظ‚ط¨ظ„ ط¥ظ†ط´ط§ط، ط£ظ…ط± ط´ط±ط§ط،",
-        },
-        { status: 400 },
-      );
+  const before = JSON.stringify(existing);
+  // Atomic: roll back the linked request, then delete the order (lines cascade).
+  await db.transaction(async (tx) => {
+    if (existing.requestId) {
+      await tx
+        .update(purchaseRequests)
+        .set({ status: PurchaseRequestStatus.APPROVED, updatedAt: now() })
+        .where(eq(purchaseRequests.id, existing.requestId));
     }
-  }
+    await tx.delete(purchaseOrders).where(eq(purchaseOrders.id, id));
+  });
 
-  const orderId = genId("PO");
-  const ts = now();
-  let total = 0;
-  for (const l of lines) {
-    total += (parseFloat(l.quantity) || 0) * (parseFloat(l.unitPrice) || 0);
-  }
-
-  await db.insert(purchaseOrders)
-    .values({
-      id: orderId,
-      supplierId: supplierId || null,
-      requestId: requestId || null,
-      subject: subject.trim(),
-      date: date || ts,
-      deliveryDate: deliveryDate || "",
-      status: "ظ…ط³ظˆط¯ط©",
-      total,
-      receivedAmount: 0,
-      notes: notes || "",
-      createdBy: userId || null,
-      createdAt: ts,
-      updatedAt: ts,
-    })
-    .run();
-
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i];
-    await db.insert(purchaseOrderLines)
-      .values({
-        id: genId("POL"),
-        orderId,
-        lineNumber: i + 1,
-        itemId: l.itemId || null,
-        description: l.description || "",
-        quantity: parseFloat(l.quantity) || 0,
-        unitPrice: parseFloat(l.unitPrice) || 0,
-        receivedQuantity: 0,
-        unit: l.unit || "",
-        notes: l.notes || "",
-        createdAt: ts,
-      })
-      .run();
-  }
-
-  // Link request status
-  if (requestId) {
-    await db.update(purchaseRequests)
-      .set({ status: "ظ…ط­ظˆظ„ ط¥ظ„ظ‰ ط£ظ…ط± ط´ط±ط§ط،", updatedAt: ts })
-      .where(eq(purchaseRequests.id, requestId))
-      .run();
-  }
-
-  await addAudit(
-    "ط¥ط¶ط§ظپط©",
-    "ط£ظ…ط± ط´ط±ط§ط،",
-    orderId,
-    `طھظ… ط¥ط¶ط§ظپط© ط£ظ…ط± ط´ط±ط§ط،: ${subject} (${lines.length} ط³ط·ط±طŒ ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ ${total})`,
-    userId,
-    userName,
-  );
-  const created = (await db
-    .select()
-    .from(purchaseOrders)
-    .where(eq(purchaseOrders.id, orderId))
-    .limit(1)
-    .all())[0];
-  return Response.json({ item: created }, { status: 201 });
-}
-
-// PUT /api/procurement/orders - update (only draft)
-async function __handler_PUT({ request }: { request: Request }) {
-  const body = await request.json();
-  const { id, subject, date, deliveryDate, notes, userId, userName } = body;
-
-  if (!id)
-    return Response.json({ error: "ظ…ط¹ط±ظپ ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-
-  const existing = (await db
-    .select()
-    .from(purchaseOrders)
-    .where(eq(purchaseOrders.id, id))
-    .limit(1)
-    .all())[0];
-  if (!existing)
-    return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-  if (existing.status !== "ظ…ط³ظˆط¯ط©") {
-    return Response.json(
-      { error: "ظ„ط§ ظٹظ…ظƒظ† طھط¹ط¯ظٹظ„ ط£ظ…ط± ط´ط±ط§ط، ظپظٹ ط­ط§ظ„ط© ط­ط§ظ„ظٹط©" },
-      { status: 400 },
-    );
-  }
-
-  const before = JSON.stringify(existing);
-  await db.update(purchaseOrders)
-    .set({
-      subject: subject?.trim() ?? existing.subject,
-      date: date ?? existing.date,
-      deliveryDate: deliveryDate ?? existing.deliveryDate,
-      notes: notes ?? existing.notes,
-      updatedAt: now(),
-    })
-    .where(eq(purchaseOrders.id, id))
-    .run();
-
-  await addAudit(
-    "طھط¹ط¯ظٹظ„",
-    "ط£ظ…ط± ط´ط±ط§ط،",
-    id,
-    `طھظ… طھط­ط¯ظٹط« ط£ظ…ط± ط§ظ„ط´ط±ط§ط،: ${existing.subject}`,
-    userId,
-    userName,
+  await addAudit({
+    action: "delete",
+    entityType: "purchase_order",
+    entityId: id,
+    description: `تم حذف أمر الشراء: ${existing.subject}`,
+    userId: ctx.user.id,
+    userName: ctx.user.name,
     before,
-  );
-  const updated = (await db
-    .select()
-    .from(purchaseOrders)
-    .where(eq(purchaseOrders.id, id))
-    .limit(1)
-    .all())[0];
-  return Response.json({ item: updated });
-}
+    ip: ctx.ip,
+  });
 
-// DELETE /api/procurement/orders - only draft
-async function __handler_DELETE({ request }: { request: Request }) {
-  const url = new URL(request.url);
-  const id = url.searchParams.get("id");
-  const userId = url.searchParams.get("userId") || undefined;
-  const userName = url.searchParams.get("userName") || "ظ…ط³طھط®ط¯ظ…";
-
-  if (!id)
-    return Response.json({ error: "ظ…ط¹ط±ظپ ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ظ…ط·ظ„ظˆط¨" }, { status: 400 });
-
-  const existing = (await db
-    .select()
-    .from(purchaseOrders)
-    .where(eq(purchaseOrders.id, id))
-    .limit(1)
-    .all())[0];
-  if (!existing)
-    return Response.json({ error: "ط£ظ…ط± ط§ظ„ط´ط±ط§ط، ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }, { status: 404 });
-  if (existing.status !== "ظ…ط³ظˆط¯ط©") {
-    return Response.json(
-      {
-        error:
-          "ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ط£ظ…ط± ط´ط±ط§ط، ط؛ظٹط± ظ…ط³ظˆط¯ط©. ط£ظ„ط؛ظگظ‡ ط¨ط¯ظ„ط§ظ‹ ظ…ظ† ط°ظ„ظƒ.",
-      },
-      { status: 400 },
-    );
-  }
-
-  const before = JSON.stringify(existing);
-  // Roll back linked request
-  if (existing.requestId) {
-    await db.update(purchaseRequests)
-      .set({ status: "ظ…ط¹طھظ…ط¯", updatedAt: now() })
-      .where(eq(purchaseRequests.id, existing.requestId))
-      .run();
-  }
-  await db.delete(purchaseOrders).where(eq(purchaseOrders.id, id)).run();
-  await addAudit(
-    "ط­ط°ظپ",
-    "ط£ظ…ط± ط´ط±ط§ط،",
-    id,
-    `طھظ… ط­ط°ظپ ط£ظ…ط± ط§ظ„ط´ط±ط§ط،: ${existing.subject}`,
-    userId,
-    userName,
-    before,
-  );
   return Response.json({ success: true });
 }
 
 export const Route = createFileRoute("/api/procurement/orders")({
   server: {
     handlers: {
-      GET: safeHandler(__handler_GET),
-      POST: safeHandler(__handler_POST),
-      PUT: safeHandler(__handler_PUT),
-      DELETE: safeHandler(__handler_DELETE),
+      GET: authHandler("procurement.view", GET),
+      POST: authHandler("procurement.create", POST),
+      PUT: authHandler("procurement.update", PUT),
+      DELETE: authHandler("procurement.delete", DELETE),
     },
   },
 });

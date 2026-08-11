@@ -33,8 +33,8 @@ export async function getReceipts(filters: ReceiptFilters = {}): Promise<{
 }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
-  if (filters.type && filters.type !== "الكل") params.set("type", filters.type);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.type) params.set("type", filters.type);
   if (filters.page) params.set("page", String(filters.page));
   if (filters.limit) params.set("limit", String(filters.limit));
 
@@ -62,7 +62,7 @@ export async function printReceipt(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في طباعة الإيصال");
+    throw new Error(err.message || err.error || "فشل في طباعة الإيصال");
   }
 }
 
@@ -78,7 +78,7 @@ export async function voidReceipt(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إلغاء الإيصال");
+    throw new Error(err.message || err.error || "فشل في إلغاء الإيصال");
   }
   const d = await res.json();
   return d.item;
@@ -97,7 +97,7 @@ export async function updateReceipt(data: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث الإيصال");
+    throw new Error(err.message || err.error || "فشل في تحديث الإيصال");
   }
   const d = await res.json();
   return d.item;
@@ -114,6 +114,6 @@ export async function deleteReceipt(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف الإيصال");
+    throw new Error(err.message || err.error || "فشل في حذف الإيصال");
   }
 }

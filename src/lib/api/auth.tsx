@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
-    if (data.error) throw new Error(data.error);
+    if (data.error) throw new Error(data.message || data.error || "فشل تسجيل الدخول");
     localStorage.setItem(SESSION_KEY, data.token);
     setToken(data.token);
     queryClient.setQueryData(["currentUser"], data.user);

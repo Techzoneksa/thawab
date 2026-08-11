@@ -7,7 +7,6 @@ import {
   statusTone,
   MobilePageHeader,
 } from "@/components/erp/AppShell";
-import { MEETINGS } from "@/data/sample";
 import {
   CalendarDays,
   Plus,
@@ -20,7 +19,13 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { useState } from "react";
-import { showToast, ConfirmDialog, EntityFormDrawer, ActionMenu } from "@/components/erp/actions";
+import {
+  showToast,
+  ConfirmDialog,
+  EntityFormDrawer,
+  ActionMenu,
+  EmptyState,
+} from "@/components/erp/actions";
 
 type MeetingItem = {
   id: string;
@@ -34,7 +39,7 @@ type MeetingItem = {
 export const Route = createFileRoute("/meetings")({
   head: () => ({ meta: [{ title: "الاجتماعات — ثواب" }] }),
   component: () => {
-    const [data, setData] = useState<MeetingItem[]>(MEETINGS as MeetingItem[]);
+    const [data, setData] = useState<MeetingItem[]>([]);
     const [formOpen, setFormOpen] = useState(false);
     const [minutesOpen, setMinutesOpen] = useState(false);
     const [decisionOpen, setDecisionOpen] = useState(false);
@@ -138,6 +143,9 @@ export const Route = createFileRoute("/meetings")({
         }
       >
         <MobilePageHeader title="الاجتماعات والقرارات" count={`${data.length} اجتماع`} />
+        {data.length === 0 && (
+          <EmptyState title="لا توجد اجتماعات" description="ابدأ بإضافة أول اجتماع" />
+        )}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {data.map((m, idx) => (
             <Card key={m.id} className="p-5">

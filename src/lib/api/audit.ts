@@ -41,9 +41,9 @@ export async function getAuditEntries(filters: AuditFilters = {}): Promise<{
 }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.userName && filters.userName !== "الكل") params.set("userName", filters.userName);
-  if (filters.action && filters.action !== "الكل") params.set("action", filters.action);
-  if (filters.entityType && filters.entityType !== "الكل")
+  if (filters.userName) params.set("userName", filters.userName);
+  if (filters.action) params.set("action", filters.action);
+  if (filters.entityType)
     params.set("entityType", filters.entityType);
   if (filters.entityId) params.set("entityId", filters.entityId);
   if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);

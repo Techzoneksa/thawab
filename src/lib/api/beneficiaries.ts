@@ -1,9 +1,11 @@
+import { BeneficiaryStatus, MaritalStatus } from "@/lib/enums";
+
 const API_BASE = "/api/beneficiaries";
 
-export const ELIGIBILITY_STATUSES = ["جديد", "قيد المراجعة", "مؤهل", "غير مؤهل", "موقوف"] as const;
+export const ELIGIBILITY_STATUSES = Object.values(BeneficiaryStatus);
 export type EligibilityStatus = (typeof ELIGIBILITY_STATUSES)[number];
 
-export const MARITAL_STATUSES = ["أعزب", "متزوج", "مطلق", "أرمل"] as const;
+export const MARITAL_STATUSES = Object.values(MaritalStatus);
 
 export interface Beneficiary {
   id: string;
@@ -102,9 +104,9 @@ export async function getBeneficiaries(filters: BeneficiaryFilters = {}): Promis
 }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
-  if (filters.category && filters.category !== "الكل") params.set("category", filters.category);
-  if (filters.city && filters.city !== "الكل") params.set("city", filters.city);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.category) params.set("category", filters.category);
+  if (filters.city) params.set("city", filters.city);
   if (filters.page) params.set("page", String(filters.page));
   if (filters.limit) params.set("limit", String(filters.limit));
 
@@ -141,7 +143,7 @@ export async function createBeneficiary(data: CreateBeneficiaryInput): Promise<B
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة المستفيد");
+    throw new Error(err.message || err.error || "فشل في إضافة المستفيد");
   }
   const d = await res.json();
   return d.item;
@@ -155,7 +157,7 @@ export async function updateBeneficiary(data: UpdateBeneficiaryInput): Promise<B
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث المستفيد");
+    throw new Error(err.message || err.error || "فشل في تحديث المستفيد");
   }
   const d = await res.json();
   return d.item;
@@ -172,7 +174,7 @@ export async function deleteBeneficiary(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف المستفيد");
+    throw new Error(err.message || err.error || "فشل في حذف المستفيد");
   }
 }
 
@@ -188,7 +190,7 @@ export async function reviewBeneficiary(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إرسال المستفيد للمراجعة");
+    throw new Error(err.message || err.error || "فشل في إرسال المستفيد للمراجعة");
   }
   const d = await res.json();
   return d.item;
@@ -206,7 +208,7 @@ export async function qualifyBeneficiary(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تأهيل المستفيد");
+    throw new Error(err.message || err.error || "فشل في تأهيل المستفيد");
   }
   const d = await res.json();
   return d.item;
@@ -224,7 +226,7 @@ export async function disqualifyBeneficiary(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في عدم تأهيل المستفيد");
+    throw new Error(err.message || err.error || "فشل في عدم تأهيل المستفيد");
   }
   const d = await res.json();
   return d.item;
@@ -242,7 +244,7 @@ export async function suspendBeneficiary(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إيقاف المستفيد");
+    throw new Error(err.message || err.error || "فشل في إيقاف المستفيد");
   }
   const d = await res.json();
   return d.item;
@@ -260,7 +262,7 @@ export async function reactivateBeneficiary(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إعادة تفعيل المستفيد");
+    throw new Error(err.message || err.error || "فشل في إعادة تفعيل المستفيد");
   }
   const d = await res.json();
   return d.item;

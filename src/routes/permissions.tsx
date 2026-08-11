@@ -11,9 +11,17 @@ import {
   MobilePageHeader,
   MobileActionRow,
 } from "@/components/erp/AppShell";
-import { PERMISSIONS_MATRIX } from "@/data/sample";
-import { showToast, ConfirmDialog, EntityFormDrawer, ActionMenu } from "@/components/erp/actions";
+import {
+  showToast,
+  ConfirmDialog,
+  EntityFormDrawer,
+  ActionMenu,
+  EmptyState,
+} from "@/components/erp/actions";
 import { KeyRound, Plus, Pencil, Copy, Trash2, ShieldPlus } from "lucide-react";
+
+type RoleRow = { role: string; [key: string]: string };
+const PERMISSIONS_MATRIX: RoleRow[] = [];
 
 export const Route = createFileRoute("/permissions")({
   head: () => ({ meta: [{ title: "الصلاحيات — ثواب" }] }),
@@ -183,6 +191,15 @@ function Page() {
         </Btn>
       </MobileActionRow>
       <div className="mt-3 lg:mt-0" />
+      {matrix.length === 0 ? (
+        <Card className="p-2">
+          <EmptyState
+            icon={<KeyRound size={40} />}
+            title="لا توجد أدوار مُعرّفة"
+            description="تُدار الصلاحيات عبر الأدوار. استخدم زر «دور جديد» لإضافة أول دور وتحديد صلاحياته."
+          />
+        </Card>
+      ) : (
       <MobileTable
         columns={["الدور", ...modules.map((m) => labels[m]), ""]}
         rows={matrix}
@@ -260,6 +277,7 @@ function Page() {
           </Card>
         )}
       />
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
         <Card className="p-5">
@@ -276,7 +294,7 @@ function Page() {
           <p className="text-sm text-muted-foreground mb-3">
             مفعّلة لجميع المستخدمين ذوي الصلاحيات المالية والإدارية.
           </p>
-          <Badge tone="success">مفعّلة لـ 24 مستخدم</Badge>
+          <Badge tone="success">مفعّلة</Badge>
         </Card>
         <Card className="p-5">
           <h3 className="font-bold mb-3">سياسة كلمات المرور</h3>

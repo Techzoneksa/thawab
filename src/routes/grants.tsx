@@ -10,7 +10,7 @@ import {
   MobileTable,
   MobilePageHeader,
 } from "@/components/erp/AppShell";
-import { GRANTS, fmtSAR } from "@/data/sample";
+import { fmtSAR } from "@/data/sample";
 import { Plus, Edit, Trash2, Eye } from "lucide-react";
 import { useState } from "react";
 import {
@@ -19,6 +19,7 @@ import {
   EntityFormDrawer,
   ActionMenu,
   ExportButton,
+  EmptyState,
 } from "@/components/erp/actions";
 
 type GrantItem = {
@@ -34,7 +35,7 @@ type GrantItem = {
 export const Route = createFileRoute("/grants")({
   head: () => ({ meta: [{ title: "المنح — ثواب" }] }),
   component: () => {
-    const [data, setData] = useState<GrantItem[]>(GRANTS as GrantItem[]);
+    const [data, setData] = useState<GrantItem[]>([]);
     const [formOpen, setFormOpen] = useState(false);
     const [confirmIdx, setConfirmIdx] = useState(-1);
     const [formDonor, setFormDonor] = useState("");
@@ -97,6 +98,9 @@ export const Route = createFileRoute("/grants")({
         >
           <>
             <MobilePageHeader title="إدارة المنح" count={`${data.length} منحة`} />
+            {data.length === 0 && (
+              <EmptyState title="لا توجد منح" description="ابدأ بإضافة أول منحة" />
+            )}
             <MobileTable
               columns={[
                 "الرقم",

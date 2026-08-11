@@ -7,9 +7,11 @@ import {
   statusTone,
   MobilePageHeader,
 } from "@/components/erp/AppShell";
-import { WORKFLOWS } from "@/data/sample";
 import { GitBranch, Plus, ChevronLeft } from "lucide-react";
-import { showToast } from "@/components/erp/actions";
+import { showToast, EmptyState } from "@/components/erp/actions";
+
+type Workflow = { name: string; avg: string; active: number; steps: string[] };
+const WORKFLOWS: Workflow[] = [];
 
 export const Route = createFileRoute("/workflows")({
   head: () => ({ meta: [{ title: "سير العمل — ثواب" }] }),
@@ -36,6 +38,15 @@ function Page() {
       <div className="rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info-foreground mb-3">
         محرّك سير العمل للعرض فقط في هذه المرحلة. التحكم الكامل (إنشاء/تعديل/تشغيل) متاح في المرحلة 3D.
       </div>
+      {WORKFLOWS.length === 0 ? (
+        <Card className="p-2">
+          <EmptyState
+            icon={<GitBranch size={40} />}
+            title="لا توجد مسارات سير عمل"
+            description="سيتم عرض مسارات سير العمل والاعتمادات هنا عند إعدادها"
+          />
+        </Card>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {WORKFLOWS.map((w) => (
           <Card key={w.name} className="p-5">
@@ -70,6 +81,7 @@ function Page() {
           </Card>
         ))}
       </div>
+      )}
     </AppShell>
   );
 }

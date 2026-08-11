@@ -1,11 +1,17 @@
+import {
+  AssetStatus as AssetStatusEnum,
+  AssetCondition,
+  DepreciationMethod,
+} from "@/lib/enums";
+
 const API_BASE = "/api/assets";
 
-export const ASSET_STATUSES = ["نشط", "تحت الصيانة", "منقول", "مستبعد", "مباع", "ملغي"] as const;
+export const ASSET_STATUSES = Object.values(AssetStatusEnum);
 export type AssetStatus = (typeof ASSET_STATUSES)[number];
 
-export const ASSET_CONDITIONS = ["جيد", "متوسط", "يحتاج صيانة", "تالف"] as const;
+export const ASSET_CONDITIONS = Object.values(AssetCondition);
 
-export const ASSET_DEPRECIATION_METHODS = ["قسط ثابت", "قسط متناقص"] as const;
+export const ASSET_DEPRECIATION_METHODS = Object.values(DepreciationMethod);
 
 export interface FixedAsset {
   id: string;
@@ -82,8 +88,8 @@ export async function getFixedAssets(
 ): Promise<{ items: FixedAsset[]; total: number }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
-  if (filters.category && filters.category !== "الكل") params.set("category", filters.category);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.category) params.set("category", filters.category);
   const res = await fetch(`${API_BASE}?${params.toString()}`);
   if (!res.ok) throw new Error("فشل في جلب الأصول الثابتة");
   return res.json();
@@ -109,7 +115,7 @@ export async function createFixedAsset(data: CreateFixedAssetInput): Promise<Fix
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة الأصل");
+    throw new Error(err.message || err.error || "فشل في إضافة الأصل");
   }
   const d = await res.json();
   return d.item;
@@ -123,7 +129,7 @@ export async function updateFixedAsset(data: UpdateFixedAssetInput): Promise<Fix
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث الأصل");
+    throw new Error(err.message || err.error || "فشل في تحديث الأصل");
   }
   const d = await res.json();
   return d.item;
@@ -146,7 +152,7 @@ export async function transferFixedAsset(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في نقل الأصل");
+    throw new Error(err.message || err.error || "فشل في نقل الأصل");
   }
   const d = await res.json();
   return d.item;
@@ -168,7 +174,7 @@ export async function maintainFixedAsset(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تسجيل صيانة الأصل");
+    throw new Error(err.message || err.error || "فشل في تسجيل صيانة الأصل");
   }
   const d = await res.json();
   return d.item;
@@ -187,7 +193,7 @@ export async function returnFromMaintenance(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إنهاء الصيانة");
+    throw new Error(err.message || err.error || "فشل في إنهاء الصيانة");
   }
   const d = await res.json();
   return d.item;
@@ -208,7 +214,7 @@ export async function depreciateFixedAsset(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تسجيل الإهلاك");
+    throw new Error(err.message || err.error || "فشل في تسجيل الإهلاك");
   }
   const d = await res.json();
   return d.item;
@@ -229,7 +235,7 @@ export async function disposeFixedAsset(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في استبعاد الأصل");
+    throw new Error(err.message || err.error || "فشل في استبعاد الأصل");
   }
   const d = await res.json();
   return d.item;
@@ -251,7 +257,7 @@ export async function sellFixedAsset(options: {
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في بيع الأصل");
+    throw new Error(err.message || err.error || "فشل في بيع الأصل");
   }
   const d = await res.json();
   return d.item;
@@ -268,6 +274,6 @@ export async function deleteFixedAsset(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف الأصل");
+    throw new Error(err.message || err.error || "فشل في حذف الأصل");
   }
 }

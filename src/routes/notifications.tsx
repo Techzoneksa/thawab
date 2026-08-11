@@ -1,18 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell, Card, Badge, Btn, MobilePageHeader } from "@/components/erp/AppShell";
-import { ALERTS } from "@/data/sample";
 import { Bell, AlertTriangle, Info, CheckCircle2, BellRing, Plus, Eye, Check } from "lucide-react";
 import { useState } from "react";
-import { showToast, EntityFormDrawer, ActionMenu } from "@/components/erp/actions";
+import { showToast, EntityFormDrawer, ActionMenu, EmptyState } from "@/components/erp/actions";
 
 type AlertItem = { tone: string; text: string; time: string; read: boolean };
 
 export const Route = createFileRoute("/notifications")({
   head: () => ({ meta: [{ title: "التنبيهات — ثواب" }] }),
   component: () => {
-    const [data, setData] = useState<AlertItem[]>(
-      [...ALERTS, ...ALERTS, ...ALERTS].map((a) => ({ ...a, read: false })),
-    );
+    const [data, setData] = useState<AlertItem[]>([]);
     const [formOpen, setFormOpen] = useState(false);
     const [formText, setFormText] = useState("");
     const [formTone, setFormTone] = useState("info");
@@ -76,6 +73,13 @@ export const Route = createFileRoute("/notifications")({
       >
         <MobilePageHeader title="مركز التنبيهات" count={`${unread} غير مقروء`} />
         <Card className="p-2">
+          {data.length === 0 ? (
+            <EmptyState
+              icon={<Bell size={40} />}
+              title="لا توجد تنبيهات"
+              description="ستظهر التنبيهات هنا عند توفرها"
+            />
+          ) : (
           <ul className="divide-y">
             {data.map((a, i) => {
               const Icon = icon[a.tone] || Info;
@@ -108,6 +112,7 @@ export const Route = createFileRoute("/notifications")({
               );
             })}
           </ul>
+          )}
         </Card>
 
         <EntityFormDrawer

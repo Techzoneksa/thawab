@@ -1,80 +1,69 @@
-import { db as lazyDb, dialect, runRawSql, diagnose } from "./client";
+/**
+ * Database barrel + shared helpers.
+ *
+ * Migrations are managed by drizzle-kit (see `drizzle.config.ts`, `./drizzle`).
+ * On first request we run any pending migrations against Postgres.
+ */
+import { randomUUID } from "node:crypto";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { resolve } from "node:path";
+import { db, getDb, diagnose, runRawSql, closeDb } from "./client";
 import { auditLog } from "./schema";
-import { SQLITE_DDL, SQLITE_MIGRATIONS, PG_DDL, PG_MIGRATIONS } from "./init";
 
-export { dialect, runRawSql, diagnose };
+export { db, getDb, diagnose, runRawSql, closeDb };
 
-let _dbReady = false;
-let _initCalled = false;
 let _initPromise: Promise<void> | null = null;
 
-export async function ensureInit() {
+export function ensureInit(): Promise<void> {
   if (_initPromise) return _initPromise;
   _initPromise = (async () => {
-    if (_initCalled) return;
-    _initCalled = true;
+    const t0 = Date.now();
     try {
-      const t0 = Date.now();
-      await runRawSql(SQLITE_DDL);
-      for (const migration of SQLITE_MIGRATIONS) {
-        try { await runRawSql(migration); } catch (e) {
-          console.warn("[db] migration skipped:", e instanceof Error ? e.message : String(e));
-        }
-      }
-      if (dialect === "postgres") {
-        await runRawSql(PG_DDL);
-        for (const migration of PG_MIGRATIONS) {
-          try { await runRawSql(migration); } catch { }
-        }
-      }
-      _dbReady = true;
-      const d = await diagnose();
-      console.log(`[db] init OK (${Date.now() - t0}ms)`, JSON.stringify(d));
+      await migrate(getDb(), { migrationsFolder: resolve(process.cwd(), "drizzle") });
+      console.log(`[db] migrations applied (${Date.now() - t0}ms)`);
     } catch (e) {
-      console.error("[db] init failed:", e instanceof Error ? e.message : e);
+      // Do NOT cache a failed init — allow the next request to retry.
+      _initPromise = null;
+      console.error("[db] init/migrate failed:", e instanceof Error ? e.message : e);
+      throw e;
     }
   })();
   return _initPromise;
 }
 
-export function isDbReady() {
-  return _dbReady;
+/** ISO-8601 timestamp — sortable, locale-independent. Render locale text in the UI. */
+export function now(): string {
+  return new Date().toISOString();
 }
 
-export const db = lazyDb;
-
-export function now() {
-  return new Date().toLocaleString("ar-SA", { hour12: false });
+/** Non-security id generator for domain records (NOT for session tokens). */
+export function genId(prefix = ""): string {
+  const id = randomUUID();
+  return prefix ? `${prefix}-${id}` : id;
 }
 
-export function genId(prefix = "") {
-  const num = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-  return prefix ? `${prefix}-${num}` : num;
-}
-
-export async function addAudit(
-  action: string,
-  entityType: string,
-  entityId: string,
-  description: string,
-  userId?: string,
-  userName = "نظام",
-  before?: string,
-  after?: string,
-) {
-  await ensureInit();
-  await db.insert(auditLog)
-    .values({
-      id: genId("AUD"),
-      userId: userId || null,
-      userName,
-      action,
-      entityType,
-      entityId,
-      description,
-      before: before || null,
-      after: after || null,
-      timestamp: now(),
-    })
-    .run();
+export async function addAudit(opts: {
+  action: string;
+  entityType: string;
+  entityId: string;
+  description?: string;
+  userId?: string | null;
+  userName?: string;
+  before?: string | null;
+  after?: string | null;
+  ip?: string;
+}) {
+  await db.insert(auditLog).values({
+    id: genId("AUD"),
+    userId: opts.userId ?? null,
+    userName: opts.userName ?? "system",
+    action: opts.action,
+    entityType: opts.entityType,
+    entityId: opts.entityId,
+    description: opts.description ?? "",
+    before: opts.before ?? null,
+    after: opts.after ?? null,
+    ip: opts.ip ?? "",
+    timestamp: now(),
+  });
 }

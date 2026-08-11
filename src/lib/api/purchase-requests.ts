@@ -1,16 +1,11 @@
+import { PurchaseRequestStatus, Priority } from "@/lib/enums";
+
 const API_BASE = "/api/procurement/requests";
 
-export const REQUEST_STATUSES = [
-  "مسودة",
-  "بانتظار الموافقة",
-  "معتمد",
-  "مرفوض",
-  "محول إلى أمر شراء",
-  "ملغي",
-] as const;
+export const REQUEST_STATUSES = Object.values(PurchaseRequestStatus);
 export type RequestStatus = (typeof REQUEST_STATUSES)[number];
 
-export const REQUEST_PRIORITIES = ["عاجل", "متوسطة", "منخفضة"] as const;
+export const REQUEST_PRIORITIES = Object.values(Priority);
 
 export interface PurchaseRequest {
   id: string;
@@ -63,8 +58,8 @@ export async function getPurchaseRequests(
 ): Promise<{ items: PurchaseRequest[]; total: number }> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
-  if (filters.status && filters.status !== "الكل") params.set("status", filters.status);
-  if (filters.department && filters.department !== "الكل")
+  if (filters.status) params.set("status", filters.status);
+  if (filters.department)
     params.set("department", filters.department);
   const res = await fetch(`${API_BASE}?${params.toString()}`);
   if (!res.ok) throw new Error("فشل في جلب طلبات الشراء");
@@ -89,7 +84,7 @@ export async function createPurchaseRequest(
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في إضافة طلب الشراء");
+    throw new Error(err.message || err.error || "فشل في إضافة طلب الشراء");
   }
   const d = await res.json();
   return d.item;
@@ -105,7 +100,7 @@ export async function updatePurchaseRequest(
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في تحديث طلب الشراء");
+    throw new Error(err.message || err.error || "فشل في تحديث طلب الشراء");
   }
   const d = await res.json();
   return d.item;
@@ -122,7 +117,7 @@ async function workflowAction(
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || `فشل في تنفيذ الإجراء`);
+    throw new Error(err.message || err.error || `فشل في تنفيذ الإجراء`);
   }
   const d = await res.json();
   return d.item;
@@ -161,6 +156,6 @@ export async function deletePurchaseRequest(options: {
   const res = await fetch(`${API_BASE}?${params.toString()}`, { method: "DELETE" });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || "فشل في حذف طلب الشراء");
+    throw new Error(err.message || err.error || "فشل في حذف طلب الشراء");
   }
 }
