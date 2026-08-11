@@ -11,7 +11,26 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { AuthProvider } from "@/lib/api/auth";
+import { AuthProvider, useAuth } from "@/lib/api/auth";
+
+const PUBLIC_PATHS = ["/login"];
+
+/** Redirects unauthenticated users to /login (client-side guard). */
+function AuthGate({ children }: { children: ReactNode }) {
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
+  const pathname = router.state.location.pathname;
+  const isPublic = PUBLIC_PATHS.includes(pathname);
+
+  useEffect(() => {
+    if (!isLoading && !user && !isPublic) {
+      router.navigate({ to: "/login" });
+    }
+  }, [isLoading, user, isPublic, router]);
+
+  if (!isLoading && !user && !isPublic) return null;
+  return <>{children}</>;
+}
 
 function NotFoundComponent() {
   return (
@@ -132,7 +151,9 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Outlet />
+        <AuthGate>
+          <Outlet />
+        </AuthGate>
       </AuthProvider>
     </QueryClientProvider>
   );
