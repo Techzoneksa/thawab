@@ -29,7 +29,6 @@ import {
   EntityFormDrawer,
   ConfirmDialog,
   ActionMenu,
-  ExportButton,
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
@@ -45,6 +44,8 @@ import { getWarehouses, type Warehouse } from "@/lib/api/warehouses";
 import { getInventoryItems, type InventoryItem } from "@/lib/api/inventory-items";
 import { StocktakeStatus } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/inventory/stocktake")({
   head: () => ({ meta: [{ title: "الجرد — ثواب" }] }),
@@ -145,24 +146,36 @@ function Page() {
     total,
   };
 
+  const buildDoc = (): DocumentDefinition => {
+    const today = new Date().toISOString().slice(0, 10);
+    const filters: DocMeta[] = [];
+    if (statusFilter)
+      filters.push({ label: "الحالة", value: label("stocktakeStatus", statusFilter) });
+    return {
+      title: "عمليات الجرد",
+      date: today,
+      filters,
+      columns: [
+        { key: "name", label: "الاسم" },
+        { key: "date", label: "التاريخ", type: "date" },
+        { key: "status", label: "الحالة" },
+      ],
+      rows: items.map((s) => ({
+        name: s.name,
+        date: s.date,
+        status: label("stocktakeStatus", s.status),
+      })),
+      fileBase: `stocktakes-${today}`,
+    };
+  };
+
   return (
     <AppShell
       breadcrumb={["الرئيسية", "المخزون", "الجرد"]}
       title="عمليات الجرد"
       actions={
         <>
-          <ExportButton
-            data={items.map((s) => ({
-              id: s.id,
-              name: s.name,
-              warehouseId: s.warehouseId || "",
-              date: s.date,
-              approvedBy: s.approvedBy || "",
-              approvedAt: s.approvedAt || "",
-              status: s.status,
-            }))}
-            filename="stocktakes.csv"
-          />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAdd}>
             <Plus size={15} />
             جرد جديد

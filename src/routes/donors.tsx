@@ -23,8 +23,6 @@ import {
   ConfirmDialog,
   EntityFormDrawer,
   ActionMenu,
-  ExportButton,
-  PrintButton,
   EmptyState,
 } from "@/components/erp/actions";
 import {
@@ -37,6 +35,8 @@ import {
 } from "@/lib/api/donors";
 import { DonorStatus, DonorTag } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/donors")({
   head: () => ({ meta: [{ title: "المتبرعون — ثواب" }] }),
@@ -169,14 +169,54 @@ function Page() {
     }
   };
 
+  const buildDoc = async (): Promise<DocumentDefinition> => {
+    const today = new Date().toISOString().slice(0, 10);
+    const all = await getDonors({ ...apiFilters, page: 1, limit: 100000 });
+    const rows = all.items;
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (typeFilter !== "الكل") filters.push({ label: "النوع", value: typeFilter });
+    if (tagFilter !== "الكل") filters.push({ label: "التصنيف", value: tagFilter });
+    if (cityFilter !== "الكل") filters.push({ label: "المدينة", value: cityFilter });
+    const totalDonations = rows.reduce((s, d) => s + (d.totalDonations || 0), 0);
+    return {
+      title: "المتبرعون",
+      date: today,
+      orientation: "landscape",
+      filters,
+      fileBase: `donors-${today}`,
+      columns: [
+        { key: "name", label: "اسم المتبرع", width: "24%" },
+        { key: "type", label: "النوع" },
+        { key: "city", label: "المدينة" },
+        { key: "totalDonations", label: "إجمالي التبرعات", type: "money" },
+        { key: "donationCount", label: "عدد العمليات", type: "number" },
+        { key: "tag", label: "التصنيف" },
+        { key: "status", label: "الحالة" },
+      ],
+      rows: rows.map((d: Donor) => ({
+        name: d.name,
+        type: label("donorType", d.type),
+        city: d.city,
+        totalDonations: d.totalDonations,
+        donationCount: d.donationCount,
+        tag: label("donorTag", d.tag),
+        status: label("donorStatus", d.status),
+      })),
+      totals: [
+        { label: "إجمالي التبرعات", value: totalDonations, type: "money", strong: true },
+        { label: "عدد المتبرعين", value: rows.length, type: "number" },
+      ],
+    };
+  };
+
   return (
     <AppShell
       breadcrumb={["الرئيسية", "التبرعات والمتبرعون", "المتبرعون"]}
       title="إدارة المتبرعين (CRM)"
       actions={
         <>
-          <ExportButton data={donors} filename="المتبرعون.csv" />
-          <PrintButton />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAddDonor}>
             <UserPlus size={15} /> متبرع جديد
           </Btn>

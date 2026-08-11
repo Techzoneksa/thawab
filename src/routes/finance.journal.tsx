@@ -33,10 +33,10 @@ import {
   ConfirmDialog,
   EntityFormDrawer,
   ActionMenu,
-  ExportButton,
-  PrintButton,
   EmptyState,
 } from "@/components/erp/actions";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 import { useAuth } from "@/lib/api/auth";
 import { label, options } from "@/lib/i18n/labels";
 import { JournalStatus } from "@/lib/enums";
@@ -177,6 +177,48 @@ function Page() {
     }
   };
 
+  const buildDoc = async (): Promise<DocumentDefinition> => {
+    const today = new Date().toISOString().slice(0, 10);
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (statusFilter)
+      filters.push({ label: "الحالة", value: label("journalStatus", statusFilter) });
+    if (fundFilter) filters.push({ label: "الصندوق", value: label("fund", fundFilter) });
+    // Re-fetch the COMPLETE filtered dataset (list is server-paginated).
+    const all = await getJournalEntries({
+      search: searchQuery,
+      status: statusFilter,
+      fund: fundFilter,
+      page: 1,
+      limit: 100000,
+    });
+    return {
+      title: "قيود اليومية",
+      date: today,
+      orientation: "landscape",
+      filters,
+      columns: [
+        { key: "number", label: "الرقم", width: "12%" },
+        { key: "date", label: "التاريخ", width: "12%" },
+        { key: "description", label: "الوصف", width: "34%" },
+        { key: "fund", label: "الصندوق", width: "12%" },
+        { key: "status", label: "الحالة", width: "12%" },
+        { key: "totalDebit", label: "مدين", type: "money" },
+        { key: "totalCredit", label: "دائن", type: "money" },
+      ],
+      rows: all.items.map((e: JournalEntry) => ({
+        number: e.number,
+        date: e.date,
+        description: e.description,
+        fund: label("fund", e.fund),
+        status: label("journalStatus", e.status),
+        totalDebit: e.totalDebit ?? e.amount,
+        totalCredit: e.totalCredit ?? e.amount,
+      })),
+      fileBase: `journal-${today}`,
+    };
+  };
+
   const stats = [
     { label: "إجمالي القيود", value: fmtNum(total) },
     {
@@ -199,11 +241,7 @@ function Page() {
       title="قيود اليومية"
       actions={
         <>
-          <ExportButton
-            data={entries as unknown as Record<string, unknown>[]}
-            filename="قيود_اليومية.csv"
-          />
-          <PrintButton />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAdd}>
             <Plus size={15} /> قيد جديد
           </Btn>

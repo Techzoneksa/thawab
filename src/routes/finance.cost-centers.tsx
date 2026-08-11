@@ -23,10 +23,10 @@ import {
   ConfirmDialog,
   EntityFormDrawer,
   ActionMenu,
-  ExportButton,
-  PrintButton,
   EmptyState,
 } from "@/components/erp/actions";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 import { useAuth } from "@/lib/api/auth";
 import { label, options } from "@/lib/i18n/labels";
 import { CostCenterStatus as CostCenterStatusEnum } from "@/lib/enums";
@@ -196,6 +196,34 @@ function Page() {
     }
   };
 
+  const buildDoc = (): DocumentDefinition => {
+    const today = new Date().toISOString().slice(0, 10);
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (statusFilter)
+      filters.push({ label: "الحالة", value: label("costCenterStatus", statusFilter) });
+    return {
+      title: "مراكز التكلفة",
+      date: today,
+      filters,
+      columns: [
+        { key: "code", label: "الرمز", width: "16%" },
+        { key: "name", label: "الاسم", width: "34%" },
+        { key: "budget", label: "الموازنة", type: "money" },
+        { key: "spent", label: "المصروف", type: "money" },
+        { key: "status", label: "الحالة", width: "16%" },
+      ],
+      rows: costCenters.map((c: CostCenter) => ({
+        code: c.code,
+        name: c.name,
+        budget: c.budget,
+        spent: c.spent,
+        status: label("costCenterStatus", c.status),
+      })),
+      fileBase: `cost-centers-${today}`,
+    };
+  };
+
   const stats = [
     { label: "إجمالي المراكز", value: fmtNum(total) },
     {
@@ -218,11 +246,7 @@ function Page() {
       title="مراكز التكلفة"
       actions={
         <>
-          <ExportButton
-            data={costCenters as unknown as Record<string, unknown>[]}
-            filename="مراكز_التكلفة.csv"
-          />
-          <PrintButton />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAdd}>
             <Plus size={15} /> مركز جديد
           </Btn>

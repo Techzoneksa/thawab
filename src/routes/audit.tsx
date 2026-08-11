@@ -16,14 +16,10 @@ import {
 } from "@/components/erp/AppShell";
 import { Eye, Search, Filter } from "lucide-react";
 import { useState, useEffect } from "react";
-import {
-  showToast,
-  EntityFormDrawer,
-  ExportButton,
-  PrintButton,
-  EmptyState,
-} from "@/components/erp/actions";
+import { EntityFormDrawer, EmptyState } from "@/components/erp/actions";
 import { getAuditEntries, getAuditEntry, type AuditEntry } from "@/lib/api/audit";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/audit")({
   head: () => ({ meta: [{ title: "سجل التدقيق — ثواب" }] }),
@@ -96,15 +92,48 @@ function Page() {
     { label: "أنواع الكيانات", value: options.entities.length },
   ];
 
-  const exportRows = entries.map((e: AuditEntry) => ({
-    الوقت: e.timestamp,
-    المستخدم: e.userName,
-    الإجراء: e.action,
-    الكيان: e.entityType,
-    "رقم السجل": e.entityId,
-    الوصف: e.description,
-    IP: e.ip,
-  }));
+  const buildDoc = async (): Promise<DocumentDefinition> => {
+    const today = new Date().toISOString().slice(0, 10);
+    const res = await getAuditEntries({
+      search: searchQuery,
+      userName: userFilter,
+      action: actionFilter,
+      entityType: entityFilter,
+      dateFrom,
+      dateTo,
+      page: 1,
+      limit: 100000,
+    });
+    const rows = res.items;
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (userFilter !== "الكل") filters.push({ label: "المستخدم", value: userFilter });
+    if (actionFilter !== "الكل") filters.push({ label: "الإجراء", value: actionFilter });
+    if (entityFilter !== "الكل") filters.push({ label: "الكيان", value: entityFilter });
+    if (dateFrom) filters.push({ label: "من", value: dateFrom });
+    if (dateTo) filters.push({ label: "إلى", value: dateTo });
+    return {
+      title: "سجل التدقيق (Audit Trail)",
+      date: today,
+      orientation: "landscape",
+      filters,
+      columns: [
+        { key: "timestamp", label: "الوقت", type: "date" },
+        { key: "userName", label: "المستخدم" },
+        { key: "action", label: "الإجراء" },
+        { key: "entityType", label: "الكيان" },
+        { key: "description", label: "الوصف" },
+      ],
+      rows: rows.map((e: AuditEntry) => ({
+        timestamp: e.timestamp,
+        userName: e.userName,
+        action: e.action,
+        entityType: e.entityType,
+        description: e.description,
+      })),
+      fileBase: `audit-${today}`,
+    };
+  };
 
   return (
     <AppShell
@@ -112,11 +141,7 @@ function Page() {
       title="سجل التدقيق (Audit Trail)"
       actions={
         <>
-          <ExportButton
-            data={exportRows as unknown as Record<string, unknown>[]}
-            filename="سجل_التدقيق.csv"
-          />
-          <PrintButton />
+          <DocumentActions document={buildDoc} />
           <Btn variant="outline" onClick={() => setFilterOpen(true)}>
             <Filter size={15} /> تصفية
           </Btn>

@@ -161,7 +161,7 @@ export function EnterpriseFormLayout({
         </div>
         {tabs.length > 1 && (
           <div className="px-3 sm:px-4 lg:px-8 border-t bg-surface">
-            <Tabs value={activeTab} className="w-full">
+            <Tabs value={activeTab} dir="rtl" className="w-full">
               <TabsList className="h-auto p-0 bg-transparent rounded-none justify-start gap-0 overflow-x-auto no-scrollbar -mx-1">
                 {tabs.map((t) => (
                   <TabsTrigger

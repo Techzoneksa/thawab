@@ -36,7 +36,7 @@ export async function exportPdf(def: DocumentDefinition) {
   };
 
   const fmt = (v: unknown, type?: string) =>
-    type === "money" ? currency(Number(v || 0)) : type === "number" ? new Intl.NumberFormat("ar-SA").format(Number(v || 0)) : type === "date" ? String(v ?? "").slice(0, 10) : String(v ?? "");
+    type === "money" ? currency(Number(v || 0)) : type === "number" ? new Intl.NumberFormat("ar-SA-u-nu-latn").format(Number(v || 0)) : type === "date" ? String(v ?? "").slice(0, 10) : String(v ?? "");
 
   const body = [
     def.columns.map((c) => ({ text: c.label, bold: true, color: "white", fillColor: "#1f2937", alignment: "center" })),
@@ -67,7 +67,7 @@ export async function exportPdf(def: DocumentDefinition) {
       def.number || def.date ? { text: [def.number && `المستند: ${def.number}`, def.date && `التاريخ: ${def.date.slice(0, 10)}`].filter(Boolean).join("   "), alignment: "center", fontSize: 9, margin: [0, 0, 0, 6] } : {},
       ...(def.filters?.length || def.meta?.length ? [{ text: [...(def.meta ?? []), ...(def.filters ?? [])].map((m) => `${m.label}: ${m.value}`).join("   |   "), fontSize: 8, color: "#6b7280", margin: [0, 0, 0, 6] }] : []),
       { table: { headerRows: 1, widths: def.columns.map(() => "*"), body }, layout: { fillColor: (i: number) => (i > 0 && i % 2 === 0 ? "#f9fafb" : null) } },
-      ...(def.totals?.length ? [{ margin: [0, 8, 0, 0], table: { widths: ["*", "auto"], body: def.totals.map((t) => [{ text: t.label, bold: t.strong }, { text: t.type === "number" ? new Intl.NumberFormat("ar-SA").format(t.value) : currency(t.value), alignment: "left", bold: t.strong }]) }, layout: "lightHorizontalLines" }] : []),
+      ...(def.totals?.length ? [{ margin: [0, 8, 0, 0], table: { widths: ["*", "auto"], body: def.totals.map((t) => [{ text: t.label, bold: t.strong }, { text: t.type === "number" ? new Intl.NumberFormat("ar-SA-u-nu-latn").format(t.value) : currency(t.value), alignment: "left", bold: t.strong }]) }, layout: "lightHorizontalLines" }] : []),
       ...(def.notes ? [{ text: `ملاحظات: ${def.notes}`, fontSize: 8, color: "#374151", margin: [0, 10, 0, 0] }] : []),
     ],
   };

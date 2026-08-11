@@ -35,8 +35,6 @@ import {
   ConfirmDialog,
   EntityFormDrawer,
   ActionMenu,
-  ExportButton,
-  PrintButton,
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
@@ -54,6 +52,8 @@ import {
 } from "@/lib/api/donations";
 import { DonationStatus, DonationMethod, DonationChannel } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/donations")({
   head: () => ({ meta: [{ title: "إدارة التبرعات — ثواب" }] }),
@@ -227,7 +227,7 @@ function Page() {
         amount: parseFloat(formAmount),
         method: formMethod,
         channel: formMethod === DonationMethod.TRANSFER ? DonationChannel.BANK : DonationChannel.DIRECT,
-        date: formDate || new Date().toLocaleDateString("ar-SA"),
+        date: formDate || new Date().toLocaleDateString("ar-SA-u-nu-latn"),
         notes: formNotes,
         status: DonationStatus.DRAFT,
         userId: user?.id,
@@ -281,14 +281,54 @@ function Page() {
     },
   ];
 
+  const buildDoc = async (): Promise<DocumentDefinition> => {
+    const today = new Date().toISOString().slice(0, 10);
+    const all = await getDonations({ ...apiFilters, page: 1, limit: 100000 });
+    const rows = all.items;
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (channelFilter !== "الكل") filters.push({ label: "القناة", value: channelFilter });
+    if (methodFilter !== "الكل") filters.push({ label: "طريقة الدفع", value: methodFilter });
+    if (statusFilter !== "الكل") filters.push({ label: "الحالة", value: statusFilter });
+    const totalAmount = rows.reduce((s, d) => s + d.amount, 0);
+    return {
+      title: "التبرعات",
+      date: today,
+      orientation: "landscape",
+      filters,
+      fileBase: `donations-${today}`,
+      columns: [
+        { key: "date", label: "التاريخ", type: "date" },
+        { key: "donorName", label: "المتبرع", width: "24%" },
+        { key: "amount", label: "المبلغ", type: "money" },
+        { key: "method", label: "طريقة الدفع" },
+        { key: "channel", label: "القناة" },
+        { key: "fund", label: "الصندوق" },
+        { key: "status", label: "الحالة" },
+      ],
+      rows: rows.map((d: Donation) => ({
+        date: d.date,
+        donorName: d.donorName,
+        amount: d.amount,
+        method: label("donationMethod", d.method),
+        channel: label("donationChannel", d.channel),
+        fund: label("fund", (d as { fund?: string }).fund),
+        status: label("donationStatus", d.status),
+      })),
+      totals: [
+        { label: "إجمالي المبلغ", value: totalAmount, type: "money", strong: true },
+        { label: "عدد التبرعات", value: rows.length, type: "number" },
+      ],
+    };
+  };
+
   return (
     <AppShell
       breadcrumb={["الرئيسية", "التبرعات والمتبرعون", "التبرعات"]}
       title="إدارة التبرعات"
       actions={
         <>
-          <ExportButton data={donations} filename="التبرعات.csv" />
-          <PrintButton />
+          <DocumentActions document={buildDoc} />
           <Btn variant="outline" onClick={() => setAddDonorOpen(true)}>
             <UserPlus size={15} /> إضافة متبرع
           </Btn>

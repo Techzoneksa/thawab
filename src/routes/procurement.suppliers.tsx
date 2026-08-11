@@ -18,7 +18,6 @@ import {
   EntityFormDrawer,
   ConfirmDialog,
   ActionMenu,
-  ExportButton,
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
@@ -31,6 +30,8 @@ import {
   deleteSupplier,
   type Supplier,
 } from "@/lib/api/suppliers";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/procurement/suppliers")({
   head: () => ({ meta: [{ title: "الموردون — ثواب" }] }),
@@ -121,28 +122,39 @@ function Page() {
     total,
   };
 
+  const buildDoc = (): DocumentDefinition => {
+    const today = new Date().toISOString().slice(0, 10);
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    return {
+      title: "سجل الموردين",
+      date: today,
+      filters,
+      columns: [
+        { key: "name", label: "اسم المورد" },
+        { key: "activity", label: "النشاط" },
+        { key: "phone", label: "الجوال" },
+        { key: "balance", label: "الرصيد", type: "money" },
+        { key: "status", label: "الحالة" },
+      ],
+      rows: items.map((s) => ({
+        name: s.name,
+        activity: s.activity || "—",
+        phone: s.phone || "—",
+        balance: s.balance,
+        status: label("supplierStatus", s.status),
+      })),
+      fileBase: `suppliers-${today}`,
+    };
+  };
+
   return (
     <AppShell
       breadcrumb={["الرئيسية", "المشتريات", "الموردون"]}
       title="سجل الموردين"
       actions={
         <>
-          <ExportButton
-            data={items.map((s) => ({
-              id: s.id,
-              name: s.name,
-              activity: s.activity,
-              phone: s.phone || "",
-              email: s.email || "",
-              taxNumber: s.taxNumber,
-              contactPerson: s.contactPerson,
-              address: s.address,
-              status: s.status,
-              rating: s.rating,
-              notes: s.notes,
-            }))}
-            filename="suppliers.csv"
-          />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAdd}>
             <Plus size={15} />
             إضافة مورد

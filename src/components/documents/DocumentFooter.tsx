@@ -20,7 +20,7 @@ export function DocumentFooter({ def }: { def: DocumentDefinition }) {
       <div className="doc-footer-bar">
         <span>{[org.nameAr, org.phone, org.email, org.website].filter(Boolean).join(" · ")}</span>
         <span className="doc-generated">
-          صدر في {new Date().toLocaleString("ar-SA", { hour12: false })}
+          صدر في {new Date().toLocaleString("ar-SA-u-nu-latn", { hour12: false })}
         </span>
       </div>
     </footer>

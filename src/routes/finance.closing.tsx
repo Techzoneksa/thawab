@@ -36,6 +36,8 @@ import {
   ActionMenu,
   EmptyState,
 } from "@/components/erp/actions";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 import { useAuth } from "@/lib/api/auth";
 import { label, options } from "@/lib/i18n/labels";
 import { FiscalPeriodStatus } from "@/lib/enums";
@@ -214,6 +216,32 @@ function Page() {
     }
   };
 
+  const buildDoc = (): DocumentDefinition => {
+    const today = new Date().toISOString().slice(0, 10);
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (statusFilter)
+      filters.push({ label: "الحالة", value: label("fiscalPeriodStatus", statusFilter) });
+    return {
+      title: "الفترات المالية",
+      date: today,
+      filters,
+      columns: [
+        { key: "name", label: "الفترة", width: "40%" },
+        { key: "startDate", label: "تاريخ البداية", type: "date" },
+        { key: "endDate", label: "تاريخ النهاية", type: "date" },
+        { key: "status", label: "الحالة", width: "20%" },
+      ],
+      rows: periods.map((p: FiscalPeriod) => ({
+        name: p.name,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        status: label("fiscalPeriodStatus", p.status),
+      })),
+      fileBase: `fiscal-periods-${today}`,
+    };
+  };
+
   const stats = {
     open: periods.filter((p: FiscalPeriod) => p.status === FiscalPeriodStatus.OPEN).length,
     closed: periods.filter((p: FiscalPeriod) => p.status === FiscalPeriodStatus.CLOSED).length,
@@ -226,9 +254,12 @@ function Page() {
       breadcrumb={["الرئيسية", "المالية", "الإقفال المالي"]}
       title="الإقفال المالي للفترات"
       actions={
-        <Btn variant="primary" onClick={openAdd}>
-          <Plus size={15} /> فترة جديدة
-        </Btn>
+        <>
+          <DocumentActions document={buildDoc} />
+          <Btn variant="primary" onClick={openAdd}>
+            <Plus size={15} /> فترة جديدة
+          </Btn>
+        </>
       }
     >
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-3 lg:mb-4">

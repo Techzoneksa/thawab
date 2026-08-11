@@ -9,7 +9,6 @@ import {
   EntityFormDrawer,
   ConfirmDialog,
   ActionMenu,
-  ExportButton,
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
@@ -24,6 +23,8 @@ import {
 } from "@/lib/api/quotes";
 import { getPurchaseRequests, type PurchaseRequest } from "@/lib/api/purchase-requests";
 import { getSuppliers, type Supplier } from "@/lib/api/suppliers";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/procurement/quotes")({
   head: () => ({ meta: [{ title: "عروض الأسعار — ثواب" }] }),
@@ -112,27 +113,38 @@ function Page() {
     return acc;
   }, {});
 
+  const buildDoc = (): DocumentDefinition => {
+    const today = new Date().toISOString().slice(0, 10);
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (statusFilter) filters.push({ label: "الحالة", value: label("quoteStatus", statusFilter) });
+    if (requestFilter && requestFilter !== "الكل")
+      filters.push({ label: "طلب الشراء", value: requestFilter });
+    return {
+      title: "عروض الأسعار",
+      date: today,
+      filters,
+      columns: [
+        { key: "supplier", label: "المورد" },
+        { key: "price", label: "السعر", type: "money" },
+        { key: "status", label: "الحالة" },
+      ],
+      rows: items.map((q) => ({
+        supplier: q.supplier,
+        price: q.price,
+        status: label("quoteStatus", q.status),
+      })),
+      fileBase: `quotes-${today}`,
+    };
+  };
+
   return (
     <AppShell
       breadcrumb={["الرئيسية", "المشتريات", "عروض الأسعار"]}
       title="مقارنة عروض الأسعار"
       actions={
         <>
-          <ExportButton
-            data={items.map((q) => ({
-              id: q.id,
-              requestId: q.requestId || "",
-              supplier: q.supplier,
-              price: q.price,
-              delivery: q.delivery,
-              warranty: q.warranty,
-              rating: q.rating,
-              winner: q.winner ? "نعم" : "لا",
-              status: q.status,
-              validUntil: q.validUntil,
-            }))}
-            filename="quotes.csv"
-          />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAdd}>
             <Plus size={15} />
             إضافة عرض سعر

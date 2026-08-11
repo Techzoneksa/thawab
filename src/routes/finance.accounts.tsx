@@ -32,9 +32,10 @@ import {
   showToast,
   ConfirmDialog,
   ActionMenu,
-  ExportButton,
   EmptyState,
 } from "@/components/erp/actions";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 import { useAuth } from "@/lib/api/auth";
 import { label, options } from "@/lib/i18n/labels";
 import { AccountStatus } from "@/lib/enums";
@@ -183,6 +184,34 @@ function Page() {
     setExpanded(next);
   };
 
+  const buildDoc = (): DocumentDefinition => {
+    const today = new Date().toISOString().slice(0, 10);
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (typeFilter)
+      filters.push({ label: "التصنيف", value: label("accountClassification", typeFilter) });
+    if (statusFilter) filters.push({ label: "الحالة", value: label("accountStatus", statusFilter) });
+    return {
+      title: "دليل الحسابات",
+      date: today,
+      orientation: "landscape",
+      filters,
+      columns: [
+        { key: "code", label: "الرمز", width: "15%" },
+        { key: "name", label: "اسم الحساب", width: "45%" },
+        { key: "classification", label: "التصنيف", width: "20%" },
+        { key: "status", label: "الحالة", width: "20%" },
+      ],
+      rows: accounts.map((a: Account) => ({
+        code: a.code,
+        name: a.name,
+        classification: label("accountClassification", acctClassification(a)),
+        status: label("accountStatus", a.status),
+      })),
+      fileBase: `accounts-${today}`,
+    };
+  };
+
   const stats = [
     { label: "إجمالي الحسابات", value: fmtNum(total) },
     {
@@ -219,10 +248,7 @@ function Page() {
               القائمة
             </button>
           </div>
-          <ExportButton
-            data={accounts as unknown as Record<string, unknown>[]}
-            filename="دليل_الحسابات.csv"
-          />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={() => openAdd()}>
             <Plus size={15} /> حساب جديد
           </Btn>

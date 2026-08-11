@@ -37,8 +37,6 @@ import {
   showToast,
   ConfirmDialog,
   ActionMenu,
-  ExportButton,
-  PrintButton,
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
@@ -56,6 +54,8 @@ import {
 } from "@/lib/api/beneficiaries";
 import { BeneficiaryStatus } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/beneficiaries")({
   head: () => ({ meta: [{ title: "المستفيدون — ثواب" }] }),
@@ -171,6 +171,47 @@ function Page() {
     onError: (err: Error) => showToast(err.message, "error"),
   });
 
+  const buildDoc = async (): Promise<DocumentDefinition> => {
+    const today = new Date().toISOString().slice(0, 10);
+    const res = await getBeneficiaries({
+      search: searchQuery,
+      status: toStatusKey(statusFilter),
+      category: toCategoryKey(categoryFilter),
+      city: cityFilter === "الكل" ? "" : cityFilter,
+      page: 1,
+      limit: 100000,
+    });
+    const rows = res.items;
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (categoryFilter !== "الكل") filters.push({ label: "الفئة", value: categoryFilter });
+    if (statusFilter !== "الكل") filters.push({ label: "الحالة", value: statusFilter });
+    if (cityFilter !== "الكل") filters.push({ label: "المدينة", value: cityFilter });
+    return {
+      title: "قاعدة بيانات المستفيدين",
+      date: today,
+      orientation: "landscape",
+      filters,
+      columns: [
+        { key: "fileNumber", label: "رقم الملف" },
+        { key: "name", label: "الاسم" },
+        { key: "category", label: "الفئة" },
+        { key: "city", label: "المدينة" },
+        { key: "familyMembers", label: "عدد الأفراد", type: "number" },
+        { key: "status", label: "الحالة" },
+      ],
+      rows: rows.map((b: Beneficiary) => ({
+        fileNumber: b.fileNumber || b.id,
+        name: b.name,
+        category: label("beneficiaryCategory", b.category),
+        city: b.city || "",
+        familyMembers: b.familyMembers ?? 0,
+        status: label("beneficiaryStatus", b.status),
+      })),
+      fileBase: `beneficiaries-${today}`,
+    };
+  };
+
   const openAdd = () => navigate({ to: "/beneficiaries/new" });
 
   const openEdit = (b: Beneficiary) =>
@@ -230,11 +271,7 @@ function Page() {
               <List size={15} />
             </button>
           </div>
-          <ExportButton
-            data={beneficiaries as unknown as Record<string, unknown>[]}
-            filename="المستفيدون.csv"
-          />
-          <PrintButton />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAdd}>
             <UserPlus size={15} /> إضافة مستفيد
           </Btn>

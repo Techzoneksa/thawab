@@ -28,8 +28,6 @@ import {
   EntityFormDrawer,
   ConfirmDialog,
   ActionMenu,
-  ExportButton,
-  PrintButton,
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
@@ -47,6 +45,8 @@ import {
 } from "@/lib/api/purchase-orders";
 import { getSuppliers, type Supplier } from "@/lib/api/suppliers";
 import { getPurchaseRequests, type PurchaseRequest } from "@/lib/api/purchase-requests";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/procurement/orders")({
   head: () => ({ meta: [{ title: "أوامر الشراء — ثواب" }] }),
@@ -192,27 +192,46 @@ function Page() {
   const suppliers = suppliersData?.items || [];
   const approvedRequests = requestsData?.items || [];
 
+  const buildDoc = (): DocumentDefinition => {
+    const today = new Date().toISOString().slice(0, 10);
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    return {
+      title: "أوامر الشراء",
+      date: today,
+      filters,
+      columns: [
+        { key: "subject", label: "الموضوع" },
+        { key: "date", label: "التاريخ", type: "date" },
+        { key: "total", label: "الإجمالي", type: "money" },
+        { key: "receivedAmount", label: "المستلم", type: "money" },
+        { key: "status", label: "الحالة" },
+      ],
+      rows: items.map((o) => ({
+        subject: o.subject,
+        date: o.date,
+        total: o.total,
+        receivedAmount: o.receivedAmount,
+        status: label("purchaseOrderStatus", o.status),
+      })),
+      totals: [
+        { label: "إجمالي قيمة الأوامر", value: stats.totalValue },
+        {
+          label: "إجمالي المستلم",
+          value: items.reduce((s, o) => s + (o.receivedAmount || 0), 0),
+        },
+      ],
+      fileBase: `purchase-orders-${today}`,
+    };
+  };
+
   return (
     <AppShell
       breadcrumb={["الرئيسية", "المشتريات", "أوامر الشراء"]}
       title="أوامر الشراء"
       actions={
         <>
-          <ExportButton
-            data={items.map((o) => ({
-              id: o.id,
-              supplierId: o.supplierId || "",
-              subject: o.subject,
-              date: o.date,
-              deliveryDate: o.deliveryDate,
-              total: o.total,
-              receivedAmount: o.receivedAmount,
-              status: o.status,
-              notes: o.notes,
-            }))}
-            filename="purchase-orders.csv"
-          />
-          <PrintButton label="طباعة" />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAdd}>
             <Plus size={15} />
             إنشاء أمر شراء

@@ -31,7 +31,6 @@ import {
   EntityFormDrawer,
   ConfirmDialog,
   ActionMenu,
-  ExportButton,
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
@@ -49,6 +48,8 @@ import {
 import { getWarehouses, type Warehouse } from "@/lib/api/warehouses";
 import { InventoryItemStatus } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/inventory/items")({
   head: () => ({ meta: [{ title: "الأصناف — ثواب" }] }),
@@ -236,27 +237,48 @@ function Page() {
     totalValue: items.reduce((s, i) => s + (i.quantity || 0) * (i.price || 0), 0),
   };
 
+  const buildDoc = (): DocumentDefinition => {
+    const today = new Date().toISOString().slice(0, 10);
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (categoryFilter) filters.push({ label: "الفئة", value: categoryFilter });
+    if (statusFilter)
+      filters.push({ label: "الحالة", value: label("inventoryItemStatus", statusFilter) });
+    return {
+      title: "أصناف المخزون",
+      date: today,
+      orientation: "landscape",
+      filters,
+      columns: [
+        { key: "name", label: "الصنف" },
+        { key: "sku", label: "SKU" },
+        { key: "unit", label: "الوحدة" },
+        { key: "quantity", label: "الكمية", type: "number" },
+        { key: "minQuantity", label: "الحد الأدنى", type: "number" },
+        { key: "price", label: "السعر", type: "money" },
+        { key: "status", label: "الحالة" },
+      ],
+      rows: items.map((i) => ({
+        name: i.name,
+        sku: i.sku || "—",
+        unit: i.unit,
+        quantity: i.quantity,
+        minQuantity: i.minQuantity,
+        price: i.price,
+        status: label("inventoryItemStatus", i.status),
+      })),
+      totals: [{ label: "قيمة المخزون", value: stats.totalValue }],
+      fileBase: `inventory-items-${today}`,
+    };
+  };
+
   return (
     <AppShell
       breadcrumb={["الرئيسية", "المخزون", "الأصناف"]}
       title="إدارة الأصناف"
       actions={
         <>
-          <ExportButton
-            data={items.map((i) => ({
-              id: i.id,
-              name: i.name,
-              sku: i.sku,
-              unit: i.unit,
-              category: i.category,
-              warehouseId: i.warehouseId || "",
-              quantity: i.quantity,
-              minQuantity: i.minQuantity,
-              price: i.price,
-              status: i.status,
-            }))}
-            filename="inventory-items.csv"
-          />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAdd}>
             <Plus size={15} />
             إضافة صنف

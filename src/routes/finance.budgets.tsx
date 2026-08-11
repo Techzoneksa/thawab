@@ -23,10 +23,10 @@ import {
   ConfirmDialog,
   EntityFormDrawer,
   ActionMenu,
-  ExportButton,
-  PrintButton,
   EmptyState,
 } from "@/components/erp/actions";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 import { useAuth } from "@/lib/api/auth";
 import { label, options } from "@/lib/i18n/labels";
 import { BudgetStatus } from "@/lib/enums";
@@ -154,6 +154,34 @@ function Page() {
     }
   };
 
+  const buildDoc = (): DocumentDefinition => {
+    const today = new Date().toISOString().slice(0, 10);
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (statusFilter) filters.push({ label: "الحالة", value: label("budgetStatus", statusFilter) });
+    if (yearFilter && yearFilter !== "الكل") filters.push({ label: "السنة", value: yearFilter });
+    return {
+      title: "الموازنات",
+      date: today,
+      filters,
+      columns: [
+        { key: "name", label: "الموازنة", width: "34%" },
+        { key: "year", label: "السنة", width: "14%" },
+        { key: "amount", label: "المخطط", type: "money" },
+        { key: "spent", label: "المصروف", type: "money" },
+        { key: "status", label: "الحالة", width: "16%" },
+      ],
+      rows: budgets.map((b: Budget) => ({
+        name: b.name,
+        year: b.year,
+        amount: b.amount,
+        spent: b.spent,
+        status: label("budgetStatus", b.status),
+      })),
+      fileBase: `budgets-${today}`,
+    };
+  };
+
   const stats = [
     { label: "إجمالي الموازنات", value: fmtNum(total) },
     {
@@ -176,11 +204,7 @@ function Page() {
       title="الموازنات"
       actions={
         <>
-          <ExportButton
-            data={budgets as unknown as Record<string, unknown>[]}
-            filename="الموازنات.csv"
-          />
-          <PrintButton />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAdd}>
             <Plus size={15} /> موازنة جديدة
           </Btn>

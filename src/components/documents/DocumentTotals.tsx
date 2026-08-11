@@ -9,7 +9,7 @@ export function DocumentTotals({ def }: { def: DocumentDefinition }) {
           <span className="doc-total-label">{t.label}</span>
           <span className="doc-total-value doc-num">
             {t.type === "number"
-              ? new Intl.NumberFormat("ar-SA").format(Number(t.value || 0))
+              ? new Intl.NumberFormat("ar-SA-u-nu-latn").format(Number(t.value || 0))
               : currency(Number(t.value || 0))}
           </span>
         </div>

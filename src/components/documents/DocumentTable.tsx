@@ -3,7 +3,7 @@ import { currency, type DocumentDefinition } from "@/lib/documents/types";
 function cell(value: unknown, type?: string) {
   if (value == null || value === "") return "";
   if (type === "money") return currency(Number(value));
-  if (type === "number") return new Intl.NumberFormat("ar-SA").format(Number(value));
+  if (type === "number") return new Intl.NumberFormat("ar-SA-u-nu-latn").format(Number(value));
   if (type === "date") return String(value).slice(0, 10);
   return String(value);
 }

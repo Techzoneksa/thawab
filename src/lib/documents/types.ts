@@ -54,6 +54,6 @@ export interface DocumentDefinition {
 }
 
 export const currency = (n: number) =>
-  new Intl.NumberFormat("ar-SA", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
+  new Intl.NumberFormat("ar-SA-u-nu-latn", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
     Number(n || 0),
   );

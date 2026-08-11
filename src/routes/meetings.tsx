@@ -62,7 +62,7 @@ export const Route = createFileRoute("/meetings")({
         {
           id: nextId(),
           title: formTitle,
-          date: formDate || new Date().toLocaleDateString("ar-SA"),
+          date: formDate || new Date().toLocaleDateString("ar-SA-u-nu-latn"),
           attendees: 0,
           status: "مجدول",
           decisions: 0,

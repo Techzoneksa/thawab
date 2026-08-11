@@ -34,8 +34,6 @@ import {
   showToast,
   ConfirmDialog,
   ActionMenu,
-  ExportButton,
-  PrintButton,
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
@@ -51,6 +49,8 @@ import {
 } from "@/lib/api/projects";
 import { ProjectStatus } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/projects")({
   head: () => ({ meta: [{ title: "المشاريع والبرامج — ثواب" }] }),
@@ -160,6 +160,49 @@ function Page() {
     onError: (err: Error) => showToast(err.message, "error"),
   });
 
+  const buildDoc = async (): Promise<DocumentDefinition> => {
+    const today = new Date().toISOString().slice(0, 10);
+    const res = await getProjects({
+      search: searchQuery,
+      status: toProjectStatusKey(statusFilter),
+      category: categoryFilter === "الكل" ? "" : categoryFilter,
+      branch: branchFilter === "الكل" ? "" : branchFilter,
+      page: 1,
+      limit: 100000,
+    });
+    const rows = res.items;
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (statusFilter !== "الكل") filters.push({ label: "الحالة", value: statusFilter });
+    if (categoryFilter !== "الكل") filters.push({ label: "التصنيف", value: categoryFilter });
+    if (branchFilter !== "الكل") filters.push({ label: "الفرع", value: branchFilter });
+    return {
+      title: "المشاريع والبرامج",
+      date: today,
+      orientation: "landscape",
+      filters,
+      columns: [
+        { key: "code", label: "الكود" },
+        { key: "name", label: "اسم المشروع" },
+        { key: "manager", label: "المدير" },
+        { key: "budget", label: "الميزانية", type: "money" },
+        { key: "spent", label: "المنصرف", type: "money" },
+        { key: "status", label: "الحالة" },
+        { key: "fund", label: "نوع الصندوق" },
+      ],
+      rows: rows.map((p: Project) => ({
+        code: p.code || p.id,
+        name: p.name,
+        manager: p.manager,
+        budget: p.budget,
+        spent: p.spent,
+        status: label("projectStatus", p.status),
+        fund: label("fund", (p as { fund?: string }).fund),
+      })),
+      fileBase: `projects-${today}`,
+    };
+  };
+
   const openAdd = () => navigate({ to: "/projects/new" });
 
   const openEdit = (p: Project) =>
@@ -221,11 +264,7 @@ function Page() {
               <List size={15} />
             </button>
           </div>
-          <ExportButton
-            data={projects as unknown as Record<string, unknown>[]}
-            filename="المشاريع.csv"
-          />
-          <PrintButton />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAdd}>
             <Plus size={15} /> مشروع جديد
           </Btn>

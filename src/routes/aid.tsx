@@ -31,7 +31,6 @@ import {
   showToast,
   ConfirmDialog,
   ActionMenu,
-  ExportButton,
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
@@ -48,6 +47,8 @@ import {
 } from "@/lib/api/aid";
 import { AidStatus, BeneficiaryStatus } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/aid")({
   head: () => ({ meta: [{ title: "المساعدات — ثواب" }] }),
@@ -177,6 +178,50 @@ function Page() {
     onError: (err: Error) => showToast(err.message, "error"),
   });
 
+  const buildDoc = async (): Promise<DocumentDefinition> => {
+    const today = new Date().toISOString().slice(0, 10);
+    const res = await getAidRecords({
+      search: searchQuery,
+      status: toAidStatusKey(statusFilter),
+      type: toAidTypeKey(typeFilter),
+      page: 1,
+      limit: 100000,
+    });
+    const rows = res.items;
+    const totalAmount = rows.reduce((s: number, r: AidRecord) => s + (r.amount || 0), 0);
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (statusFilter !== "الكل") filters.push({ label: "الحالة", value: statusFilter });
+    if (typeFilter !== "الكل") filters.push({ label: "النوع", value: typeFilter });
+    return {
+      title: "سجل المساعدات المصروفة",
+      date: today,
+      orientation: "landscape",
+      filters,
+      columns: [
+        { key: "id", label: "الرقم" },
+        { key: "beneficiaryName", label: "المستفيد" },
+        { key: "type", label: "النوع" },
+        { key: "amount", label: "المبلغ", type: "money" },
+        { key: "status", label: "الحالة" },
+        { key: "date", label: "التاريخ", type: "date" },
+      ],
+      rows: rows.map((r: AidRecord) => ({
+        id: r.id,
+        beneficiaryName: r.beneficiaryName,
+        type: label("aidType", r.type),
+        amount: r.amount,
+        status: label("aidStatus", r.status),
+        date: r.date,
+      })),
+      totals: [
+        { label: "إجمالي المبلغ", value: totalAmount, type: "money" },
+        { label: "عدد السجلات", value: rows.length, type: "number" },
+      ],
+      fileBase: `aid-${today}`,
+    };
+  };
+
   const openAdd = () => navigate({ to: "/aid/new" });
 
   const openEdit = (r: AidRecord) =>
@@ -234,10 +279,7 @@ function Page() {
       title="سجل المساعدات المصروفة"
       actions={
         <>
-          <ExportButton
-            data={aidRecords as unknown as Record<string, unknown>[]}
-            filename="المساعدات.csv"
-          />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAdd}>
             <HandHelping size={15} /> إضافة مساعدة
           </Btn>

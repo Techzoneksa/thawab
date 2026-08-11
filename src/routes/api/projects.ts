@@ -4,6 +4,7 @@ import { and, count, desc, eq, like, or } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { projects, donations, beneficiaries, aidRecords } from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
+import { nextCode } from "@/server/db/numbering";
 import { ProjectStatus, Fund, DonationStatus, AidStatus } from "@/lib/enums";
 
 // GET /api/projects — list with search/filter/pagination.
@@ -249,11 +250,17 @@ async function POST(event: { request: Request }, ctx: Ctx) {
 
     const projectId = genId("PRJ");
     const ts = now();
+    // Auto-generate a sequential project code when not provided.
+    const code =
+      b.code?.trim() ||
+      (await db.transaction((tx) =>
+        nextCode(tx as any, { table: "projects", column: "code", prefix: "PRJ-" }),
+      ));
 
     await db.insert(projects).values({
       id: projectId,
       name: b.name.trim(),
-      code: b.code ?? "",
+      code,
       type: b.type ?? "",
       category: b.category ?? "",
       branch: b.branch ?? "",

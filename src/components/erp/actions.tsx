@@ -417,7 +417,7 @@ export function addAuditLog(action: string, entityType: string, entityId: string
     action,
     entityType,
     entityId,
-    timestamp: new Date().toLocaleString("ar-SA"),
+    timestamp: new Date().toLocaleString("ar-SA-u-nu-latn"),
     ...(note ? { note } : {}),
   };
 }

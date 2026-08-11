@@ -21,10 +21,7 @@ import {
   showToast,
   ConfirmDialog,
   ActionMenu,
-  ExportButton,
-  PrintButton,
   EmptyState,
-  PrintStyle,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import {
@@ -37,6 +34,8 @@ import {
 } from "@/lib/api/receipts";
 import { ReceiptStatus } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/receipts")({
   head: () => ({ meta: [{ title: "الإيصالات الإلكترونية — ثواب" }] }),
@@ -143,6 +142,41 @@ function Page() {
     { label: "ملغي", value: receipts.filter((r: Receipt) => r.status === ReceiptStatus.CANCELLED).length },
   ];
 
+  const buildDoc = async (): Promise<DocumentDefinition> => {
+    const today = new Date().toISOString().slice(0, 10);
+    const all = await getReceipts({ ...apiFilters, page: 1, limit: 100000 });
+    const rows = all.items;
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (statusFilter !== "الكل") filters.push({ label: "الحالة", value: statusFilter });
+    if (typeFilter !== "الكل") filters.push({ label: "النوع", value: typeFilter });
+    const totalAmount = rows.reduce((s, r) => s + r.amount, 0);
+    return {
+      title: "الإيصالات الإلكترونية",
+      date: today,
+      filters,
+      fileBase: `receipts-${today}`,
+      columns: [
+        { key: "number", label: "رقم الإيصال" },
+        { key: "date", label: "التاريخ", type: "date" },
+        { key: "amount", label: "المبلغ", type: "money" },
+        { key: "type", label: "النوع" },
+        { key: "status", label: "الحالة" },
+      ],
+      rows: rows.map((r: Receipt) => ({
+        number: r.number,
+        date: r.date,
+        amount: r.amount,
+        type: label("receiptType", r.type),
+        status: label("receiptStatus", r.status),
+      })),
+      totals: [
+        { label: "إجمالي المبلغ", value: totalAmount, type: "money", strong: true },
+        { label: "عدد الإيصالات", value: rows.length, type: "number" },
+      ],
+    };
+  };
+
   return (
     <>
       <AppShell
@@ -150,8 +184,7 @@ function Page() {
         title="الإيصالات الإلكترونية"
         actions={
           <>
-            <ExportButton data={receipts} filename="الإيصالات.csv" />
-            <PrintButton label="طباعة دفعية" />
+            <DocumentActions document={buildDoc} />
           </>
         }
       >
@@ -368,8 +401,6 @@ function Page() {
           </div>
         </div>
       </MobileFilterDrawer>
-
-      <PrintStyle />
     </>
   );
 

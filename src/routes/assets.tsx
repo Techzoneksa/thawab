@@ -30,7 +30,6 @@ import {
   EntityFormDrawer,
   ConfirmDialog,
   ActionMenu,
-  ExportButton,
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
@@ -48,6 +47,8 @@ import {
 import { getSuppliers, type Supplier } from "@/lib/api/suppliers";
 import { AssetStatus as AssetStatusEnum } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/assets")({
   head: () => ({ meta: [{ title: "الأصول الثابتة — ثواب" }] }),
@@ -223,29 +224,51 @@ function Page() {
     total,
   };
 
+  const buildDoc = (): DocumentDefinition => {
+    const today = new Date().toISOString().slice(0, 10);
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (statusFilter) filters.push({ label: "الحالة", value: label("assetStatus", statusFilter) });
+    if (categoryFilter && categoryFilter !== "الكل")
+      filters.push({ label: "الفئة", value: categoryFilter });
+    return {
+      title: "الأصول الثابتة",
+      date: today,
+      orientation: "landscape",
+      filters,
+      columns: [
+        { key: "code", label: "الرمز" },
+        { key: "name", label: "الاسم" },
+        { key: "category", label: "الفئة" },
+        { key: "cost", label: "التكلفة", type: "money" },
+        { key: "accumulatedDepreciation", label: "الإهلاك المتراكم", type: "money" },
+        { key: "status", label: "الحالة" },
+        { key: "condition", label: "الحالة الفنية" },
+      ],
+      rows: items.map((a) => ({
+        code: a.code || "—",
+        name: a.name,
+        category: a.category || "—",
+        cost: a.cost,
+        accumulatedDepreciation: a.accumulatedDepreciation,
+        status: label("assetStatus", a.status),
+        condition: a.condition ? label("assetCondition", a.condition) : "—",
+      })),
+      totals: [
+        { label: "إجمالي التكلفة", value: stats.totalCost },
+        { label: "إجمالي الإهلاك المتراكم", value: stats.totalDepreciation },
+      ],
+      fileBase: `fixed-assets-${today}`,
+    };
+  };
+
   return (
     <AppShell
       breadcrumb={["الرئيسية", "الأصول"]}
       title="الأصول الثابتة"
       actions={
         <>
-          <ExportButton
-            data={items.map((a) => ({
-              id: a.id,
-              code: a.code,
-              name: a.name,
-              category: a.category,
-              location: a.location,
-              cost: a.cost,
-              accumulatedDepreciation: a.accumulatedDepreciation,
-              bookValue: a.cost - a.accumulatedDepreciation,
-              status: a.status,
-              condition: a.condition,
-              purchaseDate: a.purchaseDate,
-              responsiblePerson: a.responsiblePerson,
-            }))}
-            filename="fixed-assets.csv"
-          />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAdd}>
             <Plus size={15} />
             إضافة أصل

@@ -71,7 +71,7 @@ export const Route = createFileRoute("/hr")({
             dept: formDept || "غير محدد",
             title: formTitle,
             salary: Number(formSalary) || 0,
-            joined: new Date().toLocaleDateString("ar-SA"),
+            joined: new Date().toLocaleDateString("ar-SA-u-nu-latn"),
             status: "نشط",
             phone: "05xxxxxxxx",
           },

@@ -36,7 +36,6 @@ import {
   EntityFormDrawer,
   ConfirmDialog,
   ActionMenu,
-  ExportButton,
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
@@ -53,6 +52,8 @@ import {
   deletePurchaseRequest,
   type PurchaseRequest,
 } from "@/lib/api/purchase-requests";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/procurement/requests")({
   head: () => ({ meta: [{ title: "طلبات الشراء — ثواب" }] }),
@@ -176,26 +177,43 @@ function Page() {
     total,
   };
 
+  const buildDoc = (): DocumentDefinition => {
+    const today = new Date().toISOString().slice(0, 10);
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (statusFilter)
+      filters.push({ label: "الحالة", value: label("purchaseRequestStatus", statusFilter) });
+    if (departmentFilter && departmentFilter !== "الكل")
+      filters.push({ label: "الإدارة", value: departmentFilter });
+    return {
+      title: "طلبات الشراء",
+      date: today,
+      filters,
+      columns: [
+        { key: "subject", label: "الموضوع" },
+        { key: "department", label: "الإدارة" },
+        { key: "priority", label: "الأولوية" },
+        { key: "amount", label: "المبلغ", type: "money" },
+        { key: "status", label: "الحالة" },
+      ],
+      rows: items.map((r) => ({
+        subject: r.subject,
+        department: r.department,
+        priority: label("priority", r.priority),
+        amount: r.amount,
+        status: label("purchaseRequestStatus", r.status),
+      })),
+      fileBase: `purchase-requests-${today}`,
+    };
+  };
+
   return (
     <AppShell
       breadcrumb={["الرئيسية", "المشتريات", "طلبات الشراء"]}
       title="طلبات الشراء"
       actions={
         <>
-          <ExportButton
-            data={items.map((r) => ({
-              id: r.id,
-              subject: r.subject,
-              department: r.department,
-              priority: r.priority,
-              requester: r.requester,
-              amount: r.amount,
-              deliveryDate: r.deliveryDate,
-              status: r.status,
-              notes: r.notes,
-            }))}
-            filename="purchase-requests.csv"
-          />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAdd}>
             <Plus size={15} />
             إنشاء طلب شراء

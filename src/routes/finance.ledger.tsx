@@ -16,7 +16,9 @@ import {
 } from "@/components/erp/AppShell";
 import { Filter, BookOpen } from "lucide-react";
 import { useState, useEffect } from "react";
-import { ExportButton, PrintButton, EmptyState } from "@/components/erp/actions";
+import { EmptyState } from "@/components/erp/actions";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 import { getLedgerMovements, type LedgerMovement } from "@/lib/api/ledger";
 
 export const Route = createFileRoute("/finance/ledger")({
@@ -25,7 +27,7 @@ export const Route = createFileRoute("/finance/ledger")({
 });
 
 function fmt(n: number) {
-  return new Intl.NumberFormat("ar-SA", {
+  return new Intl.NumberFormat("ar-SA-u-nu-latn", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n);
@@ -68,18 +70,48 @@ function Page() {
     },
   ];
 
-  const exportRows = movements.map((m) => ({
-    التاريخ: m.date,
-    "رقم القيد": m.entryNumber,
-    الحساب: `${m.accountCode} — ${m.accountName}`,
-    الوصف: m.description,
-    "مركز التكلفة": m.costCenterName,
-    المشروع: m.projectName,
-    مدين: m.debit,
-    دائن: m.credit,
-    الرصيد: m.runningBalance,
-    ملاحظات: m.notes,
-  }));
+  const buildDoc = (): DocumentDefinition => {
+    const today = new Date().toISOString().slice(0, 10);
+    const filters: DocMeta[] = [];
+    const acc = options.accounts.find((a) => a.id === accountId);
+    if (acc) filters.push({ label: "الحساب", value: `${acc.code} — ${acc.name}` });
+    const cc = options.costCenters.find((c) => c.id === costCenterId);
+    if (cc) filters.push({ label: "مركز التكلفة", value: cc.name });
+    const proj = options.projects.find((p) => p.id === projectId);
+    if (proj) filters.push({ label: "المشروع", value: proj.name });
+    if (dateFrom) filters.push({ label: "من", value: dateFrom });
+    if (dateTo) filters.push({ label: "إلى", value: dateTo });
+    if (search) filters.push({ label: "بحث", value: search });
+    return {
+      title: "دفتر الأستاذ العام",
+      date: today,
+      orientation: "landscape",
+      filters,
+      columns: [
+        { key: "date", label: "التاريخ", type: "date", width: "12%" },
+        { key: "entryNumber", label: "رقم القيد", width: "12%" },
+        { key: "description", label: "الوصف", width: "40%" },
+        { key: "debit", label: "مدين", type: "money" },
+        { key: "credit", label: "دائن", type: "money" },
+        { key: "balance", label: "الرصيد", type: "money" },
+      ],
+      rows: movements.map((m: LedgerMovement) => ({
+        date: m.date,
+        entryNumber: m.entryNumber,
+        description: m.description,
+        debit: m.debit,
+        credit: m.credit,
+        balance: m.runningBalance,
+      })),
+      totals: [
+        { label: "الرصيد الافتتاحي", value: balances.opening },
+        { label: "إجمالي المدين", value: totals.debit },
+        { label: "إجمالي الدائن", value: totals.credit },
+        { label: "الرصيد الختامي", value: balances.closing, strong: true },
+      ],
+      fileBase: `ledger-${today}`,
+    };
+  };
 
   return (
     <AppShell
@@ -87,11 +119,7 @@ function Page() {
       title="دفتر الأستاذ العام (General Ledger)"
       actions={
         <>
-          <ExportButton
-            data={exportRows as unknown as Record<string, unknown>[]}
-            filename="دفتر_الأستاذ.csv"
-          />
-          <PrintButton />
+          <DocumentActions document={buildDoc} />
           <Btn variant="outline" onClick={() => setFilterOpen(true)}>
             <Filter size={15} /> تصفية
           </Btn>

@@ -29,7 +29,6 @@ import {
   EntityFormDrawer,
   ConfirmDialog,
   ActionMenu,
-  ExportButton,
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
@@ -42,6 +41,8 @@ import {
 } from "@/lib/api/warehouses";
 import { WarehouseStatus } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/inventory/warehouses")({
   head: () => ({ meta: [{ title: "المستودعات — ثواب" }] }),
@@ -124,24 +125,39 @@ function Page() {
     total,
   };
 
+  const buildDoc = (): DocumentDefinition => {
+    const today = new Date().toISOString().slice(0, 10);
+    const filters: DocMeta[] = [];
+    if (searchQuery) filters.push({ label: "بحث", value: searchQuery });
+    if (statusFilter)
+      filters.push({ label: "الحالة", value: label("warehouseStatus", statusFilter) });
+    return {
+      title: "المستودعات",
+      date: today,
+      filters,
+      columns: [
+        { key: "name", label: "الاسم" },
+        { key: "location", label: "الموقع" },
+        { key: "manager", label: "المسؤول" },
+        { key: "status", label: "الحالة" },
+      ],
+      rows: items.map((w) => ({
+        name: w.name,
+        location: w.location || "—",
+        manager: w.manager || "—",
+        status: label("warehouseStatus", w.status),
+      })),
+      fileBase: `warehouses-${today}`,
+    };
+  };
+
   return (
     <AppShell
       breadcrumb={["الرئيسية", "المخزون", "المستودعات"]}
       title="المستودعات"
       actions={
         <>
-          <ExportButton
-            data={items.map((w) => ({
-              id: w.id,
-              name: w.name,
-              location: w.location,
-              manager: w.manager,
-              capacity: w.capacity,
-              status: w.status,
-              notes: w.notes,
-            }))}
-            filename="warehouses.csv"
-          />
+          <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAdd}>
             <Plus size={15} />
             إضافة مستودع
