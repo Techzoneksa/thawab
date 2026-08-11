@@ -38,6 +38,8 @@ import { getCostCenters, type CostCenter } from "@/lib/api/cost-centers";
 import { getProjects, type Project } from "@/lib/api/projects";
 import { label } from "@/lib/i18n/labels";
 import { AccountClassification } from "@/lib/enums";
+import { DocumentActions } from "@/components/documents/DocumentActions";
+import type { DocumentDefinition, DocColumn, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/finance/statements")({
   head: () => ({ meta: [{ title: "القوائم المالية — ثواب" }] }),
@@ -245,6 +247,59 @@ function Page() {
     return [];
   };
 
+  const buildDoc = (): DocumentDefinition => {
+    const today = new Date().toISOString().slice(0, 10);
+    const title = TABS.find((t) => t.key === activeTab)?.label || "قائمة مالية";
+    const filters: DocMeta[] = [];
+    if (activeTab === "financial-position") filters.push({ label: "كما في", value: asOf });
+    else filters.push({ label: "من", value: startDate }, { label: "إلى", value: endDate });
+    if (costCenterId)
+      filters.push({ label: "مركز التكلفة", value: ccList.find((c) => c.id === costCenterId)?.name || costCenterId });
+    if (projectId)
+      filters.push({ label: "المشروع", value: projectList.find((p) => p.id === projectId)?.name || projectId });
+
+    const base: Pick<DocumentDefinition, "title" | "date" | "filters" | "fileBase"> = {
+      title,
+      date: today,
+      filters,
+      fileBase: `${activeTab}-${today}`,
+    };
+
+    if (activeTab === "trial-balance" && tbQuery.data?.type === "trial-balance") {
+      const d = tbQuery.data;
+      return {
+        ...base,
+        orientation: "landscape",
+        columns: [
+          { key: "accountCode", label: "الرمز", width: "12%" },
+          { key: "accountName", label: "اسم الحساب", width: "34%" },
+          { key: "accountType", label: "التصنيف", width: "14%" },
+          { key: "totalDebit", label: "مدين", type: "money" },
+          { key: "totalCredit", label: "دائن", type: "money" },
+          { key: "balance", label: "الرصيد", type: "money" },
+        ],
+        rows: d.rows.map((r: TrialBalanceRow) => ({
+          ...r,
+          accountType: label("accountClassification", r.accountType),
+        })),
+        totals: [
+          { label: "إجمالي المدين", value: d.totals.totalDebit },
+          { label: "إجمالي الدائن", value: d.totals.totalCredit, strong: true },
+        ],
+      };
+    }
+
+    // Generic mapping for the other statements from exportData().
+    const rows = exportData();
+    const first = rows[0] ?? {};
+    const columns: DocColumn[] = Object.keys(first).map((k) => ({
+      key: k,
+      label: k,
+      type: typeof (first as Record<string, unknown>)[k] === "number" ? "money" : "text",
+    }));
+    return { ...base, orientation: "landscape", columns, rows };
+  };
+
   return (
     <>
       <PrintStyle />
@@ -257,8 +312,7 @@ function Page() {
               <RefreshCw size={15} />
               تحديث
             </Btn>
-            <ExportButton data={exportData()} filename={`statement-${activeTab}.csv`} />
-            <PrintButton />
+            <DocumentActions document={buildDoc} />
           </>
         }
       >

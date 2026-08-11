@@ -71,7 +71,8 @@ export async function getCurrentUser(token: string | undefined | null) {
   const user = (await db.select().from(users).where(eq(users.id, session.userId)).limit(1))[0];
   if (!user || user.status !== UserStatus.ACTIVE) return null;
   const { password: _pw, ...safe } = user;
-  return safe;
+  const permissions = await getRolePermissions(user.role);
+  return { ...safe, permissions };
 }
 
 // ---------- login with rate limiting ----------

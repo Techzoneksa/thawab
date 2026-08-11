@@ -15,6 +15,19 @@ export interface CurrentUser {
   status: string;
   avatar: string | null;
   lastLogin: string | null;
+  permissions?: string[];
+}
+
+/** Client-side permission check (mirrors the server's hasPermission). */
+export function userCan(user: CurrentUser | null, permission: string): boolean {
+  const perms = user?.permissions ?? [];
+  const [mod, action] = permission.split(".");
+  return (
+    perms.includes("*") ||
+    perms.includes(permission) ||
+    perms.includes(`${mod}.*`) ||
+    (!!action && perms.includes(`*.${action}`))
+  );
 }
 
 interface AuthContextType {
@@ -96,4 +109,10 @@ export function useAuth() {
 export function useCurrentUser() {
   const { user, isLoading } = useAuth();
   return { user, isLoading };
+}
+
+/** Returns a `can(permission)` checker bound to the current user. */
+export function useCan() {
+  const { user } = useAuth();
+  return (permission: string) => userCan(user, permission);
 }
