@@ -19,9 +19,11 @@ import {
 } from "@/components/erp/FormFields";
 import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { options } from "@/lib/i18n/labels";
+import { Fund } from "@/lib/enums";
 import { getAccounts } from "@/lib/api/accounts";
 import { getProjects } from "@/lib/api/projects";
-import { createJournalEntry, JOURNAL_FUNDS, type JournalFund } from "@/lib/api/journal";
+import { createJournalEntry, type JournalFund } from "@/lib/api/journal";
 
 export const Route = createFileRoute("/finance/journal/new")({
   head: () => ({ meta: [{ title: "قيد يومية جديد — ثواب" }] }),
@@ -59,7 +61,7 @@ function NewJournalPage() {
 
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [description, setDescription] = useState("");
-  const [fund, setFund] = useState<JournalFund>("غير مقيد");
+  const [fund, setFund] = useState<JournalFund>(Fund.UNRESTRICTED);
   const [projectId, setProjectId] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([newLine("l1"), newLine("l2")]);
@@ -252,7 +254,7 @@ function NewJournalPage() {
             </FormField>
             <FormField label="نوع الصندوق">
               <FormSelect value={fund} onChange={(e) => setFund(e.target.value as JournalFund)}>
-                {JOURNAL_FUNDS.map((f) => (<option key={f} value={f}>{f}</option>))}
+                {options("fund").map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
               </FormSelect>
             </FormField>
           </FormRow>

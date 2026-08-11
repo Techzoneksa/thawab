@@ -13,6 +13,7 @@ import {
   MobileSearchInput,
 } from "./AppShell";
 import { Plus, Download, Search } from "lucide-react";
+import { labelAny } from "@/lib/i18n/labels";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Col<T = any> = {
@@ -111,7 +112,7 @@ export function ListPage({
                     let content: ReactNode = v;
                     if (c.render) content = c.render(v, r);
                     else if (c.status)
-                      content = <Badge tone={statusTone(String(v))}>{String(v)}</Badge>;
+                      content = <Badge tone={statusTone(String(v))}>{labelAny(String(v))}</Badge>;
                     else if (c.money) content = fmtSAR(Number(v));
                     return (
                       <Td
@@ -139,7 +140,7 @@ export function ListPage({
                 let content: ReactNode = v;
                 if (c.render) content = c.render(v, r);
                 else if (c.status)
-                  content = <Badge tone={statusTone(String(v))}>{String(v)}</Badge>;
+                  content = <Badge tone={statusTone(String(v))}>{labelAny(String(v))}</Badge>;
                 else if (c.money) content = fmtSAR(Number(v));
                 return (
                   <Td

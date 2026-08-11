@@ -19,13 +19,15 @@ import { useAuth } from "@/lib/api/auth";
 import { getBeneficiaries } from "@/lib/api/beneficiaries";
 import { getProjects } from "@/lib/api/projects";
 import { createAidRecord } from "@/lib/api/aid";
+import { AidType, BeneficiaryStatus, ProjectStatus } from "@/lib/enums";
+import { options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/aid/new")({
   head: () => ({ meta: [{ title: "مساعدة جديدة — ثواب" }] }),
   component: NewAidPage,
 });
 
-const TYPES = ["مالية", "عينية", "غذائية", "طبية", "تعليمية", "إسكان", "كفالة"];
+const AID_TYPE_OPTIONS = options("aidType");
 const DELIVERY_METHODS = ["تحويل بنكي", "نقدًا", "استلام شخصي", "توصيل", "بريد"];
 
 function NewAidPage() {
@@ -48,7 +50,7 @@ function NewAidPage() {
 
   const [beneficiaryId, setBeneficiaryId] = useState(search.beneficiary || "");
   const [projectId, setProjectId] = useState("");
-  const [type, setType] = useState("مالية");
+  const [type, setType] = useState<string>(AidType.URGENT);
   const [amount, setAmount] = useState("0");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [deliveryMethod, setDeliveryMethod] = useState("تحويل بنكي");
@@ -60,7 +62,7 @@ function NewAidPage() {
     const e: Record<string, string> = {};
     if (!beneficiaryId) e.beneficiaryId = "يرجى اختيار المستفيد";
     if (!type) e.type = "يرجى اختيار نوع المساعدة";
-    if (type === "مالية" && (!amount || parseFloat(amount) <= 0))
+    if (type !== AidType.IN_KIND && (!amount || parseFloat(amount) <= 0))
       e.amount = "يرجى إدخال مبلغ أكبر من صفر";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -105,7 +107,10 @@ function NewAidPage() {
               <FormSelect value={beneficiaryId} onChange={(e) => setBeneficiaryId(e.target.value)} invalid={!!errors.beneficiaryId}>
                 <option value="">— اختر مستفيداً —</option>
                 {beneficiaries
-                  .filter((b) => b.status === "مؤهل" || b.status === "قيد المراجعة")
+                  .filter(
+                    (b) =>
+                      b.status === BeneficiaryStatus.ACTIVE || b.status === BeneficiaryStatus.NEW,
+                  )
                   .map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name} {b.fileNumber ? `(${b.fileNumber})` : ""}
@@ -120,7 +125,7 @@ function NewAidPage() {
           <FormRow>
             <FormField label="نوع المساعدة" required error={errors.type}>
               <FormSelect value={type} onChange={(e) => setType(e.target.value)} invalid={!!errors.type}>
-                {TYPES.map((t) => (<option key={t} value={t}>{t}</option>))}
+                {AID_TYPE_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
               </FormSelect>
             </FormField>
             <FormField label="قيمة المساعدة (ر.س)" error={errors.amount} hint="للمساعدات المالية فقط">
@@ -129,7 +134,7 @@ function NewAidPage() {
                 step="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                disabled={type !== "مالية"}
+                disabled={type === AidType.IN_KIND}
                 dir="ltr"
                 className="font-mono tabular-nums"
                 invalid={!!errors.amount}
@@ -148,7 +153,7 @@ function NewAidPage() {
             <FormSelect value={projectId} onChange={(e) => setProjectId(e.target.value)}>
               <option value="">— خارج مشروع (مساعدة عامة) —</option>
               {projects
-                .filter((p) => p.status === "نشط" || p.status === "قيد التنفيذ")
+                .filter((p) => p.status === ProjectStatus.ACTIVE)
                 .map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}

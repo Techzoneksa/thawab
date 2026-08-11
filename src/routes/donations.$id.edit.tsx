@@ -21,6 +21,8 @@ import { useAuth } from "@/lib/api/auth";
 import { getDonors } from "@/lib/api/donors";
 import { getProjects } from "@/lib/api/projects";
 import { getDonation, updateDonation, confirmDonation, cancelDonation, issueReceipt } from "@/lib/api/donations";
+import { DonationStatus, DonationMethod, DonationChannel } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/donations/$id/edit")({
   head: () => ({ meta: [{ title: "تعديل تبرع — ثواب" }] }),
@@ -59,8 +61,8 @@ function EditDonationPage() {
   const [donorId, setDonorId] = useState("");
   const [amount, setAmount] = useState("");
   const [projectId, setProjectId] = useState("");
-  const [method, setMethod] = useState("تحويل بنكي");
-  const [channel, setChannel] = useState("موقع إلكتروني");
+  const [method, setMethod] = useState<string>(DonationMethod.TRANSFER);
+  const [channel, setChannel] = useState<string>(DonationChannel.ONLINE);
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -71,15 +73,15 @@ function EditDonationPage() {
       setDonorId(donation.donorId || "");
       setAmount(String(donation.amount || ""));
       setProjectId(donation.projectId || "");
-      setMethod(donation.method || "تحويل بنكي");
-      setChannel(donation.channel || "موقع إلكتروني");
+      setMethod(donation.method || DonationMethod.TRANSFER);
+      setChannel(donation.channel || DonationChannel.ONLINE);
       setDate(donation.date || "");
       setNotes(donation.notes || "");
     }
   }, [donation]);
 
-  const isPosted = donation?.status === "مؤكد" || donation?.status === "تم إصدار إيصال";
-  const isCancelled = donation?.status === "ملغي";
+  const isPosted = donation?.status === DonationStatus.CONFIRMED;
+  const isCancelled = donation?.status === DonationStatus.CANCELLED;
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -230,22 +232,20 @@ function EditDonationPage() {
           <FormRow>
             <FormField label="طريقة الدفع">
               <FormSelect value={method} onChange={(e) => setMethod(e.target.value)} disabled={isPosted}>
-                <option value="تحويل بنكي">تحويل بنكي</option>
-                <option value="نقدًا">نقدًا</option>
-                <option value="شيك">شيك</option>
-                <option value="بطاقة">بطاقة ائتمانية</option>
-                <option value="محفظة إلكترونية">محفظة إلكترونية</option>
-                <option value="إيداع مباشر">إيداع مباشر</option>
+                {options("donationMethod").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </FormSelect>
             </FormField>
             <FormField label="قناة الاستلام">
               <FormSelect value={channel} onChange={(e) => setChannel(e.target.value)} disabled={isPosted}>
-                <option value="موقع إلكتروني">موقع إلكتروني</option>
-                <option value="تطبيق">تطبيق</option>
-                <option value="مكتب">مكتب</option>
-                <option value="مندوب">مندوب ميداني</option>
-                <option value="هاتف">هاتف</option>
-                <option value="فاكس">فاكس / رسالة</option>
+                {options("donationChannel").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </FormSelect>
             </FormField>
           </FormRow>
@@ -275,7 +275,7 @@ function EditDonationPage() {
             <div className="rounded-lg border bg-muted/30 p-3 text-sm">
               <div className="font-semibold mb-1">{project.name}</div>
               <div className="text-xs text-muted-foreground">
-                {project.status} · {fmtNum(project.progress)}% مكتمل
+                {label("projectStatus", project.status)} · {fmtNum(project.progress)}% مكتمل
               </div>
             </div>
           )}
@@ -290,7 +290,7 @@ function EditDonationPage() {
           {donor ? (
             <div className="space-y-0">
               <FormSummaryLine label="الاسم" value={donor.name} />
-              <FormSummaryLine label="النوع" value={donor.type} />
+              <FormSummaryLine label="النوع" value={label("donorType", donor.type)} />
               <FormSummaryLine label="الجوال" value={donor.phone || "—"} />
               <FormSummaryLine label="البريد" value={donor.email || "—"} />
               <FormSummaryLine label="المدينة" value={donor.city || "—"} />
@@ -328,7 +328,7 @@ function EditDonationPage() {
       content: (
         <FormSection title="الحالة والإجراءات">
           <div className="space-y-0">
-            <FormSummaryLine label="الحالة الحالية" value={donation.status} tone="default" />
+            <FormSummaryLine label="الحالة الحالية" value={label("donationStatus", donation.status)} tone="default" />
             <FormSummaryLine label="رقم الإيصال" value={donation.receiptId || "—"} />
             <FormSummaryLine label="تاريخ التسجيل" value={donation.createdAt} />
             <FormSummaryLine label="أنشأ بواسطة" value={donation.createdBy || "—"} />
@@ -346,9 +346,9 @@ function EditDonationPage() {
           { label: donor?.name || "تبرع" },
         ]}
         title={`تبرع من ${donor?.name || "متبرع"}`}
-        subtitle={`${fmtSAR(donation.amount)} · ${donation.method} · ${donation.date}`}
+        subtitle={`${fmtSAR(donation.amount)} · ${label("donationMethod", donation.method)} · ${donation.date}`}
         draftNumber={donation.id}
-        status={{ label: donation.status, tone: statusTone(donation.status) }}
+        status={{ label: label("donationStatus", donation.status), tone: statusTone(donation.status) }}
         isReadOnly={isPosted || isCancelled}
         readonlyReason={
           isPosted

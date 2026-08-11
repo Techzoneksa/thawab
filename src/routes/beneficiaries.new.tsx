@@ -22,10 +22,10 @@ import {
   getBeneficiary,
   updateBeneficiary,
   createBeneficiary,
-  ELIGIBILITY_STATUSES,
-  MARITAL_STATUSES,
   type EligibilityStatus,
 } from "@/lib/api/beneficiaries";
+import { BeneficiaryStatus, BeneficiaryCategory, MaritalStatus } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/beneficiaries/new")({
   head: () => ({ meta: [{ title: "مستفيد جديد — ثواب" }] }),
@@ -42,11 +42,11 @@ function NewBeneficiaryPage() {
   const [phone, setPhone] = useState("");
   const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
-  const [category, setCategory] = useState("أسرة");
-  const [status, setStatus] = useState<EligibilityStatus>("جديد");
+  const [category, setCategory] = useState<string>(BeneficiaryCategory.NEEDY_FAMILY);
+  const [status, setStatus] = useState<EligibilityStatus>(BeneficiaryStatus.NEW);
   const [familyMembers, setFamilyMembers] = useState("1");
   const [monthlyIncome, setMonthlyIncome] = useState("0");
-  const [maritalStatus, setMaritalStatus] = useState("أعزب");
+  const [maritalStatus, setMaritalStatus] = useState<string>(MaritalStatus.SINGLE);
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -130,7 +130,7 @@ function NewBeneficiaryPage() {
           <FormRow>
             <FormField label="الحالة الاجتماعية">
               <FormSelect value={maritalStatus} onChange={(e) => setMaritalStatus(e.target.value)}>
-                {MARITAL_STATUSES.map((s) => (<option key={s} value={s}>{s}</option>))}
+                {options("maritalStatus").map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
               </FormSelect>
             </FormField>
             <FormField label="عدد أفراد الأسرة">
@@ -143,13 +143,7 @@ function NewBeneficiaryPage() {
             </FormField>
             <FormField label="فئة المستفيد">
               <FormSelect value={category} onChange={(e) => setCategory(e.target.value)}>
-                <option value="أسرة">أسرة</option>
-                <option value="يتيم">يتيم</option>
-                <option value="أرملة">أرملة</option>
-                <option value="مطلق">مطلق</option>
-                <option value="معاق">معاق</option>
-                <option value="طالب">طالب</option>
-                <option value="أخرى">أخرى</option>
+                {options("beneficiaryCategory").map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
               </FormSelect>
             </FormField>
           </FormRow>
@@ -163,12 +157,12 @@ function NewBeneficiaryPage() {
         <FormSection title="حالة الأهلية">
           <FormField label="حالة الأهلية" hint="تستخدم لتحديد الأهلية لتلقي المساعدات">
             <FormSelect value={status} onChange={(e) => setStatus(e.target.value as EligibilityStatus)}>
-              {ELIGIBILITY_STATUSES.map((s) => (<option key={s} value={s}>{s}</option>))}
+              {options("beneficiaryStatus").map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
             </FormSelect>
           </FormField>
           <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
             <strong className="text-foreground">ملاحظة:</strong> الأهلية تُحدّث آلياً بناءً على معايير الجمعية.
-            الحالة الحالية هي «{status}».
+            الحالة الحالية هي «{label("beneficiaryStatus", status)}».
           </div>
         </FormSection>
       ),

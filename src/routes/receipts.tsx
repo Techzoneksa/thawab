@@ -35,6 +35,8 @@ import {
   type Receipt,
   type ReceiptFilters,
 } from "@/lib/api/receipts";
+import { ReceiptStatus } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/receipts")({
   head: () => ({ meta: [{ title: "الإيصالات الإلكترونية — ثواب" }] }),
@@ -42,9 +44,8 @@ export const Route = createFileRoute("/receipts")({
 });
 
 function statusToneLocal(s: string) {
-  if (s === "مرحّل") return "success";
-  if (s === "ملغي") return "error";
-  if (s === "معلق") return "warning";
+  if (s === ReceiptStatus.ISSUED) return "success";
+  if (s === ReceiptStatus.CANCELLED) return "error";
   return "muted";
 }
 
@@ -76,11 +77,13 @@ function Page() {
   const totalCount = data?.total || 0;
 
   useEffect(() => {
+    const statusKey = options("receiptStatus").find((o) => o.label === statusFilter)?.value ?? "";
+    const typeKey = options("receiptType").find((o) => o.label === typeFilter)?.value ?? "";
     setApiFilters((f) => ({
       ...f,
       search: searchQuery,
-      status: statusFilter,
-      type: typeFilter,
+      status: statusKey,
+      type: typeKey,
     }));
   }, [searchQuery, statusFilter, typeFilter]);
 
@@ -135,9 +138,9 @@ function Page() {
 
   const stats = [
     { label: "إجمالي الإيصالات", value: fmtSAR(receipts.reduce((s, r) => s + r.amount, 0)) },
-    { label: "مرحّل", value: receipts.filter((r: Receipt) => r.status === "مرحّل").length },
+    { label: "مرحّل", value: receipts.filter((r: Receipt) => r.status === ReceiptStatus.ISSUED).length },
     { label: "طباعة", value: receipts.filter((r: Receipt) => r.printed).length },
-    { label: "ملغي", value: receipts.filter((r: Receipt) => r.status === "ملغي").length },
+    { label: "ملغي", value: receipts.filter((r: Receipt) => r.status === ReceiptStatus.CANCELLED).length },
   ];
 
   return (
@@ -178,13 +181,13 @@ function Page() {
           </div>
           <Select
             label="الحالة"
-            options={["الكل", "مرحّل", "ملغي"]}
+            options={["الكل", ...options("receiptStatus").map((o) => o.label)]}
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           />
           <Select
             label="النوع"
-            options={["الكل", "تبرع", "مساعدة", "كفالة"]}
+            options={["الكل", ...options("receiptType").map((o) => o.label)]}
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
           />
@@ -248,7 +251,7 @@ function Page() {
                     <Td className="tabular-nums font-bold text-success">{fmtSAR(r.amount)}</Td>
                     <Td className="text-muted-foreground text-xs">{r.date}</Td>
                     <Td>
-                      <Badge tone={statusToneLocal(r.status)}>{r.status}</Badge>
+                      <Badge tone={statusToneLocal(r.status)}>{label("receiptStatus", r.status)}</Badge>
                     </Td>
                     <Td>
                       {r.printed ? (
@@ -275,7 +278,7 @@ function Page() {
                   <div className="text-lg font-bold text-success">{fmtSAR(r.amount)}</div>
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-xs text-muted-foreground">{r.date}</span>
-                    <Badge tone={statusToneLocal(r.status)}>{r.status}</Badge>
+                    <Badge tone={statusToneLocal(r.status)}>{label("receiptStatus", r.status)}</Badge>
                   </div>
                   <div className="flex gap-2 mt-3">
                     <button
@@ -341,8 +344,11 @@ function Page() {
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option>الكل</option>
-              <option>مرحّل</option>
-              <option>ملغي</option>
+              {options("receiptStatus").map((o) => (
+                <option key={o.value} value={o.label}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -353,9 +359,11 @@ function Page() {
               onChange={(e) => setTypeFilter(e.target.value)}
             >
               <option>الكل</option>
-              <option>تبرع</option>
-              <option>مساعدة</option>
-              <option>كفالة</option>
+              {options("receiptType").map((o) => (
+                <option key={o.value} value={o.label}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -379,7 +387,7 @@ function Page() {
       },
     ];
 
-    if (r.status !== "ملغي") {
+    if (r.status !== ReceiptStatus.CANCELLED) {
       actions.push({
         label: "إلغاء",
         icon: XCircle,
@@ -429,7 +437,7 @@ function ReceiptPrintDrawer({ receipt, onClose }: { receipt: Receipt; onClose: (
           </div>
           <div className="flex justify-between">
             <span>طريقة الدفع:</span>
-            <span>{receipt.type}</span>
+            <span>{label("receiptType", receipt.type)}</span>
           </div>
         </div>
         <div className="mt-8 pt-4 border-t text-center text-sm text-muted-foreground">

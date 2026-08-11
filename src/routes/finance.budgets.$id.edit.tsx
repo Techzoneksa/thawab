@@ -18,6 +18,8 @@ import {
 } from "@/components/erp/FormFields";
 import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { label } from "@/lib/i18n/labels";
+import { BudgetStatus } from "@/lib/enums";
 import {
   getBudget,
   updateBudget,
@@ -65,9 +67,9 @@ function EditBudgetPage() {
     }
   }, [item]);
 
-  const isEditable = item?.status === "مسودة";
-  const isApproved = item?.status === "معتمد";
-  const isLocked = item?.status === "مقفل";
+  const isEditable = item?.status === BudgetStatus.DRAFT;
+  const isApproved = item?.status === BudgetStatus.APPROVED;
+  const isLocked = item?.status === BudgetStatus.LOCKED;
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => updateBudget({ id, ...data }),
@@ -175,7 +177,7 @@ function EditBudgetPage() {
               <FormInput value={department} onChange={(e) => setDepartment(e.target.value)} disabled={!isEditable} />
             </FormField>
             <FormField label="الحالة">
-              <FormInput value={item.status} disabled />
+              <FormInput value={label("budgetStatus", item.status)} disabled />
             </FormField>
           </FormRow>
           <FormField label="وصف">
@@ -252,7 +254,7 @@ function EditBudgetPage() {
       content: (
         <FormSection title="سجل التدقيق">
           <div className="space-y-0">
-            <FormSummaryLine label="الحالة" value={item.status} />
+            <FormSummaryLine label="الحالة" value={label("budgetStatus", item.status)} />
             <FormSummaryLine label="أنشأ بواسطة" value={item.createdBy || "—"} />
             <FormSummaryLine label="تاريخ الإنشاء" value={item.createdAt} />
             <FormSummaryLine label="آخر تحديث" value={item.updatedAt} />
@@ -277,7 +279,7 @@ function EditBudgetPage() {
         title={`موازنة: ${item.name}`}
         subtitle={`${year} · ${department || "بدون قسم"} · ${fmtSAR(item.amount)}`}
         draftNumber={item.id}
-        status={{ label: item.status, tone: statusTone(item.status) }}
+        status={{ label: label("budgetStatus", item.status), tone: statusTone(item.status) }}
         isReadOnly={!isEditable}
         readonlyReason={
           isLocked ? "الموازنة مقفلة. لفتحها استخدم إجراء فتح القفل."

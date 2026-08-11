@@ -17,6 +17,8 @@ import {
 import { showToast, ConfirmDialog } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import { getAuditEntries } from "@/lib/api/audit";
+import { PurchaseRequestStatus, Priority } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 import {
   getPurchaseRequest,
   updatePurchaseRequest,
@@ -26,8 +28,6 @@ import {
   returnPurchaseRequestToDraft,
   cancelPurchaseRequest,
   deletePurchaseRequest,
-  REQUEST_STATUSES,
-  REQUEST_PRIORITIES,
   type PurchaseRequest,
 } from "@/lib/api/purchase-requests";
 
@@ -60,7 +60,7 @@ function EditRequestPage() {
 
   const [subject, setSubject] = useState("");
   const [department, setDepartment] = useState("");
-  const [priority, setPriority] = useState("متوسطة");
+  const [priority, setPriority] = useState<string>(Priority.MEDIUM);
   const [requester, setRequester] = useState("");
   const [amount, setAmount] = useState("");
   const [deliveryDate, setDeliveryDate] = useState("");
@@ -76,7 +76,7 @@ function EditRequestPage() {
   if (item && !hydrated) {
     setSubject(item.subject);
     setDepartment(item.department);
-    setPriority(item.priority || "متوسطة");
+    setPriority(item.priority || Priority.MEDIUM);
     setRequester(item.requester || "");
     setAmount(String(item.amount || 0));
     setDeliveryDate(item.deliveryDate || "");
@@ -84,7 +84,10 @@ function EditRequestPage() {
     setHydrated(true);
   }
 
-  const editableStatuses = ["مسودة", "مرفوض"];
+  const editableStatuses: string[] = [
+    PurchaseRequestStatus.DRAFT,
+    PurchaseRequestStatus.REJECTED,
+  ];
   const isEditable = !!item && editableStatuses.includes(item.status);
 
   const handleSave = async () => {
@@ -151,9 +154,9 @@ function EditRequestPage() {
             </FormField>
             <FormField label="الأولوية">
               <FormSelect value={priority} onChange={(e) => setPriority(e.target.value)}>
-                {REQUEST_PRIORITIES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
+                {options("priority").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </FormSelect>
@@ -195,8 +198,12 @@ function EditRequestPage() {
         <FormSection title="ملخص الطلب">
           <FormSummaryLine label="الموضوع" value={item.subject} />
           <FormSummaryLine label="الإدارة" value={item.department} />
-          <FormSummaryLine label="الأولوية" value={item.priority} />
-          <FormSummaryLine label="الحالة" value={item.status} tone={statusTone(item.status)} />
+          <FormSummaryLine label="الأولوية" value={label("priority", item.priority)} />
+          <FormSummaryLine
+            label="الحالة"
+            value={label("purchaseRequestStatus", item.status)}
+            tone={statusTone(item.status)}
+          />
           <FormSummaryLine label="المبلغ" value={fmtSAR(item.amount)} />
           <FormSummaryLine label="تاريخ التوريد" value={item.deliveryDate || "—"} />
           <FormSummaryLine
@@ -344,11 +351,14 @@ function EditRequestPage() {
         title={item.subject}
         subtitle={`${item.department} · ${fmtSAR(item.amount)}`}
         draftNumber={item.id}
-        status={{ label: item.status, tone: statusTone(item.status) }}
+        status={{
+          label: label("purchaseRequestStatus", item.status),
+          tone: statusTone(item.status),
+        }}
         isReadOnly={!isEditable}
         readonlyReason={
           !isEditable
-            ? `الطلب في حالة "${item.status}". أعده إلى المسودة أولاً لتعديله.`
+            ? `الطلب في حالة "${label("purchaseRequestStatus", item.status)}". أعده إلى المسودة أولاً لتعديله.`
             : undefined
         }
         tabs={tabs}
@@ -360,7 +370,7 @@ function EditRequestPage() {
         showSecondary={false}
         extraActions={
           <>
-            {item.status === "مسودة" && (
+            {item.status === PurchaseRequestStatus.DRAFT && (
               <>
                 <button
                   type="button"
@@ -378,7 +388,7 @@ function EditRequestPage() {
                 </button>
               </>
             )}
-            {item.status === "بانتظار الموافقة" && (
+            {item.status === PurchaseRequestStatus.SUBMITTED && (
               <>
                 <button
                   type="button"
@@ -396,7 +406,8 @@ function EditRequestPage() {
                 </button>
               </>
             )}
-            {(item.status === "معتمد" || item.status === "مرفوض") && (
+            {(item.status === PurchaseRequestStatus.APPROVED ||
+              item.status === PurchaseRequestStatus.REJECTED) && (
               <button
                 type="button"
                 onClick={() => setConfirmAction("return")}
@@ -405,7 +416,8 @@ function EditRequestPage() {
                 <RotateCcw size={15} /> إعادة للمسودة
               </button>
             )}
-            {item.status !== "ملغي" && item.status !== "محول إلى أمر شراء" && (
+            {item.status !== PurchaseRequestStatus.CANCELLED &&
+              item.status !== PurchaseRequestStatus.ORDERED && (
               <button
                 type="button"
                 onClick={() => setConfirmAction("cancel")}
@@ -414,7 +426,7 @@ function EditRequestPage() {
                 <Ban size={15} /> إلغاء
               </button>
             )}
-            {item.status === "ملغي" && (
+            {item.status === PurchaseRequestStatus.CANCELLED && (
               <button
                 type="button"
                 onClick={() => setConfirmAction("delete")}

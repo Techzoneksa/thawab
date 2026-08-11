@@ -16,6 +16,7 @@ import {
 } from "@/components/erp/FormFields";
 import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { SupplierStatus, InventoryItemStatus } from "@/lib/enums";
 import { getSuppliers, type Supplier } from "@/lib/api/suppliers";
 import { getInventoryItems, type InventoryItem } from "@/lib/api/inventory-items";
 import { createPurchaseOrder } from "@/lib/api/purchase-orders";
@@ -48,13 +49,17 @@ function NewOrderPage() {
     queryKey: ["suppliers-simple"],
     queryFn: () => getSuppliers({ limit: 1000 }),
   });
-  const suppliers: Supplier[] = (supQuery.data?.items || []).filter((s) => s.status === "نشط");
+  const suppliers: Supplier[] = (supQuery.data?.items || []).filter(
+    (s) => s.status === SupplierStatus.ACTIVE,
+  );
 
   const itemsQuery = useQuery({
     queryKey: ["inventoryItems-simple"],
     queryFn: () => getInventoryItems({ limit: 1000 }),
   });
-  const items: InventoryItem[] = (itemsQuery.data?.items || []).filter((i) => i.status === "نشط");
+  const items: InventoryItem[] = (itemsQuery.data?.items || []).filter(
+    (i) => i.status === InventoryItemStatus.ACTIVE,
+  );
 
   const [supplierId, setSupplierId] = useState("");
   const [subject, setSubject] = useState("");

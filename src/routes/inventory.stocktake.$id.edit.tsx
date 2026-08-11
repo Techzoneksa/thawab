@@ -26,6 +26,8 @@ import {
   type Stocktake,
   type StocktakeLine,
 } from "@/lib/api/stocktake";
+import { StocktakeStatus } from "@/lib/enums";
+import { label } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/inventory/stocktake/$id/edit")({
   head: () => ({ meta: [{ title: "تعديل جرد — ثواب" }] }),
@@ -63,10 +65,12 @@ function EditStocktakePage() {
     setHydrated(true);
   }
 
-  const isReadOnly = !!item && (item.status === "معتمد" || item.status === "مغلق");
-  const canSubmit = item?.status === "مسودة";
-  const canApprove = item?.status === "بانتظار الاعتماد";
-  const canClose = item?.status === "معتمد";
+  const isReadOnly =
+    !!item &&
+    (item.status === StocktakeStatus.COMPLETED || item.status === StocktakeStatus.CANCELLED);
+  const canSubmit = item?.status === StocktakeStatus.DRAFT;
+  const canApprove = item?.status === StocktakeStatus.COUNTING;
+  const canClose = item?.status === StocktakeStatus.COMPLETED;
 
   const stats = lines.reduce(
     (acc, l) => {
@@ -206,7 +210,9 @@ function EditStocktakePage() {
               </table>
             </div>
           </div>
-          {diffLineCount > 0 && item?.status !== "معتمد" && item?.status !== "مغلق" && (
+          {diffLineCount > 0 &&
+            item?.status !== StocktakeStatus.COMPLETED &&
+            item?.status !== StocktakeStatus.CANCELLED && (
             <div className="mt-3 rounded-lg bg-warning/10 border border-warning/30 px-3 py-2 text-xs text-warning-foreground">
               ⚠ يوجد {diffLineCount} بندًا بفرق بين الكمية النظامية والفعلية. سيتم إنشاء حركة تسوية
               تلقائيًا عند الاعتماد.
@@ -221,7 +227,11 @@ function EditStocktakePage() {
       content: item ? (
         <FormSection title="ملخص الجرد">
           <FormSummaryLine label="اسم الجرد" value={item.name} />
-          <FormSummaryLine label="الحالة" value={item.status} tone={statusTone(item.status)} />
+          <FormSummaryLine
+            label="الحالة"
+            value={label("stocktakeStatus", item.status)}
+            tone={statusTone(item.status)}
+          />
           <FormSummaryLine label="التاريخ" value={item.date} />
           <FormSummaryLine label="عدد الأصناف" value={String(lines.length)} />
           <FormSummaryLine label="إجمالي النظامي" value={String(stats.sys)} />
@@ -351,9 +361,13 @@ function EditStocktakePage() {
         title={item.name}
         subtitle={`${lines.length} صنف · فرق ${stats.diff > 0 ? `+${stats.diff}` : stats.diff}`}
         draftNumber={item.id}
-        status={{ label: item.status, tone: statusTone(item.status) }}
+        status={{ label: label("stocktakeStatus", item.status), tone: statusTone(item.status) }}
         isReadOnly={isReadOnly}
-        readonlyReason={isReadOnly ? `الجرد في حالة "${item.status}". لا يمكن تعديله.` : undefined}
+        readonlyReason={
+          isReadOnly
+            ? `الجرد في حالة "${label("stocktakeStatus", item.status)}". لا يمكن تعديله.`
+            : undefined
+        }
         tabs={tabs}
         defaultTab="basic"
         loading={saving}
@@ -390,7 +404,8 @@ function EditStocktakePage() {
                 <Lock size={15} /> قفل الجرد
               </button>
             )}
-            {(item.status === "مسودة" || item.status === "بانتظار الاعتماد") && (
+            {(item.status === StocktakeStatus.DRAFT ||
+              item.status === StocktakeStatus.COUNTING) && (
               <button
                 type="button"
                 onClick={() => setConfirmAction("delete")}

@@ -50,19 +50,29 @@ import {
   disqualifyBeneficiary,
   suspendBeneficiary,
   reactivateBeneficiary,
-  ELIGIBILITY_STATUSES,
   type Beneficiary,
   type EligibilityStatus,
   type BeneficiaryFilters,
 } from "@/lib/api/beneficiaries";
+import { BeneficiaryStatus } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/beneficiaries")({
   head: () => ({ meta: [{ title: "المستفيدون — ثواب" }] }),
   component: Page,
 });
 
-const BENEFICIARY_CATEGORIES = ["الكل", "أيتام", "أرامل", "أسر محتاجة", "مرضى", "أسر منتجة"];
+const CATEGORY_OPTIONS = options("beneficiaryCategory");
+const STATUS_OPTIONS = options("beneficiaryStatus");
+const BENEFICIARY_CATEGORIES = ["الكل", ...CATEGORY_OPTIONS.map((o) => o.label)];
 const CITIES = ["الكل", "الرياض", "جدة", "الدمام", "أبها", "الطائف", "المدينة المنورة"];
+
+// The shared <Select> displays Arabic labels; convert the picked label back to
+// its English enum key (or "" for the "الكل" sentinel) before hitting the API.
+const toStatusKey = (arLabel: string) =>
+  arLabel === "الكل" ? "" : (STATUS_OPTIONS.find((o) => o.label === arLabel)?.value ?? "");
+const toCategoryKey = (arLabel: string) =>
+  arLabel === "الكل" ? "" : (CATEGORY_OPTIONS.find((o) => o.label === arLabel)?.value ?? "");
 
 type WorkflowAction = "review" | "qualify" | "disqualify" | "suspend" | "reactivate";
 
@@ -107,9 +117,9 @@ function Page() {
     setApiFilters((f) => ({
       ...f,
       search: searchQuery,
-      status: statusFilter,
-      category: categoryFilter,
-      city: cityFilter,
+      status: toStatusKey(statusFilter),
+      category: toCategoryKey(categoryFilter),
+      city: cityFilter === "الكل" ? "" : cityFilter,
       page: 1,
     }));
   }, [searchQuery, statusFilter, categoryFilter, cityFilter]);
@@ -187,15 +197,16 @@ function Page() {
     { label: "إجمالي المستفيدين", value: fmtNum(total) },
     {
       label: "مؤهلين",
-      value: beneficiaries.filter((b: Beneficiary) => b.status === "مؤهل").length,
+      value: beneficiaries.filter((b: Beneficiary) => b.status === BeneficiaryStatus.ACTIVE).length,
     },
     {
       label: "قيد المراجعة",
-      value: beneficiaries.filter((b: Beneficiary) => b.status === "قيد المراجعة").length,
+      value: beneficiaries.filter((b: Beneficiary) => b.status === BeneficiaryStatus.NEW).length,
     },
     {
       label: "موقوفين",
-      value: beneficiaries.filter((b: Beneficiary) => b.status === "موقوف").length,
+      value: beneficiaries.filter((b: Beneficiary) => b.status === BeneficiaryStatus.SUSPENDED)
+        .length,
     },
   ];
 
@@ -262,7 +273,7 @@ function Page() {
         />
         <Select
           label="الحالة"
-          options={["الكل", ...ELIGIBILITY_STATUSES]}
+          options={["الكل", ...STATUS_OPTIONS.map((o) => o.label)]}
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         />
@@ -338,10 +349,12 @@ function Page() {
                         {b.fileNumber || b.id}
                       </div>
                     </div>
-                    <Badge tone={statusTone(b.status)}>{b.status}</Badge>
+                    <Badge tone={statusTone(b.status)}>
+                      {label("beneficiaryStatus", b.status)}
+                    </Badge>
                   </div>
                   <div className="text-xs text-muted-foreground mt-1 truncate">
-                    {b.category}
+                    {label("beneficiaryCategory", b.category)}
                     {b.city ? ` · ${b.city}` : ""}
                   </div>
                 </div>
@@ -412,13 +425,13 @@ function Page() {
                 </Link>
               </Td>
               <Td>
-                <Badge tone="info">{b.category}</Badge>
+                <Badge tone="info">{label("beneficiaryCategory", b.category)}</Badge>
               </Td>
               <Td className="text-muted-foreground">{b.phone || "—"}</Td>
               <Td className="text-muted-foreground">{b.city || "—"}</Td>
               <Td className="tabular-nums">{fmtNum(b.familyMembers || 1)}</Td>
               <Td>
-                <Badge tone={statusTone(b.status)}>{b.status}</Badge>
+                <Badge tone={statusTone(b.status)}>{label("beneficiaryStatus", b.status)}</Badge>
               </Td>
               <Td>
                 <ActionMenu
@@ -439,10 +452,12 @@ function Page() {
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-bold truncate">{b.name}</div>
                         <div className="text-xs text-muted-foreground">
-                          {b.fileNumber || b.id} · {b.category}
+                          {b.fileNumber || b.id} · {label("beneficiaryCategory", b.category)}
                         </div>
                       </div>
-                      <Badge tone={statusTone(b.status)}>{b.status}</Badge>
+                      <Badge tone={statusTone(b.status)}>
+                        {label("beneficiaryStatus", b.status)}
+                      </Badge>
                     </div>
                     <div className="mt-2 flex items-center justify-between">
                       <div className="text-xs text-muted-foreground">
@@ -549,8 +564,8 @@ function Page() {
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option>الكل</option>
-              {ELIGIBILITY_STATUSES.map((s) => (
-                <option key={s}>{s}</option>
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value}>{o.label}</option>
               ))}
             </select>
           </div>
@@ -586,15 +601,12 @@ function getBeneficiaryActions(
   }> = [];
 
   // Workflow actions based on current status
-  if (b.status === "جديد") {
+  if (b.status === BeneficiaryStatus.NEW) {
     actions.push({
       label: "إرسال للمراجعة",
       icon: ClipboardCheck,
       onClick: () => setWorkflowTarget({ id: b.id, name: b.name, action: "review" }),
     });
-  }
-
-  if (b.status === "قيد المراجعة") {
     actions.push({
       label: "تأهيل",
       icon: CheckCircle,
@@ -608,7 +620,7 @@ function getBeneficiaryActions(
     });
   }
 
-  if (b.status === "مؤهل") {
+  if (b.status === BeneficiaryStatus.ACTIVE) {
     actions.push({
       label: "إيقاف",
       icon: Pause,
@@ -616,7 +628,7 @@ function getBeneficiaryActions(
     });
   }
 
-  if (b.status === "موقوف") {
+  if (b.status === BeneficiaryStatus.SUSPENDED) {
     actions.push({
       label: "إعادة تفعيل",
       icon: Play,
@@ -624,7 +636,7 @@ function getBeneficiaryActions(
     });
   }
 
-  if (b.status === "غير مؤهل") {
+  if (b.status === BeneficiaryStatus.ARCHIVED) {
     actions.push({
       label: "إرسال للمراجعة",
       icon: ClipboardCheck,

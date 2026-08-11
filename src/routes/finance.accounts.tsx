@@ -36,13 +36,13 @@ import {
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { label, options } from "@/lib/i18n/labels";
+import { AccountStatus } from "@/lib/enums";
 import {
   getAccounts,
   deleteAccount,
   deactivateAccount,
   activateAccount,
-  ACCOUNT_TYPES,
-  ACCOUNT_STATUSES,
   type Account,
 } from "@/lib/api/accounts";
 
@@ -51,13 +51,22 @@ export const Route = createFileRoute("/finance/accounts")({
   component: Page,
 });
 
+/**
+ * The account's accounting nature is stored in the `classification` column
+ * (English enum key). The client `Account` type is not yet migrated off `type`,
+ * so read it safely here.
+ */
+function acctClassification(a: Account): string {
+  return (a as unknown as { classification?: string }).classification ?? "";
+}
+
 function Page() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState("الكل");
-  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [statusTarget, setStatusTarget] = useState<{
@@ -178,7 +187,7 @@ function Page() {
     { label: "إجمالي الحسابات", value: fmtNum(total) },
     {
       label: "حسابات نشطة",
-      value: accounts.filter((a: Account) => a.status === "نشط").length,
+      value: accounts.filter((a: Account) => a.status === AccountStatus.ACTIVE).length,
     },
     {
       label: "قابلة للترحيل",
@@ -245,16 +254,30 @@ function Page() {
           />
         </div>
         <Select
-          label="النوع"
-          options={["الكل", ...ACCOUNT_TYPES]}
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
+          label="التصنيف"
+          options={["الكل", ...options("accountClassification").map((o) => o.label)]}
+          value={typeFilter ? label("accountClassification", typeFilter) : "الكل"}
+          onChange={(e) => {
+            const v = e.target.value;
+            setTypeFilter(
+              v === "الكل"
+                ? ""
+                : (options("accountClassification").find((o) => o.label === v)?.value ?? ""),
+            );
+          }}
         />
         <Select
           label="الحالة"
-          options={["الكل", ...ACCOUNT_STATUSES]}
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          options={["الكل", ...options("accountStatus").map((o) => o.label)]}
+          value={statusFilter ? label("accountStatus", statusFilter) : "الكل"}
+          onChange={(e) => {
+            const v = e.target.value;
+            setStatusFilter(
+              v === "الكل"
+                ? ""
+                : (options("accountStatus").find((o) => o.label === v)?.value ?? ""),
+            );
+          }}
         />
         <Btn variant="ghost" className="lg:hidden" onClick={() => setFilterOpen(true)}>
           <Filter size={15} />
@@ -346,7 +369,8 @@ function Page() {
                       {selectedAccount.code} — {selectedAccount.name}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      {selectedAccount.type} · المستوى {selectedAccount.level}
+                      {label("accountClassification", acctClassification(selectedAccount))} · المستوى{" "}
+                      {selectedAccount.level}
                       {selectedAccount.parentId && (
                         <>
                           {" "}
@@ -361,7 +385,7 @@ function Page() {
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <Badge tone={statusTone(selectedAccount.status)}>
-                      {selectedAccount.status}
+                      {label("accountStatus", selectedAccount.status)}
                     </Badge>
                     {selectedAccount.postable ? (
                       <Badge tone="info">قابل للترحيل</Badge>
@@ -400,7 +424,7 @@ function Page() {
                           >
                             <span className="font-mono">{c.code}</span> — {c.name}
                           </button>
-                          <Badge tone={statusTone(c.status)}>{c.status}</Badge>
+                          <Badge tone={statusTone(c.status)}>{label("accountStatus", c.status)}</Badge>
                         </div>
                       ))}
                     </div>
@@ -441,7 +465,7 @@ function Page() {
                     {a.name}
                   </button>
                 </Td>
-                <Td>{a.type}</Td>
+                <Td>{label("accountClassification", acctClassification(a))}</Td>
                 <Td className="tabular-nums">{a.level}</Td>
                 <Td className="font-mono text-xs text-muted-foreground">
                   {a.parentId
@@ -450,7 +474,7 @@ function Page() {
                 </Td>
                 <Td className="tabular-nums">{fmtSAR(a.balance)}</Td>
                 <Td>
-                  <Badge tone={statusTone(a.status)}>{a.status}</Badge>
+                  <Badge tone={statusTone(a.status)}>{label("accountStatus", a.status)}</Badge>
                 </Td>
                 <Td>
                   <ActionMenu
@@ -498,15 +522,17 @@ function Page() {
       <MobileFilterDrawer open={filterOpen} onClose={() => setFilterOpen(false)}>
         <div className="space-y-4">
           <div>
-            <label className="text-xs font-semibold text-muted-foreground">النوع</label>
+            <label className="text-xs font-semibold text-muted-foreground">التصنيف</label>
             <select
               className="w-full rounded-lg border bg-background p-3 text-sm mt-1 min-h-[44px]"
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
             >
-              <option>الكل</option>
-              {ACCOUNT_TYPES.map((t) => (
-                <option key={t}>{t}</option>
+              <option value="">الكل</option>
+              {options("accountClassification").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
               ))}
             </select>
           </div>
@@ -517,9 +543,11 @@ function Page() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <option>الكل</option>
-              {ACCOUNT_STATUSES.map((s) => (
-                <option key={s}>{s}</option>
+              <option value="">الكل</option>
+              {options("accountStatus").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
               ))}
             </select>
           </div>
@@ -602,7 +630,7 @@ function TreeNode({
             ) : null}
           </div>
         </button>
-        <Badge tone={statusTone(account.status)}>{account.status}</Badge>
+        <Badge tone={statusTone(account.status)}>{label("accountStatus", account.status)}</Badge>
         <ActionMenu
           actions={getAccountActionsInline(
             account,
@@ -651,17 +679,17 @@ function getAccountActionsInline(
     variant?: "destructive";
   }> = [];
 
-  if (a.type === "رئيسي" || !a.postable) {
+  if (!a.postable) {
     actions.push({ label: "إضافة حساب فرعي", icon: Plus, onClick: () => onAdd(a) });
   }
   actions.push({ label: "تعديل", icon: Pencil, onClick: () => onEdit(a) });
-  if (a.status === "نشط") {
+  if (a.status === AccountStatus.ACTIVE) {
     actions.push({
       label: "إيقاف",
       icon: Pause,
       onClick: () => onDeactivate(a),
     });
-  } else if (a.status === "موقوف") {
+  } else if (a.status === AccountStatus.INACTIVE) {
     actions.push({
       label: "تفعيل",
       icon: Play,
@@ -690,14 +718,14 @@ function getAccountActions(
     variant?: "destructive";
   }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => {} }];
   actions.push({ label: "تعديل", icon: Pencil, onClick: () => openEdit(a) });
-  if (a.status === "نشط") {
+  if (a.status === AccountStatus.ACTIVE) {
     actions.push({
       label: "إيقاف",
       icon: Pause,
       onClick: () =>
         setStatusTarget({ id: a.id, name: `${a.code} - ${a.name}`, action: "deactivate" }),
     });
-  } else if (a.status === "موقوف") {
+  } else if (a.status === AccountStatus.INACTIVE) {
     actions.push({
       label: "تفعيل",
       icon: Play,

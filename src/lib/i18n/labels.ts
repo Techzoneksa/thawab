@@ -189,4 +189,19 @@ export function options(group: LabelGroup): Array<{ value: string; label: string
   return Object.entries(dict).map(([value, ar]) => ({ value, label: ar }));
 }
 
+// Flattened lookup across every group — for generic renderers that don't know
+// the group. Colliding keys (e.g. "active") map to the same Arabic everywhere.
+const ANY: Record<string, string> = {};
+for (const group of Object.values(LABELS)) {
+  for (const [k, v] of Object.entries(group)) {
+    if (!(k in ANY)) ANY[k] = v;
+  }
+}
+
+/** Translate an enum key to Arabic without knowing its group. Falls back to the key. */
+export function labelAny(key: string | null | undefined): string {
+  if (!key) return "";
+  return ANY[key] ?? key;
+}
+
 export { LABELS };

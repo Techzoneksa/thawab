@@ -21,13 +21,15 @@ import { useAuth } from "@/lib/api/auth";
 import { getBeneficiaries } from "@/lib/api/beneficiaries";
 import { getProjects } from "@/lib/api/projects";
 import { getAidRecord, updateAidRecord, approveAidRecord, rejectAidRecord, deliverAidRecord } from "@/lib/api/aid";
+import { AidStatus, AidType } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/aid/$id/edit")({
   head: () => ({ meta: [{ title: "تعديل مساعدة — ثواب" }] }),
   component: EditAidPage,
 });
 
-const TYPES = ["مالية", "عينية", "غذائية", "طبية", "تعليمية", "إسكان", "كفالة"];
+const AID_TYPE_OPTIONS = options("aidType");
 
 function EditAidPage() {
   const { id } = useParams({ from: "/aid/$id/edit" });
@@ -55,7 +57,7 @@ function EditAidPage() {
 
   const [beneficiaryId, setBeneficiaryId] = useState("");
   const [projectId, setProjectId] = useState("");
-  const [type, setType] = useState("مالية");
+  const [type, setType] = useState<string>(AidType.URGENT);
   const [amount, setAmount] = useState("0");
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -65,7 +67,7 @@ function EditAidPage() {
     if (aid) {
       setBeneficiaryId(aid.beneficiaryId || "");
       setProjectId(aid.projectId || "");
-      setType(aid.type || "مالية");
+      setType(aid.type || AidType.URGENT);
       setAmount(String(aid.amount || 0));
       setDate(aid.date || "");
       setNotes(aid.notes || "");
@@ -156,8 +158,8 @@ function EditAidPage() {
     );
   }
 
-  const isApproved = aid.status === "معتمد" || aid.status === "تم التسليم";
-  const isDelivered = aid.status === "تم التسليم";
+  const isApproved = aid.status === AidStatus.APPROVED || aid.status === AidStatus.DELIVERED;
+  const isDelivered = aid.status === AidStatus.DELIVERED;
 
   const tabs: EnterpriseTab[] = [
     {
@@ -179,7 +181,7 @@ function EditAidPage() {
           <FormRow>
             <FormField label="نوع المساعدة">
               <FormSelect value={type} onChange={(e) => setType(e.target.value)} disabled={isApproved}>
-                {TYPES.map((t) => (<option key={t} value={t}>{t}</option>))}
+                {AID_TYPE_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
               </FormSelect>
             </FormField>
             <FormField label="قيمة المساعدة (ر.س)">
@@ -218,7 +220,7 @@ function EditAidPage() {
       content: (
         <FormSection title="الحالة والإجراءات">
           <div className="space-y-0">
-            <FormSummaryLine label="الحالة" value={aid.status} />
+            <FormSummaryLine label="الحالة" value={label("aidStatus", aid.status)} />
             <FormSummaryLine label="اعتمد بواسطة" value={aid.approvedBy || "—"} />
             <FormSummaryLine label="تاريخ الاعتماد" value={aid.approvedAt || "—"} />
             <FormSummaryLine label="سلم بواسطة" value={aid.deliveredBy || "—"} />
@@ -236,10 +238,10 @@ function EditAidPage() {
     <AppShell title="المساعدات" breadcrumb={["المساعدات", aid.id]}>
       <EnterpriseFormLayout
         breadcrumb={[{ label: "المساعدات", to: "/aid" }, { label: aid.beneficiaryName || aid.id }]}
-        title={`مساعدة: ${aid.type}`}
+        title={`مساعدة: ${label("aidType", aid.type)}`}
         subtitle={`${aid.beneficiaryName} · ${fmtSAR(aid.amount)} · ${aid.date}`}
         draftNumber={aid.id}
-        status={{ label: aid.status, tone: statusTone(aid.status) }}
+        status={{ label: label("aidStatus", aid.status), tone: statusTone(aid.status) }}
         isReadOnly={isApproved}
         readonlyReason={isApproved ? "المساعدة معتمدة. يمكن فقط تأكيد التسليم." : ""}
         tabs={tabs}
@@ -252,7 +254,7 @@ function EditAidPage() {
         onSecondary={() => handleSave(true)}
         onCancel={() => navigate({ to: "/aid" })}
         extraActions={
-          aid.status === "بانتظار الاعتماد" ? (
+          aid.status === AidStatus.PENDING ? (
             <>
               <button
                 type="button"
@@ -271,7 +273,7 @@ function EditAidPage() {
                 رفض
               </button>
             </>
-          ) : aid.status === "معتمد" && !isDelivered ? (
+          ) : aid.status === AidStatus.APPROVED && !isDelivered ? (
             <button
               type="button"
               onClick={() => deliverMutation.mutate()}

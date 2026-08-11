@@ -35,6 +35,8 @@ import {
   type Donor,
   type DonorFilters,
 } from "@/lib/api/donors";
+import { DonorStatus, DonorTag } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/donors")({
   head: () => ({ meta: [{ title: "المتبرعون — ثواب" }] }),
@@ -42,7 +44,7 @@ export const Route = createFileRoute("/donors")({
 });
 
 function tagTone(t: string) {
-  return t === "ذهبي" ? "warning" : t === "فضي" ? "info" : "muted";
+  return t === DonorTag.GOLD ? "warning" : t === DonorTag.SILVER ? "info" : "muted";
 }
 
 function Page() {
@@ -82,12 +84,14 @@ function Page() {
   const total = data?.total || 0;
 
   useEffect(() => {
+    const typeKey = options("donorType").find((o) => o.label === typeFilter)?.value ?? "";
+    const tagKey = options("donorTag").find((o) => o.label === tagFilter)?.value ?? "";
     setApiFilters((f) => ({
       ...f,
       search: searchQuery,
-      type: typeFilter,
-      tag: tagFilter,
-      city: cityFilter,
+      type: typeKey,
+      tag: tagKey,
+      city: cityFilter === "الكل" ? "" : cityFilter,
     }));
   }, [searchQuery, typeFilter, tagFilter, cityFilter]);
 
@@ -182,7 +186,10 @@ function Page() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-3 lg:mb-4">
         {[
           { l: "إجمالي المتبرعين", v: fmtNum(total || donors.length) },
-          { l: "متبرعون نشطون", v: fmtNum(donors.filter((d: Donor) => d.status === "نشط").length) },
+          {
+            l: "متبرعون نشطون",
+            v: fmtNum(donors.filter((d: Donor) => d.status === DonorStatus.ACTIVE).length),
+          },
           { l: "متبرعون متكررون", v: fmtNum(donors.filter((d: Donor) => d.recurring).length) },
           { l: "متوسط التبرع", v: fmtSAR(420) },
         ].map((s) => (
@@ -208,13 +215,13 @@ function Page() {
         </div>
         <Select
           label="النوع"
-          options={["الكل", "فرد", "شركة", "مؤسسة"]}
+          options={["الكل", ...options("donorType").map((o) => o.label)]}
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
         />
         <Select
           label="التصنيف"
-          options={["الكل", "ذهبي", "فضي", "برونزي"]}
+          options={["الكل", ...options("donorTag").map((o) => o.label)]}
           value={tagFilter}
           onChange={(e) => setTagFilter(e.target.value)}
         />
@@ -308,14 +315,14 @@ function Page() {
                   </Link>
                 </Td>
                 <Td>
-                  <Badge tone="info">{d.type}</Badge>
+                  <Badge tone="info">{label("donorType", d.type)}</Badge>
                 </Td>
                 <Td className="text-muted-foreground">{d.city}</Td>
                 <Td className="tabular-nums font-bold">{fmtSAR(d.totalDonations)}</Td>
                 <Td className="tabular-nums">{d.donationCount}</Td>
                 <Td>{d.recurring ? <Badge tone="success">نعم</Badge> : <Badge>لا</Badge>}</Td>
                 <Td>
-                  <Badge tone={tagTone(d.tag)}>{d.tag}</Badge>
+                  <Badge tone={tagTone(d.tag)}>{label("donorTag", d.tag)}</Badge>
                 </Td>
                 <Td>
                   <ActionMenu
@@ -352,7 +359,7 @@ function Page() {
                           <div className="text-xs text-muted-foreground">{d.city}</div>
                         </div>
                         <div className="flex items-center gap-1">
-                          <Badge tone={tagTone(d.tag)}>{d.tag}</Badge>
+                          <Badge tone={tagTone(d.tag)}>{label("donorTag", d.tag)}</Badge>
                           <ActionMenu
                             actions={
                               [
@@ -402,7 +409,7 @@ function Page() {
                         </div>
                       </div>
                       <div className="mt-2 flex items-center gap-2">
-                        <Badge tone="info">{d.type}</Badge>
+                        <Badge tone="info">{label("donorType", d.type)}</Badge>
                         {d.recurring && <Badge tone="success">متكرر</Badge>}
                       </div>
                     </div>
@@ -433,9 +440,11 @@ function Page() {
                   onChange={(e) => setTypeFilter(e.target.value)}
                 >
                   <option>الكل</option>
-                  <option>فرد</option>
-                  <option>شركة</option>
-                  <option>مؤسسة</option>
+                  {options("donorType").map((o) => (
+                    <option key={o.value} value={o.label}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -446,9 +455,11 @@ function Page() {
                   onChange={(e) => setTagFilter(e.target.value)}
                 >
                   <option>الكل</option>
-                  <option>ذهبي</option>
-                  <option>فضي</option>
-                  <option>برونزي</option>
+                  {options("donorTag").map((o) => (
+                    <option key={o.value} value={o.label}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>

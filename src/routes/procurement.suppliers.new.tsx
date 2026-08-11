@@ -13,7 +13,9 @@ import {
 } from "@/components/erp/FormFields";
 import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
-import { createSupplier, SUPPLIER_STATUSES, type SupplierStatus } from "@/lib/api/suppliers";
+import { SupplierStatus as SupplierStatusEnum } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
+import { createSupplier, type SupplierStatus } from "@/lib/api/suppliers";
 
 export const Route = createFileRoute("/procurement/suppliers/new")({
   head: () => ({ meta: [{ title: "مورد جديد — ثواب" }] }),
@@ -33,7 +35,7 @@ function NewSupplierPage() {
   const [taxNumber, setTaxNumber] = useState("");
   const [address, setAddress] = useState("");
   const [rating, setRating] = useState("3");
-  const [status, setStatus] = useState<SupplierStatus>("نشط");
+  const [status, setStatus] = useState<SupplierStatus>(SupplierStatusEnum.ACTIVE);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -156,9 +158,9 @@ function NewSupplierPage() {
                 value={status}
                 onChange={(e) => setStatus(e.target.value as SupplierStatus)}
               >
-                {SUPPLIER_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                {options("supplierStatus").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </FormSelect>
@@ -188,7 +190,10 @@ function NewSupplierPage() {
         title="مورد جديد"
         subtitle={name || "أدخل بيانات المورد"}
         draftNumber="مسودة جديدة"
-        status={{ label: status, tone: status === "نشط" ? "success" : "muted" }}
+        status={{
+          label: label("supplierStatus", status),
+          tone: status === SupplierStatusEnum.ACTIVE ? "success" : "muted",
+        }}
         tabs={tabs}
         defaultTab="basic"
         loading={saving}

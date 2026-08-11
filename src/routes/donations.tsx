@@ -52,6 +52,8 @@ import {
   type Donation,
   type DonationFilters,
 } from "@/lib/api/donations";
+import { DonationStatus, DonationMethod, DonationChannel } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/donations")({
   head: () => ({ meta: [{ title: "إدارة التبرعات — ثواب" }] }),
@@ -59,9 +61,9 @@ export const Route = createFileRoute("/donations")({
 });
 
 function statusToneLocal(s: string) {
-  if (s === "مؤكد" || s === "تم إصدار إيصال") return "success";
-  if (s === "ملغي") return "error";
-  if (s === "مسودة") return "muted";
+  if (s === DonationStatus.CONFIRMED) return "success";
+  if (s === DonationStatus.CANCELLED) return "error";
+  if (s === DonationStatus.DRAFT) return "muted";
   return "info";
 }
 
@@ -79,7 +81,7 @@ function Page() {
   const [formDonorId, setFormDonorId] = useState("");
   const [formAmount, setFormAmount] = useState("");
   const [formProject, setFormProject] = useState("");
-  const [formMethod, setFormMethod] = useState("تحويل بنكي");
+  const [formMethod, setFormMethod] = useState<string>(DonationMethod.TRANSFER);
   const [formDate, setFormDate] = useState("");
   const [formNotes, setFormNotes] = useState("");
   const [newDonorName, setNewDonorName] = useState("");
@@ -119,12 +121,16 @@ function Page() {
   const totalCount = data?.total || 0;
 
   useEffect(() => {
+    const statusKey = options("donationStatus").find((o) => o.label === statusFilter)?.value ?? "";
+    const methodKey = options("donationMethod").find((o) => o.label === methodFilter)?.value ?? "";
+    const channelKey =
+      options("donationChannel").find((o) => o.label === channelFilter)?.value ?? "";
     setApiFilters((f) => ({
       ...f,
       search: searchQuery,
-      status: statusFilter,
-      method: methodFilter,
-      channel: channelFilter,
+      status: statusKey,
+      method: methodKey,
+      channel: channelKey,
     }));
   }, [searchQuery, statusFilter, methodFilter, channelFilter]);
 
@@ -220,10 +226,10 @@ function Page() {
         donorId: formDonorId,
         amount: parseFloat(formAmount),
         method: formMethod,
-        channel: formMethod === "تحويل بنكي" ? "البنك الأهلي" : "مباشر",
+        channel: formMethod === DonationMethod.TRANSFER ? DonationChannel.BANK : DonationChannel.DIRECT,
         date: formDate || new Date().toLocaleDateString("ar-SA"),
         notes: formNotes,
-        status: "مسودة",
+        status: DonationStatus.DRAFT,
         userId: user?.id,
         userName: user?.name,
       });
@@ -261,11 +267,17 @@ function Page() {
 
   const stats = [
     { label: "إجمالي التبرعات", value: fmtSAR(donations.reduce((s, d) => s + d.amount, 0)) },
-    { label: "مسودة", value: donations.filter((d: Donation) => d.status === "مسودة").length },
-    { label: "مؤكد", value: donations.filter((d: Donation) => d.status === "مؤكد").length },
+    {
+      label: "مسودة",
+      value: donations.filter((d: Donation) => d.status === DonationStatus.DRAFT).length,
+    },
+    {
+      label: "مؤكد",
+      value: donations.filter((d: Donation) => d.status === DonationStatus.CONFIRMED).length,
+    },
     {
       label: "تم إصدار إيصال",
-      value: donations.filter((d: Donation) => d.status === "تم إصدار إيصال").length,
+      value: donations.filter((d: Donation) => !!d.receiptId).length,
     },
   ];
 
@@ -320,26 +332,19 @@ function Page() {
         </div>
         <Select
           label="القناة"
-          options={[
-            "الكل",
-            "البوابة الإلكترونية",
-            "تطبيق الجوال",
-            "مقر الجمعية",
-            "تحويل بنكي",
-            "تبرع متكرر",
-          ]}
+          options={["الكل", ...options("donationChannel").map((o) => o.label)]}
           value={channelFilter}
           onChange={(e) => setChannelFilter(e.target.value)}
         />
         <Select
           label="طريقة الدفع"
-          options={["الكل", "نقدي", "مدى", "تحويل بنكي", "Apple Pay", "STC Pay", "صك عيني"]}
+          options={["الكل", ...options("donationMethod").map((o) => o.label)]}
           value={methodFilter}
           onChange={(e) => setMethodFilter(e.target.value)}
         />
         <Select
           label="الحالة"
-          options={["الكل", "مسودة", "مؤكد", "تم إصدار إيصال", "ملغي"]}
+          options={["الكل", ...options("donationStatus").map((o) => o.label)]}
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         />
@@ -405,10 +410,10 @@ function Page() {
                 <Td className="font-semibold">{d.donorName}</Td>
                 <Td className="text-muted-foreground text-xs">{d.projectName || "—"}</Td>
                 <Td className="tabular-nums font-bold text-success">{fmtSAR(d.amount)}</Td>
-                <Td className="text-muted-foreground text-xs">{d.method}</Td>
+                <Td className="text-muted-foreground text-xs">{label("donationMethod", d.method)}</Td>
                 <Td className="text-muted-foreground text-xs">{d.date}</Td>
                 <Td>
-                  <Badge tone={statusToneLocal(d.status)}>{d.status}</Badge>
+                  <Badge tone={statusToneLocal(d.status)}>{label("donationStatus", d.status)}</Badge>
                 </Td>
                 <Td>
                   <ActionMenu actions={getDonationActions(d)} />
@@ -422,7 +427,7 @@ function Page() {
                     <div className="text-sm font-semibold truncate">{d.donorName}</div>
                     <div className="text-xs text-muted-foreground">{d.projectName || "—"}</div>
                   </div>
-                  <Badge tone={statusToneLocal(d.status)}>{d.status}</Badge>
+                  <Badge tone={statusToneLocal(d.status)}>{label("donationStatus", d.status)}</Badge>
                 </div>
                 <div className="mt-2 flex items-end justify-between">
                   <div>
@@ -430,7 +435,7 @@ function Page() {
                       {fmtSAR(d.amount)}
                     </div>
                     <div className="text-[11px] text-muted-foreground">
-                      {d.method} · {d.channel}
+                      {label("donationMethod", d.method)} · {label("donationChannel", d.channel)}
                     </div>
                   </div>
                   <div className="text-left">
@@ -518,11 +523,11 @@ function Page() {
               onChange={(e) => setChannelFilter(e.target.value)}
             >
               <option>الكل</option>
-              <option>البوابة الإلكترونية</option>
-              <option>تطبيق الجوال</option>
-              <option>مقر الجمعية</option>
-              <option>تحويل بنكي</option>
-              <option>تبرع متكرر</option>
+              {options("donationChannel").map((o) => (
+                <option key={o.value} value={o.label}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -533,12 +538,11 @@ function Page() {
               onChange={(e) => setMethodFilter(e.target.value)}
             >
               <option>الكل</option>
-              <option>نقدي</option>
-              <option>تحويل بنكي</option>
-              <option>مدى</option>
-              <option>Apple Pay</option>
-              <option>STC Pay</option>
-              <option>صك عيني</option>
+              {options("donationMethod").map((o) => (
+                <option key={o.value} value={o.label}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -549,10 +553,11 @@ function Page() {
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option>الكل</option>
-              <option>مسودة</option>
-              <option>مؤكد</option>
-              <option>تم إصدار إيصال</option>
-              <option>ملغي</option>
+              {options("donationStatus").map((o) => (
+                <option key={o.value} value={o.label}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -569,7 +574,7 @@ function Page() {
       },
     ];
 
-    if (d.status === "مسودة") {
+    if (d.status === DonationStatus.DRAFT) {
       actions.push(
         { label: "تعديل", icon: Pencil, onClick: () => openEditDonation(d) },
         { label: "تأكيد", icon: Check, onClick: () => setConfirmTarget(d) },
@@ -582,7 +587,7 @@ function Page() {
       );
     }
 
-    if (d.status === "مؤكد") {
+    if (d.status === DonationStatus.CONFIRMED) {
       actions.push(
         { label: "إصدار إيصال", icon: Printer, onClick: () => setReceiptTarget(d) },
         {

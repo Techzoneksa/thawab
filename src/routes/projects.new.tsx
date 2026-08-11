@@ -17,13 +17,15 @@ import {
 import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import { createProject } from "@/lib/api/projects";
+import { ProjectStatus } from "@/lib/enums";
+import { options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/projects/new")({
   head: () => ({ meta: [{ title: "مشروع جديد — ثواب" }] }),
   component: NewProjectPage,
 });
 
-const STATUSES = ["جديد", "قيد التخطيط", "نشط", "قيد التنفيذ", "مكتمل", "متوقف", "ملغي"];
+const STATUS_OPTIONS = options("projectStatus");
 const CATEGORIES = ["إغاثي", "تنموي", "تعليمي", "صحي", "كفالة", "رعاية أيتام", "إسكان", "أخرى"];
 
 function NewProjectPage() {
@@ -40,7 +42,7 @@ function NewProjectPage() {
   const [budget, setBudget] = useState("0");
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [endDate, setEndDate] = useState("");
-  const [status, setStatus] = useState("نشط");
+  const [status, setStatus] = useState<string>(ProjectStatus.ACTIVE);
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -155,7 +157,7 @@ function NewProjectPage() {
             </FormField>
             <FormField label="الحالة">
               <FormSelect value={status} onChange={(e) => setStatus(e.target.value)}>
-                {STATUSES.map((s) => (<option key={s} value={s}>{s}</option>))}
+                {STATUS_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
               </FormSelect>
             </FormField>
           </FormRow>

@@ -16,13 +16,14 @@ import {
 import { showToast, ConfirmDialog } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import { getAuditEntries } from "@/lib/api/audit";
+import { QuoteStatus } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 import {
   getQuote,
   updateQuote,
   acceptQuote,
   rejectQuote,
   deleteQuote,
-  QUOTE_STATUSES,
   type Quote,
 } from "@/lib/api/quotes";
 import { fmtSAR } from "@/data/sample";
@@ -51,7 +52,7 @@ function EditQuotePage() {
   const [warranty, setWarranty] = useState("");
   const [rating, setRating] = useState("0");
   const [validUntil, setValidUntil] = useState("");
-  const [status, setStatus] = useState("بانتظار");
+  const [status, setStatus] = useState<string>(QuoteStatus.PENDING);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -65,12 +66,13 @@ function EditQuotePage() {
     setWarranty(item.warranty || "");
     setRating(String(item.rating || 0));
     setValidUntil(item.validUntil || "");
-    setStatus(item.status || "بانتظار");
+    setStatus(item.status || QuoteStatus.PENDING);
     setNotes(item.notes || "");
     setHydrated(true);
   }
 
-  const isReadOnly = !!item && (item.status === "مقبول" || item.status === "مرفوض");
+  const isReadOnly =
+    !!item && (item.status === QuoteStatus.ACCEPTED || item.status === QuoteStatus.REJECTED);
 
   const handleSave = async () => {
     if (isReadOnly) {
@@ -168,9 +170,9 @@ function EditQuotePage() {
           </FormRow>
           <FormField label="الحالة">
             <FormSelect value={status} onChange={(e) => setStatus(e.target.value)}>
-              {QUOTE_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+              {options("quoteStatus").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </FormSelect>
@@ -190,11 +192,11 @@ function EditQuotePage() {
           <FormSummaryLine label="السعر" value={fmtSAR(item.price)} />
           <FormSummaryLine
             label="الحالة"
-            value={item.status}
+            value={label("quoteStatus", item.status)}
             tone={
-              item.status === "مقبول"
+              item.status === QuoteStatus.ACCEPTED
                 ? "success"
-                : item.status === "مرفوض"
+                : item.status === QuoteStatus.REJECTED
                   ? "destructive"
                   : "warning"
             }
@@ -300,7 +302,7 @@ function EditQuotePage() {
         title={item.supplier}
         subtitle={`${fmtSAR(item.price)} · ${item.delivery || ""}`}
         draftNumber={item.id}
-        status={{ label: item.status, tone: statusTone(item.status) }}
+        status={{ label: label("quoteStatus", item.status), tone: statusTone(item.status) }}
         isReadOnly={isReadOnly}
         readonlyReason={
           isReadOnly
@@ -316,7 +318,7 @@ function EditQuotePage() {
         showSecondary={false}
         extraActions={
           <>
-            {item.status === "بانتظار" && (
+            {item.status === QuoteStatus.PENDING && (
               <>
                 <button
                   type="button"
@@ -334,7 +336,7 @@ function EditQuotePage() {
                 </button>
               </>
             )}
-            {item.status === "بانتظار" && (
+            {item.status === QuoteStatus.PENDING && (
               <button
                 type="button"
                 onClick={() => setConfirmAction("delete")}

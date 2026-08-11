@@ -27,6 +27,8 @@ import {
 import { useState, useEffect } from "react";
 import { getProject, getProjectSummary, type Project } from "@/lib/api/projects";
 import { showToast } from "@/components/erp/actions";
+import { ProjectStatus } from "@/lib/enums";
+import { label } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/projects/$id")({
   head: () => ({ meta: [{ title: "ملف المشروع — ثواب" }] }),
@@ -74,7 +76,8 @@ function Page() {
 
   const activeTab = isMobile ? mobileTab : tab;
 
-  const isReadOnly = project?.status === "مكتمل" || project?.status === "ملغي";
+  const isReadOnly =
+    project?.status === ProjectStatus.COMPLETED || project?.status === ProjectStatus.CANCELLED;
 
   if (isLoading) {
     return (
@@ -186,7 +189,7 @@ function Page() {
           <div className="flex items-center gap-2 text-sm">
             <Badge tone="warning">للقراءة فقط</Badge>
             <span className="text-muted-foreground">
-              المشروع بحالة "{project.status}" — لا يمكن التعديل، فقط الطباعة والتصدير.
+              المشروع بحالة "{label("projectStatus", project.status)}" — لا يمكن التعديل، فقط الطباعة والتصدير.
             </span>
           </div>
         </Card>
@@ -352,7 +355,9 @@ function Page() {
                         <Td className="tabular-nums text-success font-bold">{fmtSAR(d.amount)}</Td>
                         <Td>{d.date || d.createdAt}</Td>
                         <Td>
-                          <Badge tone={statusTone(d.status)}>{d.status}</Badge>
+                          <Badge tone={statusTone(d.status)}>
+                            {label("donationStatus", d.status)}
+                          </Badge>
                         </Td>
                       </>
                     )}
@@ -368,7 +373,9 @@ function Page() {
                             {fmtSAR(d.amount)}
                           </div>
                         </div>
-                        <Badge tone={statusTone(d.status)}>{d.status}</Badge>
+                        <Badge tone={statusTone(d.status)}>
+                          {label("donationStatus", d.status)}
+                        </Badge>
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
                         {d.date || d.createdAt}
@@ -396,7 +403,7 @@ function Page() {
                         <Td className="font-mono text-xs">{a.id}</Td>
                         <Td className="tabular-nums font-bold">{fmtSAR(a.amount)}</Td>
                         <Td>
-                          <Badge tone={statusTone(a.status)}>{a.status}</Badge>
+                          <Badge tone={statusTone(a.status)}>{label("aidStatus", a.status)}</Badge>
                         </Td>
                         <Td className="text-muted-foreground text-xs">{a.deliveredAt || a.date}</Td>
                       </>
@@ -407,7 +414,7 @@ function Page() {
                   {aid.slice(0, 10).map((a: any) => (
                     <Card key={a.id} className="p-3">
                       <div className="flex items-center justify-between mb-2">
-                        <Badge tone={statusTone(a.status)}>{a.status}</Badge>
+                        <Badge tone={statusTone(a.status)}>{label("aidStatus", a.status)}</Badge>
                         <span className="font-mono text-xs text-muted-foreground">{a.id}</span>
                       </div>
                       <div className="text-base font-bold tabular-nums">{fmtSAR(a.amount)}</div>
@@ -438,10 +445,12 @@ function Page() {
                       <>
                         <Td className="font-mono text-xs">{b.id}</Td>
                         <Td className="font-semibold">{b.name}</Td>
-                        <Td>{b.category || "—"}</Td>
+                        <Td>{b.category ? label("beneficiaryCategory", b.category) : "—"}</Td>
                         <Td className="text-muted-foreground">{b.city || "—"}</Td>
                         <Td>
-                          <Badge tone={statusTone(b.status)}>{b.status}</Badge>
+                          <Badge tone={statusTone(b.status)}>
+                            {label("beneficiaryStatus", b.status)}
+                          </Badge>
                         </Td>
                       </>
                     )}
@@ -457,10 +466,13 @@ function Page() {
                         <div className="min-w-0 flex-1">
                           <div className="text-sm font-semibold truncate">{b.name}</div>
                           <div className="text-xs text-muted-foreground">
-                            {b.category || "—"} · {b.city || "—"}
+                            {b.category ? label("beneficiaryCategory", b.category) : "—"} ·{" "}
+                            {b.city || "—"}
                           </div>
                         </div>
-                        <Badge tone={statusTone(b.status)}>{b.status}</Badge>
+                        <Badge tone={statusTone(b.status)}>
+                          {label("beneficiaryStatus", b.status)}
+                        </Badge>
                       </div>
                     </div>
                   ))}
@@ -474,7 +486,7 @@ function Page() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <DetailRow label="رقم المشروع" value={project.code || project.id} />
             <DetailRow label="اسم المشروع" value={project.name} />
-            <DetailRow label="الحالة" value={project.status} />
+            <DetailRow label="الحالة" value={label("projectStatus", project.status)} />
             <DetailRow label="التصنيف" value={project.category || "—"} />
             <DetailRow label="نوع المشروع" value={project.type || "—"} />
             <DetailRow label="الفرع" value={project.branch || "—"} />

@@ -18,6 +18,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "seed": "node --experimental-strip-types scripts/seed.ts",
+    "create-admin": "node --experimental-strip-types scripts/create-admin.ts",
     "check:encoding": "node scripts/check-encoding.mjs"
   },
   "dependencies": {

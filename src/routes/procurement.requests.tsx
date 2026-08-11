@@ -28,6 +28,7 @@ import {
   CheckCircle,
   ArrowRight,
   Send,
+  ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -39,6 +40,8 @@ import {
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { PurchaseRequestStatus } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 import {
   getPurchaseRequests,
   getPurchaseRequest,
@@ -48,8 +51,6 @@ import {
   returnPurchaseRequestToDraft,
   cancelPurchaseRequest,
   deletePurchaseRequest,
-  REQUEST_STATUSES,
-  REQUEST_PRIORITIES,
   type PurchaseRequest,
 } from "@/lib/api/purchase-requests";
 
@@ -63,7 +64,7 @@ function Page() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [statusFilter, setStatusFilter] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("الكل");
   const [filterOpen, setFilterOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PurchaseRequest | null>(null);
@@ -153,7 +154,10 @@ function Page() {
   const openAdd = () => navigate({ to: "/procurement/requests/new" });
 
   const openEdit = (r: PurchaseRequest) => {
-    if (r.status !== "مسودة" && r.status !== "مرفوض") {
+    if (
+      r.status !== PurchaseRequestStatus.DRAFT &&
+      r.status !== PurchaseRequestStatus.REJECTED
+    ) {
       showToast("لا يمكن تعديل طلب في حالة حالية. أعده إلى المسودة أولاً.", "error");
       return;
     }
@@ -163,12 +167,12 @@ function Page() {
   const items = data?.items || [];
   const total = data?.total || 0;
   const stats = {
-    draft: items.filter((r) => r.status === "مسودة").length,
-    pending: items.filter((r) => r.status === "بانتظار الموافقة").length,
-    approved: items.filter((r) => r.status === "معتمد").length,
-    rejected: items.filter((r) => r.status === "مرفوض").length,
-    converted: items.filter((r) => r.status === "محول إلى أمر شراء").length,
-    cancelled: items.filter((r) => r.status === "ملغي").length,
+    draft: items.filter((r) => r.status === PurchaseRequestStatus.DRAFT).length,
+    pending: items.filter((r) => r.status === PurchaseRequestStatus.SUBMITTED).length,
+    approved: items.filter((r) => r.status === PurchaseRequestStatus.APPROVED).length,
+    rejected: items.filter((r) => r.status === PurchaseRequestStatus.REJECTED).length,
+    converted: items.filter((r) => r.status === PurchaseRequestStatus.ORDERED).length,
+    cancelled: items.filter((r) => r.status === PurchaseRequestStatus.CANCELLED).length,
     total,
   };
 
@@ -239,12 +243,27 @@ function Page() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <Select
-          label="الحالة"
-          options={["الكل", ...REQUEST_STATUSES]}
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        />
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground whitespace-nowrap">الحالة:</span>
+          <div className="relative">
+            <select
+              className="appearance-none rounded-lg border bg-background pr-3 pl-7 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring min-h-[36px]"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">الكل</option>
+              {options("purchaseRequestStatus").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={14}
+              className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground"
+            />
+          </div>
+        </div>
         <Select
           label="الإدارة"
           options={[
@@ -320,7 +339,9 @@ function Page() {
               <Td className="text-muted-foreground">{r.department}</Td>
               <Td className="tabular-nums font-bold">{fmtSAR(r.amount)}</Td>
               <Td>
-                <Badge tone={statusTone(r.status)}>{r.status}</Badge>
+                <Badge tone={statusTone(r.status)}>
+                  {label("purchaseRequestStatus", r.status)}
+                </Badge>
               </Td>
               <Td>
                 <ActionMenu
@@ -352,14 +373,16 @@ function Page() {
                     {r.department} · {r.deliveryDate || "—"}
                   </div>
                 </div>
-                <Badge tone={statusTone(r.status)}>{r.status}</Badge>
+                <Badge tone={statusTone(r.status)}>
+                  {label("purchaseRequestStatus", r.status)}
+                </Badge>
               </div>
               <div className="mt-2 flex items-center justify-between">
                 <div className="text-base font-bold tabular-nums">{fmtSAR(r.amount)}</div>
                 <div className="text-xs text-muted-foreground font-mono">{r.id}</div>
               </div>
               <div className="mt-2 pt-2 border-t flex gap-2">
-                {r.status === "مسودة" && (
+                {r.status === PurchaseRequestStatus.DRAFT && (
                   <button
                     className="flex-1 rounded-lg bg-primary/15 text-primary py-2 text-xs font-semibold min-h-[36px]"
                     onClick={() =>
@@ -369,7 +392,7 @@ function Page() {
                     إرسال للموافقة
                   </button>
                 )}
-                {r.status === "بانتظار الموافقة" && (
+                {r.status === PurchaseRequestStatus.SUBMITTED && (
                   <button
                     className="flex-1 rounded-lg bg-success/15 text-success py-2 text-xs font-semibold min-h-[36px]"
                     onClick={() =>
@@ -401,9 +424,15 @@ function Page() {
         {detailQuery.data && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow label="الحالة" value={detailQuery.data.item.status} />
+              <DetailRow
+                label="الحالة"
+                value={label("purchaseRequestStatus", detailQuery.data.item.status)}
+              />
               <DetailRow label="القسم" value={detailQuery.data.item.department} />
-              <DetailRow label="الأولوية" value={detailQuery.data.item.priority} />
+              <DetailRow
+                label="الأولوية"
+                value={label("priority", detailQuery.data.item.priority)}
+              />
               <DetailRow label="مقدم الطلب" value={detailQuery.data.item.requester || "—"} />
               <DetailRow label="المبلغ" value={fmtSAR(detailQuery.data.item.amount)} />
               <DetailRow label="تاريخ التوريد" value={detailQuery.data.item.deliveryDate || "—"} />
@@ -529,9 +558,11 @@ function Page() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <option>الكل</option>
-              {REQUEST_STATUSES.map((s) => (
-                <option key={s}>{s}</option>
+              <option value="">الكل</option>
+              {options("purchaseRequestStatus").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
               ))}
             </select>
           </div>
@@ -582,7 +613,7 @@ function getRequestActions(
     variant?: "destructive";
   }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(r.id) }];
 
-  if (r.status === "مسودة") {
+  if (r.status === PurchaseRequestStatus.DRAFT) {
     actions.push({ label: "تعديل", icon: Edit, onClick: () => openEdit(r) });
     actions.push({
       label: "إرسال للموافقة",
@@ -591,7 +622,7 @@ function getRequestActions(
     });
   }
 
-  if (r.status === "بانتظار الموافقة") {
+  if (r.status === PurchaseRequestStatus.SUBMITTED) {
     actions.push({
       label: "اعتماد",
       icon: CheckCircle,
@@ -604,7 +635,7 @@ function getRequestActions(
     });
   }
 
-  if (r.status === "معتمد") {
+  if (r.status === PurchaseRequestStatus.APPROVED) {
     actions.push({
       label: "إعادة للمسودة",
       icon: ArrowRight,
@@ -612,7 +643,7 @@ function getRequestActions(
     });
   }
 
-  if (r.status === "مرفوض") {
+  if (r.status === PurchaseRequestStatus.REJECTED) {
     actions.push({ label: "تعديل", icon: Edit, onClick: () => openEdit(r) });
     actions.push({
       label: "إعادة للمسودة",
@@ -621,7 +652,10 @@ function getRequestActions(
     });
   }
 
-  if (r.status !== "محول إلى أمر شراء" && r.status !== "ملغي") {
+  if (
+    r.status !== PurchaseRequestStatus.ORDERED &&
+    r.status !== PurchaseRequestStatus.CANCELLED
+  ) {
     actions.push({
       label: "إلغاء",
       icon: XCircle,
@@ -629,7 +663,11 @@ function getRequestActions(
     });
   }
 
-  if (r.status === "مسودة" || r.status === "مرفوض" || r.status === "ملغي") {
+  if (
+    r.status === PurchaseRequestStatus.DRAFT ||
+    r.status === PurchaseRequestStatus.REJECTED ||
+    r.status === PurchaseRequestStatus.CANCELLED
+  ) {
     actions.push({
       label: "حذف",
       icon: Trash2,

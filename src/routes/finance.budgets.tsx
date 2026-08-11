@@ -28,6 +28,8 @@ import {
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { label, options } from "@/lib/i18n/labels";
+import { BudgetStatus } from "@/lib/enums";
 import { getAccounts, type Account } from "@/lib/api/accounts";
 import { getCostCenters, type CostCenter } from "@/lib/api/cost-centers";
 import {
@@ -37,7 +39,6 @@ import {
   approveBudget,
   lockBudget,
   unlockBudget,
-  BUDGET_STATUSES,
   type Budget,
   type BudgetLine,
 } from "@/lib/api/budgets";
@@ -59,7 +60,7 @@ function Page() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [statusFilter, setStatusFilter] = useState("");
   const [yearFilter, setYearFilter] = useState("الكل");
   const [filterOpen, setFilterOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -91,7 +92,7 @@ function Page() {
   const openAdd = () => navigate({ to: "/finance/budgets/new" });
 
   const openEdit = (b: Budget) => {
-    if (b.status !== "مسودة") {
+    if (b.status !== BudgetStatus.DRAFT) {
       showToast("لا يمكن تعديل موازنة معتمدة أو مقفلة. افتح التفاصيل لعرض السجل أو تنفيذ إجراء.", "error");
       return;
     }
@@ -157,11 +158,11 @@ function Page() {
     { label: "إجمالي الموازنات", value: fmtNum(total) },
     {
       label: "معتمدة",
-      value: budgets.filter((b: Budget) => b.status === "معتمد").length,
+      value: budgets.filter((b: Budget) => b.status === BudgetStatus.APPROVED).length,
     },
     {
       label: "مقفلة",
-      value: budgets.filter((b: Budget) => b.status === "مقفل").length,
+      value: budgets.filter((b: Budget) => b.status === BudgetStatus.LOCKED).length,
     },
     {
       label: "إجمالي المخطط",
@@ -212,9 +213,16 @@ function Page() {
         </div>
         <Select
           label="الحالة"
-          options={["الكل", ...BUDGET_STATUSES]}
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          options={["الكل", ...options("budgetStatus").map((o) => o.label)]}
+          value={statusFilter ? label("budgetStatus", statusFilter) : "الكل"}
+          onChange={(e) => {
+            const v = e.target.value;
+            setStatusFilter(
+              v === "الكل"
+                ? ""
+                : (options("budgetStatus").find((o) => o.label === v)?.value ?? ""),
+            );
+          }}
         />
         <Select
           label="السنة"
@@ -303,7 +311,7 @@ function Page() {
                   </div>
                 </Td>
                 <Td>
-                  <Badge tone={statusTone(b.status)}>{b.status}</Badge>
+                  <Badge tone={statusTone(b.status)}>{label("budgetStatus", b.status)}</Badge>
                 </Td>
                 <Td>
                   <ActionMenu
@@ -335,7 +343,7 @@ function Page() {
                       {b.year} · {b.department || "—"}
                     </div>
                   </div>
-                  <Badge tone={statusTone(b.status)}>{b.status}</Badge>
+                  <Badge tone={statusTone(b.status)}>{label("budgetStatus", b.status)}</Badge>
                 </div>
                 <div className="mt-2 flex items-center gap-2">
                   <div className="h-2 flex-1 rounded-full bg-muted overflow-hidden">
@@ -367,7 +375,7 @@ function Page() {
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2 text-sm">
               <DetailRow label="السنة" value={detailData.item.year} />
-              <DetailRow label="الحالة" value={detailData.item.status} />
+              <DetailRow label="الحالة" value={label("budgetStatus", detailData.item.status)} />
               <DetailRow label="القسم" value={detailData.item.department || "—"} />
               <DetailRow label="العملة" value={detailData.item.currency} />
             </div>
@@ -502,9 +510,11 @@ function Page() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <option>الكل</option>
-              {BUDGET_STATUSES.map((s) => (
-                <option key={s}>{s}</option>
+              <option value="">الكل</option>
+              {options("budgetStatus").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
               ))}
             </select>
           </div>
@@ -549,7 +559,7 @@ function getBudgetActions(
     variant?: "destructive";
   }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(b.id) }];
 
-  if (b.status === "مسودة") {
+  if (b.status === BudgetStatus.DRAFT) {
     actions.push({ label: "تعديل", icon: Pencil, onClick: () => openEdit(b) });
     actions.push({
       label: "اعتماد",
@@ -564,7 +574,7 @@ function getBudgetActions(
     });
   }
 
-  if (b.status === "معتمد") {
+  if (b.status === BudgetStatus.APPROVED) {
     actions.push({
       label: "قفل",
       icon: Lock,
@@ -572,7 +582,7 @@ function getBudgetActions(
     });
   }
 
-  if (b.status === "مقفل") {
+  if (b.status === BudgetStatus.LOCKED) {
     actions.push({
       label: "فتح القفل",
       icon: Unlock,

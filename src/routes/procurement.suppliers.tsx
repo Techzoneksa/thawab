@@ -22,6 +22,8 @@ import {
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { SupplierStatus } from "@/lib/enums";
+import { label } from "@/lib/i18n/labels";
 import {
   getSuppliers,
   activateSupplier,
@@ -104,7 +106,7 @@ function Page() {
   };
 
   const handleToggle = (s: Supplier) => {
-    if (s.status === "نشط") {
+    if (s.status === SupplierStatus.ACTIVE) {
       deactivateMutation.mutate({ id: s.id, userId: user?.id, userName: user?.name });
     } else {
       activateMutation.mutate({ id: s.id, userId: user?.id, userName: user?.name });
@@ -114,8 +116,8 @@ function Page() {
   const items = data?.items || [];
   const total = data?.total || 0;
   const stats = {
-    active: items.filter((s) => s.status === "نشط").length,
-    inactive: items.filter((s) => s.status === "موقوف").length,
+    active: items.filter((s) => s.status === SupplierStatus.ACTIVE).length,
+    inactive: items.filter((s) => s.status === SupplierStatus.INACTIVE).length,
     total,
   };
 
@@ -221,7 +223,7 @@ function Page() {
               <Td>{s.activity ? <Badge tone="info">{s.activity}</Badge> : "—"}</Td>
               <Td className="font-mono text-xs text-muted-foreground">{s.phone || "—"}</Td>
               <Td>
-                <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                <Badge tone={statusTone(s.status)}>{label("supplierStatus", s.status)}</Badge>
               </Td>
               <Td>
                 <ActionMenu
@@ -239,7 +241,7 @@ function Page() {
           mobileCard={(s) => (
             <Card key={s.id} className="p-3">
               <div className="flex items-center justify-between mb-2">
-                <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                <Badge tone={statusTone(s.status)}>{label("supplierStatus", s.status)}</Badge>
                 <span className="font-mono text-xs text-muted-foreground">{s.id}</span>
               </div>
               <button
@@ -263,7 +265,7 @@ function Page() {
                   className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px]"
                   onClick={() => handleToggle(s)}
                 >
-                  {s.status === "نشط" ? "تعطيل" : "تفعيل"}
+                  {s.status === SupplierStatus.ACTIVE ? "تعطيل" : "تفعيل"}
                 </button>
               </div>
             </Card>
@@ -281,7 +283,10 @@ function Page() {
         {detailQuery.data && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow label="الحالة" value={detailQuery.data.item.status} />
+              <DetailRow
+                label="الحالة"
+                value={label("supplierStatus", detailQuery.data.item.status)}
+              />
               <DetailRow label="النشاط" value={detailQuery.data.item.activity || "—"} />
               <DetailRow label="الجوال" value={detailQuery.data.item.phone || "—"} />
               <DetailRow label="البريد" value={detailQuery.data.item.email || "—"} />
@@ -360,8 +365,8 @@ function getSupplierActions(
     { label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(s.id) },
     { label: "تعديل", icon: Edit, onClick: () => openEdit(s) },
     {
-      label: s.status === "نشط" ? "تعطيل" : "تفعيل",
-      icon: s.status === "نشط" ? ToggleLeft : ToggleRight,
+      label: s.status === SupplierStatus.ACTIVE ? "تعطيل" : "تفعيل",
+      icon: s.status === SupplierStatus.ACTIVE ? ToggleLeft : ToggleRight,
       onClick: () => handleToggle(s),
     },
     {

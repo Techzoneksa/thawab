@@ -19,8 +19,10 @@ import {
 } from "@/components/erp/FormFields";
 import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { label, options } from "@/lib/i18n/labels";
+import { BudgetStatus as BudgetStatusEnum } from "@/lib/enums";
 import { getAccounts } from "@/lib/api/accounts";
-import { createBudget, BUDGET_STATUSES, type BudgetStatus } from "@/lib/api/budgets";
+import { createBudget, type BudgetStatus } from "@/lib/api/budgets";
 
 export const Route = createFileRoute("/finance/budgets/new")({
   head: () => ({ meta: [{ title: "موازنة جديدة — ثواب" }] }),
@@ -52,7 +54,7 @@ function NewBudgetPage() {
   const currentYear = String(new Date().getFullYear());
   const [name, setName] = useState(`موازنة ${currentYear}`);
   const [year, setYear] = useState(currentYear);
-  const [status, setStatus] = useState<BudgetStatus>("مسودة");
+  const [status, setStatus] = useState<BudgetStatus>(BudgetStatusEnum.DRAFT);
   const [department, setDepartment] = useState("");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
@@ -124,7 +126,7 @@ function NewBudgetPage() {
             </FormField>
             <FormField label="الحالة">
               <FormSelect value={status} onChange={(e) => setStatus(e.target.value as BudgetStatus)}>
-                {BUDGET_STATUSES.map((s) => (<option key={s} value={s}>{s}</option>))}
+                {options("budgetStatus").map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
               </FormSelect>
             </FormField>
           </FormRow>
@@ -240,7 +242,7 @@ function NewBudgetPage() {
         title="موازنة جديدة"
         subtitle={`سنة ${year} · ${fmtSAR(totalPlanned)} مخطط`}
         draftNumber="مسودة جديدة"
-        status={{ label: status, tone: statusTone(status) }}
+        status={{ label: label("budgetStatus", status), tone: statusTone(status) }}
         tabs={tabs}
         defaultTab="basic"
         loading={saving}

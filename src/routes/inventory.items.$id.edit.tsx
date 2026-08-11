@@ -28,10 +28,11 @@ import {
   activateInventoryItem,
   deactivateInventoryItem,
   deleteInventoryItem,
-  ITEM_STATUSES,
   MOVEMENT_TYPES,
   type InventoryItem,
 } from "@/lib/api/inventory-items";
+import { InventoryItemStatus, WarehouseStatus } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 const CATEGORIES = [
   "مواد غذائية",
@@ -64,7 +65,9 @@ function EditItemPage() {
     queryKey: ["warehouses-simple"],
     queryFn: () => getWarehouses({ limit: 1000 }),
   });
-  const warehouses: Warehouse[] = (whQuery.data?.items || []).filter((w) => w.status === "نشط");
+  const warehouses: Warehouse[] = (whQuery.data?.items || []).filter(
+    (w) => w.status === WarehouseStatus.ACTIVE,
+  );
 
   const item: InventoryItem | undefined = detailQuery.data?.item;
   const movementCount = detailQuery.data?.movementCount ?? 0;
@@ -78,7 +81,7 @@ function EditItemPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [minQuantity, setMinQuantity] = useState("0");
   const [price, setPrice] = useState("0");
-  const [status, setStatus] = useState("نشط");
+  const [status, setStatus] = useState<string>(InventoryItemStatus.ACTIVE);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -102,7 +105,7 @@ function EditItemPage() {
     setWarehouseId(item.warehouseId || "");
     setMinQuantity(String(item.minQuantity || 0));
     setPrice(String(item.price || 0));
-    setStatus(item.status || "نشط");
+    setStatus(item.status || InventoryItemStatus.ACTIVE);
     setNotes(item.notes || "");
     setMvWarehouseId(item.warehouseId || "");
     setHydrated(true);
@@ -283,9 +286,9 @@ function EditItemPage() {
           </FormRow>
           <FormField label="الحالة">
             <FormSelect value={status} onChange={(e) => setStatus(e.target.value)}>
-              {ITEM_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+              {options("inventoryItemStatus").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </FormSelect>
@@ -337,10 +340,10 @@ function EditItemPage() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {MOVEMENT_TYPES.map((t) => {
                   const map = {
-                    استلام: { value: "receive", icon: Plus, color: "success" },
-                    صرف: { value: "issue", icon: Minus, color: "warning" },
-                    تحويل: { value: "transfer", icon: ArrowRightLeft, color: "info" },
-                    تسوية: { value: "adjust", icon: Settings2, color: "primary" },
+                    in: { value: "receive", icon: Plus, color: "success" },
+                    out: { value: "issue", icon: Minus, color: "warning" },
+                    transfer: { value: "transfer", icon: ArrowRightLeft, color: "info" },
+                    adjustment: { value: "adjust", icon: Settings2, color: "primary" },
                   } as const;
                   const cfg = map[t as keyof typeof map];
                   const Icon = cfg.icon;
@@ -356,7 +359,7 @@ function EditItemPage() {
                           : "bg-background hover:bg-muted"
                       }`}
                     >
-                      <Icon size={14} /> {t}
+                      <Icon size={14} /> {label("stockMovementType", t)}
                     </button>
                   );
                 })}
@@ -459,8 +462,8 @@ function EditItemPage() {
           <FormSummaryLine label="سعر الوحدة" value={fmtSAR(item.price)} />
           <FormSummaryLine
             label="الحالة"
-            value={item.status}
-            tone={item.status === "نشط" ? "success" : "warning"}
+            value={label("inventoryItemStatus", item.status)}
+            tone={item.status === InventoryItemStatus.ACTIVE ? "success" : "warning"}
           />
         </FormSection>
       ) : null,
@@ -559,7 +562,7 @@ function EditItemPage() {
         title={item.name}
         subtitle={`${item.category || ""} · ${item.unit} · ${item.quantity} متوفر`}
         draftNumber={item.id}
-        status={{ label: item.status, tone: statusTone(item.status) }}
+        status={{ label: label("inventoryItemStatus", item.status), tone: statusTone(item.status) }}
         tabs={tabs}
         defaultTab="basic"
         loading={saving}
@@ -569,7 +572,7 @@ function EditItemPage() {
         showSecondary={false}
         extraActions={
           <>
-            {item.status === "نشط" ? (
+            {item.status === InventoryItemStatus.ACTIVE ? (
               <button
                 type="button"
                 onClick={() => setConfirmAction("deactivate")}
@@ -606,8 +609,9 @@ function EditItemPage() {
         onClose={() => setConfirmAction(null)}
         onConfirm={handleMovement}
         title="تأكيد الحركة"
-        message={`هل تريد تنفيذ حركة "${MOVEMENT_TYPES.find(
-          (t) => ["استلام", "صرف", "تحويل", "تسوية"][MOVEMENT_TYPES.indexOf(t)] === movementType,
+        message={`هل تريد تنفيذ حركة "${label(
+          "stockMovementType",
+          { receive: "in", issue: "out", transfer: "transfer", adjust: "adjustment" }[movementType],
         )}" بكمية ${mvQty} ${item.unit}؟`}
         confirmText="تنفيذ"
         cancelText="تراجع"

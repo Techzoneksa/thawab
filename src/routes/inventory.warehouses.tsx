@@ -21,6 +21,7 @@ import {
   Search,
   ToggleLeft,
   ToggleRight,
+  ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -37,9 +38,10 @@ import {
   activateWarehouse,
   deactivateWarehouse,
   deleteWarehouse,
-  WAREHOUSE_STATUSES,
   type Warehouse,
 } from "@/lib/api/warehouses";
+import { WarehouseStatus } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/inventory/warehouses")({
   head: () => ({ meta: [{ title: "المستودعات — ثواب" }] }),
@@ -51,7 +53,7 @@ function Page() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [statusFilter, setStatusFilter] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Warehouse | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
 
@@ -106,7 +108,7 @@ function Page() {
   };
 
   const handleToggle = (w: Warehouse) => {
-    if (w.status === "نشط") {
+    if (w.status === WarehouseStatus.ACTIVE) {
       deactivateMutation.mutate({ id: w.id, userId: user?.id, userName: user?.name });
     } else {
       activateMutation.mutate({ id: w.id, userId: user?.id, userName: user?.name });
@@ -116,8 +118,8 @@ function Page() {
   const items = data?.items || [];
   const total = data?.total || 0;
   const stats = {
-    active: items.filter((w) => w.status === "نشط").length,
-    inactive: items.filter((w) => w.status === "موقوف").length,
+    active: items.filter((w) => w.status === WarehouseStatus.ACTIVE).length,
+    inactive: items.filter((w) => w.status === WarehouseStatus.INACTIVE).length,
     totalCapacity: items.reduce((s, w) => s + (w.capacity || 0), 0),
     total,
   };
@@ -187,16 +189,27 @@ function Page() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <select
-          className="rounded-lg border bg-background py-1.5 px-3 text-sm"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option>الكل</option>
-          {WAREHOUSE_STATUSES.map((s) => (
-            <option key={s}>{s}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground whitespace-nowrap">الحالة:</span>
+          <div className="relative">
+            <select
+              className="appearance-none rounded-lg border bg-background pr-3 pl-7 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring min-h-[36px]"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">الكل</option>
+              {options("warehouseStatus").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={14}
+              className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="lg:hidden flex items-center gap-2 mb-3">
@@ -257,7 +270,7 @@ function Page() {
               <Td className="text-xs">{w.manager || "—"}</Td>
               <Td className="tabular-nums font-bold">{fmtSAR(w.capacity)}</Td>
               <Td>
-                <Badge tone={statusTone(w.status)}>{w.status}</Badge>
+                <Badge tone={statusTone(w.status)}>{label("warehouseStatus", w.status)}</Badge>
               </Td>
               <Td>
                 <ActionMenu
@@ -275,7 +288,7 @@ function Page() {
           mobileCard={(w) => (
             <Card key={w.id} className="p-3">
               <div className="flex items-center justify-between mb-2">
-                <Badge tone={statusTone(w.status)}>{w.status}</Badge>
+                <Badge tone={statusTone(w.status)}>{label("warehouseStatus", w.status)}</Badge>
                 <span className="text-xs text-muted-foreground">السعة: {fmtSAR(w.capacity)}</span>
               </div>
               <button
@@ -300,7 +313,7 @@ function Page() {
                   className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px]"
                   onClick={() => handleToggle(w)}
                 >
-                  {w.status === "نشط" ? "تعطيل" : "تفعيل"}
+                  {w.status === WarehouseStatus.ACTIVE ? "تعطيل" : "تفعيل"}
                 </button>
               </div>
             </Card>
@@ -318,7 +331,10 @@ function Page() {
         {detailQuery.data && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow label="الحالة" value={detailQuery.data.item.status} />
+              <DetailRow
+                label="الحالة"
+                value={label("warehouseStatus", detailQuery.data.item.status)}
+              />
               <DetailRow label="الموقع" value={detailQuery.data.item.location || "—"} />
               <DetailRow label="المسؤول" value={detailQuery.data.item.manager || "—"} />
               <DetailRow label="السعة" value={fmtSAR(detailQuery.data.item.capacity)} />
@@ -402,8 +418,8 @@ function getWarehouseActions(
     { label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(w.id) },
     { label: "تعديل", icon: Edit, onClick: () => openEdit(w) },
     {
-      label: w.status === "نشط" ? "تعطيل" : "تفعيل",
-      icon: w.status === "نشط" ? ToggleLeft : ToggleRight,
+      label: w.status === WarehouseStatus.ACTIVE ? "تعطيل" : "تفعيل",
+      icon: w.status === WarehouseStatus.ACTIVE ? ToggleLeft : ToggleRight,
       onClick: () => handleToggle(w),
     },
     {

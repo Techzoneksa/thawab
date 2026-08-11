@@ -18,12 +18,16 @@ import { useAuth } from "@/lib/api/auth";
 import { getSuppliers, type Supplier } from "@/lib/api/suppliers";
 import {
   createFixedAsset,
-  ASSET_STATUSES,
-  ASSET_CONDITIONS,
-  ASSET_DEPRECIATION_METHODS,
   type AssetStatus,
   type AssetCondition,
 } from "@/lib/api/assets";
+import {
+  AssetStatus as AssetStatusEnum,
+  AssetCondition as AssetConditionEnum,
+  DepreciationMethod,
+  SupplierStatus,
+} from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/assets/new")({
   head: () => ({ meta: [{ title: "أصل جديد — ثواب" }] }),
@@ -49,7 +53,9 @@ function NewAssetPage() {
     queryKey: ["suppliers-simple"],
     queryFn: () => getSuppliers({ limit: 1000 }),
   });
-  const suppliers: Supplier[] = (supQuery.data?.items || []).filter((s) => s.status === "نشط");
+  const suppliers: Supplier[] = (supQuery.data?.items || []).filter(
+    (s) => s.status === SupplierStatus.ACTIVE,
+  );
 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -58,13 +64,15 @@ function NewAssetPage() {
   const [cost, setCost] = useState("0");
   const [salvageValue, setSalvageValue] = useState("0");
   const [usefulLifeMonths, setUsefulLifeMonths] = useState("60");
-  const [depreciationMethod, setDepreciationMethod] = useState("قسط ثابت");
-  const [condition, setCondition] = useState<AssetCondition>("جيد");
+  const [depreciationMethod, setDepreciationMethod] = useState<string>(
+    DepreciationMethod.STRAIGHT_LINE,
+  );
+  const [condition, setCondition] = useState<AssetCondition>(AssetConditionEnum.GOOD);
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0, 10));
   const [supplierId, setSupplierId] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
   const [responsiblePerson, setResponsiblePerson] = useState("");
-  const [status, setStatus] = useState<AssetStatus>("نشط");
+  const [status, setStatus] = useState<AssetStatus>(AssetStatusEnum.ACTIVE);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -233,9 +241,9 @@ function NewAssetPage() {
                 value={depreciationMethod}
                 onChange={(e) => setDepreciationMethod(e.target.value)}
               >
-                {ASSET_DEPRECIATION_METHODS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
+                {options("depreciationMethod").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </FormSelect>
@@ -280,9 +288,9 @@ function NewAssetPage() {
           <FormRow>
             <FormField label="الحالة">
               <FormSelect value={status} onChange={(e) => setStatus(e.target.value as AssetStatus)}>
-                {ASSET_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                {options("assetStatus").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </FormSelect>
@@ -292,9 +300,9 @@ function NewAssetPage() {
                 value={condition}
                 onChange={(e) => setCondition(e.target.value as AssetCondition)}
               >
-                {ASSET_CONDITIONS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                {options("assetCondition").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </FormSelect>
@@ -329,7 +337,10 @@ function NewAssetPage() {
           <FormSummaryLine label="قيمة الإنقاذ" value={fmtSAR(parseFloat(salvageValue) || 0)} />
           <FormSummaryLine label="القيمة الدفترية" value={fmtSAR(bookValue)} tone="success" />
           <FormSummaryLine label="العمر الافتراضي" value={`${usefulLifeMonths} شهرًا`} />
-          <FormSummaryLine label="طريقة الإهلاك" value={depreciationMethod} />
+          <FormSummaryLine
+            label="طريقة الإهلاك"
+            value={label("depreciationMethod", depreciationMethod)}
+          />
         </FormSection>
       ),
     },
@@ -342,7 +353,10 @@ function NewAssetPage() {
         title="أصل جديد"
         subtitle={name || "أدخل بيانات الأصل"}
         draftNumber="مسودة جديدة"
-        status={{ label: status, tone: status === "نشط" ? "success" : "muted" }}
+        status={{
+          label: label("assetStatus", status),
+          tone: status === AssetStatusEnum.ACTIVE ? "success" : "muted",
+        }}
         tabs={tabs}
         defaultTab="basic"
         loading={saving}

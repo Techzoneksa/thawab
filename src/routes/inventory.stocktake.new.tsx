@@ -18,6 +18,8 @@ import { useAuth } from "@/lib/api/auth";
 import { getWarehouses, type Warehouse } from "@/lib/api/warehouses";
 import { getInventoryItems, type InventoryItem } from "@/lib/api/inventory-items";
 import { createStocktake } from "@/lib/api/stocktake";
+import { StocktakeStatus, WarehouseStatus } from "@/lib/enums";
+import { label } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/inventory/stocktake/new")({
   head: () => ({ meta: [{ title: "جرد جديد — ثواب" }] }),
@@ -45,7 +47,9 @@ function NewStocktakePage() {
     queryKey: ["warehouses-simple"],
     queryFn: () => getWarehouses({ limit: 1000 }),
   });
-  const warehouses: Warehouse[] = (whQuery.data?.items || []).filter((w) => w.status === "نشط");
+  const warehouses: Warehouse[] = (whQuery.data?.items || []).filter(
+    (w) => w.status === WarehouseStatus.ACTIVE,
+  );
 
   const itemsQuery = useQuery({
     queryKey: ["inventoryItems-simple"],
@@ -337,7 +341,7 @@ function NewStocktakePage() {
         title="جرد جديد"
         subtitle={`${name} · ${stats.count} صنف`}
         draftNumber="مسودة جديدة"
-        status={{ label: "مسودة", tone: "muted" }}
+        status={{ label: label("stocktakeStatus", StocktakeStatus.DRAFT), tone: "muted" }}
         tabs={tabs}
         defaultTab="basic"
         loading={saving}

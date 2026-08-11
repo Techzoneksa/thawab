@@ -16,13 +16,14 @@ import {
 import { showToast, ConfirmDialog } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import { getAuditEntries } from "@/lib/api/audit";
+import { SupplierStatus as SupplierStatusEnum } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 import {
   getSupplier,
   updateSupplier,
   activateSupplier,
   deactivateSupplier,
   deleteSupplier,
-  SUPPLIER_STATUSES,
   type Supplier,
 } from "@/lib/api/suppliers";
 import { fmtSAR } from "@/data/sample";
@@ -57,7 +58,7 @@ function EditSupplierPage() {
   const [taxNumber, setTaxNumber] = useState("");
   const [address, setAddress] = useState("");
   const [rating, setRating] = useState("0");
-  const [status, setStatus] = useState("نشط");
+  const [status, setStatus] = useState<string>(SupplierStatusEnum.ACTIVE);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -75,7 +76,7 @@ function EditSupplierPage() {
     setTaxNumber(item.taxNumber || "");
     setAddress(item.address || "");
     setRating(String(item.rating || 0));
-    setStatus(item.status || "نشط");
+    setStatus(item.status || SupplierStatusEnum.ACTIVE);
     setNotes(item.notes || "");
     setHydrated(true);
   }
@@ -184,9 +185,9 @@ function EditSupplierPage() {
             </FormField>
             <FormField label="الحالة">
               <FormSelect value={status} onChange={(e) => setStatus(e.target.value)}>
-                {SUPPLIER_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                {options("supplierStatus").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </FormSelect>
@@ -208,8 +209,8 @@ function EditSupplierPage() {
           <FormSummaryLine label="النشاط" value={item.activity || "—"} />
           <FormSummaryLine
             label="الحالة"
-            value={item.status}
-            tone={status === "نشط" ? "success" : "warning"}
+            value={label("supplierStatus", item.status)}
+            tone={status === SupplierStatusEnum.ACTIVE ? "success" : "warning"}
           />
           <FormSummaryLine label="التقييم" value={`${item.rating || 0} / 5`} />
           <FormSummaryLine label="الرصيد" value={fmtSAR(item.balance || 0)} />
@@ -332,7 +333,10 @@ function EditSupplierPage() {
         title={item.name}
         subtitle={`${item.activity || ""} · ${item.phone || ""}`}
         draftNumber={item.id}
-        status={{ label: item.status || "—", tone: statusTone(item.status) }}
+        status={{
+          label: item.status ? label("supplierStatus", item.status) : "—",
+          tone: statusTone(item.status),
+        }}
         isReadOnly={isReadOnly}
         readonlyReason={
           isReadOnly
@@ -348,7 +352,7 @@ function EditSupplierPage() {
         showSecondary={false}
         extraActions={
           <>
-            {item.status === "نشط" ? (
+            {item.status === SupplierStatusEnum.ACTIVE ? (
               <button
                 type="button"
                 onClick={() => setConfirmAction("deactivate")}

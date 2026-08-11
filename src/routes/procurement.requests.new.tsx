@@ -13,11 +13,9 @@ import {
 } from "@/components/erp/FormFields";
 import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
-import {
-  createPurchaseRequest,
-  REQUEST_PRIORITIES,
-  type RequestPriority,
-} from "@/lib/api/purchase-requests";
+import { Priority } from "@/lib/enums";
+import { options } from "@/lib/i18n/labels";
+import { createPurchaseRequest } from "@/lib/api/purchase-requests";
 
 export const Route = createFileRoute("/procurement/requests/new")({
   head: () => ({ meta: [{ title: "طلب شراء جديد — ثواب" }] }),
@@ -39,7 +37,7 @@ function NewRequestPage() {
 
   const [subject, setSubject] = useState("");
   const [department, setDepartment] = useState("إدارة المساعدات");
-  const [priority, setPriority] = useState<RequestPriority>("متوسطة");
+  const [priority, setPriority] = useState<string>(Priority.MEDIUM);
   const [requester, setRequester] = useState(user?.name || "");
   const [amount, setAmount] = useState("");
   const [deliveryDate, setDeliveryDate] = useState("");
@@ -104,13 +102,10 @@ function NewRequestPage() {
               </FormSelect>
             </FormField>
             <FormField label="الأولوية">
-              <FormSelect
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as RequestPriority)}
-              >
-                {REQUEST_PRIORITIES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
+              <FormSelect value={priority} onChange={(e) => setPriority(e.target.value)}>
+                {options("priority").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </FormSelect>

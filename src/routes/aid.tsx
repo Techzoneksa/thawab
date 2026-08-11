@@ -46,17 +46,29 @@ import {
   type AidRecord,
   type AidFilters,
 } from "@/lib/api/aid";
+import { AidStatus, BeneficiaryStatus } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/aid")({
   head: () => ({ meta: [{ title: "المساعدات — ثواب" }] }),
   component: Page,
 });
 
+const AID_STATUS_OPTIONS = options("aidStatus");
+const AID_TYPE_OPTIONS = options("aidType");
+
+// The shared <Select> displays Arabic labels; convert the picked label back to
+// its English enum key (or "" for the "الكل" sentinel) before hitting the API.
+const toAidStatusKey = (arLabel: string) =>
+  arLabel === "الكل" ? "" : (AID_STATUS_OPTIONS.find((o) => o.label === arLabel)?.value ?? "");
+const toAidTypeKey = (arLabel: string) =>
+  arLabel === "الكل" ? "" : (AID_TYPE_OPTIONS.find((o) => o.label === arLabel)?.value ?? "");
+
 function statusToneLocal(s: string) {
-  if (s === "تم التسليم") return "success";
-  if (s === "معتمد") return "warning";
-  if (s === "مرفوض") return "destructive";
-  if (s === "بانتظار الموافقة") return "muted";
+  if (s === AidStatus.DELIVERED) return "success";
+  if (s === AidStatus.APPROVED) return "warning";
+  if (s === AidStatus.REJECTED) return "destructive";
+  if (s === AidStatus.PENDING) return "muted";
   return "info";
 }
 
@@ -91,7 +103,7 @@ function Page() {
 
   const { data: beneficiariesData } = useQuery({
     queryKey: ["beneficiaries-simple"],
-    queryFn: () => getBeneficiaries({ status: "مؤهل", limit: 200 }),
+    queryFn: () => getBeneficiaries({ status: BeneficiaryStatus.ACTIVE, limit: 200 }),
   });
 
   const aidRecords = data?.items || [];
@@ -104,8 +116,8 @@ function Page() {
     setApiFilters((f) => ({
       ...f,
       search: searchQuery,
-      status: statusFilter,
-      type: typeFilter,
+      status: toAidStatusKey(statusFilter),
+      type: toAidTypeKey(typeFilter),
       page: 1,
     }));
   }, [searchQuery, statusFilter, typeFilter]);
@@ -204,12 +216,15 @@ function Page() {
     { label: "إجمالي السجلات", value: aidRecords.length },
     {
       label: "بانتظار الموافقة",
-      value: aidRecords.filter((r: AidRecord) => r.status === "بانتظار الموافقة").length,
+      value: aidRecords.filter((r: AidRecord) => r.status === AidStatus.PENDING).length,
     },
-    { label: "معتمد", value: aidRecords.filter((r: AidRecord) => r.status === "معتمد").length },
+    {
+      label: "معتمد",
+      value: aidRecords.filter((r: AidRecord) => r.status === AidStatus.APPROVED).length,
+    },
     {
       label: "تم التسليم",
-      value: aidRecords.filter((r: AidRecord) => r.status === "تم التسليم").length,
+      value: aidRecords.filter((r: AidRecord) => r.status === AidStatus.DELIVERED).length,
     },
   ];
 
@@ -253,13 +268,13 @@ function Page() {
         </div>
         <Select
           label="الحالة"
-          options={["الكل", "بانتظار الموافقة", "معتمد", "مرفوض", "تم التسليم"]}
+          options={["الكل", ...AID_STATUS_OPTIONS.map((o) => o.label)]}
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         />
         <Select
           label="النوع"
-          options={["الكل", "مساعدة عاجلة", "مساعدة شهرية", "سلة غذائية", "علاج", "كسوة شتوية"]}
+          options={["الكل", ...AID_TYPE_OPTIONS.map((o) => o.label)]}
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
         />
@@ -323,12 +338,12 @@ function Page() {
                 <>
                   <Td className="font-mono text-xs">{r.id}</Td>
                   <Td className="font-semibold">{r.beneficiaryName}</Td>
-                  <Td className="text-muted-foreground text-xs">{r.type}</Td>
+                  <Td className="text-muted-foreground text-xs">{label("aidType", r.type)}</Td>
                   <Td className="tabular-nums font-bold">{fmtSAR(r.amount)}</Td>
                   <Td className="text-muted-foreground text-xs">{r.projectName || "—"}</Td>
                   <Td className="text-muted-foreground text-xs">{r.date}</Td>
                   <Td>
-                    <Badge tone={statusToneLocal(r.status)}>{r.status}</Badge>
+                    <Badge tone={statusToneLocal(r.status)}>{label("aidStatus", r.status)}</Badge>
                   </Td>
                   <Td>
                     <ActionMenu actions={getAidActions(r)} />
@@ -342,11 +357,11 @@ function Page() {
             {aidRecords.map((r: AidRecord) => (
               <Card key={r.id} className="p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <Badge tone={statusToneLocal(r.status)}>{r.status}</Badge>
+                  <Badge tone={statusToneLocal(r.status)}>{label("aidStatus", r.status)}</Badge>
                   <span className="font-mono text-xs text-muted-foreground">{r.id}</span>
                 </div>
                 <div className="font-semibold">{r.beneficiaryName}</div>
-                <div className="text-xs text-muted-foreground mt-1">{r.type}</div>
+                <div className="text-xs text-muted-foreground mt-1">{label("aidType", r.type)}</div>
                 <div className="flex items-center justify-between mt-2">
                   <span className="tabular-nums font-bold">{fmtSAR(r.amount)}</span>
                   <span className="text-xs text-muted-foreground">{r.projectName || "—"}</span>
@@ -445,10 +460,9 @@ function Page() {
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option>الكل</option>
-              <option>بانتظار الموافقة</option>
-              <option>معتمد</option>
-              <option>مرفوض</option>
-              <option>تم التسليم</option>
+              {AID_STATUS_OPTIONS.map((o) => (
+                <option key={o.value}>{o.label}</option>
+              ))}
             </select>
           </div>
           <div>
@@ -459,11 +473,9 @@ function Page() {
               onChange={(e) => setTypeFilter(e.target.value)}
             >
               <option>الكل</option>
-              <option>مساعدة عاجلة</option>
-              <option>مساعدة شهرية</option>
-              <option>سلة غذائية</option>
-              <option>علاج</option>
-              <option>كسوة شتوية</option>
+              {AID_TYPE_OPTIONS.map((o) => (
+                <option key={o.value}>{o.label}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -480,7 +492,7 @@ function Page() {
       },
     ];
 
-    if (r.status === "بانتظار الموافقة") {
+    if (r.status === AidStatus.PENDING) {
       actions.push(
         { label: "اعتماد", icon: CheckCircle, onClick: () => setApproveTarget(r) },
         {
@@ -499,7 +511,7 @@ function Page() {
       );
     }
 
-    if (r.status === "معتمد") {
+    if (r.status === AidStatus.APPROVED) {
       actions.push(
         { label: "تسليم", icon: CheckCircle, onClick: () => setDeliverTarget(r) },
         { label: "إرجاع", icon: RotateCcw, onClick: () => setReturnTarget(r) },
@@ -511,7 +523,7 @@ function Page() {
 
   function getAidMobileActions(r: AidRecord) {
     const btns = [];
-    if (r.status === "بانتظار الموافقة") {
+    if (r.status === AidStatus.PENDING) {
       btns.push(
         <button
           key="approve"
@@ -522,7 +534,7 @@ function Page() {
         </button>,
       );
     }
-    if (r.status === "معتمد") {
+    if (r.status === AidStatus.APPROVED) {
       btns.push(
         <button
           key="deliver"

@@ -36,6 +36,8 @@ import {
 } from "@/lib/api/financial-statements";
 import { getCostCenters, type CostCenter } from "@/lib/api/cost-centers";
 import { getProjects, type Project } from "@/lib/api/projects";
+import { label } from "@/lib/i18n/labels";
+import { AccountClassification } from "@/lib/enums";
 
 export const Route = createFileRoute("/finance/statements")({
   head: () => ({ meta: [{ title: "القوائم المالية — ثواب" }] }),
@@ -161,7 +163,7 @@ function Page() {
       return tbQuery.data.rows.map((r: TrialBalanceRow) => ({
         الرمز: r.accountCode,
         الحساب: r.accountName,
-        النوع: r.accountType,
+        النوع: label("accountClassification", r.accountType),
         "إجمالي مدين": fmtSAR(r.totalDebit),
         "إجمالي دائن": fmtSAR(r.totalCredit),
         "رصيد (مدين)": r.isDebit ? fmtSAR(r.balance) : "—",
@@ -484,7 +486,9 @@ function TrialBalanceView({
             <Td className="font-mono text-xs">{r.accountCode}</Td>
             <Td>{r.accountName}</Td>
             <Td>
-              <Badge tone={typeTone(r.accountType)}>{r.accountType}</Badge>
+              <Badge tone={typeTone(r.accountType)}>
+                {label("accountClassification", r.accountType)}
+              </Badge>
             </Td>
             <Td className="tabular-nums">{fmtSAR(r.totalDebit)}</Td>
             <Td className="tabular-nums">{fmtSAR(r.totalCredit)}</Td>
@@ -500,7 +504,9 @@ function TrialBalanceView({
                 <div className="font-mono text-xs text-muted-foreground">{r.accountCode}</div>
                 <div className="text-sm font-bold truncate">{r.accountName}</div>
               </div>
-              <Badge tone={typeTone(r.accountType)}>{r.accountType}</Badge>
+              <Badge tone={typeTone(r.accountType)}>
+                {label("accountClassification", r.accountType)}
+              </Badge>
             </div>
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div className="text-center">
@@ -843,8 +849,12 @@ function BudgetVsActualView({
         <Card key={b.budget.id} className="p-4 lg:p-6">
           <SectionTitle
             title={b.budget.name}
-            hint={`سنة ${b.budget.year} · ${b.budget.status}`}
-            action={<Badge tone={statusTone(b.budget.status)}>{b.budget.status}</Badge>}
+            hint={`سنة ${b.budget.year} · ${label("budgetStatus", b.budget.status)}`}
+            action={
+              <Badge tone={statusTone(b.budget.status)}>
+                {label("budgetStatus", b.budget.status)}
+              </Badge>
+            }
           />
           {b.lines.length === 0 ? (
             <div className="text-xs text-muted-foreground py-4 text-center">
@@ -960,10 +970,10 @@ function BudgetVsActualView({
 function typeTone(
   type: string,
 ): "success" | "destructive" | "info" | "muted" | "warning" | "primary" {
-  if (type === "إيراد") return "success";
-  if (type === "مصروف") return "destructive";
-  if (type === "أصل") return "info";
-  if (type === "التزام") return "warning";
-  if (type === "حقوق ملكية") return "primary";
+  if (type === AccountClassification.REVENUE) return "success";
+  if (type === AccountClassification.EXPENSE) return "destructive";
+  if (type === AccountClassification.ASSET) return "info";
+  if (type === AccountClassification.LIABILITY) return "warning";
+  if (type === AccountClassification.EQUITY) return "primary";
   return "muted";
 }

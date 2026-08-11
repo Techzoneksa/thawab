@@ -19,6 +19,8 @@ import {
 } from "@/components/erp/FormFields";
 import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { label, options } from "@/lib/i18n/labels";
+import { Fund, JournalStatus } from "@/lib/enums";
 import { getAccounts } from "@/lib/api/accounts";
 import { getProjects } from "@/lib/api/projects";
 import {
@@ -27,7 +29,6 @@ import {
   postJournalEntry,
   reverseJournalEntry,
   cancelJournalEntry,
-  JOURNAL_FUNDS,
   type JournalFund,
   type JournalLine,
 } from "@/lib/api/journal";
@@ -90,7 +91,7 @@ function EditJournalPage() {
 
   const [date, setDate] = useState("");
   const [description, setDescription] = useState("");
-  const [fund, setFund] = useState<JournalFund>("غير مقيد");
+  const [fund, setFund] = useState<JournalFund>(Fund.UNRESTRICTED);
   const [projectId, setProjectId] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
@@ -113,7 +114,7 @@ function EditJournalPage() {
     return { debit, credit, diff: debit - credit };
   }, [lines]);
 
-  const isEditable = item?.status === "مسودة";
+  const isEditable = item?.status === JournalStatus.DRAFT;
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => updateJournalEntry({ id, ...data }),
@@ -349,7 +350,7 @@ function EditJournalPage() {
           <FormRow>
             <FormField label="نوع الصندوق">
               <FormSelect value={fund} onChange={(e) => setFund(e.target.value as JournalFund)} disabled={!isEditable}>
-                {JOURNAL_FUNDS.map((f) => (<option key={f} value={f}>{f}</option>))}
+                {options("fund").map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
               </FormSelect>
             </FormField>
             <FormField label="المشروع">
@@ -382,7 +383,7 @@ function EditJournalPage() {
       content: (
         <FormSection title="سجل التدقيق">
           <div className="space-y-0">
-            <FormSummaryLine label="الحالة" value={item.status} />
+            <FormSummaryLine label="الحالة" value={label("journalStatus", item.status)} />
             <FormSummaryLine label="أنشأ بواسطة" value={item.createdBy || "—"} />
             <FormSummaryLine label="تاريخ الإنشاء" value={item.createdAt} />
             <FormSummaryLine label="آخر تحديث" value={item.updatedAt} />
@@ -415,9 +416,9 @@ function EditJournalPage() {
         title={`قيد يومية: ${item.number}`}
         subtitle={`${description} · ${fmtSAR(item.amount)}`}
         draftNumber={item.number}
-        status={{ label: item.status, tone: statusTone(item.status) }}
+        status={{ label: label("journalStatus", item.status), tone: statusTone(item.status) }}
         isReadOnly={!isEditable}
-        readonlyReason={!isEditable ? `القيد ${item.status} - يمكن فقط عكسه أو إلغاؤه` : ""}
+        readonlyReason={!isEditable ? `القيد ${label("journalStatus", item.status)} - يمكن فقط عكسه أو إلغاؤه` : ""}
         tabs={tabs}
         defaultTab="lines"
         loading={saving || updateMutation.isPending}
@@ -437,7 +438,7 @@ function EditJournalPage() {
             >
               ترحيل القيد
             </button>
-          ) : item.status === "مرحّل" ? (
+          ) : item.status === JournalStatus.POSTED ? (
             <>
               <button
                 type="button"
@@ -448,7 +449,7 @@ function EditJournalPage() {
                 عكس القيد
               </button>
             </>
-          ) : item.status === "مسودة" ? (
+          ) : item.status === JournalStatus.DRAFT ? (
             <button
               type="button"
               onClick={() => cancelMutation.mutate()}

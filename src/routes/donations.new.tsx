@@ -20,6 +20,8 @@ import { useAuth } from "@/lib/api/auth";
 import { getDonors } from "@/lib/api/donors";
 import { getProjects } from "@/lib/api/projects";
 import { createDonation } from "@/lib/api/donations";
+import { DonationStatus, DonationMethod, DonationChannel, ProjectStatus } from "@/lib/enums";
+import { options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/donations/new")({
   head: () => ({ meta: [{ title: "تبرع جديد — ثواب" }] }),
@@ -46,8 +48,8 @@ function NewDonationPage() {
   const [donorId, setDonorId] = useState("");
   const [amount, setAmount] = useState("");
   const [projectId, setProjectId] = useState("");
-  const [method, setMethod] = useState("تحويل بنكي");
-  const [channel, setChannel] = useState("موقع إلكتروني");
+  const [method, setMethod] = useState<string>(DonationMethod.TRANSFER);
+  const [channel, setChannel] = useState<string>(DonationChannel.ONLINE);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -77,7 +79,7 @@ function NewDonationPage() {
         channel,
         date,
         notes,
-        status: "بانتظار التأكيد",
+        status: DonationStatus.DRAFT,
         userId: user?.id,
         userName: user?.name,
       });
@@ -146,22 +148,20 @@ function NewDonationPage() {
                 onChange={(e) => setMethod(e.target.value)}
                 invalid={!!errors.method}
               >
-                <option value="تحويل بنكي">تحويل بنكي</option>
-                <option value="نقدًا">نقدًا</option>
-                <option value="شيك">شيك</option>
-                <option value="بطاقة">بطاقة ائتمانية</option>
-                <option value="محفظة إلكترونية">محفظة إلكترونية</option>
-                <option value="إيداع مباشر">إيداع مباشر</option>
+                {options("donationMethod").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </FormSelect>
             </FormField>
             <FormField label="قناة الاستلام">
               <FormSelect value={channel} onChange={(e) => setChannel(e.target.value)}>
-                <option value="موقع إلكتروني">موقع إلكتروني</option>
-                <option value="تطبيق">تطبيق</option>
-                <option value="مكتب">مكتب</option>
-                <option value="مندوب">مندوب ميداني</option>
-                <option value="هاتف">هاتف</option>
-                <option value="فاكس">فاكس / رسالة</option>
+                {options("donationChannel").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </FormSelect>
             </FormField>
           </FormRow>
@@ -177,7 +177,7 @@ function NewDonationPage() {
             <FormSelect value={projectId} onChange={(e) => setProjectId(e.target.value)}>
               <option value="">— تبرع عام (بدون مشروع) —</option>
               {projects
-                .filter((p) => p.status === "نشط" || p.status === "قيد التنفيذ")
+                .filter((p) => p.status === ProjectStatus.ACTIVE)
                 .map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}

@@ -13,12 +13,13 @@ import {
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { QuoteStatus } from "@/lib/enums";
+import { label } from "@/lib/i18n/labels";
 import {
   getQuotes,
   acceptQuote,
   rejectQuote,
   deleteQuote,
-  QUOTE_STATUSES,
   type Quote,
 } from "@/lib/api/quotes";
 import { getPurchaseRequests, type PurchaseRequest } from "@/lib/api/purchase-requests";
@@ -34,7 +35,7 @@ function Page() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [statusFilter, setStatusFilter] = useState("");
   const [requestFilter, setRequestFilter] = useState("الكل");
   const [deleteTarget, setDeleteTarget] = useState<Quote | null>(null);
   const [detailTarget, setDetailTarget] = useState<Quote | null>(null);
@@ -92,7 +93,7 @@ function Page() {
   };
 
   const openEdit = (q: Quote) => {
-    if (q.status !== "بانتظار") {
+    if (q.status !== QuoteStatus.PENDING) {
       showToast("لا يمكن تعديل عرض تم البت فيه", "error");
       return;
     }
@@ -223,7 +224,9 @@ function Page() {
                             الموصى به
                           </Badge>
                         )}
-                        <Badge tone={quoteStatusTone(q.status)}>{q.status}</Badge>
+                        <Badge tone={quoteStatusTone(q.status)}>
+                          {label("quoteStatus", q.status)}
+                        </Badge>
                       </div>
                       <div className="text-3xl font-extrabold tabular-nums mt-3">
                         {fmtSAR(q.price)}
@@ -245,7 +248,7 @@ function Page() {
                         )}
                       </ul>
                       <div className="flex gap-2 mt-4">
-                        {q.status === "بانتظار" && (
+                        {q.status === QuoteStatus.PENDING && (
                           <>
                             <Btn
                               variant={q.winner ? "primary" : "outline"}
@@ -277,7 +280,7 @@ function Page() {
                             </Btn>
                           </>
                         )}
-                        {q.status !== "بانتظار" && (
+                        {q.status !== QuoteStatus.PENDING && (
                           <Btn
                             variant="outline"
                             className="w-full justify-center"
@@ -306,7 +309,7 @@ function Page() {
         {detailTarget && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow label="الحالة" value={detailTarget.status} />
+              <DetailRow label="الحالة" value={label("quoteStatus", detailTarget.status)} />
               <DetailRow label="الموصى به" value={detailTarget.winner ? "نعم" : "لا"} />
               <DetailRow label="السعر" value={fmtSAR(detailTarget.price)} />
               <DetailRow label="التقييم" value={`${detailTarget.rating} / 5`} />
@@ -349,8 +352,8 @@ function Page() {
 }
 
 function quoteStatusTone(s: string): "success" | "destructive" | "warning" | "muted" {
-  if (s === "مقبول") return "success";
-  if (s === "مرفوض") return "destructive";
+  if (s === QuoteStatus.ACCEPTED) return "success";
+  if (s === QuoteStatus.REJECTED) return "destructive";
   return "warning";
 }
 
@@ -378,7 +381,7 @@ function getQuoteActions(
     variant?: "destructive";
   }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailTarget(q) }];
 
-  if (q.status === "بانتظار") {
+  if (q.status === QuoteStatus.PENDING) {
     actions.push({ label: "تعديل", icon: Pencil, onClick: () => openEdit(q) });
     actions.push({
       label: "قبول",

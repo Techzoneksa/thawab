@@ -22,6 +22,7 @@ import {
   XCircle,
   TrendingDown,
   Search,
+  ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -42,10 +43,11 @@ import {
   disposeFixedAsset,
   sellFixedAsset,
   deleteFixedAsset,
-  ASSET_STATUSES,
   type FixedAsset,
 } from "@/lib/api/assets";
 import { getSuppliers, type Supplier } from "@/lib/api/suppliers";
+import { AssetStatus as AssetStatusEnum } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/assets")({
   head: () => ({ meta: [{ title: "الأصول الثابتة — ثواب" }] }),
@@ -63,7 +65,7 @@ function Page() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [statusFilter, setStatusFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("الكل");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FixedAsset | null>(null);
@@ -197,8 +199,8 @@ function Page() {
   };
 
   const openEdit = (a: FixedAsset) => {
-    if (["مستبعد", "مباع", "ملغي"].includes(a.status)) {
-      showToast(`لا يمكن تعديل أصل في حالة ${a.status}`, "error");
+    if (a.status === AssetStatusEnum.DISPOSED) {
+      showToast(`لا يمكن تعديل أصل في حالة ${label("assetStatus", a.status)}`, "error");
       return;
     }
     navigate({ to: "/assets/$id/edit", params: { id: a.id } });
@@ -209,9 +211,9 @@ function Page() {
   const suppliers = suppliersData?.items || [];
 
   const stats = {
-    active: items.filter((a) => a.status === "نشط").length,
-    maintenance: items.filter((a) => a.status === "تحت الصيانة").length,
-    disposed: items.filter((a) => ["مستبعد", "مباع", "ملغي"].includes(a.status)).length,
+    active: items.filter((a) => a.status === AssetStatusEnum.ACTIVE).length,
+    maintenance: items.filter((a) => a.status === AssetStatusEnum.UNDER_MAINTENANCE).length,
+    disposed: items.filter((a) => a.status === AssetStatusEnum.DISPOSED).length,
     totalCost: items.reduce((s, a) => s + (a.cost || 0), 0),
     totalDepreciation: items.reduce((s, a) => s + (a.accumulatedDepreciation || 0), 0),
     totalBookValue: items.reduce(
@@ -291,16 +293,27 @@ function Page() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <select
-          className="rounded-lg border bg-background py-1.5 px-3 text-sm"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option>الكل</option>
-          {ASSET_STATUSES.map((s) => (
-            <option key={s}>{s}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground whitespace-nowrap">الحالة:</span>
+          <div className="relative">
+            <select
+              className="appearance-none rounded-lg border bg-background pr-3 pl-7 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring min-h-[36px]"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">الكل</option>
+              {options("assetStatus").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={14}
+              className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground"
+            />
+          </div>
+        </div>
         <select
           className="rounded-lg border bg-background py-1.5 px-3 text-sm"
           value={categoryFilter}
@@ -374,7 +387,7 @@ function Page() {
                 <Td className="tabular-nums">{fmtSAR(a.cost)}</Td>
                 <Td className="tabular-nums font-bold">{fmtSAR(bookValue)}</Td>
                 <Td>
-                  <Badge tone={statusTone(a.status)}>{a.status}</Badge>
+                  <Badge tone={statusTone(a.status)}>{label("assetStatus", a.status)}</Badge>
                 </Td>
                 <Td>
                   <ActionMenu
@@ -395,7 +408,7 @@ function Page() {
             return (
               <Card key={a.id} className="p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <Badge tone={statusTone(a.status)}>{a.status}</Badge>
+                  <Badge tone={statusTone(a.status)}>{label("assetStatus", a.status)}</Badge>
                   <span className="font-mono text-xs text-muted-foreground">{a.code || a.id}</span>
                 </div>
                 <button
@@ -422,7 +435,7 @@ function Page() {
                   </div>
                   <div>
                     <div className="text-muted-foreground">الحالة</div>
-                    <div>{a.condition || "—"}</div>
+                    <div>{a.condition ? label("assetCondition", a.condition) : "—"}</div>
                   </div>
                 </div>
                 <div className="flex gap-2 mt-2">
@@ -432,7 +445,7 @@ function Page() {
                   >
                     تفاصيل
                   </button>
-                  {a.status === "نشط" && (
+                  {a.status === AssetStatusEnum.ACTIVE && (
                     <button
                       className="flex-1 rounded-lg bg-warning/15 text-warning text-xs font-semibold py-2 min-h-[36px]"
                       onClick={() => setActionTarget({ asset: a, action: "depreciate" })}
@@ -459,8 +472,15 @@ function Page() {
             <div className="grid grid-cols-2 gap-2 text-sm">
               <DetailRow label="الرمز" value={detailQuery.data.item.code || "—"} />
               <DetailRow label="الفئة" value={detailQuery.data.item.category || "—"} />
-              <DetailRow label="الحالة" value={detailQuery.data.item.status} />
-              <DetailRow label="الحالة الفنية" value={detailQuery.data.item.condition || "—"} />
+              <DetailRow label="الحالة" value={label("assetStatus", detailQuery.data.item.status)} />
+              <DetailRow
+                label="الحالة الفنية"
+                value={
+                  detailQuery.data.item.condition
+                    ? label("assetCondition", detailQuery.data.item.condition)
+                    : "—"
+                }
+              />
               <DetailRow label="الموقع" value={detailQuery.data.item.location || "—"} />
               <DetailRow label="المسؤول" value={detailQuery.data.item.responsiblePerson || "—"} />
               <DetailRow label="التكلفة" value={fmtSAR(detailQuery.data.item.cost)} />
@@ -477,7 +497,10 @@ function Page() {
                 label="القيمة المتبقية"
                 value={fmtSAR(detailQuery.data.item.salvageValue)}
               />
-              <DetailRow label="طريقة الإهلاك" value={detailQuery.data.item.depreciationMethod} />
+              <DetailRow
+                label="طريقة الإهلاك"
+                value={label("depreciationMethod", detailQuery.data.item.depreciationMethod)}
+              />
               <DetailRow label="تاريخ الشراء" value={detailQuery.data.item.purchaseDate || "—"} />
               <DetailRow
                 label="المورد"
@@ -878,7 +901,7 @@ function getAssetActions(
     },
   ];
 
-  const readOnly = ["مستبعد", "مباع", "ملغي"].includes(a.status);
+  const readOnly = a.status === AssetStatusEnum.DISPOSED;
 
   if (!readOnly) {
     actions.push({ label: "تعديل", icon: Edit, onClick: () => openEdit(a) });
@@ -892,7 +915,7 @@ function getAssetActions(
       icon: ArrowRight,
       onClick: () => setActionTarget({ asset: a, action: "transfer" }),
     });
-    if (a.status !== "تحت الصيانة") {
+    if (a.status !== AssetStatusEnum.UNDER_MAINTENANCE) {
       actions.push({
         label: "تسجيل صيانة",
         icon: Wrench,

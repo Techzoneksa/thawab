@@ -21,10 +21,10 @@ import { useAuth } from "@/lib/api/auth";
 import {
   getBeneficiary,
   updateBeneficiary,
-  ELIGIBILITY_STATUSES,
-  MARITAL_STATUSES,
   type EligibilityStatus,
 } from "@/lib/api/beneficiaries";
+import { BeneficiaryStatus, BeneficiaryCategory, MaritalStatus } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/beneficiaries/$id/edit")({
   head: () => ({ meta: [{ title: "تعديل مستفيد — ثواب" }] }),
@@ -49,11 +49,11 @@ function EditBeneficiaryPage() {
   const [phone, setPhone] = useState("");
   const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
-  const [category, setCategory] = useState("أسرة");
-  const [status, setStatus] = useState<EligibilityStatus>("جديد");
+  const [category, setCategory] = useState<string>(BeneficiaryCategory.NEEDY_FAMILY);
+  const [status, setStatus] = useState<EligibilityStatus>(BeneficiaryStatus.NEW);
   const [familyMembers, setFamilyMembers] = useState("1");
   const [monthlyIncome, setMonthlyIncome] = useState("0");
-  const [maritalStatus, setMaritalStatus] = useState("أعزب");
+  const [maritalStatus, setMaritalStatus] = useState<string>(MaritalStatus.SINGLE);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -65,11 +65,11 @@ function EditBeneficiaryPage() {
       setPhone(beneficiary.phone || "");
       setCity(beneficiary.city || "");
       setAddress(beneficiary.address || "");
-      setCategory(beneficiary.category || "أسرة");
-      setStatus(beneficiary.status || "جديد");
+      setCategory(beneficiary.category || BeneficiaryCategory.NEEDY_FAMILY);
+      setStatus(beneficiary.status || BeneficiaryStatus.NEW);
       setFamilyMembers(String(beneficiary.familyMembers || 1));
       setMonthlyIncome(String(beneficiary.monthlyIncome || 0));
-      setMaritalStatus(beneficiary.maritalStatus || "أعزب");
+      setMaritalStatus(beneficiary.maritalStatus || MaritalStatus.SINGLE);
       setNotes(beneficiary.notes || "");
     }
   }, [beneficiary]);
@@ -165,7 +165,7 @@ function EditBeneficiaryPage() {
           <FormRow>
             <FormField label="الحالة الاجتماعية">
               <FormSelect value={maritalStatus} onChange={(e) => setMaritalStatus(e.target.value)}>
-                {MARITAL_STATUSES.map((s) => (<option key={s} value={s}>{s}</option>))}
+                {options("maritalStatus").map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
               </FormSelect>
             </FormField>
             <FormField label="عدد أفراد الأسرة">
@@ -178,13 +178,7 @@ function EditBeneficiaryPage() {
             </FormField>
             <FormField label="فئة المستفيد">
               <FormSelect value={category} onChange={(e) => setCategory(e.target.value)}>
-                <option value="أسرة">أسرة</option>
-                <option value="يتيم">يتيم</option>
-                <option value="أرملة">أرملة</option>
-                <option value="مطلق">مطلق</option>
-                <option value="معاق">معاق</option>
-                <option value="طالب">طالب</option>
-                <option value="أخرى">أخرى</option>
+                {options("beneficiaryCategory").map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
               </FormSelect>
             </FormField>
           </FormRow>
@@ -198,7 +192,7 @@ function EditBeneficiaryPage() {
         <FormSection title="حالة الأهلية">
           <FormField label="حالة الأهلية">
             <FormSelect value={status} onChange={(e) => setStatus(e.target.value as EligibilityStatus)}>
-              {ELIGIBILITY_STATUSES.map((s) => (<option key={s} value={s}>{s}</option>))}
+              {options("beneficiaryStatus").map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
             </FormSelect>
           </FormField>
         </FormSection>
@@ -218,10 +212,10 @@ function EditBeneficiaryPage() {
                 <div key={a.id} className="rounded-lg border bg-background p-3 text-sm">
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-mono text-xs text-muted-foreground">{a.id}</span>
-                    <Badge tone={statusTone(a.status)}>{a.status}</Badge>
+                    <Badge tone={statusTone(a.status)}>{label("aidStatus", a.status)}</Badge>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold">{a.type}</span>
+                    <span className="font-semibold">{label("aidType", a.type)}</span>
                     <span className="font-bold tabular-nums">{fmtSAR(a.amount)}</span>
                   </div>
                   {a.date && <div className="text-xs text-muted-foreground mt-1">{a.date}</div>}
@@ -264,9 +258,9 @@ function EditBeneficiaryPage() {
       <EnterpriseFormLayout
         breadcrumb={[{ label: "المستفيدون", to: "/beneficiaries" }, { label: beneficiary.name }]}
         title={beneficiary.name}
-        subtitle={`${beneficiary.category} · ${beneficiary.city || "—"} · ${fmtNum(parseInt(familyMembers) || 0)} أفراد`}
+        subtitle={`${label("beneficiaryCategory", beneficiary.category)} · ${beneficiary.city || "—"} · ${fmtNum(parseInt(familyMembers) || 0)} أفراد`}
         draftNumber={beneficiary.fileNumber || beneficiary.id}
-        status={{ label: beneficiary.status, tone: statusTone(beneficiary.status) }}
+        status={{ label: label("beneficiaryStatus", beneficiary.status), tone: statusTone(beneficiary.status) }}
         tabs={tabs}
         defaultTab="personal"
         loading={saving || updateMutation.isPending}

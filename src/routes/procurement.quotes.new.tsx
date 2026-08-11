@@ -13,9 +13,11 @@ import {
 } from "@/components/erp/FormFields";
 import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { SupplierStatus, PurchaseRequestStatus, QuoteStatus as QuoteStatusEnum } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 import { getSuppliers, type Supplier } from "@/lib/api/suppliers";
 import { getPurchaseRequests, type PurchaseRequest } from "@/lib/api/purchase-requests";
-import { createQuote, QUOTE_STATUSES, type QuoteStatus } from "@/lib/api/quotes";
+import { createQuote, type QuoteStatus } from "@/lib/api/quotes";
 
 export const Route = createFileRoute("/procurement/quotes/new")({
   head: () => ({ meta: [{ title: "عرض سعر جديد — ثواب" }] }),
@@ -36,9 +38,13 @@ function NewQuotePage() {
     queryFn: () => getPurchaseRequests({ limit: 1000 }),
   });
 
-  const suppliers: Supplier[] = (supQuery.data?.items || []).filter((s) => s.status === "نشط");
+  const suppliers: Supplier[] = (supQuery.data?.items || []).filter(
+    (s) => s.status === SupplierStatus.ACTIVE,
+  );
   const requests: PurchaseRequest[] = (reqQuery.data?.items || []).filter(
-    (r) => r.status === "معتمد" || r.status === "بانتظار الموافقة",
+    (r) =>
+      r.status === PurchaseRequestStatus.APPROVED ||
+      r.status === PurchaseRequestStatus.SUBMITTED,
   );
 
   const [supplierId, setSupplierId] = useState("");
@@ -49,7 +55,7 @@ function NewQuotePage() {
   const [warranty, setWarranty] = useState("");
   const [rating, setRating] = useState("3");
   const [validUntil, setValidUntil] = useState("");
-  const [status, setStatus] = useState<QuoteStatus>("بانتظار");
+  const [status, setStatus] = useState<QuoteStatus>(QuoteStatusEnum.PENDING);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -183,9 +189,9 @@ function NewQuotePage() {
             </FormField>
             <FormField label="الحالة">
               <FormSelect value={status} onChange={(e) => setStatus(e.target.value as QuoteStatus)}>
-                {QUOTE_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                {options("quoteStatus").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </FormSelect>
@@ -211,8 +217,13 @@ function NewQuotePage() {
         subtitle={supplierName || "أدخل بيانات العرض"}
         draftNumber="مسودة جديدة"
         status={{
-          label: status,
-          tone: status === "مقبول" ? "success" : status === "مرفوض" ? "destructive" : "warning",
+          label: label("quoteStatus", status),
+          tone:
+            status === QuoteStatusEnum.ACCEPTED
+              ? "success"
+              : status === QuoteStatusEnum.REJECTED
+                ? "destructive"
+                : "warning",
         }}
         tabs={tabs}
         defaultTab="basic"

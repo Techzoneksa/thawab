@@ -18,15 +18,13 @@ import {
 import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import { createDonor } from "@/lib/api/donors";
+import { DonorType, DonorTag } from "@/lib/enums";
+import { options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/donors/new")({
   head: () => ({ meta: [{ title: "متبرع جديد — ثواب" }] }),
   component: NewDonorPage,
 });
-
-const TYPES = ["فرد", "شركة", "مؤسسة", "جهة حكومية"] as const;
-type DonorType = (typeof TYPES)[number];
-const TAGS = ["عام", "VIP", "متكرر", "جديد", "متوسط", "غير نشط"];
 
 function NewDonorPage() {
   const navigate = useNavigate();
@@ -34,12 +32,12 @@ function NewDonorPage() {
   const { user } = useAuth();
 
   const [name, setName] = useState("");
-  const [type, setType] = useState<DonorType>("فرد");
+  const [type, setType] = useState<string>(DonorType.INDIVIDUAL);
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
-  const [tag, setTag] = useState("جديد");
+  const [tag, setTag] = useState<string>(DonorTag.BRONZE);
   const [recurring, setRecurring] = useState(false);
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -95,10 +93,10 @@ function NewDonorPage() {
               <FormInput value={name} onChange={(e) => setName(e.target.value)} invalid={!!errors.name} />
             </FormField>
             <FormField label="النوع" required>
-              <FormSegmented<DonorType>
+              <FormSegmented<string>
                 value={type}
                 onChange={setType}
-                options={TYPES.map((t) => ({ value: t, label: t }))}
+                options={options("donorType")}
               />
             </FormField>
           </FormRow>
@@ -135,9 +133,9 @@ function NewDonorPage() {
         <FormSection title="تصنيف المتبرع">
           <FormField label="الوسم" hint="يستخدم لتصفية المتبرعين">
             <FormSelect value={tag} onChange={(e) => setTag(e.target.value)}>
-              {TAGS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
+              {options("donorTag").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </FormSelect>

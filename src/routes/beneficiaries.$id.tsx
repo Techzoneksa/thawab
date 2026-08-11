@@ -23,6 +23,8 @@ import {
   type LinkedProject,
 } from "@/lib/api/beneficiaries";
 import { showToast } from "@/components/erp/actions";
+import { BeneficiaryStatus } from "@/lib/enums";
+import { label } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/beneficiaries/$id")({
   head: () => ({ meta: [{ title: "ملف المستفيد — ثواب" }] }),
@@ -68,7 +70,7 @@ function Page() {
 
   const activeTab = isMobile ? mobileTab : tab;
 
-  const isSuspended = beneficiary?.status === "موقوف";
+  const isSuspended = beneficiary?.status === BeneficiaryStatus.SUSPENDED;
 
   if (isLoading) {
     return (
@@ -157,13 +159,15 @@ function Page() {
                   رقم الملف: {beneficiary.fileNumber || beneficiary.id}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
-                  <span>{beneficiary.category}</span>
+                  <span>{label("beneficiaryCategory", beneficiary.category)}</span>
                   {beneficiary.city && <span>· {beneficiary.city}</span>}
                   {beneficiary.phone && <span>· {beneficiary.phone}</span>}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1">
-                <Badge tone={statusTone(beneficiary.status)}>{beneficiary.status}</Badge>
+                <Badge tone={statusTone(beneficiary.status)}>
+                  {label("beneficiaryStatus", beneficiary.status)}
+                </Badge>
                 {lastAidDate && (
                   <span className="text-[10px] text-muted-foreground">
                     آخر مساعدة: {lastAidDate}
@@ -212,15 +216,18 @@ function Page() {
             <div>
               <SectionTitle title="ملخص المستفيد" />
               <div className="space-y-3">
-                <SummaryRow label="الحالة" value={beneficiary.status} />
-                <SummaryRow label="الفئة" value={beneficiary.category} />
+                <SummaryRow label="الحالة" value={label("beneficiaryStatus", beneficiary.status)} />
+                <SummaryRow label="الفئة" value={label("beneficiaryCategory", beneficiary.category)} />
                 <SummaryRow label="المدينة" value={beneficiary.city || "—"} />
                 <SummaryRow
                   label="عدد الأفراد"
                   value={`${fmtNum(beneficiary.familyMembers || 1)} فرد`}
                 />
                 <SummaryRow label="الدخل الشهري" value={fmtSAR(beneficiary.monthlyIncome || 0)} />
-                <SummaryRow label="الحالة الاجتماعية" value={beneficiary.maritalStatus || "—"} />
+                <SummaryRow
+                  label="الحالة الاجتماعية"
+                  value={label("maritalStatus", beneficiary.maritalStatus) || "—"}
+                />
               </div>
               {beneficiary.notes && (
                 <>
@@ -254,7 +261,10 @@ function Page() {
                   label="مشاريع مرتبطة"
                   v={linkedProjectsCount > 0 ? Math.min(100, linkedProjectsCount * 25) : 0}
                 />
-                <KPIRow label="الجاهزية للاستلام" v={beneficiary.status === "مؤهل" ? 100 : 0} />
+                <KPIRow
+                label="الجاهزية للاستلام"
+                v={beneficiary.status === BeneficiaryStatus.ACTIVE ? 100 : 0}
+              />
               </div>
             </div>
           </div>
@@ -268,8 +278,8 @@ function Page() {
             <DetailRow label="رقم الجوال" value={beneficiary.phone || "—"} />
             <DetailRow label="المدينة" value={beneficiary.city || "—"} />
             <DetailRow label="العنوان" value={beneficiary.address || "—"} />
-            <DetailRow label="الفئة" value={beneficiary.category} />
-            <DetailRow label="الحالة" value={beneficiary.status} />
+            <DetailRow label="الفئة" value={label("beneficiaryCategory", beneficiary.category)} />
+            <DetailRow label="الحالة" value={label("beneficiaryStatus", beneficiary.status)} />
           </div>
         )}
 
@@ -279,7 +289,10 @@ function Page() {
               label="عدد الأفراد"
               value={`${fmtNum(beneficiary.familyMembers || 1)} فرد`}
             />
-            <DetailRow label="الحالة الاجتماعية" value={beneficiary.maritalStatus || "—"} />
+            <DetailRow
+              label="الحالة الاجتماعية"
+              value={label("maritalStatus", beneficiary.maritalStatus) || "—"}
+            />
             <DetailRow label="الدخل الشهري" value={fmtSAR(beneficiary.monthlyIncome || 0)} />
             <DetailRow
               label="الدخل لكل فرد"
@@ -305,11 +318,11 @@ function Page() {
                     renderRow={(a: AidHistoryItem) => (
                       <>
                         <Td className="font-mono text-xs">{a.id}</Td>
-                        <Td className="text-sm">{a.type}</Td>
+                        <Td className="text-sm">{label("aidType", a.type)}</Td>
                         <Td className="tabular-nums font-bold">{fmtSAR(a.amount)}</Td>
                         <Td className="text-sm text-muted-foreground">{a.projectName || "—"}</Td>
                         <Td>
-                          <Badge tone={statusTone(a.status)}>{a.status}</Badge>
+                          <Badge tone={statusTone(a.status)}>{label("aidStatus", a.status)}</Badge>
                         </Td>
                         <Td className="text-muted-foreground text-xs">{a.createdAt}</Td>
                       </>
@@ -320,12 +333,12 @@ function Page() {
                   {aidHistory.slice(0, 10).map((a: AidHistoryItem) => (
                     <Card key={a.id} className="p-3">
                       <div className="flex items-center justify-between mb-2">
-                        <Badge tone={statusTone(a.status)}>{a.status}</Badge>
+                        <Badge tone={statusTone(a.status)}>{label("aidStatus", a.status)}</Badge>
                         <span className="font-mono text-xs text-muted-foreground">{a.id}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="text-base font-bold tabular-nums">{fmtSAR(a.amount)}</div>
-                        <div className="text-xs text-muted-foreground">{a.type}</div>
+                        <div className="text-xs text-muted-foreground">{label("aidType", a.type)}</div>
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground flex justify-between">
                         <span>{a.projectName || "—"}</span>
@@ -356,7 +369,13 @@ function Page() {
                         <Td className="font-mono text-xs">{p.code || p.id}</Td>
                         <Td className="font-semibold">{p.name}</Td>
                         <Td>
-                          {p.status ? <Badge tone={statusTone(p.status)}>{p.status}</Badge> : "—"}
+                          {p.status ? (
+                            <Badge tone={statusTone(p.status)}>
+                              {label("projectStatus", p.status)}
+                            </Badge>
+                          ) : (
+                            "—"
+                          )}
                         </Td>
                         <Td>
                           <Link
@@ -381,7 +400,9 @@ function Page() {
                         <div className="text-sm font-bold mt-0.5">{p.name}</div>
                         {p.status && (
                           <div className="mt-1">
-                            <Badge tone={statusTone(p.status)}>{p.status}</Badge>
+                            <Badge tone={statusTone(p.status)}>
+                              {label("projectStatus", p.status)}
+                            </Badge>
                           </div>
                         )}
                       </Card>
@@ -398,8 +419,8 @@ function Page() {
             <DetailRow label="المعرّف" value={beneficiary.id} />
             <DetailRow label="رقم الملف" value={beneficiary.fileNumber || "—"} />
             <DetailRow label="الاسم" value={beneficiary.name} />
-            <DetailRow label="الحالة" value={beneficiary.status} />
-            <DetailRow label="الفئة" value={beneficiary.category} />
+            <DetailRow label="الحالة" value={label("beneficiaryStatus", beneficiary.status)} />
+            <DetailRow label="الفئة" value={label("beneficiaryCategory", beneficiary.category)} />
             <DetailRow label="رقم الهوية" value={beneficiary.idNumber || "—"} />
             <DetailRow label="الجوال" value={beneficiary.phone || "—"} />
             <DetailRow label="المدينة" value={beneficiary.city || "—"} />
@@ -408,7 +429,10 @@ function Page() {
               label="عدد الأفراد"
               value={`${fmtNum(beneficiary.familyMembers || 1)} فرد`}
             />
-            <DetailRow label="الحالة الاجتماعية" value={beneficiary.maritalStatus || "—"} />
+            <DetailRow
+              label="الحالة الاجتماعية"
+              value={label("maritalStatus", beneficiary.maritalStatus) || "—"}
+            />
             <DetailRow label="الدخل الشهري" value={fmtSAR(beneficiary.monthlyIncome || 0)} />
             <DetailRow label="أنشأ بواسطة" value={beneficiary.createdBy || "—"} />
             <DetailRow label="تاريخ الإنشاء" value={beneficiary.createdAt || "—"} />

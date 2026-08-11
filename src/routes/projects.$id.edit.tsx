@@ -19,13 +19,15 @@ import {
 import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import { getProject, updateProject } from "@/lib/api/projects";
+import { ProjectStatus } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/projects/$id/edit")({
   head: () => ({ meta: [{ title: "تعديل مشروع — ثواب" }] }),
   component: EditProjectPage,
 });
 
-const STATUSES = ["جديد", "قيد التخطيط", "نشط", "قيد التنفيذ", "مكتمل", "متوقف", "ملغي"];
+const STATUS_OPTIONS = options("projectStatus");
 
 function EditProjectPage() {
   const { id } = useParams({ from: "/projects/$id/edit" });
@@ -48,7 +50,7 @@ function EditProjectPage() {
   const [budget, setBudget] = useState("0");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [status, setStatus] = useState("نشط");
+  const [status, setStatus] = useState<string>(ProjectStatus.ACTIVE);
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -64,7 +66,7 @@ function EditProjectPage() {
       setBudget(String(project.budget || 0));
       setStartDate(project.startDate || "");
       setEndDate(project.endDate || "");
-      setStatus(project.status || "نشط");
+      setStatus(project.status || ProjectStatus.ACTIVE);
       setDescription(project.description || "");
       setNotes(project.notes || "");
     }
@@ -180,7 +182,7 @@ function EditProjectPage() {
             </FormField>
             <FormField label="الحالة">
               <FormSelect value={status} onChange={(e) => setStatus(e.target.value)}>
-                {STATUSES.map((s) => (<option key={s} value={s}>{s}</option>))}
+                {STATUS_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
               </FormSelect>
             </FormField>
           </FormRow>
@@ -226,9 +228,9 @@ function EditProjectPage() {
       <EnterpriseFormLayout
         breadcrumb={[{ label: "المشاريع", to: "/projects" }, { label: project.name }]}
         title={project.name}
-        subtitle={`${project.code} · ${project.status} · ${project.category}`}
+        subtitle={`${project.code} · ${label("projectStatus", project.status)} · ${project.category}`}
         draftNumber={project.code}
-        status={{ label: project.status, tone: statusTone(project.status) }}
+        status={{ label: label("projectStatus", project.status), tone: statusTone(project.status) }}
         tabs={tabs}
         defaultTab="basic"
         loading={saving || updateMutation.isPending}

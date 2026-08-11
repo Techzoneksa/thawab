@@ -35,6 +35,8 @@ import {
   EmptyState,
 } from "@/components/erp/actions";
 import { getDonor, type Donor } from "@/lib/api/donors";
+import { DonorTag } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/donors/$id")({
   head: () => ({ meta: [{ title: "ملف المتبرع — ثواب" }] }),
@@ -42,7 +44,7 @@ export const Route = createFileRoute("/donors/$id")({
 });
 
 function tagTone(t: string) {
-  return t === "ذهبي" ? "warning" : t === "فضي" ? "info" : "muted";
+  return t === DonorTag.GOLD ? "warning" : t === DonorTag.SILVER ? "info" : "muted";
 }
 
 function Page() {
@@ -158,8 +160,8 @@ function Page() {
                 <h3 className="font-bold text-base lg:text-lg">{donor.name}</h3>
                 <div className="text-xs text-muted-foreground font-mono">{donor.id}</div>
                 <div className="mt-1.5 flex gap-1.5 flex-wrap lg:justify-center">
-                  <Badge tone="info">{donor.type}</Badge>
-                  <Badge tone={tagTone(donor.tag)}>{donor.tag}</Badge>
+                  <Badge tone="info">{label("donorType", donor.type)}</Badge>
+                  <Badge tone={tagTone(donor.tag)}>{label("donorTag", donor.tag)}</Badge>
                   {donor.recurring && <Badge tone="success">متكرر</Badge>}
                 </div>
               </div>
@@ -398,9 +400,11 @@ function Page() {
             className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
             defaultValue={donor.tag}
           >
-            <option>ذهبي</option>
-            <option>فضي</option>
-            <option>برونزي</option>
+            {options("donorTag").map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
           </select>
         </div>
       </EntityFormDrawer>

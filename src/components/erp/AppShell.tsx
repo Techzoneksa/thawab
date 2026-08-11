@@ -715,29 +715,20 @@ export function Badge({
 export function statusTone(
   status: string,
 ): "muted" | "success" | "warning" | "destructive" | "info" | "primary" {
-  const s = status.toLowerCase();
-  if (
-    [
-      "مكتمل",
-      "معتمد",
-      "مرحّل",
-      "متصل",
-      "نشط",
-      "نشطة",
-      "مكتملة",
-      "تشغيل",
-      "مستحق",
-      "مستثمر",
-      "جاهز",
-    ].some((k) => status.includes(k))
-  )
-    return "success";
-  if (
-    ["بانتظار", "قيد", "صيانة", "إجازة", "مجدول", "بانتظار التفعيل"].some((k) => status.includes(k))
-  )
-    return "warning";
-  if (["مرفوض", "موقوف", "متأخر"].some((k) => status.includes(k))) return "destructive";
-  if (["تم التحويل", "وقف", "منعقد"].some((k) => status.includes(k))) return "info";
+  const s = String(status).toLowerCase();
+  // English enum keys (canonical). Arabic fallbacks kept for any static text.
+  const SUCCESS = ["active", "posted", "confirmed", "approved", "completed", "delivered", "received", "accepted", "issued", "held"];
+  const WARNING = ["pending", "draft", "submitted", "partial", "counting", "on_hold", "under_maintenance", "planned", "sent", "scheduled"];
+  const DESTRUCTIVE = ["rejected", "cancelled", "suspended", "blacklisted", "disposed", "reversed", "closed", "inactive"];
+  const INFO = ["transfer", "ordered", "archived", "new"];
+  if (SUCCESS.includes(s)) return "success";
+  if (WARNING.includes(s)) return "warning";
+  if (DESTRUCTIVE.includes(s)) return "destructive";
+  if (INFO.includes(s)) return "info";
+  // Arabic fallbacks (legacy static labels)
+  if (["مكتمل", "معتمد", "مرحّل", "متصل", "نشط", "نشطة", "مكتملة", "جاهز"].some((k) => status.includes(k))) return "success";
+  if (["بانتظار", "قيد", "صيانة", "مجدول"].some((k) => status.includes(k))) return "warning";
+  if (["مرفوض", "موقوف", "ملغى", "ملغي", "معكوس"].some((k) => status.includes(k))) return "destructive";
   return "muted";
 }
 

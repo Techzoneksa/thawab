@@ -13,7 +13,9 @@ import {
 } from "@/components/erp/FormFields";
 import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
-import { createWarehouse, WAREHOUSE_STATUSES, type WarehouseStatus } from "@/lib/api/warehouses";
+import { createWarehouse, type WarehouseStatus } from "@/lib/api/warehouses";
+import { WarehouseStatus as WarehouseStatusEnum } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/inventory/warehouses/new")({
   head: () => ({ meta: [{ title: "مستودع جديد — ثواب" }] }),
@@ -30,7 +32,7 @@ function NewWarehousePage() {
   const [manager, setManager] = useState("");
   const [capacity, setCapacity] = useState("0");
   const [occupancy, setOccupancy] = useState("0");
-  const [status, setStatus] = useState<WarehouseStatus>("نشط");
+  const [status, setStatus] = useState<WarehouseStatus>(WarehouseStatusEnum.ACTIVE);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -129,9 +131,9 @@ function NewWarehousePage() {
               value={status}
               onChange={(e) => setStatus(e.target.value as WarehouseStatus)}
             >
-              {WAREHOUSE_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+              {options("warehouseStatus").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </FormSelect>
@@ -155,7 +157,10 @@ function NewWarehousePage() {
         title="مستودع جديد"
         subtitle={name || "أدخل بيانات المستودع"}
         draftNumber="مسودة جديدة"
-        status={{ label: status, tone: status === "نشط" ? "success" : "muted" }}
+        status={{
+          label: label("warehouseStatus", status),
+          tone: status === WarehouseStatusEnum.ACTIVE ? "success" : "muted",
+        }}
         tabs={tabs}
         defaultTab="basic"
         loading={saving}

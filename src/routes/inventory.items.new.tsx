@@ -14,7 +14,9 @@ import {
 import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import { getWarehouses, type Warehouse } from "@/lib/api/warehouses";
-import { createInventoryItem, ITEM_STATUSES, type ItemStatus } from "@/lib/api/inventory-items";
+import { createInventoryItem, type ItemStatus } from "@/lib/api/inventory-items";
+import { InventoryItemStatus, WarehouseStatus } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/inventory/items/new")({
   head: () => ({ meta: [{ title: "صنف جديد — ثواب" }] }),
@@ -41,7 +43,9 @@ function NewItemPage() {
     queryKey: ["warehouses-simple"],
     queryFn: () => getWarehouses({ limit: 1000 }),
   });
-  const warehouses: Warehouse[] = (whQuery.data?.items || []).filter((w) => w.status === "نشط");
+  const warehouses: Warehouse[] = (whQuery.data?.items || []).filter(
+    (w) => w.status === WarehouseStatus.ACTIVE,
+  );
 
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
@@ -51,7 +55,7 @@ function NewItemPage() {
   const [quantity, setQuantity] = useState("0");
   const [minQuantity, setMinQuantity] = useState("0");
   const [price, setPrice] = useState("0");
-  const [status, setStatus] = useState<ItemStatus>("نشط");
+  const [status, setStatus] = useState<ItemStatus>(InventoryItemStatus.ACTIVE);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -181,9 +185,9 @@ function NewItemPage() {
             </FormField>
             <FormField label="الحالة">
               <FormSelect value={status} onChange={(e) => setStatus(e.target.value as ItemStatus)}>
-                {ITEM_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                {options("inventoryItemStatus").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </FormSelect>
@@ -208,7 +212,10 @@ function NewItemPage() {
         title="صنف جديد"
         subtitle={name || "أدخل بيانات الصنف"}
         draftNumber="مسودة جديدة"
-        status={{ label: status, tone: status === "نشط" ? "success" : "muted" }}
+        status={{
+          label: label("inventoryItemStatus", status),
+          tone: status === InventoryItemStatus.ACTIVE ? "success" : "muted",
+        }}
         tabs={tabs}
         defaultTab="basic"
         loading={saving}

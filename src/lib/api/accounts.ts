@@ -12,7 +12,9 @@ export interface Account {
   id: string;
   code: string;
   name: string;
-  type: AccountType | string;
+  classification: AccountType | string;
+  /** @deprecated use `classification` */
+  type?: AccountType | string;
   level: number;
   parentId: string | null;
   currency: string;
@@ -28,6 +30,8 @@ export interface Account {
 
 export interface AccountFilters {
   search?: string;
+  classification?: string;
+  /** @deprecated use `classification` */
   type?: string;
   status?: string;
 }
@@ -35,7 +39,7 @@ export interface AccountFilters {
 export interface CreateAccountInput {
   code: string;
   name: string;
-  type?: AccountType;
+  classification?: AccountType;
   parentId?: string | null;
   currency?: string;
   balance?: number;
@@ -50,7 +54,7 @@ export interface CreateAccountInput {
 export interface UpdateAccountInput {
   id: string;
   name?: string;
-  type?: AccountType;
+  classification?: AccountType;
   parentId?: string | null;
   currency?: string;
   balance?: number;

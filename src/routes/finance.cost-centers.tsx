@@ -28,6 +28,8 @@ import {
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { label, options } from "@/lib/i18n/labels";
+import { CostCenterStatus as CostCenterStatusEnum } from "@/lib/enums";
 import {
   getCostCenters,
   createCostCenter,
@@ -35,7 +37,6 @@ import {
   deleteCostCenter,
   deactivateCostCenter,
   activateCostCenter,
-  COST_CENTER_STATUSES,
   type CostCenter,
   type CostCenterStatus,
 } from "@/lib/api/cost-centers";
@@ -49,7 +50,7 @@ function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [statusFilter, setStatusFilter] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<CostCenter | null>(null);
@@ -66,7 +67,7 @@ function Page() {
   const [formManager, setFormManager] = useState("");
   const [formBudget, setFormBudget] = useState("0");
   const [formSpent, setFormSpent] = useState("0");
-  const [formStatus, setFormStatus] = useState<CostCenterStatus>("نشط");
+  const [formStatus, setFormStatus] = useState<CostCenterStatus>(CostCenterStatusEnum.ACTIVE);
   const [formDescription, setFormDescription] = useState("");
   const [formNotes, setFormNotes] = useState("");
 
@@ -85,7 +86,7 @@ function Page() {
     setFormManager("");
     setFormBudget("0");
     setFormSpent("0");
-    setFormStatus("نشط");
+    setFormStatus(CostCenterStatusEnum.ACTIVE);
     setFormDescription("");
     setFormNotes("");
     setAddOpen(true);
@@ -199,7 +200,7 @@ function Page() {
     { label: "إجمالي المراكز", value: fmtNum(total) },
     {
       label: "مراكز نشطة",
-      value: costCenters.filter((c: CostCenter) => c.status === "نشط").length,
+      value: costCenters.filter((c: CostCenter) => c.status === CostCenterStatusEnum.ACTIVE).length,
     },
     {
       label: "إجمالي الموازنات",
@@ -254,9 +255,16 @@ function Page() {
         </div>
         <Select
           label="الحالة"
-          options={["الكل", ...COST_CENTER_STATUSES]}
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          options={["الكل", ...options("costCenterStatus").map((o) => o.label)]}
+          value={statusFilter ? label("costCenterStatus", statusFilter) : "الكل"}
+          onChange={(e) => {
+            const v = e.target.value;
+            setStatusFilter(
+              v === "الكل"
+                ? ""
+                : (options("costCenterStatus").find((o) => o.label === v)?.value ?? ""),
+            );
+          }}
         />
         <Btn variant="ghost" className="lg:hidden" onClick={() => setFilterOpen(true)}>
           <Filter size={15} />
@@ -332,7 +340,7 @@ function Page() {
                   </div>
                 </Td>
                 <Td>
-                  <Badge tone={statusTone(c.status)}>{c.status}</Badge>
+                  <Badge tone={statusTone(c.status)}>{label("costCenterStatus", c.status)}</Badge>
                 </Td>
                 <Td>
                   <ActionMenu
@@ -353,7 +361,7 @@ function Page() {
                       {c.code} · {c.manager || "—"}
                     </div>
                   </div>
-                  <Badge tone={statusTone(c.status)}>{c.status}</Badge>
+                  <Badge tone={statusTone(c.status)}>{label("costCenterStatus", c.status)}</Badge>
                 </div>
                 <div className="mt-2 flex items-center gap-2">
                   <div className="h-2 flex-1 rounded-full bg-muted overflow-hidden">
@@ -452,9 +460,9 @@ function Page() {
             value={formStatus}
             onChange={(e) => setFormStatus(e.target.value as CostCenterStatus)}
           >
-            {COST_CENTER_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
+            {options("costCenterStatus").map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
           </select>
@@ -520,9 +528,11 @@ function Page() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <option>الكل</option>
-              {COST_CENTER_STATUSES.map((s) => (
-                <option key={s}>{s}</option>
+              <option value="">الكل</option>
+              {options("costCenterStatus").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
               ))}
             </select>
           </div>
@@ -551,14 +561,14 @@ function getCostCenterActions(
     },
   ];
   actions.push({ label: "تعديل", icon: Pencil, onClick: () => openEdit(c) });
-  if (c.status === "نشط") {
+  if (c.status === CostCenterStatusEnum.ACTIVE) {
     actions.push({
       label: "إيقاف",
       icon: Pause,
       onClick: () =>
         setStatusTarget({ id: c.id, name: `${c.code} - ${c.name}`, action: "deactivate" }),
     });
-  } else if (c.status === "موقوف") {
+  } else if (c.status === CostCenterStatusEnum.INACTIVE) {
     actions.push({
       label: "تفعيل",
       icon: Play,

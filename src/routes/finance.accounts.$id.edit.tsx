@@ -20,17 +20,24 @@ import {
 import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import { getAuditEntries } from "@/lib/api/audit";
+import { label, options } from "@/lib/i18n/labels";
+import { AccountClassification, AccountStatus as AccountStatusEnum } from "@/lib/enums";
 import {
   getAccount,
   getAccounts,
   updateAccount,
   deactivateAccount,
   activateAccount,
-  ACCOUNT_TYPES,
-  ACCOUNT_STATUSES,
+  type Account,
   type AccountType,
   type AccountStatus,
+  type UpdateAccountInput,
 } from "@/lib/api/accounts";
+
+/** Read the migrated `classification` column off the (not-yet-updated) client type. */
+function acctClassification(a: Account): string {
+  return (a as unknown as { classification?: string }).classification ?? "";
+}
 
 export const Route = createFileRoute("/finance/accounts/$id/edit")({
   head: () => ({ meta: [{ title: "تعديل حساب — ثواب" }] }),
@@ -62,11 +69,11 @@ function EditAccountPage() {
 
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
-  const [type, setType] = useState<AccountType>("تفصيلي");
+  const [classification, setClassification] = useState<AccountType>(AccountClassification.ASSET);
   const [parentId, setParentId] = useState<string>("");
   const [currency, setCurrency] = useState("SAR");
   const [postable, setPostable] = useState(true);
-  const [status, setStatus] = useState<AccountStatus>("نشط");
+  const [status, setStatus] = useState<AccountStatus>(AccountStatusEnum.ACTIVE);
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -76,7 +83,7 @@ function EditAccountPage() {
     if (account) {
       setCode(account.code);
       setName(account.name);
-      setType(account.type as AccountType);
+      setClassification((acctClassification(account) || AccountClassification.ASSET) as AccountType);
       setParentId(account.parentId || "");
       setCurrency(account.currency);
       setPostable(account.postable);
@@ -132,7 +139,8 @@ function EditAccountPage() {
       await updateMutation.mutateAsync({
         id,
         name: name.trim(),
-        type,
+        // `classification` is the migrated column name; client type not yet updated.
+        classification,
         parentId: parentId || null,
         currency,
         postable,
@@ -141,7 +149,7 @@ function EditAccountPage() {
         notes,
         userId: user?.id,
         userName: user?.name,
-      });
+      } as unknown as UpdateAccountInput);
       if (andClose) navigate({ to: "/finance/accounts" });
     } catch (err) {
       showToast(err instanceof Error ? err.message : "فشل الحفظ", "error");
@@ -205,20 +213,15 @@ function EditAccountPage() {
             </FormField>
           </FormRow>
           <FormRow>
-            <FormField label="نوع الحساب">
+            <FormField label="تصنيف الحساب">
               <FormSelect
-                value={type}
-                onChange={(e) => {
-                  const v = e.target.value as AccountType;
-                  setType(v);
-                  if (v === "رئيسي") setPostable(false);
-                  else setPostable(true);
-                }}
+                value={classification}
+                onChange={(e) => setClassification(e.target.value as AccountType)}
                 disabled={isReadOnly}
               >
-                {ACCOUNT_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {options("accountClassification").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </FormSelect>
@@ -227,11 +230,11 @@ function EditAccountPage() {
               <FormSelect
                 value={parentId}
                 onChange={(e) => setParentId(e.target.value)}
-                disabled={isReadOnly || type === "رئيسي"}
+                disabled={isReadOnly || !postable}
               >
                 <option value="">— (بدون أب)</option>
                 {allAccounts
-                  .filter((a) => a.type === "رئيسي" && a.id !== id)
+                  .filter((a) => !a.postable && a.id !== id)
                   .map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.code} — {a.name}
@@ -286,8 +289,12 @@ function EditAccountPage() {
           <FormField label="قابل للترحيل">
             <FormSegmented<"yes" | "no">
               value={postable ? "yes" : "no"}
-              onChange={(v) => setPostable(v === "yes")}
-              disabled={isReadOnly || type === "رئيسي"}
+              onChange={(v) => {
+                const p = v === "yes";
+                setPostable(p);
+                if (!p) setParentId("");
+              }}
+              disabled={isReadOnly}
               options={[
                 { value: "yes", label: "نعم — يقبل قيود يومية" },
                 { value: "no", label: "لا — حساب رئيسي فقط" },
@@ -309,15 +316,15 @@ function EditAccountPage() {
                 onChange={(e) => setStatus(e.target.value as AccountStatus)}
                 disabled={isReadOnly}
               >
-                {ACCOUNT_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                {options("accountStatus").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </FormSelect>
             </FormField>
           </FormRow>
-          {!isReadOnly && status === "نشط" && (
+          {!isReadOnly && status === AccountStatusEnum.ACTIVE && (
             <button
               type="button"
               onClick={() => statusMutation.mutate("deactivate")}
@@ -327,7 +334,7 @@ function EditAccountPage() {
               إيقاف الحساب
             </button>
           )}
-          {!isReadOnly && status === "موقوف" && (
+          {!isReadOnly && status === AccountStatusEnum.INACTIVE && (
             <button
               type="button"
               onClick={() => statusMutation.mutate("activate")}
@@ -393,9 +400,9 @@ function EditAccountPage() {
           { label: account.code },
         ]}
         title={`${account.code} — ${account.name}`}
-        subtitle={`${type} · المستوى ${account.level}${parent ? ` · تحت ${parent.code}` : ""}`}
+        subtitle={`${label("accountClassification", classification)} · المستوى ${account.level}${parent ? ` · تحت ${parent.code}` : ""}`}
         draftNumber={account.code}
-        status={{ label: account.status, tone: statusTone(account.status) }}
+        status={{ label: label("accountStatus", account.status), tone: statusTone(account.status) }}
         isReadOnly={isReadOnly}
         readonlyReason={readOnlyReason}
         tabs={tabs}

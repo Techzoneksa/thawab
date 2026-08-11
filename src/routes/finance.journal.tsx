@@ -38,6 +38,8 @@ import {
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { label, options } from "@/lib/i18n/labels";
+import { JournalStatus } from "@/lib/enums";
 import { getAccounts, type Account } from "@/lib/api/accounts";
 import { getCostCenters, type CostCenter } from "@/lib/api/cost-centers";
 import {
@@ -47,8 +49,6 @@ import {
   postJournalEntry,
   reverseJournalEntry,
   cancelJournalEntry,
-  JOURNAL_STATUSES,
-  JOURNAL_FUNDS,
   type JournalFund,
   type JournalEntry,
   type JournalLine,
@@ -73,8 +73,8 @@ function Page() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("الكل");
-  const [fundFilter, setFundFilter] = useState("الكل");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [fundFilter, setFundFilter] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -115,7 +115,7 @@ function Page() {
   const openAdd = () => navigate({ to: "/finance/journal/new" });
 
   const openEdit = (e: JournalEntry) => {
-    if (e.status !== "مسودة" && e.status !== "بانتظار الاعتماد") {
+    if (e.status !== JournalStatus.DRAFT && e.status !== JournalStatus.PENDING) {
       showToast("لا يمكن تعديل قيد مرحّل أو معكوس. افتح التفاصيل لعرض السجل أو عكسه.", "error");
       return;
     }
@@ -181,15 +181,15 @@ function Page() {
     { label: "إجمالي القيود", value: fmtNum(total) },
     {
       label: "مرحّلة",
-      value: entries.filter((e: JournalEntry) => e.status === "مرحّل").length,
+      value: entries.filter((e: JournalEntry) => e.status === JournalStatus.POSTED).length,
     },
     {
       label: "مسودات",
-      value: entries.filter((e: JournalEntry) => e.status === "مسودة").length,
+      value: entries.filter((e: JournalEntry) => e.status === JournalStatus.DRAFT).length,
     },
     {
       label: "قيد الانتظار",
-      value: entries.filter((e: JournalEntry) => e.status === "بانتظار الاعتماد").length,
+      value: entries.filter((e: JournalEntry) => e.status === JournalStatus.PENDING).length,
     },
   ];
 
@@ -236,15 +236,27 @@ function Page() {
         </div>
         <Select
           label="الحالة"
-          options={["الكل", ...JOURNAL_STATUSES]}
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          options={["الكل", ...options("journalStatus").map((o) => o.label)]}
+          value={statusFilter ? label("journalStatus", statusFilter) : "الكل"}
+          onChange={(e) => {
+            const v = e.target.value;
+            setStatusFilter(
+              v === "الكل"
+                ? ""
+                : (options("journalStatus").find((o) => o.label === v)?.value ?? ""),
+            );
+          }}
         />
         <Select
           label="نوع الصندوق"
-          options={["الكل", ...JOURNAL_FUNDS]}
-          value={fundFilter}
-          onChange={(e) => setFundFilter(e.target.value)}
+          options={["الكل", ...options("fund").map((o) => o.label)]}
+          value={fundFilter ? label("fund", fundFilter) : "الكل"}
+          onChange={(e) => {
+            const v = e.target.value;
+            setFundFilter(
+              v === "الكل" ? "" : (options("fund").find((o) => o.label === v)?.value ?? ""),
+            );
+          }}
         />
         <Btn variant="ghost" className="lg:hidden" onClick={() => setFilterOpen(true)}>
           <Filter size={15} />
@@ -313,9 +325,9 @@ function Page() {
                 </button>
               </Td>
               <Td className="tabular-nums font-bold">{fmtSAR(e.amount)}</Td>
-              <Td className="text-xs">{e.fund}</Td>
+              <Td className="text-xs">{label("fund", e.fund)}</Td>
               <Td>
-                <Badge tone={statusTone(e.status)}>{e.status}</Badge>
+                <Badge tone={statusTone(e.status)}>{label("journalStatus", e.status)}</Badge>
               </Td>
               <Td>
                 <ActionMenu
@@ -344,12 +356,12 @@ function Page() {
                     {e.description}
                   </button>
                 </div>
-                <Badge tone={statusTone(e.status)}>{e.status}</Badge>
+                <Badge tone={statusTone(e.status)}>{label("journalStatus", e.status)}</Badge>
               </div>
               <div className="mt-2 flex justify-between items-center">
                 <span className="text-base font-bold tabular-nums">{fmtSAR(e.amount)}</span>
                 <div className="flex gap-2">
-                  {(e.status === "مسودة" || e.status === "بانتظار الاعتماد") && (
+                  {(e.status === JournalStatus.DRAFT || e.status === JournalStatus.PENDING) && (
                     <button
                       onClick={() => openEdit(e)}
                       className="text-primary text-xs font-semibold"
@@ -357,7 +369,7 @@ function Page() {
                       تعديل
                     </button>
                   )}
-                  {e.status === "مسودة" && (
+                  {e.status === JournalStatus.DRAFT && (
                     <button
                       onClick={() => setDeleteTarget(e.id)}
                       className="text-destructive text-xs font-semibold"
@@ -367,7 +379,7 @@ function Page() {
                   )}
                 </div>
               </div>
-              <div className="mt-1 text-xs text-muted-foreground">{e.fund}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{label("fund", e.fund)}</div>
             </Card>
           )}
         />
@@ -409,8 +421,8 @@ function Page() {
             <div className="grid grid-cols-2 gap-2 text-sm">
               <DetailRow label="الرقم" value={detailData.item.number} />
               <DetailRow label="التاريخ" value={detailData.item.date} />
-              <DetailRow label="الحالة" value={detailData.item.status} />
-              <DetailRow label="الصندوق" value={detailData.item.fund} />
+              <DetailRow label="الحالة" value={label("journalStatus", detailData.item.status)} />
+              <DetailRow label="الصندوق" value={label("fund", detailData.item.fund)} />
             </div>
             <div>
               <div className="text-xs font-semibold text-muted-foreground">الوصف</div>
@@ -535,9 +547,11 @@ function Page() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <option>الكل</option>
-              {JOURNAL_STATUSES.map((s) => (
-                <option key={s}>{s}</option>
+              <option value="">الكل</option>
+              {options("journalStatus").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
               ))}
             </select>
           </div>
@@ -548,9 +562,11 @@ function Page() {
               value={fundFilter}
               onChange={(e) => setFundFilter(e.target.value)}
             >
-              <option>الكل</option>
-              {JOURNAL_FUNDS.map((f) => (
-                <option key={f}>{f}</option>
+              <option value="">الكل</option>
+              {options("fund").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
               ))}
             </select>
           </div>
@@ -593,14 +609,14 @@ function getJournalActions(
     },
   ];
 
-  if (e.status === "مسودة" || e.status === "بانتظار الاعتماد") {
+  if (e.status === JournalStatus.DRAFT || e.status === JournalStatus.PENDING) {
     actions.push({ label: "تعديل", icon: Pencil, onClick: () => openEdit(e) });
     actions.push({
       label: "ترحيل",
       icon: CheckCircle,
       onClick: () => setActionTarget({ id: e.id, number: e.number, action: "post" }),
     });
-    if (e.status === "مسودة") {
+    if (e.status === JournalStatus.DRAFT) {
       actions.push({
         label: "إلغاء",
         icon: XCircle,
@@ -616,7 +632,7 @@ function getJournalActions(
     }
   }
 
-  if (e.status === "مرحّل") {
+  if (e.status === JournalStatus.POSTED) {
     actions.push({
       label: "عكس",
       icon: RotateCcw,

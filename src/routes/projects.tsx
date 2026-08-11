@@ -49,11 +49,21 @@ import {
   type Project,
   type ProjectFilters,
 } from "@/lib/api/projects";
+import { ProjectStatus } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/projects")({
   head: () => ({ meta: [{ title: "المشاريع والبرامج — ثواب" }] }),
   component: Page,
 });
+
+const PROJECT_STATUS_OPTIONS = options("projectStatus");
+// The shared <Select> shows Arabic labels; convert the picked label back to its
+// English enum key (or "" for the "الكل" sentinel) before hitting the API.
+const toProjectStatusKey = (arLabel: string) =>
+  arLabel === "الكل"
+    ? ""
+    : (PROJECT_STATUS_OPTIONS.find((o) => o.label === arLabel)?.value ?? "");
 
 const PROJECT_CATEGORIES = ["الكل", "إغاثي", "تنموي", "تعليمي", "صحي", "اجتماعي"];
 const PROJECT_BRANCHES = ["الكل", "الفرع الرئيسي", "فرع مكة", "فرع الرياض", "فرع جدة"];
@@ -100,9 +110,9 @@ function Page() {
     setApiFilters((f) => ({
       ...f,
       search: searchQuery,
-      status: statusFilter,
-      category: categoryFilter,
-      branch: branchFilter,
+      status: toProjectStatusKey(statusFilter),
+      category: categoryFilter === "الكل" ? "" : categoryFilter,
+      branch: branchFilter === "الكل" ? "" : branchFilter,
       page: 1,
     }));
   }, [searchQuery, statusFilter, categoryFilter, branchFilter]);
@@ -172,14 +182,18 @@ function Page() {
     }
   };
 
-  const isReadOnly = (p: Project) => p.status === "مكتمل" || p.status === "ملغي";
+  const isReadOnly = (p: Project) =>
+    p.status === ProjectStatus.COMPLETED || p.status === ProjectStatus.CANCELLED;
 
   const stats = [
     { label: "إجمالي المشاريع", value: fmtNum(total) },
-    { label: "مشاريع نشطة", value: projects.filter((p: Project) => p.status === "نشط").length },
+    {
+      label: "مشاريع نشطة",
+      value: projects.filter((p: Project) => p.status === ProjectStatus.ACTIVE).length,
+    },
     {
       label: "مشاريع مكتملة",
-      value: projects.filter((p: Project) => p.status === "مكتمل").length,
+      value: projects.filter((p: Project) => p.status === ProjectStatus.COMPLETED).length,
     },
     {
       label: "الميزانية الكلية",
@@ -244,7 +258,7 @@ function Page() {
         </div>
         <Select
           label="الحالة"
-          options={["الكل", "مخطط", "نشط", "متوقف", "مكتمل", "ملغي"]}
+          options={["الكل", ...PROJECT_STATUS_OPTIONS.map((o) => o.label)]}
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         />
@@ -320,7 +334,7 @@ function Page() {
                     </div>
                   )}
                 </div>
-                <Badge tone={statusTone(p.status)}>{p.status}</Badge>
+                <Badge tone={statusTone(p.status)}>{label("projectStatus", p.status)}</Badge>
               </div>
 
               <div className="mt-3 lg:mt-4">
@@ -426,7 +440,7 @@ function Page() {
                 </div>
               </Td>
               <Td>
-                <Badge tone={statusTone(p.status)}>{p.status}</Badge>
+                <Badge tone={statusTone(p.status)}>{label("projectStatus", p.status)}</Badge>
               </Td>
               <Td>
                 <ActionMenu
@@ -443,7 +457,7 @@ function Page() {
                     <div className="text-sm font-bold truncate">{p.name}</div>
                     <div className="text-xs text-muted-foreground">{p.manager}</div>
                   </div>
-                  <Badge tone={statusTone(p.status)}>{p.status}</Badge>
+                  <Badge tone={statusTone(p.status)}>{label("projectStatus", p.status)}</Badge>
                 </div>
                 <div className="mt-2 flex items-center gap-2">
                   <div className="h-2 flex-1 rounded-full bg-muted overflow-hidden">
@@ -562,11 +576,9 @@ function Page() {
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option>الكل</option>
-              <option>مخطط</option>
-              <option>نشط</option>
-              <option>متوقف</option>
-              <option>مكتمل</option>
-              <option>ملغي</option>
+              {PROJECT_STATUS_OPTIONS.map((o) => (
+                <option key={o.value}>{o.label}</option>
+              ))}
             </select>
           </div>
           <div>
@@ -609,16 +621,17 @@ function getProjectActions(
     {
       label: "عرض التفاصيل",
       icon: Eye,
-      onClick: () => showToast(`مشروع: ${p.name} · ${p.status}`, "info"),
+      onClick: () =>
+        showToast(`مشروع: ${p.name} · ${label("projectStatus", p.status)}`, "info"),
     },
   ];
 
-  if (p.status !== "مكتمل" && p.status !== "ملغي") {
+  if (p.status !== ProjectStatus.COMPLETED && p.status !== ProjectStatus.CANCELLED) {
     actions.push({ label: "تعديل", icon: Pencil, onClick: () => openEdit(p) });
   }
 
   // Workflow actions based on current status
-  if (p.status === "مخطط" || p.status === "متوقف") {
+  if (p.status === ProjectStatus.PLANNED || p.status === ProjectStatus.ON_HOLD) {
     actions.push({
       label: "تفعيل",
       icon: Play,
@@ -626,7 +639,7 @@ function getProjectActions(
     });
   }
 
-  if (p.status === "نشط") {
+  if (p.status === ProjectStatus.ACTIVE) {
     actions.push({
       label: "إيقاف",
       icon: Pause,
@@ -639,7 +652,7 @@ function getProjectActions(
     });
   }
 
-  if (p.status !== "ملغي" && p.status !== "مكتمل") {
+  if (p.status !== ProjectStatus.CANCELLED && p.status !== ProjectStatus.COMPLETED) {
     actions.push({
       label: "إلغاء",
       icon: XCircle,

@@ -33,6 +33,8 @@ import {
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { PurchaseOrderStatus, PurchaseRequestStatus } from "@/lib/enums";
+import { label } from "@/lib/i18n/labels";
 import {
   getPurchaseOrders,
   approvePurchaseOrder,
@@ -40,7 +42,6 @@ import {
   receivePurchaseOrder,
   closePurchaseOrder,
   deletePurchaseOrder,
-  ORDER_STATUSES,
   type PurchaseOrder,
   type PurchaseOrderLine,
 } from "@/lib/api/purchase-orders";
@@ -79,7 +80,7 @@ function Page() {
 
   const { data: requestsData } = useQuery({
     queryKey: ["purchaseRequests-approved"],
-    queryFn: () => getPurchaseRequests({ status: "معتمد" }),
+    queryFn: () => getPurchaseRequests({ status: PurchaseRequestStatus.APPROVED }),
   });
 
   const detailQuery = useQuery({
@@ -178,12 +179,12 @@ function Page() {
   const items = data?.items || [];
   const total = data?.total || 0;
   const stats = {
-    draft: items.filter((o) => o.status === "مسودة").length,
-    approved: items.filter((o) => o.status === "معتمد").length,
-    partial: items.filter((o) => o.status === "تم الاستلام جزئيًا").length,
-    received: items.filter((o) => o.status === "تم الاستلام").length,
-    closed: items.filter((o) => o.status === "مغلق").length,
-    cancelled: items.filter((o) => o.status === "ملغي").length,
+    draft: items.filter((o) => o.status === PurchaseOrderStatus.DRAFT).length,
+    approved: items.filter((o) => o.status === PurchaseOrderStatus.SENT).length,
+    partial: items.filter((o) => o.status === PurchaseOrderStatus.PARTIAL).length,
+    received: items.filter((o) => o.status === PurchaseOrderStatus.RECEIVED).length,
+    closed: items.filter((o) => o.status === PurchaseOrderStatus.CLOSED).length,
+    cancelled: items.filter((o) => o.status === PurchaseOrderStatus.CANCELLED).length,
     totalValue: items.reduce((s, o) => s + (o.total || 0), 0),
     total,
   };
@@ -321,7 +322,9 @@ function Page() {
               </Td>
               <Td className="tabular-nums font-bold">{fmtSAR(o.total)}</Td>
               <Td>
-                <Badge tone={statusTone(o.status)}>{o.status}</Badge>
+                <Badge tone={statusTone(o.status)}>
+                  {label("purchaseOrderStatus", o.status)}
+                </Badge>
               </Td>
               <Td>
                 <ActionMenu
@@ -339,7 +342,9 @@ function Page() {
           mobileCard={(o) => (
             <Card key={o.id} className="p-3">
               <div className="flex items-center justify-between mb-2">
-                <Badge tone={statusTone(o.status)}>{o.status}</Badge>
+                <Badge tone={statusTone(o.status)}>
+                  {label("purchaseOrderStatus", o.status)}
+                </Badge>
                 <span className="font-mono text-xs text-muted-foreground">{o.id}</span>
               </div>
               <button
@@ -368,7 +373,8 @@ function Page() {
                 >
                   تفاصيل
                 </button>
-                {(o.status === "معتمد" || o.status === "تم الاستلام جزئيًا") && (
+                {(o.status === PurchaseOrderStatus.SENT ||
+                  o.status === PurchaseOrderStatus.PARTIAL) && (
                   <button
                     className="flex-1 rounded-lg bg-success/15 text-success text-xs font-semibold py-2 min-h-[36px]"
                     onClick={() => openReceive(o)}
@@ -392,7 +398,10 @@ function Page() {
         {detailQuery.data && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow label="الحالة" value={detailQuery.data.item.status} />
+              <DetailRow
+                label="الحالة"
+                value={label("purchaseOrderStatus", detailQuery.data.item.status)}
+              />
               <DetailRow
                 label="المورد"
                 value={
@@ -598,7 +607,7 @@ function getOrderActions(
     { label: "طباعة", icon: Printer, onClick: () => window.print() },
   ];
 
-  if (o.status === "مسودة") {
+  if (o.status === PurchaseOrderStatus.DRAFT) {
     actions.push({
       label: "اعتماد",
       icon: CheckCircle,
@@ -612,7 +621,7 @@ function getOrderActions(
     });
   }
 
-  if (o.status === "معتمد" || o.status === "تم الاستلام جزئيًا") {
+  if (o.status === PurchaseOrderStatus.SENT || o.status === PurchaseOrderStatus.PARTIAL) {
     actions.push({
       label: "استلام",
       icon: PackageCheck,
@@ -620,7 +629,7 @@ function getOrderActions(
     });
   }
 
-  if (o.status === "تم الاستلام") {
+  if (o.status === PurchaseOrderStatus.RECEIVED) {
     actions.push({
       label: "إغلاق",
       icon: XCircle,
@@ -628,7 +637,7 @@ function getOrderActions(
     });
   }
 
-  if (o.status !== "ملغي" && o.status !== "مغلق") {
+  if (o.status !== PurchaseOrderStatus.CANCELLED && o.status !== PurchaseOrderStatus.CLOSED) {
     actions.push({
       label: "إلغاء",
       icon: XCircle,

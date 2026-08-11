@@ -16,6 +16,8 @@ import {
 import { showToast, ConfirmDialog } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import { getAuditEntries } from "@/lib/api/audit";
+import { PurchaseOrderStatus } from "@/lib/enums";
+import { label } from "@/lib/i18n/labels";
 import {
   getPurchaseOrder,
   updatePurchaseOrder,
@@ -86,11 +88,17 @@ function EditOrderPage() {
   }
 
   const isReadOnly =
-    !!item && (item.status === "مغلق" || item.status === "ملغي" || item.status === "تم الاستلام");
-  const canApprove = item?.status === "مسودة";
-  const canReceive = item?.status === "معتمد" || item?.status === "تم الاستلام جزئيًا";
-  const canClose = item?.status === "تم الاستلام" || item?.status === "تم الاستلام جزئيًا";
-  const canCancel = item?.status !== "ملغي" && item?.status !== "مغلق";
+    !!item &&
+    (item.status === PurchaseOrderStatus.CLOSED ||
+      item.status === PurchaseOrderStatus.CANCELLED ||
+      item.status === PurchaseOrderStatus.RECEIVED);
+  const canApprove = item?.status === PurchaseOrderStatus.DRAFT;
+  const canReceive =
+    item?.status === PurchaseOrderStatus.SENT || item?.status === PurchaseOrderStatus.PARTIAL;
+  const canClose =
+    item?.status === PurchaseOrderStatus.RECEIVED || item?.status === PurchaseOrderStatus.PARTIAL;
+  const canCancel =
+    item?.status !== PurchaseOrderStatus.CANCELLED && item?.status !== PurchaseOrderStatus.CLOSED;
 
   const total = useMemo(
     () => lines.reduce((s, l) => s + (l.quantity || 0) * (l.unitPrice || 0), 0),
@@ -103,7 +111,7 @@ function EditOrderPage() {
       showToast("لا يمكن تعديل أمر مغلق أو ملغي أو مكتمل الاستلام", "error");
       return;
     }
-    if (item?.status !== "مسودة") {
+    if (item?.status !== PurchaseOrderStatus.DRAFT) {
       showToast("لا يمكن تعديل أمر الشراء إلا في حالة المسودة", "error");
       return;
     }
@@ -272,8 +280,8 @@ function EditOrderPage() {
       content: !canReceive ? (
         <FormSection title="استلام البنود">
           <div className="rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground text-center">
-            لا يمكن تسجيل استلام في الحالة الحالية ({item?.status}). اعتمد الأمر أولاً ثم سجل
-            الاستلام.
+            لا يمكن تسجيل استلام في الحالة الحالية ({label("purchaseOrderStatus", item?.status)}).
+            اعتمد الأمر أولاً ثم سجل الاستلام.
           </div>
         </FormSection>
       ) : (
@@ -360,7 +368,11 @@ function EditOrderPage() {
         <FormSection title="ملخص أمر الشراء">
           <FormSummaryLine label="الموضوع" value={item.subject} />
           <FormSummaryLine label="المورد" value={item.supplierId ? "مرتبط" : "—"} />
-          <FormSummaryLine label="الحالة" value={item.status} tone={statusTone(item.status)} />
+          <FormSummaryLine
+            label="الحالة"
+            value={label("purchaseOrderStatus", item.status)}
+            tone={statusTone(item.status)}
+          />
           <FormSummaryLine label="تاريخ الأمر" value={item.date} />
           <FormSummaryLine label="تاريخ التوريد" value={item.deliveryDate || "—"} />
           <FormSummaryLine label="إجمالي الأمر" value={fmtSAR(total)} />
@@ -483,12 +495,12 @@ function EditOrderPage() {
         title={item.subject}
         subtitle={`${fmtSAR(total)} · مستلم ${fmtSAR(receivedAmount)}`}
         draftNumber={item.id}
-        status={{ label: item.status, tone: statusTone(item.status) }}
+        status={{ label: label("purchaseOrderStatus", item.status), tone: statusTone(item.status) }}
         isReadOnly={isReadOnly}
         readonlyReason={
           isReadOnly
-            ? `أمر الشراء في حالة "${item.status}". هذا السجل مغلق للتعديل.`
-            : item.status !== "مسودة"
+            ? `أمر الشراء في حالة "${label("purchaseOrderStatus", item.status)}". هذا السجل مغلق للتعديل.`
+            : item.status !== PurchaseOrderStatus.DRAFT
               ? "لا يمكن تعديل البيانات إلا في حالة المسودة. يمكنك تسجيل الاستلام من تبويب 'استلام البنود'."
               : undefined
         }
@@ -528,7 +540,7 @@ function EditOrderPage() {
                 <Ban size={15} /> إلغاء
               </button>
             )}
-            {item.status === "مسودة" && (
+            {item.status === PurchaseOrderStatus.DRAFT && (
               <button
                 type="button"
                 onClick={() => setConfirmAction("delete")}

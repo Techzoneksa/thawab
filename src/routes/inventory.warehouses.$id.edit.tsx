@@ -22,9 +22,10 @@ import {
   activateWarehouse,
   deactivateWarehouse,
   deleteWarehouse,
-  WAREHOUSE_STATUSES,
   type Warehouse,
 } from "@/lib/api/warehouses";
+import { WarehouseStatus } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/inventory/warehouses/$id/edit")({
   head: () => ({ meta: [{ title: "تعديل مستودع — ثواب" }] }),
@@ -53,7 +54,7 @@ function EditWarehousePage() {
   const [manager, setManager] = useState("");
   const [capacity, setCapacity] = useState("0");
   const [occupancy, setOccupancy] = useState("0");
-  const [status, setStatus] = useState("نشط");
+  const [status, setStatus] = useState<string>(WarehouseStatus.ACTIVE);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -68,7 +69,7 @@ function EditWarehousePage() {
     setManager(item.manager);
     setCapacity(String(item.capacity || 0));
     setOccupancy(String(item.occupancy || 0));
-    setStatus(item.status || "نشط");
+    setStatus(item.status || WarehouseStatus.ACTIVE);
     setNotes(item.notes || "");
     setHydrated(true);
   }
@@ -158,9 +159,9 @@ function EditWarehousePage() {
           </FormRow>
           <FormField label="الحالة">
             <FormSelect value={status} onChange={(e) => setStatus(e.target.value)}>
-              {WAREHOUSE_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+              {options("warehouseStatus").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </FormSelect>
@@ -181,8 +182,8 @@ function EditWarehousePage() {
           <FormSummaryLine label="الموقع" value={item.location || "—"} />
           <FormSummaryLine
             label="الحالة"
-            value={item.status}
-            tone={item.status === "نشط" ? "success" : "warning"}
+            value={label("warehouseStatus", item.status)}
+            tone={item.status === WarehouseStatus.ACTIVE ? "success" : "warning"}
           />
           <FormSummaryLine label="السعة" value={String(item.capacity || 0)} />
           <FormSummaryLine label="الإشغال" value={String(item.occupancy || 0)} />
@@ -301,7 +302,7 @@ function EditWarehousePage() {
         title={item.name}
         subtitle={`${item.location || ""} · ${item.manager || ""}`}
         draftNumber={item.id}
-        status={{ label: item.status, tone: statusTone(item.status) }}
+        status={{ label: label("warehouseStatus", item.status), tone: statusTone(item.status) }}
         tabs={tabs}
         defaultTab="basic"
         loading={saving}
@@ -311,7 +312,7 @@ function EditWarehousePage() {
         showSecondary={false}
         extraActions={
           <>
-            {item.status === "نشط" ? (
+            {item.status === WarehouseStatus.ACTIVE ? (
               <button
                 type="button"
                 onClick={() => setConfirmAction("deactivate")}

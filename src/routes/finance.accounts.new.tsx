@@ -19,13 +19,14 @@ import {
 } from "@/components/erp/FormFields";
 import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { options } from "@/lib/i18n/labels";
+import { AccountClassification, AccountStatus as AccountStatusEnum } from "@/lib/enums";
 import {
   getAccounts,
   createAccount,
-  ACCOUNT_TYPES,
-  ACCOUNT_STATUSES,
   type AccountType,
   type AccountStatus,
+  type CreateAccountInput,
 } from "@/lib/api/accounts";
 
 export const Route = createFileRoute("/finance/accounts/new")({
@@ -54,12 +55,12 @@ function NewAccountPage() {
 
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
-  const [type, setType] = useState<AccountType>(parent ? "تفصيلي" : "رئيسي");
+  const [classification, setClassification] = useState<AccountType>(AccountClassification.ASSET);
   const [parentId_, setParentId] = useState<string>(parent?.id || "");
   const [currency, setCurrency] = useState("SAR");
   const [balance, setBalance] = useState("0");
   const [postable, setPostable] = useState(!parent);
-  const [status, setStatus] = useState<AccountStatus>("نشط");
+  const [status, setStatus] = useState<AccountStatus>(AccountStatusEnum.ACTIVE);
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -70,7 +71,7 @@ function NewAccountPage() {
     if (!code.trim()) e.code = "رقم الحساب مطلوب";
     else if (allAccounts.some((a) => a.code === code.trim())) e.code = "رقم الحساب مستخدم";
     if (!name.trim()) e.name = "اسم الحساب مطلوب";
-    if (!parentId_ && type !== "رئيسي")
+    if (!parentId_ && postable)
       e.parent = "الحساب الأب مطلوب للحسابات الفرعية";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -86,7 +87,8 @@ function NewAccountPage() {
       const created = await createAccount({
         code: code.trim(),
         name: name.trim(),
-        type,
+        // `classification` is the migrated column name; client type not yet updated.
+        classification,
         parentId: parentId_ || null,
         currency,
         balance: parseFloat(balance) || 0,
@@ -96,7 +98,7 @@ function NewAccountPage() {
         notes,
         userId: user?.id,
         userName: user?.name,
-      });
+      } as unknown as CreateAccountInput);
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
       showToast(`تم إنشاء الحساب ${created.code} بنجاح`, "success");
       if (andClose) {
@@ -140,24 +142,15 @@ function NewAccountPage() {
             </FormField>
           </FormRow>
           <FormRow>
-            <FormField label="نوع الحساب" required htmlFor="acct-type">
+            <FormField label="تصنيف الحساب" required htmlFor="acct-classification">
               <FormSelect
-                id="acct-type"
-                value={type}
-                onChange={(e) => {
-                  const v = e.target.value as AccountType;
-                  setType(v);
-                  if (v === "رئيسي") {
-                    setPostable(false);
-                    setParentId("");
-                  } else {
-                    setPostable(true);
-                  }
-                }}
+                id="acct-classification"
+                value={classification}
+                onChange={(e) => setClassification(e.target.value as AccountType)}
               >
-                {ACCOUNT_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {options("accountClassification").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </FormSelect>
@@ -165,18 +158,18 @@ function NewAccountPage() {
             <FormField
               label="الحساب الأب"
               error={errors.parent}
-              hint={type === "رئيسي" ? "الحسابات الرئيسية لا تحتاج أب" : "اختر الحساب الرئيسي الذي يندرج تحته هذا الحساب"}
+              hint={!postable ? "الحسابات الرئيسية لا تحتاج أب" : "اختر الحساب الرئيسي الذي يندرج تحته هذا الحساب"}
               htmlFor="acct-parent"
             >
               <FormSelect
                 id="acct-parent"
                 value={parentId_}
                 onChange={(e) => setParentId(e.target.value)}
-                disabled={type === "رئيسي"}
+                disabled={!postable}
               >
                 <option value="">— (حساب رئيسي بدون أب)</option>
                 {allAccounts
-                  .filter((a) => a.type === "رئيسي")
+                  .filter((a) => !a.postable)
                   .map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.code} — {a.name}
@@ -246,8 +239,11 @@ function NewAccountPage() {
           <FormField label="قابل للترحيل" hint="الحسابات غير القابلة للترحيل تستقبل فقط حسابات فرعية">
             <FormSegmented<"yes" | "no">
               value={postable ? "yes" : "no"}
-              onChange={(v) => setPostable(v === "yes")}
-              disabled={type === "رئيسي"}
+              onChange={(v) => {
+                const p = v === "yes";
+                setPostable(p);
+                if (!p) setParentId("");
+              }}
               options={[
                 { value: "yes", label: "نعم — يقبل قيود يومية" },
                 { value: "no", label: "لا — حساب رئيسي فقط" },
@@ -273,9 +269,9 @@ function NewAccountPage() {
                 value={status}
                 onChange={(e) => setStatus(e.target.value as AccountStatus)}
               >
-                {ACCOUNT_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                {options("accountStatus").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </FormSelect>

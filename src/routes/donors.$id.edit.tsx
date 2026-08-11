@@ -21,6 +21,8 @@ import { showToast } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import { getDonor, updateDonor, deleteDonor } from "@/lib/api/donors";
 import { getDonations } from "@/lib/api/donations";
+import { DonorType, DonorTag } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/donors/$id/edit")({
   head: () => ({ meta: [{ title: "تعديل متبرع — ثواب" }] }),
@@ -48,12 +50,12 @@ function EditDonorPage() {
 
   const donor = donorData;
   const [name, setName] = useState("");
-  const [type, setType] = useState("فرد");
+  const [type, setType] = useState<string>(DonorType.INDIVIDUAL);
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
-  const [tag, setTag] = useState("عام");
+  const [tag, setTag] = useState<string>(DonorTag.BRONZE);
   const [recurring, setRecurring] = useState(false);
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -62,12 +64,12 @@ function EditDonorPage() {
   useEffect(() => {
     if (donor) {
       setName(donor.name || "");
-      setType(donor.type || "فرد");
+      setType(donor.type || DonorType.INDIVIDUAL);
       setPhone(donor.phone || "");
       setEmail(donor.email || "");
       setCity(donor.city || "");
       setAddress(donor.address || "");
-      setTag(donor.tag || "عام");
+      setTag(donor.tag || DonorTag.BRONZE);
       setRecurring(donor.recurring || false);
       setNotes(donor.notes || "");
     }
@@ -159,10 +161,11 @@ function EditDonorPage() {
             </FormField>
             <FormField label="النوع">
               <FormSelect value={type} onChange={(e) => setType(e.target.value)}>
-                <option value="فرد">فرد</option>
-                <option value="شركة">شركة</option>
-                <option value="مؤسسة">مؤسسة</option>
-                <option value="جهة حكومية">جهة حكومية</option>
+                {options("donorType").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </FormSelect>
             </FormField>
           </FormRow>
@@ -192,11 +195,11 @@ function EditDonorPage() {
         <FormSection title="تصنيف المتبرع">
           <FormField label="الوسم">
             <FormSelect value={tag} onChange={(e) => setTag(e.target.value)}>
-              <option value="عام">عام</option>
-              <option value="VIP">VIP</option>
-              <option value="متكرر">متكرر</option>
-              <option value="جديد">جديد</option>
-              <option value="غير نشط">غير نشط</option>
+              {options("donorTag").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </FormSelect>
           </FormField>
           <FormField label="متبرع متكرر">
@@ -230,7 +233,7 @@ function EditDonorPage() {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-mono text-xs text-muted-foreground">{d.id}</span>
-                    <Badge tone={statusTone(d.status)}>{d.status}</Badge>
+                    <Badge tone={statusTone(d.status)}>{label("donationStatus", d.status)}</Badge>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">{d.date}</span>
@@ -252,7 +255,7 @@ function EditDonorPage() {
             <FormSummaryLine label="إجمالي التبرعات" value={fmtSAR(donor.totalDonations)} tone="success" />
             <FormSummaryLine label="عدد التبرعات" value={fmtNum(donor.donationCount)} />
             <FormSummaryLine label="آخر تبرع" value={donor.lastDonation || "—"} />
-            <FormSummaryLine label="الحالة" value={donor.status} />
+            <FormSummaryLine label="الحالة" value={label("donorStatus", donor.status)} />
             <FormSummaryLine label="تاريخ التسجيل" value={donor.createdAt} />
             <FormSummaryLine label="أنشأ بواسطة" value={donor.createdBy || "—"} />
           </div>
@@ -277,9 +280,9 @@ function EditDonorPage() {
       <EnterpriseFormLayout
         breadcrumb={[{ label: "المتبرعون", to: "/donors" }, { label: donor.name }]}
         title={donor.name}
-        subtitle={`${donor.type} · ${donor.city || "—"}`}
+        subtitle={`${label("donorType", donor.type)} · ${donor.city || "—"}`}
         draftNumber={donor.id}
-        status={{ label: donor.status, tone: statusTone(donor.status) }}
+        status={{ label: label("donorStatus", donor.status), tone: statusTone(donor.status) }}
         tabs={tabs}
         defaultTab="basic"
         loading={saving || updateMutation.isPending}

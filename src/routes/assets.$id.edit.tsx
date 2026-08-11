@@ -34,11 +34,14 @@ import {
   disposeFixedAsset,
   sellFixedAsset,
   deleteFixedAsset,
-  ASSET_STATUSES,
-  ASSET_CONDITIONS,
-  ASSET_DEPRECIATION_METHODS,
   type FixedAsset,
 } from "@/lib/api/assets";
+import {
+  AssetStatus as AssetStatusEnum,
+  AssetCondition as AssetConditionEnum,
+  DepreciationMethod,
+} from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 const CATEGORIES = [
   "أجهزة كمبيوتر",
@@ -81,12 +84,14 @@ function EditAssetPage() {
   const [cost, setCost] = useState("0");
   const [salvageValue, setSalvageValue] = useState("0");
   const [usefulLifeMonths, setUsefulLifeMonths] = useState("60");
-  const [depreciationMethod, setDepreciationMethod] = useState("قسط ثابت");
-  const [condition, setCondition] = useState("جيد");
+  const [depreciationMethod, setDepreciationMethod] = useState<string>(
+    DepreciationMethod.STRAIGHT_LINE,
+  );
+  const [condition, setCondition] = useState<string>(AssetConditionEnum.GOOD);
   const [purchaseDate, setPurchaseDate] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
   const [responsiblePerson, setResponsiblePerson] = useState("");
-  const [status, setStatus] = useState("نشط");
+  const [status, setStatus] = useState<string>(AssetStatusEnum.ACTIVE);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -99,7 +104,7 @@ function EditAssetPage() {
   const [maintainReason, setMaintainReason] = useState("");
   const [depAmount, setDepAmount] = useState("");
   const [depDate, setDepDate] = useState(new Date().toISOString().slice(0, 10));
-  const [returnCondition, setReturnCondition] = useState("جيد");
+  const [returnCondition, setReturnCondition] = useState<string>(AssetConditionEnum.GOOD);
   const [disposeReason, setDisposeReason] = useState("");
   const [salePrice, setSalePrice] = useState("");
   const [saleBuyer, setSaleBuyer] = useState("");
@@ -113,20 +118,19 @@ function EditAssetPage() {
     setCost(String(item.cost || 0));
     setSalvageValue(String(item.salvageValue || 0));
     setUsefulLifeMonths(String(item.usefulLifeMonths || 60));
-    setDepreciationMethod(item.depreciationMethod || "قسط ثابت");
-    setCondition(item.condition || "جيد");
+    setDepreciationMethod(item.depreciationMethod || DepreciationMethod.STRAIGHT_LINE);
+    setCondition(item.condition || AssetConditionEnum.GOOD);
     setPurchaseDate(item.purchaseDate || "");
     setSerialNumber(item.serialNumber || "");
     setResponsiblePerson(item.responsiblePerson || "");
-    setStatus(item.status || "نشط");
+    setStatus(item.status || AssetStatusEnum.ACTIVE);
     setNotes(item.notes || "");
     setToLocation(item.location);
     setToResponsible(item.responsiblePerson);
     setHydrated(true);
   }
 
-  const isReadOnly =
-    !!item && (item.status === "مستبعد" || item.status === "مباع" || item.status === "ملغي");
+  const isReadOnly = !!item && item.status === AssetStatusEnum.DISPOSED;
 
   const handleSave = async () => {
     if (isReadOnly) {
@@ -411,9 +415,9 @@ function EditAssetPage() {
                 value={depreciationMethod}
                 onChange={(e) => setDepreciationMethod(e.target.value)}
               >
-                {ASSET_DEPRECIATION_METHODS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
+                {options("depreciationMethod").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </FormSelect>
@@ -451,7 +455,7 @@ function EditAssetPage() {
       content: isReadOnly ? (
         <FormSection title="العمليات">
           <div className="rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground text-center">
-            الأصل في حالة "{item?.status}" — لا يمكن تنفيذ عمليات إضافية.
+            الأصل في حالة "{label("assetStatus", item?.status)}" — لا يمكن تنفيذ عمليات إضافية.
           </div>
         </FormSection>
       ) : (
@@ -479,7 +483,7 @@ function EditAssetPage() {
                 تحوّل الأصل إلى حالة "تحت الصيانة"
               </div>
             </button>
-            {item?.status === "تحت الصيانة" && (
+            {item?.status === AssetStatusEnum.UNDER_MAINTENANCE && (
               <button
                 type="button"
                 onClick={() => setConfirmAction("return")}
@@ -539,7 +543,11 @@ function EditAssetPage() {
           <FormSummaryLine label="الاسم" value={item.name} />
           <FormSummaryLine label="رقم الأصل" value={item.code || "—"} />
           <FormSummaryLine label="التصنيف" value={item.category || "—"} />
-          <FormSummaryLine label="الحالة" value={item.status} tone={statusTone(item.status)} />
+          <FormSummaryLine
+            label="الحالة"
+            value={label("assetStatus", item.status)}
+            tone={statusTone(item.status)}
+          />
           <FormSummaryLine label="الموقع" value={item.location || "—"} />
           <FormSummaryLine label="المسؤول" value={item.responsiblePerson || "—"} />
           <FormSummaryLine label="تاريخ الشراء" value={item.purchaseDate || "—"} />
@@ -552,7 +560,10 @@ function EditAssetPage() {
           />
           <FormSummaryLine label="القيمة الدفترية" value={fmtSAR(bookValue)} tone="success" />
           <FormSummaryLine label="العمر الافتراضي" value={`${item.usefulLifeMonths} شهرًا`} />
-          <FormSummaryLine label="طريقة الإهلاك" value={item.depreciationMethod} />
+          <FormSummaryLine
+            label="طريقة الإهلاك"
+            value={label("depreciationMethod", item.depreciationMethod)}
+          />
           <FormSummaryLine
             label="عدد حركات الإهلاك"
             value={String(depreciationCount)}
@@ -622,9 +633,11 @@ function EditAssetPage() {
         title={item.name}
         subtitle={`${item.code ? `(${item.code}) · ` : ""}${fmtSAR(bookValue)}`}
         draftNumber={item.id}
-        status={{ label: item.status, tone: statusTone(item.status) }}
+        status={{ label: label("assetStatus", item.status), tone: statusTone(item.status) }}
         isReadOnly={isReadOnly}
-        readonlyReason={isReadOnly ? `الأصل في حالة "${item.status}" — للقراءة فقط.` : undefined}
+        readonlyReason={
+          isReadOnly ? `الأصل في حالة "${label("assetStatus", item.status)}" — للقراءة فقط.` : undefined
+        }
         tabs={tabs}
         defaultTab="basic"
         loading={saving}
@@ -705,9 +718,9 @@ function EditAssetPage() {
               value={returnCondition}
               onChange={(e) => setReturnCondition(e.target.value)}
             >
-              {ASSET_CONDITIONS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
+              {options("assetCondition").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </FormSelect>

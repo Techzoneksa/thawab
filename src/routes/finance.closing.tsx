@@ -37,6 +37,8 @@ import {
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { label, options } from "@/lib/i18n/labels";
+import { FiscalPeriodStatus } from "@/lib/enums";
 import {
   getPeriods,
   getPeriod,
@@ -45,7 +47,6 @@ import {
   closePeriod,
   reopenPeriod,
   deletePeriod,
-  PERIOD_STATUSES,
   type FiscalPeriod,
 } from "@/lib/api/periods";
 
@@ -58,7 +59,7 @@ function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [statusFilter, setStatusFilter] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<FiscalPeriod | null>(null);
@@ -155,7 +156,7 @@ function Page() {
   };
 
   const openEdit = (p: FiscalPeriod) => {
-    if (p.status === "مقفلة") {
+    if (p.status === FiscalPeriodStatus.CLOSED) {
       showToast("لا يمكن تعديل فترة مقفلة. أعد فتحها أولاً.", "error");
       return;
     }
@@ -214,9 +215,9 @@ function Page() {
   };
 
   const stats = {
-    open: periods.filter((p: FiscalPeriod) => p.status === "مفتوحة").length,
-    closed: periods.filter((p: FiscalPeriod) => p.status === "مقفلة").length,
-    reopened: periods.filter((p: FiscalPeriod) => p.status === "معاد فتحتها").length,
+    open: periods.filter((p: FiscalPeriod) => p.status === FiscalPeriodStatus.OPEN).length,
+    closed: periods.filter((p: FiscalPeriod) => p.status === FiscalPeriodStatus.CLOSED).length,
+    reopened: periods.filter((p: FiscalPeriod) => !!p.reopenedAt).length,
     total,
   };
 
@@ -280,9 +281,16 @@ function Page() {
         </div>
         <Select
           label="الحالة"
-          options={["الكل", ...PERIOD_STATUSES]}
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          options={["الكل", ...options("fiscalPeriodStatus").map((o) => o.label)]}
+          value={statusFilter ? label("fiscalPeriodStatus", statusFilter) : "الكل"}
+          onChange={(e) => {
+            const v = e.target.value;
+            setStatusFilter(
+              v === "الكل"
+                ? ""
+                : (options("fiscalPeriodStatus").find((o) => o.label === v)?.value ?? ""),
+            );
+          }}
         />
         <Btn variant="ghost" className="lg:hidden" onClick={() => setFilterOpen(true)}>
           <Filter size={15} />
@@ -356,7 +364,7 @@ function Page() {
               <Td className="font-mono text-xs">{p.startDate}</Td>
               <Td className="font-mono text-xs">{p.endDate}</Td>
               <Td>
-                <Badge tone={statusTone(p.status)}>{p.status}</Badge>
+                <Badge tone={statusTone(p.status)}>{label("fiscalPeriodStatus", p.status)}</Badge>
               </Td>
               <Td className="text-xs">
                 {p.closedByName ? (
@@ -390,7 +398,7 @@ function Page() {
                 >
                   {p.name}
                 </button>
-                <Badge tone={statusTone(p.status)}>{p.status}</Badge>
+                <Badge tone={statusTone(p.status)}>{label("fiscalPeriodStatus", p.status)}</Badge>
               </div>
               <div className="flex items-center gap-3 text-xs text-muted-foreground mb-2">
                 <span>
@@ -488,7 +496,7 @@ function Page() {
         {detailData && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow label="الحالة" value={detailData.item.status} />
+              <DetailRow label="الحالة" value={label("fiscalPeriodStatus", detailData.item.status)} />
               <DetailRow label="من تاريخ" value={detailData.item.startDate} />
               <DetailRow label="إلى تاريخ" value={detailData.item.endDate} />
               <DetailRow label="أنشأ بواسطة" value={detailData.item.createdBy || "—"} />
@@ -615,9 +623,11 @@ function Page() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <option>الكل</option>
-              {PERIOD_STATUSES.map((s) => (
-                <option key={s}>{s}</option>
+              <option value="">الكل</option>
+              {options("fiscalPeriodStatus").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
               ))}
             </select>
           </div>
@@ -673,7 +683,7 @@ function getPeriodActions(
     variant?: "destructive";
   }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(p.id) }];
 
-  if (p.status === "مفتوحة") {
+  if (p.status === FiscalPeriodStatus.OPEN) {
     actions.push({ label: "تعديل", icon: Pencil, onClick: () => openEdit(p) });
     actions.push({
       label: "إقفال الفترة",
@@ -688,19 +698,11 @@ function getPeriodActions(
     });
   }
 
-  if (p.status === "مقفلة") {
+  if (p.status === FiscalPeriodStatus.CLOSED) {
     actions.push({
       label: "إعادة الفتح",
       icon: Unlock,
       onClick: () => setActionTarget({ id: p.id, name: p.name, action: "reopen" }),
-    });
-  }
-
-  if (p.status === "معاد فتحتها") {
-    actions.push({
-      label: "إقفال مرة أخرى",
-      icon: Lock,
-      onClick: () => setActionTarget({ id: p.id, name: p.name, action: "close" }),
     });
   }
 

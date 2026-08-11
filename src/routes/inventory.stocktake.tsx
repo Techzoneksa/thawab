@@ -12,7 +12,17 @@ import {
   MobileSearchInput,
 } from "@/components/erp/AppShell";
 import { fmtSAR } from "@/data/sample";
-import { Plus, PackageSearch, Eye, CheckCircle, Trash2, Send, Lock, Search } from "lucide-react";
+import {
+  Plus,
+  PackageSearch,
+  Eye,
+  CheckCircle,
+  Trash2,
+  Send,
+  Lock,
+  Search,
+  ChevronDown,
+} from "lucide-react";
 import { useState } from "react";
 import {
   showToast,
@@ -29,11 +39,12 @@ import {
   approveStocktake,
   closeStocktake,
   deleteStocktake,
-  STOCKTAKE_STATUSES,
   type Stocktake,
 } from "@/lib/api/stocktake";
 import { getWarehouses, type Warehouse } from "@/lib/api/warehouses";
 import { getInventoryItems, type InventoryItem } from "@/lib/api/inventory-items";
+import { StocktakeStatus } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/inventory/stocktake")({
   head: () => ({ meta: [{ title: "الجرد — ثواب" }] }),
@@ -45,7 +56,7 @@ function Page() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [statusFilter, setStatusFilter] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Stocktake | null>(null);
   const [actionTarget, setActionTarget] = useState<{
@@ -127,10 +138,10 @@ function Page() {
   const inventoryItems = itemsData?.items || [];
 
   const stats = {
-    draft: items.filter((s) => s.status === "مسودة").length,
-    pending: items.filter((s) => s.status === "بانتظار الاعتماد").length,
-    approved: items.filter((s) => s.status === "معتمد").length,
-    closed: items.filter((s) => s.status === "مغلق").length,
+    draft: items.filter((s) => s.status === StocktakeStatus.DRAFT).length,
+    pending: items.filter((s) => s.status === StocktakeStatus.COUNTING).length,
+    approved: items.filter((s) => s.status === StocktakeStatus.COMPLETED).length,
+    closed: items.filter((s) => s.status === StocktakeStatus.CANCELLED).length,
     total,
   };
 
@@ -199,16 +210,27 @@ function Page() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <select
-          className="rounded-lg border bg-background py-1.5 px-3 text-sm"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option>الكل</option>
-          {STOCKTAKE_STATUSES.map((s) => (
-            <option key={s}>{s}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground whitespace-nowrap">الحالة:</span>
+          <div className="relative">
+            <select
+              className="appearance-none rounded-lg border bg-background pr-3 pl-7 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring min-h-[36px]"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">الكل</option>
+              {options("stocktakeStatus").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={14}
+              className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="lg:hidden flex items-center gap-2 mb-3">
@@ -271,7 +293,7 @@ function Page() {
               </Td>
               <Td className="font-mono text-xs">{s.date}</Td>
               <Td>
-                <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                <Badge tone={statusTone(s.status)}>{label("stocktakeStatus", s.status)}</Badge>
               </Td>
               <Td>
                 <ActionMenu
@@ -283,7 +305,7 @@ function Page() {
           mobileCard={(s) => (
             <Card key={s.id} className="p-3">
               <div className="flex items-center justify-between mb-2">
-                <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                <Badge tone={statusTone(s.status)}>{label("stocktakeStatus", s.status)}</Badge>
                 <span className="font-mono text-xs text-muted-foreground">{s.id}</span>
               </div>
               <button
@@ -306,7 +328,7 @@ function Page() {
                 >
                   تفاصيل
                 </button>
-                {s.status === "مسودة" && (
+                {s.status === StocktakeStatus.DRAFT && (
                   <button
                     className="flex-1 rounded-lg bg-primary/15 text-primary text-xs font-semibold py-2 min-h-[36px]"
                     onClick={() =>
@@ -320,7 +342,7 @@ function Page() {
                     إرسال للاعتماد
                   </button>
                 )}
-                {s.status === "بانتظار الاعتماد" && (
+                {s.status === StocktakeStatus.COUNTING && (
                   <button
                     className="flex-1 rounded-lg bg-success/15 text-success text-xs font-semibold py-2 min-h-[36px]"
                     onClick={() => setActionTarget({ st: s, action: "approve" })}
@@ -344,7 +366,10 @@ function Page() {
         {detailQuery.data && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow label="الحالة" value={detailQuery.data.item.status} />
+              <DetailRow
+                label="الحالة"
+                value={label("stocktakeStatus", detailQuery.data.item.status)}
+              />
               <DetailRow label="التاريخ" value={detailQuery.data.item.date} />
               <DetailRow
                 label="المستودع"
@@ -519,7 +544,7 @@ function getStocktakeActions(
     },
   ];
 
-  if (s.status === "مسودة") {
+  if (s.status === StocktakeStatus.DRAFT) {
     actions.push({
       label: "إرسال للاعتماد",
       icon: Send,
@@ -533,7 +558,7 @@ function getStocktakeActions(
     });
   }
 
-  if (s.status === "بانتظار الاعتماد") {
+  if (s.status === StocktakeStatus.COUNTING) {
     actions.push({
       label: "اعتماد",
       icon: CheckCircle,
@@ -541,7 +566,7 @@ function getStocktakeActions(
     });
   }
 
-  if (s.status === "معتمد") {
+  if (s.status === StocktakeStatus.COMPLETED) {
     actions.push({
       label: "إغلاق",
       icon: Lock,

@@ -23,6 +23,7 @@ import {
   ToggleLeft,
   ToggleRight,
   Package,
+  ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -43,10 +44,11 @@ import {
   adjustInventoryItem,
   transferInventoryItem,
   deleteInventoryItem,
-  ITEM_STATUSES,
   type InventoryItem,
 } from "@/lib/api/inventory-items";
 import { getWarehouses, type Warehouse } from "@/lib/api/warehouses";
+import { InventoryItemStatus } from "@/lib/enums";
+import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/inventory/items")({
   head: () => ({ meta: [{ title: "الأصناف — ثواب" }] }),
@@ -66,8 +68,8 @@ function Page() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("الكل");
-  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<InventoryItem | null>(null);
   const [moveTarget, setMoveTarget] = useState<InventoryItem | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -228,7 +230,7 @@ function Page() {
 
   const stats = {
     total: items.length,
-    active: items.filter((i) => i.status === "نشط").length,
+    active: items.filter((i) => i.status === InventoryItemStatus.ACTIVE).length,
     lowStock: items.filter((i) => i.quantity <= i.minQuantity && i.quantity > 0).length,
     outOfStock: items.filter((i) => i.quantity === 0).length,
     totalValue: items.reduce((s, i) => s + (i.quantity || 0) * (i.price || 0), 0),
@@ -307,23 +309,34 @@ function Page() {
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
         >
-          <option>الكل</option>
+          <option value="">الكل</option>
           <option>مساعدات</option>
           <option>مواد غذائية</option>
           <option>أجهزة</option>
           <option>قرطاسية</option>
           <option>معدات</option>
         </select>
-        <select
-          className="rounded-lg border bg-background py-1.5 px-3 text-sm"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option>الكل</option>
-          {ITEM_STATUSES.map((s) => (
-            <option key={s}>{s}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground whitespace-nowrap">الحالة:</span>
+          <div className="relative">
+            <select
+              className="appearance-none rounded-lg border bg-background pr-3 pl-7 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring min-h-[36px]"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">الكل</option>
+              {options("inventoryItemStatus").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={14}
+              className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="lg:hidden flex items-center gap-2 mb-3">
@@ -395,7 +408,9 @@ function Page() {
               </Td>
               <Td className="tabular-nums">{fmtSAR(i.price)}</Td>
               <Td>
-                <Badge tone={statusTone(i.status)}>{i.status}</Badge>
+                <Badge tone={statusTone(i.status)}>
+                  {label("inventoryItemStatus", i.status)}
+                </Badge>
               </Td>
               <Td>
                 <ActionMenu
@@ -415,7 +430,9 @@ function Page() {
           mobileCard={(i) => (
             <Card key={i.id} className="p-3">
               <div className="flex items-center justify-between mb-2">
-                <Badge tone={statusTone(i.status)}>{i.status}</Badge>
+                <Badge tone={statusTone(i.status)}>
+                  {label("inventoryItemStatus", i.status)}
+                </Badge>
                 <span className="font-mono text-xs text-muted-foreground">{i.sku || i.id}</span>
               </div>
               <button
@@ -473,7 +490,10 @@ function Page() {
               <DetailRow label="SKU" value={detailQuery.data.item.sku || "—"} />
               <DetailRow label="الفئة" value={detailQuery.data.item.category || "—"} />
               <DetailRow label="الوحدة" value={detailQuery.data.item.unit} />
-              <DetailRow label="الحالة" value={detailQuery.data.item.status} />
+              <DetailRow
+                label="الحالة"
+                value={label("inventoryItemStatus", detailQuery.data.item.status)}
+              />
               <DetailRow
                 label="الكمية"
                 value={`${fmtSAR(detailQuery.data.item.quantity)} ${detailQuery.data.item.unit}`}
@@ -670,8 +690,8 @@ function stockTone(qty: number, min: number): string {
 }
 
 function statusTone(s: string): "success" | "muted" | "destructive" | "warning" {
-  if (s === "نشط") return "success";
-  if (s === "مغلق") return "destructive";
+  if (s === InventoryItemStatus.ACTIVE) return "success";
+  if (s === InventoryItemStatus.INACTIVE) return "destructive";
   return "muted";
 }
 
@@ -703,14 +723,14 @@ function getItemActions(
     { label: "تعديل", icon: Edit, onClick: () => openEdit(i) },
   ];
 
-  if (i.status !== "مغلق") {
+  if (i.status !== InventoryItemStatus.INACTIVE) {
     actions.push({ label: "استلام", icon: ShoppingCart, onClick: () => openMove(i, "receive") });
     actions.push({ label: "صرف", icon: ArrowRight, onClick: () => openMove(i, "issue") });
     actions.push({ label: "تسوية", icon: Package, onClick: () => openMove(i, "adjust") });
     actions.push({ label: "تحويل", icon: ArrowRight, onClick: () => openMove(i, "transfer") });
   }
 
-  if (i.status === "نشط") {
+  if (i.status === InventoryItemStatus.ACTIVE) {
     actions.push({
       label: "تعطيل",
       icon: ToggleLeft,
