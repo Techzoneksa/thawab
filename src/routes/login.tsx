@@ -126,7 +126,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-lg border bg-background py-3 pr-10 pl-3 text-sm"
+                  className="w-full rounded-lg border bg-background py-3 pr-10 pl-10 text-sm"
                   placeholder="••••••••"
                   dir="ltr"
                 />
