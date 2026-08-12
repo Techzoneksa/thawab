@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, Lock, AlertTriangle, Loader2, Save, X } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -16,7 +16,10 @@ export interface EnterpriseFormLayoutProps {
   title: string;
   subtitle?: string;
   draftNumber?: string;
-  status?: { label: string; tone: "muted" | "success" | "warning" | "destructive" | "info" | "primary" };
+  status?: {
+    label: string;
+    tone: "muted" | "success" | "warning" | "destructive" | "info" | "primary";
+  };
   isReadOnly?: boolean;
   readonlyReason?: string;
   validationErrors?: string[];
@@ -63,7 +66,10 @@ export function EnterpriseFormLayout({
   onCancel,
   children,
 }: EnterpriseFormLayoutProps) {
-  const activeTab = defaultTab ?? tabs[0]?.id;
+  // Controlled tab state — must be React state (not a const) so clicking a
+  // trigger actually switches tabs. Both the header <Tabs> (the trigger list)
+  // and the body <Tabs> (the panels) are driven by this same state.
+  const [activeTab, setActiveTab] = useState<string | undefined>(defaultTab ?? tabs[0]?.id);
   const canEdit = !isReadOnly && !loading;
 
   return (
@@ -76,10 +82,7 @@ export function EnterpriseFormLayout({
               {breadcrumb.map((b, i) => (
                 <span key={i} className="flex items-center gap-1 whitespace-nowrap shrink-0">
                   {b.to ? (
-                    <Link
-                      to={b.to}
-                      className="hover:text-foreground hover:underline font-medium"
-                    >
+                    <Link to={b.to} className="hover:text-foreground hover:underline font-medium">
                       {b.label}
                     </Link>
                   ) : (
@@ -161,13 +164,12 @@ export function EnterpriseFormLayout({
         </div>
         {tabs.length > 1 && (
           <div className="px-3 sm:px-4 lg:px-8 border-t bg-surface">
-            <Tabs value={activeTab} dir="rtl" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} dir="rtl" className="w-full">
               <TabsList className="h-auto p-0 bg-transparent rounded-none justify-start gap-0 overflow-x-auto no-scrollbar -mx-1">
                 {tabs.map((t) => (
                   <TabsTrigger
                     key={t.id}
                     value={t.id}
-                    disabled={isReadOnly && t.id !== activeTab}
                     className={cn(
                       "rounded-none border-b-2 border-transparent px-3 sm:px-4 py-2.5 text-sm font-medium whitespace-nowrap shrink-0",
                       "data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none",
@@ -217,7 +219,7 @@ export function EnterpriseFormLayout({
       {/* Body */}
       <div className="flex-1 px-3 sm:px-4 lg:px-8 py-4 lg:py-6 overflow-x-hidden">
         {tabs.length > 1 ? (
-          <Tabs value={activeTab} className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             {tabs.map((t) => (
               <TabsContent key={t.id} value={t.id} className="mt-0 focus-visible:outline-none">
                 {t.content}
