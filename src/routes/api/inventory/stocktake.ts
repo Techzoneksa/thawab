@@ -10,7 +10,8 @@ import {
   stockMovements,
 } from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
-import { StocktakeStatus, StockMovementType } from "@/lib/enums";
+import { postBalancedEntry, resolveSystemAccountId, SYS } from "@/server/db/gl";
+import { StocktakeStatus, StockMovementType, JournalSource } from "@/lib/enums";
 
 // Statuses that lock a stocktake from further edits.
 const READ_ONLY_STATUSES: string[] = [StocktakeStatus.COMPLETED, StocktakeStatus.CANCELLED];
@@ -71,12 +72,17 @@ async function POST(event: { request: Request }, ctx: Ctx) {
 
     if (b.action === "submit") {
       if (!b.id) return err("معرف الجرد مطلوب", 400, "BAD_REQUEST");
-      const existing = (await db.select().from(stocktakes).where(eq(stocktakes.id, b.id)).limit(1))[0];
+      const existing = (
+        await db.select().from(stocktakes).where(eq(stocktakes.id, b.id)).limit(1)
+      )[0];
       if (!existing) return err("الجرد غير موجود", 404, "NOT_FOUND");
       if (existing.status !== StocktakeStatus.DRAFT)
         return err("يمكن إرسال المسودة فقط", 400, "INVALID_STATE");
 
-      const lines = await db.select().from(stocktakeLines).where(eq(stocktakeLines.stocktakeId, b.id));
+      const lines = await db
+        .select()
+        .from(stocktakeLines)
+        .where(eq(stocktakeLines.stocktakeId, b.id));
       if (lines.length === 0) return err("لا يمكن إرسال جرد فارغ", 400, "EMPTY");
 
       const before = JSON.stringify(existing);
@@ -94,34 +100,48 @@ async function POST(event: { request: Request }, ctx: Ctx) {
         before,
         ip: ctx.ip,
       });
-      const updated = (await db.select().from(stocktakes).where(eq(stocktakes.id, b.id)).limit(1))[0];
+      const updated = (
+        await db.select().from(stocktakes).where(eq(stocktakes.id, b.id)).limit(1)
+      )[0];
       return Response.json({ item: updated });
     }
 
     if (b.action === "approve") {
       if (!b.id) return err("معرف الجرد مطلوب", 400, "BAD_REQUEST");
       const stId = b.id;
-      const existing = (await db.select().from(stocktakes).where(eq(stocktakes.id, stId)).limit(1))[0];
+      const existing = (
+        await db.select().from(stocktakes).where(eq(stocktakes.id, stId)).limit(1)
+      )[0];
       if (!existing) return err("الجرد غير موجود", 404, "NOT_FOUND");
       if (existing.status !== StocktakeStatus.COUNTING)
         return err("الجرد ليس بانتظار الاعتماد", 400, "INVALID_STATE");
 
-      const lines = await db.select().from(stocktakeLines).where(eq(stocktakeLines.stocktakeId, stId));
+      const lines = await db
+        .select()
+        .from(stocktakeLines)
+        .where(eq(stocktakeLines.stocktakeId, stId));
       const ts = now();
       const before = JSON.stringify(existing);
 
       // Apply the stocktake atomically: for each line with a difference create an
-      // adjustment movement and update the item quantity, then mark the stocktake done.
+      // adjustment movement and update the item quantity, accumulate the net value
+      // change, post one balanced GL entry, then mark the stocktake done.
       await db.transaction(async (tx) => {
+        // Net inventory value change (difference × unit cost). Negative = shortage.
+        let netValue = 0;
+
         for (const line of lines) {
           if (Math.abs(line.difference) < 0.0001) continue;
-          const item = (await tx
-            .select()
-            .from(inventoryItems)
-            .where(eq(inventoryItems.id, line.itemId))
-            .limit(1))[0];
+          const item = (
+            await tx
+              .select()
+              .from(inventoryItems)
+              .where(eq(inventoryItems.id, line.itemId))
+              .limit(1)
+          )[0];
           if (!item) continue;
 
+          netValue += line.difference * (item.price || 0);
           const newQty = item.quantity + line.difference;
           await tx
             .update(inventoryItems)
@@ -146,6 +166,33 @@ async function POST(event: { request: Request }, ctx: Ctx) {
           });
         }
 
+        // Post the inventory adjustment to the GL so the inventory asset stays
+        // reconciled: shortage => Dr Adjustment / Cr Inventory; surplus => reverse.
+        if (Math.abs(netValue) > 0.005) {
+          const inventory = await resolveSystemAccountId(tx as any, SYS.INVENTORY);
+          const adjustment = await resolveSystemAccountId(tx as any, SYS.INVENTORY_ADJUSTMENT);
+          const amount = Math.abs(netValue);
+          const glLines =
+            netValue > 0
+              ? [
+                  { accountId: inventory, debit: amount },
+                  { accountId: adjustment, credit: amount },
+                ]
+              : [
+                  { accountId: adjustment, debit: amount },
+                  { accountId: inventory, credit: amount },
+                ];
+          await postBalancedEntry(tx as any, {
+            date: ts.slice(0, 10),
+            description: `تسوية جرد المخزون — ${existing.name}`,
+            source: JournalSource.ADJUSTMENT,
+            sourceType: "stocktake",
+            sourceId: stId,
+            lines: glLines,
+            userId: ctx.user.id,
+          });
+        }
+
         await tx
           .update(stocktakes)
           .set({
@@ -167,13 +214,17 @@ async function POST(event: { request: Request }, ctx: Ctx) {
         before,
         ip: ctx.ip,
       });
-      const updated = (await db.select().from(stocktakes).where(eq(stocktakes.id, stId)).limit(1))[0];
+      const updated = (
+        await db.select().from(stocktakes).where(eq(stocktakes.id, stId)).limit(1)
+      )[0];
       return Response.json({ item: updated });
     }
 
     if (b.action === "close") {
       if (!b.id) return err("معرف الجرد مطلوب", 400, "BAD_REQUEST");
-      const existing = (await db.select().from(stocktakes).where(eq(stocktakes.id, b.id)).limit(1))[0];
+      const existing = (
+        await db.select().from(stocktakes).where(eq(stocktakes.id, b.id)).limit(1)
+      )[0];
       if (!existing) return err("الجرد غير موجود", 404, "NOT_FOUND");
       if (existing.status !== StocktakeStatus.COMPLETED)
         return err("يمكن إغلاق الجرد المعتمد فقط", 400, "INVALID_STATE");
@@ -193,7 +244,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
         before,
         ip: ctx.ip,
       });
-      const updated = (await db.select().from(stocktakes).where(eq(stocktakes.id, b.id)).limit(1))[0];
+      const updated = (
+        await db.select().from(stocktakes).where(eq(stocktakes.id, b.id)).limit(1)
+      )[0];
       return Response.json({ item: updated });
     }
 
@@ -202,7 +255,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     if (!b.date?.trim()) return err("تاريخ الجرد مطلوب", 400, "BAD_REQUEST");
 
     if (b.warehouseId) {
-      const wh = (await db.select().from(warehouses).where(eq(warehouses.id, b.warehouseId)).limit(1))[0];
+      const wh = (
+        await db.select().from(warehouses).where(eq(warehouses.id, b.warehouseId)).limit(1)
+      )[0];
       if (!wh) return err("المستودع غير موجود", 400, "BAD_REQUEST");
     }
 
@@ -213,11 +268,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     // Resolve each line's system quantity before opening the transaction.
     const linesToInsert = await Promise.all(
       inputLines.map(async (l) => {
-        const item = (await db
-          .select()
-          .from(inventoryItems)
-          .where(eq(inventoryItems.id, l.itemId))
-          .limit(1))[0];
+        const item = (
+          await db.select().from(inventoryItems).where(eq(inventoryItems.id, l.itemId)).limit(1)
+        )[0];
         const systemQty = item?.quantity ?? 0;
         const countedQty = l.countedQuantity ?? 0;
         return {
@@ -276,7 +329,9 @@ const updateSchema = z.object({
 async function PUT(event: { request: Request }, ctx: Ctx) {
   return guard(async () => {
     const b = await parseBody(event.request, updateSchema);
-    const existing = (await db.select().from(stocktakes).where(eq(stocktakes.id, b.id)).limit(1))[0];
+    const existing = (
+      await db.select().from(stocktakes).where(eq(stocktakes.id, b.id)).limit(1)
+    )[0];
     if (!existing) return err("الجرد غير موجود", 404, "NOT_FOUND");
     if (READ_ONLY_STATUSES.includes(existing.status)) {
       return err("لا يمكن تعديل جرد معتمد أو مغلق", 400, "READ_ONLY");
@@ -317,11 +372,7 @@ async function DELETE({ request }: { request: Request }, ctx: Ctx) {
   const existing = (await db.select().from(stocktakes).where(eq(stocktakes.id, id)).limit(1))[0];
   if (!existing) return err("الجرد غير موجود", 404, "NOT_FOUND");
   if (existing.status !== StocktakeStatus.DRAFT) {
-    return err(
-      "لا يمكن حذف جرد تمت معالجته. يحتفظ النظام به للسجل التاريخي.",
-      400,
-      "NOT_DRAFT",
-    );
+    return err("لا يمكن حذف جرد تمت معالجته. يحتفظ النظام به للسجل التاريخي.", 400, "NOT_DRAFT");
   }
 
   const before = JSON.stringify(existing);

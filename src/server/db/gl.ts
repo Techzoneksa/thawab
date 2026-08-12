@@ -25,6 +25,7 @@ export const SYS = {
   AID_EXPENSE: "aid_expense",
   ACCOUNTS_PAYABLE: "accounts_payable",
   INVENTORY: "inventory",
+  INVENTORY_ADJUSTMENT: "inventory_adjustment",
   NET_ASSETS_UNRESTRICTED: "net_assets_unrestricted",
   NET_ASSETS_RESTRICTED: "net_assets_restricted",
   NET_ASSETS_ENDOWMENT: "net_assets_endowment",
@@ -205,7 +206,10 @@ export async function reverseEntry(tx: Db, entryId: string, userId: string): Pro
   if (!entry) throw new AppError("GL: القيد غير موجود");
   if (entry.status !== JournalStatus.POSTED) throw new AppError("GL: يمكن عكس القيود المرحّلة فقط");
 
-  const lines = await tx.select().from(journalLines).where(eq(journalLines.journalEntryId, entryId));
+  const lines = await tx
+    .select()
+    .from(journalLines)
+    .where(eq(journalLines.journalEntryId, entryId));
   const mirrored: PostLineInput[] = lines.map((l: any) => ({
     accountId: l.accountId,
     debit: l.credit,

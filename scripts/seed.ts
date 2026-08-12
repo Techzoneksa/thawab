@@ -39,19 +39,51 @@ const ROLES = [
     id: "role-accountant",
     name: "محاسب",
     description: "إدارة الشؤون المالية",
-    permissions: ["finance.*", "donations.*", "campaigns.*", "grants.*", "endowments.*", "receipts.*", "donors.view", "reports.*", "audit.view", "documents.*"],
+    permissions: [
+      "finance.*",
+      "donations.*",
+      "campaigns.*",
+      "grants.*",
+      "endowments.*",
+      "receipts.*",
+      "donors.view",
+      "reports.*",
+      "audit.view",
+      "documents.*",
+    ],
   },
   {
     id: "role-manager",
     name: "مدير تنفيذي",
     description: "إدارة البرامج والمشاريع",
-    permissions: ["projects.*", "aid.*", "beneficiaries.*", "donations.*", "campaigns.*", "grants.*", "endowments.*", "memberships.*", "meetings.*", "hr.*", "approvals.*", "*.view", "documents.*"],
+    permissions: [
+      "projects.*",
+      "aid.*",
+      "beneficiaries.*",
+      "donations.*",
+      "campaigns.*",
+      "grants.*",
+      "endowments.*",
+      "memberships.*",
+      "meetings.*",
+      "hr.*",
+      "approvals.*",
+      "*.view",
+      "documents.*",
+    ],
   },
   {
     id: "role-data-entry",
     name: "مدخل بيانات",
     description: "إدخال المتبرعين والمستفيدين",
-    permissions: ["donors.*", "donations.view", "donations.create", "beneficiaries.*", "aid.view", "aid.create"],
+    permissions: [
+      "donors.*",
+      "donations.view",
+      "donations.create",
+      "beneficiaries.*",
+      "aid.view",
+      "aid.create",
+    ],
   },
   { id: "role-viewer", name: "مطالع", description: "اطلاع فقط", permissions: ["*.view"] },
 ];
@@ -200,6 +232,7 @@ const COA: Row[] = [
   ["5313", "مصروفات الحوكمة (المجلس/الاجتماعات)", "expense", true],
   ["5314", "رسوم واشتراكات حكومية", "expense", true],
   ["5315", "مصروفات متنوعة", "expense", true],
+  ["5316", "تسويات المخزون (عجز/فائض)", "expense", true, "inventory_adjustment"],
 ];
 
 function levelOf(code: string): number {
@@ -219,7 +252,9 @@ async function main() {
 
   // Roles
   for (const r of ROLES) {
-    const existing = (await db.select().from(schema.roles).where(eq(schema.roles.id, r.id)).limit(1))[0];
+    const existing = (
+      await db.select().from(schema.roles).where(eq(schema.roles.id, r.id)).limit(1)
+    )[0];
     if (!existing) {
       await db.insert(schema.roles).values({
         id: r.id,
@@ -273,7 +308,11 @@ async function main() {
   // Admin user (only if no users exist at all)
   const anyUser = (await db.select().from(schema.users).limit(1))[0];
   if (!anyUser) {
-    const password = randomBytes(9).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) + "A9!";
+    const password =
+      randomBytes(9)
+        .toString("base64")
+        .replace(/[^a-zA-Z0-9]/g, "")
+        .slice(0, 12) + "A9!";
     await db.insert(schema.users).values({
       id: "USR-admin",
       name: "مدير النظام",
@@ -297,7 +336,13 @@ async function main() {
   // Open fiscal period for the current year
   const year = new Date().getFullYear();
   const periodId = `FP-${year}`;
-  const existingPeriod = (await db.select().from(schema.fiscalPeriods).where(eq(schema.fiscalPeriods.id, periodId)).limit(1))[0];
+  const existingPeriod = (
+    await db
+      .select()
+      .from(schema.fiscalPeriods)
+      .where(eq(schema.fiscalPeriods.id, periodId))
+      .limit(1)
+  )[0];
   if (!existingPeriod) {
     await db.insert(schema.fiscalPeriods).values({
       id: periodId,

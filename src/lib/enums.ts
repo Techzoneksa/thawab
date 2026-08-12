@@ -199,6 +199,7 @@ export const JournalSource = {
   PURCHASE: "purchase",
   PAYROLL: "payroll",
   DEPRECIATION: "depreciation",
+  ADJUSTMENT: "adjustment",
   OPENING: "opening",
   CLOSING: "closing",
 } as const;
