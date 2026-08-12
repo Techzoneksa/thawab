@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -10,20 +10,13 @@ import {
 } from "@/components/erp/AppShell";
 import { fmtSAR, fmtNum } from "@/data/sample";
 import { label } from "@/lib/i18n/labels";
-import {
-  getCampaigns,
-  createCampaign,
-  updateCampaign,
-  deleteCampaign,
-  type Campaign,
-} from "@/lib/api/campaigns";
+import { getCampaigns, updateCampaign, deleteCampaign, type Campaign } from "@/lib/api/campaigns";
 import { CampaignStatus } from "@/lib/enums";
-import { Plus, Megaphone, Trash2, Eye, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Megaphone, Pencil, Trash2, Eye, CheckCircle, XCircle } from "lucide-react";
 import { useState } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   EmptyState,
@@ -32,31 +25,16 @@ import {
 export const Route = createFileRoute("/campaigns")({
   head: () => ({ meta: [{ title: "حملات التبرع — ثواب" }] }),
   component: () => {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const [formOpen, setFormOpen] = useState(false);
     const [confirmId, setConfirmId] = useState<string | null>(null);
-    const [formName, setFormName] = useState("");
-    const [formTarget, setFormTarget] = useState("");
 
     const { data, isLoading, error } = useQuery({
       queryKey: ["campaigns"],
       queryFn: () => getCampaigns(),
     });
     const items: Campaign[] = data?.items ?? [];
-
     const invalidate = () => queryClient.invalidateQueries({ queryKey: ["campaigns"] });
-
-    const createMutation = useMutation({
-      mutationFn: createCampaign,
-      onSuccess: () => {
-        invalidate();
-        showToast("تم إضافة الحملة بنجاح", "success");
-        setFormOpen(false);
-        setFormName("");
-        setFormTarget("");
-      },
-      onError: (e: Error) => showToast(e.message, "error"),
-    });
 
     const statusMutation = useMutation({
       mutationFn: updateCampaign,
@@ -80,18 +58,6 @@ export const Route = createFileRoute("/campaigns")({
       },
     });
 
-    const handleSave = () => {
-      if (!formName.trim() || !formTarget.trim()) {
-        showToast("يرجى إدخال البيانات", "error");
-        return;
-      }
-      createMutation.mutate({
-        name: formName.trim(),
-        goal: Number(formTarget),
-        status: CampaignStatus.ACTIVE,
-      });
-    };
-
     return (
       <AppShell
         breadcrumb={["الرئيسية", "التبرعات", "الحملات"]}
@@ -102,14 +68,7 @@ export const Route = createFileRoute("/campaigns")({
               data={items as unknown as Record<string, unknown>[]}
               filename="campaigns.csv"
             />
-            <Btn
-              variant="primary"
-              onClick={() => {
-                setFormName("");
-                setFormTarget("");
-                setFormOpen(true);
-              }}
-            >
+            <Btn variant="primary" onClick={() => navigate({ to: "/campaigns/new" })}>
               <Plus size={15} /> إضافة حملة
             </Btn>
           </>
@@ -144,7 +103,12 @@ export const Route = createFileRoute("/campaigns")({
                     <Badge tone={statusTone(c.status)}>{label("campaignStatus", c.status)}</Badge>
                     <ActionMenu
                       actions={[
-                        { label: "عرض", icon: Eye, onClick: () => showToast(c.name, "info") },
+                        {
+                          label: "تعديل",
+                          icon: Pencil,
+                          onClick: () =>
+                            navigate({ to: "/campaigns/$id/edit", params: { id: c.id } }),
+                        },
                         {
                           label: "إنهاء",
                           icon: CheckCircle,
@@ -187,31 +151,6 @@ export const Route = createFileRoute("/campaigns")({
             );
           })}
         </div>
-
-        <EntityFormDrawer
-          open={formOpen}
-          onClose={() => setFormOpen(false)}
-          title="إضافة حملة"
-          onSave={handleSave}
-        >
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">اسم الحملة</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الهدف</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              value={formTarget}
-              onChange={(e) => setFormTarget(e.target.value)}
-            />
-          </div>
-        </EntityFormDrawer>
 
         {confirmId !== null && (
           <ConfirmDialog

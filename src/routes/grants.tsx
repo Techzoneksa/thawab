@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -12,14 +12,12 @@ import {
 } from "@/components/erp/AppShell";
 import { fmtSAR } from "@/data/sample";
 import { label } from "@/lib/i18n/labels";
-import { getGrants, createGrant, deleteGrant, type Grant } from "@/lib/api/grants";
-import { GrantStatus } from "@/lib/enums";
-import { Plus, Trash2, Eye } from "lucide-react";
+import { getGrants, deleteGrant, type Grant } from "@/lib/api/grants";
+import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { useState } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   EmptyState,
@@ -28,13 +26,9 @@ import {
 export const Route = createFileRoute("/grants")({
   head: () => ({ meta: [{ title: "المنح — ثواب" }] }),
   component: () => {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const [formOpen, setFormOpen] = useState(false);
     const [confirmId, setConfirmId] = useState<string | null>(null);
-    const [formName, setFormName] = useState("");
-    const [formDonor, setFormDonor] = useState("");
-    const [formAmount, setFormAmount] = useState("");
-    const [formEnd, setFormEnd] = useState("");
 
     const { data, isLoading, error } = useQuery({
       queryKey: ["grants"],
@@ -42,26 +36,10 @@ export const Route = createFileRoute("/grants")({
     });
     const items: Grant[] = data?.items ?? [];
 
-    const invalidate = () => queryClient.invalidateQueries({ queryKey: ["grants"] });
-
-    const createMutation = useMutation({
-      mutationFn: createGrant,
-      onSuccess: () => {
-        invalidate();
-        showToast("تم إضافة المنحة بنجاح", "success");
-        setFormOpen(false);
-        setFormName("");
-        setFormDonor("");
-        setFormAmount("");
-        setFormEnd("");
-      },
-      onError: (e: Error) => showToast(e.message, "error"),
-    });
-
     const deleteMutation = useMutation({
       mutationFn: deleteGrant,
       onSuccess: () => {
-        invalidate();
+        queryClient.invalidateQueries({ queryKey: ["grants"] });
         showToast("تم حذف المنحة", "success");
         setConfirmId(null);
       },
@@ -70,20 +48,6 @@ export const Route = createFileRoute("/grants")({
         setConfirmId(null);
       },
     });
-
-    const handleSave = () => {
-      if (!formName.trim() || !formDonor.trim()) {
-        showToast("يرجى إدخال اسم المنحة والجهة المانحة", "error");
-        return;
-      }
-      createMutation.mutate({
-        name: formName.trim(),
-        donor: formDonor.trim(),
-        amount: Number(formAmount) || 0,
-        endDate: formEnd || undefined,
-        status: GrantStatus.ACTIVE,
-      });
-    };
 
     return (
       <>
@@ -96,16 +60,7 @@ export const Route = createFileRoute("/grants")({
                 data={items as unknown as Record<string, unknown>[]}
                 filename="grants.csv"
               />
-              <Btn
-                variant="primary"
-                onClick={() => {
-                  setFormName("");
-                  setFormDonor("");
-                  setFormAmount("");
-                  setFormEnd("");
-                  setFormOpen(true);
-                }}
-              >
+              <Btn variant="primary" onClick={() => navigate({ to: "/grants/new" })}>
                 <Plus size={15} /> إضافة منحة
               </Btn>
             </>
@@ -139,9 +94,9 @@ export const Route = createFileRoute("/grants")({
                     <ActionMenu
                       actions={[
                         {
-                          label: "عرض",
-                          icon: Eye,
-                          onClick: () => showToast(`${g.name} - ${fmtSAR(g.amount)}`, "info"),
+                          label: "تعديل",
+                          icon: Pencil,
+                          onClick: () => navigate({ to: "/grants/$id/edit", params: { id: g.id } }),
                         },
                         {
                           label: "حذف",
@@ -171,50 +126,6 @@ export const Route = createFileRoute("/grants")({
             />
           </>
         </AppShell>
-
-        <EntityFormDrawer
-          open={formOpen}
-          onClose={() => setFormOpen(false)}
-          title="إضافة منحة"
-          onSave={handleSave}
-        >
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">اسم المنحة</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              placeholder="اسم المنحة"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الجهة المانحة</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formDonor}
-              onChange={(e) => setFormDonor(e.target.value)}
-              placeholder="اسم الجهة"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">قيمة المنحة</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              value={formAmount}
-              onChange={(e) => setFormAmount(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">تاريخ الانتهاء</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="date"
-              value={formEnd}
-              onChange={(e) => setFormEnd(e.target.value)}
-            />
-          </div>
-        </EntityFormDrawer>
 
         {confirmId !== null && (
           <ConfirmDialog

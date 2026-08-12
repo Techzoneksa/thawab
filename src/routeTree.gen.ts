@@ -49,6 +49,7 @@ import { Route as ProcurementOrdersRouteImport } from './routes/procurement.orde
 import { Route as InventoryWarehousesRouteImport } from './routes/inventory.warehouses'
 import { Route as InventoryStocktakeRouteImport } from './routes/inventory.stocktake'
 import { Route as InventoryItemsRouteImport } from './routes/inventory.items'
+import { Route as GrantsNewRouteImport } from './routes/grants_.new'
 import { Route as FinanceStatementsRouteImport } from './routes/finance.statements'
 import { Route as FinanceLedgerRouteImport } from './routes/finance.ledger'
 import { Route as FinanceJournalRouteImport } from './routes/finance.journal'
@@ -59,6 +60,7 @@ import { Route as FinanceAccountsRouteImport } from './routes/finance.accounts'
 import { Route as DonorsNewRouteImport } from './routes/donors_.new'
 import { Route as DonorsIdRouteImport } from './routes/donors_.$id'
 import { Route as DonationsNewRouteImport } from './routes/donations_.new'
+import { Route as CampaignsNewRouteImport } from './routes/campaigns_.new'
 import { Route as BeneficiariesNewRouteImport } from './routes/beneficiaries_.new'
 import { Route as BeneficiariesIdRouteImport } from './routes/beneficiaries_.$id'
 import { Route as AssetsNewRouteImport } from './routes/assets_.new'
@@ -91,11 +93,13 @@ import { Route as ProcurementOrdersNewRouteImport } from './routes/procurement.o
 import { Route as InventoryWarehousesNewRouteImport } from './routes/inventory.warehouses_.new'
 import { Route as InventoryStocktakeNewRouteImport } from './routes/inventory.stocktake_.new'
 import { Route as InventoryItemsNewRouteImport } from './routes/inventory.items_.new'
+import { Route as GrantsIdEditRouteImport } from './routes/grants_.$id_.edit'
 import { Route as FinanceJournalNewRouteImport } from './routes/finance.journal_.new'
 import { Route as FinanceBudgetsNewRouteImport } from './routes/finance.budgets_.new'
 import { Route as FinanceAccountsNewRouteImport } from './routes/finance.accounts_.new'
 import { Route as DonorsIdEditRouteImport } from './routes/donors_.$id_.edit'
 import { Route as DonationsIdEditRouteImport } from './routes/donations_.$id_.edit'
+import { Route as CampaignsIdEditRouteImport } from './routes/campaigns_.$id_.edit'
 import { Route as BeneficiariesIdEditRouteImport } from './routes/beneficiaries_.$id_.edit'
 import { Route as AssetsIdEditRouteImport } from './routes/assets_.$id_.edit'
 import { Route as ApiSettingsOrgRouteImport } from './routes/api/settings/org'
@@ -328,6 +332,11 @@ const InventoryItemsRoute = InventoryItemsRouteImport.update({
   path: '/inventory/items',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GrantsNewRoute = GrantsNewRouteImport.update({
+  id: '/grants_/new',
+  path: '/grants/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FinanceStatementsRoute = FinanceStatementsRouteImport.update({
   id: '/finance/statements',
   path: '/finance/statements',
@@ -376,6 +385,11 @@ const DonorsIdRoute = DonorsIdRouteImport.update({
 const DonationsNewRoute = DonationsNewRouteImport.update({
   id: '/donations_/new',
   path: '/donations/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CampaignsNewRoute = CampaignsNewRouteImport.update({
+  id: '/campaigns_/new',
+  path: '/campaigns/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BeneficiariesNewRoute = BeneficiariesNewRouteImport.update({
@@ -538,6 +552,11 @@ const InventoryItemsNewRoute = InventoryItemsNewRouteImport.update({
   path: '/inventory/items/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GrantsIdEditRoute = GrantsIdEditRouteImport.update({
+  id: '/grants_/$id_/edit',
+  path: '/grants/$id/edit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FinanceJournalNewRoute = FinanceJournalNewRouteImport.update({
   id: '/finance/journal_/new',
   path: '/finance/journal/new',
@@ -561,6 +580,11 @@ const DonorsIdEditRoute = DonorsIdEditRouteImport.update({
 const DonationsIdEditRoute = DonationsIdEditRouteImport.update({
   id: '/donations_/$id_/edit',
   path: '/donations/$id/edit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CampaignsIdEditRoute = CampaignsIdEditRouteImport.update({
+  id: '/campaigns_/$id_/edit',
+  path: '/campaigns/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BeneficiariesIdEditRoute = BeneficiariesIdEditRouteImport.update({
@@ -772,6 +796,7 @@ export interface FileRoutesByFullPath {
   '/assets/new': typeof AssetsNewRoute
   '/beneficiaries/$id': typeof BeneficiariesIdRoute
   '/beneficiaries/new': typeof BeneficiariesNewRoute
+  '/campaigns/new': typeof CampaignsNewRoute
   '/donations/new': typeof DonationsNewRoute
   '/donors/$id': typeof DonorsIdRoute
   '/donors/new': typeof DonorsNewRoute
@@ -782,6 +807,7 @@ export interface FileRoutesByFullPath {
   '/finance/journal': typeof FinanceJournalRoute
   '/finance/ledger': typeof FinanceLedgerRoute
   '/finance/statements': typeof FinanceStatementsRoute
+  '/grants/new': typeof GrantsNewRoute
   '/inventory/items': typeof InventoryItemsRoute
   '/inventory/stocktake': typeof InventoryStocktakeRoute
   '/inventory/warehouses': typeof InventoryWarehousesRoute
@@ -817,11 +843,13 @@ export interface FileRoutesByFullPath {
   '/api/settings/org': typeof ApiSettingsOrgRoute
   '/assets/$id/edit': typeof AssetsIdEditRoute
   '/beneficiaries/$id/edit': typeof BeneficiariesIdEditRoute
+  '/campaigns/$id/edit': typeof CampaignsIdEditRoute
   '/donations/$id/edit': typeof DonationsIdEditRoute
   '/donors/$id/edit': typeof DonorsIdEditRoute
   '/finance/accounts/new': typeof FinanceAccountsNewRoute
   '/finance/budgets/new': typeof FinanceBudgetsNewRoute
   '/finance/journal/new': typeof FinanceJournalNewRoute
+  '/grants/$id/edit': typeof GrantsIdEditRoute
   '/inventory/items/new': typeof InventoryItemsNewRoute
   '/inventory/stocktake/new': typeof InventoryStocktakeNewRoute
   '/inventory/warehouses/new': typeof InventoryWarehousesNewRoute
@@ -892,6 +920,7 @@ export interface FileRoutesByTo {
   '/assets/new': typeof AssetsNewRoute
   '/beneficiaries/$id': typeof BeneficiariesIdRoute
   '/beneficiaries/new': typeof BeneficiariesNewRoute
+  '/campaigns/new': typeof CampaignsNewRoute
   '/donations/new': typeof DonationsNewRoute
   '/donors/$id': typeof DonorsIdRoute
   '/donors/new': typeof DonorsNewRoute
@@ -902,6 +931,7 @@ export interface FileRoutesByTo {
   '/finance/journal': typeof FinanceJournalRoute
   '/finance/ledger': typeof FinanceLedgerRoute
   '/finance/statements': typeof FinanceStatementsRoute
+  '/grants/new': typeof GrantsNewRoute
   '/inventory/items': typeof InventoryItemsRoute
   '/inventory/stocktake': typeof InventoryStocktakeRoute
   '/inventory/warehouses': typeof InventoryWarehousesRoute
@@ -937,11 +967,13 @@ export interface FileRoutesByTo {
   '/api/settings/org': typeof ApiSettingsOrgRoute
   '/assets/$id/edit': typeof AssetsIdEditRoute
   '/beneficiaries/$id/edit': typeof BeneficiariesIdEditRoute
+  '/campaigns/$id/edit': typeof CampaignsIdEditRoute
   '/donations/$id/edit': typeof DonationsIdEditRoute
   '/donors/$id/edit': typeof DonorsIdEditRoute
   '/finance/accounts/new': typeof FinanceAccountsNewRoute
   '/finance/budgets/new': typeof FinanceBudgetsNewRoute
   '/finance/journal/new': typeof FinanceJournalNewRoute
+  '/grants/$id/edit': typeof GrantsIdEditRoute
   '/inventory/items/new': typeof InventoryItemsNewRoute
   '/inventory/stocktake/new': typeof InventoryStocktakeNewRoute
   '/inventory/warehouses/new': typeof InventoryWarehousesNewRoute
@@ -1013,6 +1045,7 @@ export interface FileRoutesById {
   '/assets_/new': typeof AssetsNewRoute
   '/beneficiaries_/$id': typeof BeneficiariesIdRoute
   '/beneficiaries_/new': typeof BeneficiariesNewRoute
+  '/campaigns_/new': typeof CampaignsNewRoute
   '/donations_/new': typeof DonationsNewRoute
   '/donors_/$id': typeof DonorsIdRoute
   '/donors_/new': typeof DonorsNewRoute
@@ -1023,6 +1056,7 @@ export interface FileRoutesById {
   '/finance/journal': typeof FinanceJournalRoute
   '/finance/ledger': typeof FinanceLedgerRoute
   '/finance/statements': typeof FinanceStatementsRoute
+  '/grants_/new': typeof GrantsNewRoute
   '/inventory/items': typeof InventoryItemsRoute
   '/inventory/stocktake': typeof InventoryStocktakeRoute
   '/inventory/warehouses': typeof InventoryWarehousesRoute
@@ -1058,11 +1092,13 @@ export interface FileRoutesById {
   '/api/settings/org': typeof ApiSettingsOrgRoute
   '/assets_/$id_/edit': typeof AssetsIdEditRoute
   '/beneficiaries_/$id_/edit': typeof BeneficiariesIdEditRoute
+  '/campaigns_/$id_/edit': typeof CampaignsIdEditRoute
   '/donations_/$id_/edit': typeof DonationsIdEditRoute
   '/donors_/$id_/edit': typeof DonorsIdEditRoute
   '/finance/accounts_/new': typeof FinanceAccountsNewRoute
   '/finance/budgets_/new': typeof FinanceBudgetsNewRoute
   '/finance/journal_/new': typeof FinanceJournalNewRoute
+  '/grants_/$id_/edit': typeof GrantsIdEditRoute
   '/inventory/items_/new': typeof InventoryItemsNewRoute
   '/inventory/stocktake_/new': typeof InventoryStocktakeNewRoute
   '/inventory/warehouses_/new': typeof InventoryWarehousesNewRoute
@@ -1135,6 +1171,7 @@ export interface FileRouteTypes {
     | '/assets/new'
     | '/beneficiaries/$id'
     | '/beneficiaries/new'
+    | '/campaigns/new'
     | '/donations/new'
     | '/donors/$id'
     | '/donors/new'
@@ -1145,6 +1182,7 @@ export interface FileRouteTypes {
     | '/finance/journal'
     | '/finance/ledger'
     | '/finance/statements'
+    | '/grants/new'
     | '/inventory/items'
     | '/inventory/stocktake'
     | '/inventory/warehouses'
@@ -1180,11 +1218,13 @@ export interface FileRouteTypes {
     | '/api/settings/org'
     | '/assets/$id/edit'
     | '/beneficiaries/$id/edit'
+    | '/campaigns/$id/edit'
     | '/donations/$id/edit'
     | '/donors/$id/edit'
     | '/finance/accounts/new'
     | '/finance/budgets/new'
     | '/finance/journal/new'
+    | '/grants/$id/edit'
     | '/inventory/items/new'
     | '/inventory/stocktake/new'
     | '/inventory/warehouses/new'
@@ -1255,6 +1295,7 @@ export interface FileRouteTypes {
     | '/assets/new'
     | '/beneficiaries/$id'
     | '/beneficiaries/new'
+    | '/campaigns/new'
     | '/donations/new'
     | '/donors/$id'
     | '/donors/new'
@@ -1265,6 +1306,7 @@ export interface FileRouteTypes {
     | '/finance/journal'
     | '/finance/ledger'
     | '/finance/statements'
+    | '/grants/new'
     | '/inventory/items'
     | '/inventory/stocktake'
     | '/inventory/warehouses'
@@ -1300,11 +1342,13 @@ export interface FileRouteTypes {
     | '/api/settings/org'
     | '/assets/$id/edit'
     | '/beneficiaries/$id/edit'
+    | '/campaigns/$id/edit'
     | '/donations/$id/edit'
     | '/donors/$id/edit'
     | '/finance/accounts/new'
     | '/finance/budgets/new'
     | '/finance/journal/new'
+    | '/grants/$id/edit'
     | '/inventory/items/new'
     | '/inventory/stocktake/new'
     | '/inventory/warehouses/new'
@@ -1375,6 +1419,7 @@ export interface FileRouteTypes {
     | '/assets_/new'
     | '/beneficiaries_/$id'
     | '/beneficiaries_/new'
+    | '/campaigns_/new'
     | '/donations_/new'
     | '/donors_/$id'
     | '/donors_/new'
@@ -1385,6 +1430,7 @@ export interface FileRouteTypes {
     | '/finance/journal'
     | '/finance/ledger'
     | '/finance/statements'
+    | '/grants_/new'
     | '/inventory/items'
     | '/inventory/stocktake'
     | '/inventory/warehouses'
@@ -1420,11 +1466,13 @@ export interface FileRouteTypes {
     | '/api/settings/org'
     | '/assets_/$id_/edit'
     | '/beneficiaries_/$id_/edit'
+    | '/campaigns_/$id_/edit'
     | '/donations_/$id_/edit'
     | '/donors_/$id_/edit'
     | '/finance/accounts_/new'
     | '/finance/budgets_/new'
     | '/finance/journal_/new'
+    | '/grants_/$id_/edit'
     | '/inventory/items_/new'
     | '/inventory/stocktake_/new'
     | '/inventory/warehouses_/new'
@@ -1496,6 +1544,7 @@ export interface RootRouteChildren {
   AssetsNewRoute: typeof AssetsNewRoute
   BeneficiariesIdRoute: typeof BeneficiariesIdRoute
   BeneficiariesNewRoute: typeof BeneficiariesNewRoute
+  CampaignsNewRoute: typeof CampaignsNewRoute
   DonationsNewRoute: typeof DonationsNewRoute
   DonorsIdRoute: typeof DonorsIdRoute
   DonorsNewRoute: typeof DonorsNewRoute
@@ -1506,6 +1555,7 @@ export interface RootRouteChildren {
   FinanceJournalRoute: typeof FinanceJournalRoute
   FinanceLedgerRoute: typeof FinanceLedgerRoute
   FinanceStatementsRoute: typeof FinanceStatementsRoute
+  GrantsNewRoute: typeof GrantsNewRoute
   InventoryItemsRoute: typeof InventoryItemsRoute
   InventoryStocktakeRoute: typeof InventoryStocktakeRoute
   InventoryWarehousesRoute: typeof InventoryWarehousesRoute
@@ -1541,11 +1591,13 @@ export interface RootRouteChildren {
   ApiSettingsOrgRoute: typeof ApiSettingsOrgRoute
   AssetsIdEditRoute: typeof AssetsIdEditRoute
   BeneficiariesIdEditRoute: typeof BeneficiariesIdEditRoute
+  CampaignsIdEditRoute: typeof CampaignsIdEditRoute
   DonationsIdEditRoute: typeof DonationsIdEditRoute
   DonorsIdEditRoute: typeof DonorsIdEditRoute
   FinanceAccountsNewRoute: typeof FinanceAccountsNewRoute
   FinanceBudgetsNewRoute: typeof FinanceBudgetsNewRoute
   FinanceJournalNewRoute: typeof FinanceJournalNewRoute
+  GrantsIdEditRoute: typeof GrantsIdEditRoute
   InventoryItemsNewRoute: typeof InventoryItemsNewRoute
   InventoryStocktakeNewRoute: typeof InventoryStocktakeNewRoute
   InventoryWarehousesNewRoute: typeof InventoryWarehousesNewRoute
@@ -1850,6 +1902,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InventoryItemsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/grants_/new': {
+      id: '/grants_/new'
+      path: '/grants/new'
+      fullPath: '/grants/new'
+      preLoaderRoute: typeof GrantsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/finance/statements': {
       id: '/finance/statements'
       path: '/finance/statements'
@@ -1918,6 +1977,13 @@ declare module '@tanstack/react-router' {
       path: '/donations/new'
       fullPath: '/donations/new'
       preLoaderRoute: typeof DonationsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/campaigns_/new': {
+      id: '/campaigns_/new'
+      path: '/campaigns/new'
+      fullPath: '/campaigns/new'
+      preLoaderRoute: typeof CampaignsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/beneficiaries_/new': {
@@ -2144,6 +2210,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InventoryItemsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/grants_/$id_/edit': {
+      id: '/grants_/$id_/edit'
+      path: '/grants/$id/edit'
+      fullPath: '/grants/$id/edit'
+      preLoaderRoute: typeof GrantsIdEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/finance/journal_/new': {
       id: '/finance/journal_/new'
       path: '/finance/journal/new'
@@ -2177,6 +2250,13 @@ declare module '@tanstack/react-router' {
       path: '/donations/$id/edit'
       fullPath: '/donations/$id/edit'
       preLoaderRoute: typeof DonationsIdEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/campaigns_/$id_/edit': {
+      id: '/campaigns_/$id_/edit'
+      path: '/campaigns/$id/edit'
+      fullPath: '/campaigns/$id/edit'
+      preLoaderRoute: typeof CampaignsIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/beneficiaries_/$id_/edit': {
@@ -2448,6 +2528,7 @@ const rootRouteChildren: RootRouteChildren = {
   AssetsNewRoute: AssetsNewRoute,
   BeneficiariesIdRoute: BeneficiariesIdRoute,
   BeneficiariesNewRoute: BeneficiariesNewRoute,
+  CampaignsNewRoute: CampaignsNewRoute,
   DonationsNewRoute: DonationsNewRoute,
   DonorsIdRoute: DonorsIdRoute,
   DonorsNewRoute: DonorsNewRoute,
@@ -2458,6 +2539,7 @@ const rootRouteChildren: RootRouteChildren = {
   FinanceJournalRoute: FinanceJournalRoute,
   FinanceLedgerRoute: FinanceLedgerRoute,
   FinanceStatementsRoute: FinanceStatementsRoute,
+  GrantsNewRoute: GrantsNewRoute,
   InventoryItemsRoute: InventoryItemsRoute,
   InventoryStocktakeRoute: InventoryStocktakeRoute,
   InventoryWarehousesRoute: InventoryWarehousesRoute,
@@ -2493,11 +2575,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSettingsOrgRoute: ApiSettingsOrgRoute,
   AssetsIdEditRoute: AssetsIdEditRoute,
   BeneficiariesIdEditRoute: BeneficiariesIdEditRoute,
+  CampaignsIdEditRoute: CampaignsIdEditRoute,
   DonationsIdEditRoute: DonationsIdEditRoute,
   DonorsIdEditRoute: DonorsIdEditRoute,
   FinanceAccountsNewRoute: FinanceAccountsNewRoute,
   FinanceBudgetsNewRoute: FinanceBudgetsNewRoute,
   FinanceJournalNewRoute: FinanceJournalNewRoute,
+  GrantsIdEditRoute: GrantsIdEditRoute,
   InventoryItemsNewRoute: InventoryItemsNewRoute,
   InventoryStocktakeNewRoute: InventoryStocktakeNewRoute,
   InventoryWarehousesNewRoute: InventoryWarehousesNewRoute,
