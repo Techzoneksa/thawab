@@ -217,7 +217,7 @@ export function EnterpriseFormLayout({
       )}
 
       {/* Body */}
-      <div className="flex-1 px-3 sm:px-4 lg:px-8 py-4 lg:py-6 overflow-x-hidden">
+      <div className="flex-1 px-3 sm:px-4 lg:px-8 py-4 lg:py-6 overflow-x-clip">
         {tabs.length > 1 ? (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             {tabs.map((t) => (

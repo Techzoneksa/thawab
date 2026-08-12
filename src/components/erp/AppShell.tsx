@@ -164,17 +164,31 @@ const BOTTOM_NAV_ITEMS = [
   { to: "#more", label: "المزيد", icon: MoreHorizontal },
 ];
 
+// Reference-counted body scroll lock. Only the first lock captures the
+// original styles and only the last release restores them, so overlapping
+// overlays (menu + drawer) can never corrupt the saved value and leave the
+// page permanently unscrollable.
+let scrollLockCount = 0;
+let scrollLockPrevOverflow = "";
+let scrollLockPrevPadRight = "";
+
 function useBodyScrollLock(locked: boolean) {
   useEffect(() => {
     if (!locked) return;
-    const prev = document.body.style.overflow;
-    const prevPadRight = document.body.style.paddingRight;
-    const scrollbar = window.innerWidth - document.documentElement.clientWidth;
-    document.body.style.overflow = "hidden";
-    if (scrollbar > 0) document.body.style.paddingRight = `${scrollbar}px`;
+    if (scrollLockCount === 0) {
+      scrollLockPrevOverflow = document.body.style.overflow;
+      scrollLockPrevPadRight = document.body.style.paddingRight;
+      const scrollbar = window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.overflow = "hidden";
+      if (scrollbar > 0) document.body.style.paddingRight = `${scrollbar}px`;
+    }
+    scrollLockCount++;
     return () => {
-      document.body.style.overflow = prev;
-      document.body.style.paddingRight = prevPadRight;
+      scrollLockCount = Math.max(0, scrollLockCount - 1);
+      if (scrollLockCount === 0) {
+        document.body.style.overflow = scrollLockPrevOverflow;
+        document.body.style.paddingRight = scrollLockPrevPadRight;
+      }
     };
   }, [locked]);
 }
@@ -639,7 +653,7 @@ export function AppShell({
   return (
     <div className="min-h-[100dvh] flex w-full max-w-full bg-background mobile-container" dir="rtl">
       <Sidebar open={open} onClose={() => setOpen(false)} />
-      <div className="flex-1 flex flex-col min-w-0 max-w-full pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pb-0 overflow-x-hidden">
+      <div className="flex-1 flex flex-col min-w-0 max-w-full pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pb-0 overflow-x-clip">
         <Topbar onMenu={() => setOpen(true)} aiOpen={aiOpen} setAiOpen={setAiOpen} />
         {(title || breadcrumb || actions) && (
           <div className="border-b bg-surface px-3 sm:px-4 lg:px-8 py-3 lg:py-4">
@@ -669,7 +683,7 @@ export function AppShell({
             </div>
           </div>
         )}
-        <main className="flex-1 px-3 sm:px-4 lg:px-8 py-4 lg:py-6 overflow-x-hidden max-w-full">
+        <main className="flex-1 px-3 sm:px-4 lg:px-8 py-4 lg:py-6 overflow-x-clip max-w-full">
           {children}
         </main>
         <footer className="hidden lg:flex border-t bg-surface px-6 py-3 text-[11px] text-muted-foreground flex-wrap items-center justify-between gap-2">
@@ -717,18 +731,55 @@ export function statusTone(
 ): "muted" | "success" | "warning" | "destructive" | "info" | "primary" {
   const s = String(status).toLowerCase();
   // English enum keys (canonical). Arabic fallbacks kept for any static text.
-  const SUCCESS = ["active", "posted", "confirmed", "approved", "completed", "delivered", "received", "accepted", "issued", "held"];
-  const WARNING = ["pending", "draft", "submitted", "partial", "counting", "on_hold", "under_maintenance", "planned", "sent", "scheduled"];
-  const DESTRUCTIVE = ["rejected", "cancelled", "suspended", "blacklisted", "disposed", "reversed", "closed", "inactive"];
+  const SUCCESS = [
+    "active",
+    "posted",
+    "confirmed",
+    "approved",
+    "completed",
+    "delivered",
+    "received",
+    "accepted",
+    "issued",
+    "held",
+  ];
+  const WARNING = [
+    "pending",
+    "draft",
+    "submitted",
+    "partial",
+    "counting",
+    "on_hold",
+    "under_maintenance",
+    "planned",
+    "sent",
+    "scheduled",
+  ];
+  const DESTRUCTIVE = [
+    "rejected",
+    "cancelled",
+    "suspended",
+    "blacklisted",
+    "disposed",
+    "reversed",
+    "closed",
+    "inactive",
+  ];
   const INFO = ["transfer", "ordered", "archived", "new"];
   if (SUCCESS.includes(s)) return "success";
   if (WARNING.includes(s)) return "warning";
   if (DESTRUCTIVE.includes(s)) return "destructive";
   if (INFO.includes(s)) return "info";
   // Arabic fallbacks (legacy static labels)
-  if (["مكتمل", "معتمد", "مرحّل", "متصل", "نشط", "نشطة", "مكتملة", "جاهز"].some((k) => status.includes(k))) return "success";
+  if (
+    ["مكتمل", "معتمد", "مرحّل", "متصل", "نشط", "نشطة", "مكتملة", "جاهز"].some((k) =>
+      status.includes(k),
+    )
+  )
+    return "success";
   if (["بانتظار", "قيد", "صيانة", "مجدول"].some((k) => status.includes(k))) return "warning";
-  if (["مرفوض", "موقوف", "ملغى", "ملغي", "معكوس"].some((k) => status.includes(k))) return "destructive";
+  if (["مرفوض", "موقوف", "ملغى", "ملغي", "معكوس"].some((k) => status.includes(k)))
+    return "destructive";
   return "muted";
 }
 
