@@ -40,6 +40,7 @@ import { Route as SettingsOrgRouteImport } from './routes/settings.org'
 import { Route as SettingsIntegrationsRouteImport } from './routes/settings.integrations'
 import { Route as SettingsBranchesRouteImport } from './routes/settings.branches'
 import { Route as SettingsBackupRouteImport } from './routes/settings.backup'
+import { Route as RecurringNewRouteImport } from './routes/recurring_.new'
 import { Route as ProjectsNewRouteImport } from './routes/projects_.new'
 import { Route as ProjectsIdRouteImport } from './routes/projects_.$id'
 import { Route as ProcurementSuppliersRouteImport } from './routes/procurement.suppliers'
@@ -61,8 +62,10 @@ import { Route as FinanceClosingRouteImport } from './routes/finance.closing'
 import { Route as FinanceBudgetsRouteImport } from './routes/finance.budgets'
 import { Route as FinanceAccountsRouteImport } from './routes/finance.accounts'
 import { Route as EndowmentsNewRouteImport } from './routes/endowments_.new'
+import { Route as EndowmentReturnsNewRouteImport } from './routes/endowment-returns_.new'
 import { Route as DonorsNewRouteImport } from './routes/donors_.new'
 import { Route as DonorsIdRouteImport } from './routes/donors_.$id'
+import { Route as DonorOrgsNewRouteImport } from './routes/donor-orgs_.new'
 import { Route as DonationsNewRouteImport } from './routes/donations_.new'
 import { Route as CampaignsNewRouteImport } from './routes/campaigns_.new'
 import { Route as BeneficiariesNewRouteImport } from './routes/beneficiaries_.new'
@@ -70,6 +73,7 @@ import { Route as BeneficiariesIdRouteImport } from './routes/beneficiaries_.$id
 import { Route as AssetsNewRouteImport } from './routes/assets_.new'
 import { Route as ApprovalsNewRouteImport } from './routes/approvals_.new'
 import { Route as ApiUsersRouteImport } from './routes/api/users'
+import { Route as ApiRecurringRouteImport } from './routes/api/recurring'
 import { Route as ApiReceiptsRouteImport } from './routes/api/receipts'
 import { Route as ApiProjectsRouteImport } from './routes/api/projects'
 import { Route as ApiMembershipsRouteImport } from './routes/api/memberships'
@@ -78,7 +82,9 @@ import { Route as ApiHrRouteImport } from './routes/api/hr'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiGrantsRouteImport } from './routes/api/grants'
 import { Route as ApiEndowmentsRouteImport } from './routes/api/endowments'
+import { Route as ApiEndowmentReturnsRouteImport } from './routes/api/endowment-returns'
 import { Route as ApiDonorsRouteImport } from './routes/api/donors'
+import { Route as ApiDonorOrgsRouteImport } from './routes/api/donor-orgs'
 import { Route as ApiDonationsRouteImport } from './routes/api/donations'
 import { Route as ApiDiagnoseRouteImport } from './routes/api/diagnose'
 import { Route as ApiCampaignsRouteImport } from './routes/api/campaigns'
@@ -90,6 +96,7 @@ import { Route as ApiApprovalsRouteImport } from './routes/api/approvals'
 import { Route as ApiAidRouteImport } from './routes/api/aid'
 import { Route as AidNewRouteImport } from './routes/aid_.new'
 import { Route as SettingsBranchesNewRouteImport } from './routes/settings.branches_.new'
+import { Route as RecurringIdEditRouteImport } from './routes/recurring_.$id_.edit'
 import { Route as ProjectsIdEditRouteImport } from './routes/projects_.$id_.edit'
 import { Route as ProcurementSuppliersNewRouteImport } from './routes/procurement.suppliers_.new'
 import { Route as ProcurementRequestsNewRouteImport } from './routes/procurement.requests_.new'
@@ -108,7 +115,9 @@ import { Route as FinanceClosingNewRouteImport } from './routes/finance.closing_
 import { Route as FinanceBudgetsNewRouteImport } from './routes/finance.budgets_.new'
 import { Route as FinanceAccountsNewRouteImport } from './routes/finance.accounts_.new'
 import { Route as EndowmentsIdEditRouteImport } from './routes/endowments_.$id_.edit'
+import { Route as EndowmentReturnsIdEditRouteImport } from './routes/endowment-returns_.$id_.edit'
 import { Route as DonorsIdEditRouteImport } from './routes/donors_.$id_.edit'
+import { Route as DonorOrgsIdEditRouteImport } from './routes/donor-orgs_.$id_.edit'
 import { Route as DonationsIdEditRouteImport } from './routes/donations_.$id_.edit'
 import { Route as CampaignsIdEditRouteImport } from './routes/campaigns_.$id_.edit'
 import { Route as BeneficiariesIdEditRouteImport } from './routes/beneficiaries_.$id_.edit'
@@ -300,6 +309,11 @@ const SettingsBackupRoute = SettingsBackupRouteImport.update({
   path: '/settings/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RecurringNewRoute = RecurringNewRouteImport.update({
+  id: '/recurring_/new',
+  path: '/recurring/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectsNewRoute = ProjectsNewRouteImport.update({
   id: '/projects_/new',
   path: '/projects/new',
@@ -405,6 +419,11 @@ const EndowmentsNewRoute = EndowmentsNewRouteImport.update({
   path: '/endowments/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EndowmentReturnsNewRoute = EndowmentReturnsNewRouteImport.update({
+  id: '/endowment-returns_/new',
+  path: '/endowment-returns/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DonorsNewRoute = DonorsNewRouteImport.update({
   id: '/donors_/new',
   path: '/donors/new',
@@ -413,6 +432,11 @@ const DonorsNewRoute = DonorsNewRouteImport.update({
 const DonorsIdRoute = DonorsIdRouteImport.update({
   id: '/donors_/$id',
   path: '/donors/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DonorOrgsNewRoute = DonorOrgsNewRouteImport.update({
+  id: '/donor-orgs_/new',
+  path: '/donor-orgs/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DonationsNewRoute = DonationsNewRouteImport.update({
@@ -448,6 +472,11 @@ const ApprovalsNewRoute = ApprovalsNewRouteImport.update({
 const ApiUsersRoute = ApiUsersRouteImport.update({
   id: '/api/users',
   path: '/api/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRecurringRoute = ApiRecurringRouteImport.update({
+  id: '/api/recurring',
+  path: '/api/recurring',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiReceiptsRoute = ApiReceiptsRouteImport.update({
@@ -490,9 +519,19 @@ const ApiEndowmentsRoute = ApiEndowmentsRouteImport.update({
   path: '/api/endowments',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiEndowmentReturnsRoute = ApiEndowmentReturnsRouteImport.update({
+  id: '/api/endowment-returns',
+  path: '/api/endowment-returns',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDonorsRoute = ApiDonorsRouteImport.update({
   id: '/api/donors',
   path: '/api/donors',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDonorOrgsRoute = ApiDonorOrgsRouteImport.update({
+  id: '/api/donor-orgs',
+  path: '/api/donor-orgs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDonationsRoute = ApiDonationsRouteImport.update({
@@ -548,6 +587,11 @@ const AidNewRoute = AidNewRouteImport.update({
 const SettingsBranchesNewRoute = SettingsBranchesNewRouteImport.update({
   id: '/settings/branches_/new',
   path: '/settings/branches/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecurringIdEditRoute = RecurringIdEditRouteImport.update({
+  id: '/recurring_/$id_/edit',
+  path: '/recurring/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsIdEditRoute = ProjectsIdEditRouteImport.update({
@@ -640,9 +684,19 @@ const EndowmentsIdEditRoute = EndowmentsIdEditRouteImport.update({
   path: '/endowments/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EndowmentReturnsIdEditRoute = EndowmentReturnsIdEditRouteImport.update({
+  id: '/endowment-returns_/$id_/edit',
+  path: '/endowment-returns/$id/edit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DonorsIdEditRoute = DonorsIdEditRouteImport.update({
   id: '/donors_/$id_/edit',
   path: '/donors/$id/edit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DonorOrgsIdEditRoute = DonorOrgsIdEditRouteImport.update({
+  id: '/donor-orgs_/$id_/edit',
+  path: '/donor-orgs/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DonationsIdEditRoute = DonationsIdEditRouteImport.update({
@@ -862,7 +916,9 @@ export interface FileRoutesByFullPath {
   '/api/campaigns': typeof ApiCampaignsRoute
   '/api/diagnose': typeof ApiDiagnoseRoute
   '/api/donations': typeof ApiDonationsRoute
+  '/api/donor-orgs': typeof ApiDonorOrgsRoute
   '/api/donors': typeof ApiDonorsRoute
+  '/api/endowment-returns': typeof ApiEndowmentReturnsRoute
   '/api/endowments': typeof ApiEndowmentsRoute
   '/api/grants': typeof ApiGrantsRoute
   '/api/health': typeof ApiHealthRoute
@@ -871,6 +927,7 @@ export interface FileRoutesByFullPath {
   '/api/memberships': typeof ApiMembershipsRoute
   '/api/projects': typeof ApiProjectsRoute
   '/api/receipts': typeof ApiReceiptsRoute
+  '/api/recurring': typeof ApiRecurringRoute
   '/api/users': typeof ApiUsersRoute
   '/approvals/new': typeof ApprovalsNewRoute
   '/assets/new': typeof AssetsNewRoute
@@ -878,8 +935,10 @@ export interface FileRoutesByFullPath {
   '/beneficiaries/new': typeof BeneficiariesNewRoute
   '/campaigns/new': typeof CampaignsNewRoute
   '/donations/new': typeof DonationsNewRoute
+  '/donor-orgs/new': typeof DonorOrgsNewRoute
   '/donors/$id': typeof DonorsIdRoute
   '/donors/new': typeof DonorsNewRoute
+  '/endowment-returns/new': typeof EndowmentReturnsNewRoute
   '/endowments/new': typeof EndowmentsNewRoute
   '/finance/accounts': typeof FinanceAccountsRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
@@ -901,6 +960,7 @@ export interface FileRoutesByFullPath {
   '/procurement/suppliers': typeof ProcurementSuppliersRoute
   '/projects/$id': typeof ProjectsIdRoute
   '/projects/new': typeof ProjectsNewRoute
+  '/recurring/new': typeof RecurringNewRoute
   '/settings/backup': typeof SettingsBackupRoute
   '/settings/branches': typeof SettingsBranchesRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
@@ -929,7 +989,9 @@ export interface FileRoutesByFullPath {
   '/beneficiaries/$id/edit': typeof BeneficiariesIdEditRoute
   '/campaigns/$id/edit': typeof CampaignsIdEditRoute
   '/donations/$id/edit': typeof DonationsIdEditRoute
+  '/donor-orgs/$id/edit': typeof DonorOrgsIdEditRoute
   '/donors/$id/edit': typeof DonorsIdEditRoute
+  '/endowment-returns/$id/edit': typeof EndowmentReturnsIdEditRoute
   '/endowments/$id/edit': typeof EndowmentsIdEditRoute
   '/finance/accounts/new': typeof FinanceAccountsNewRoute
   '/finance/budgets/new': typeof FinanceBudgetsNewRoute
@@ -948,6 +1010,7 @@ export interface FileRoutesByFullPath {
   '/procurement/requests/new': typeof ProcurementRequestsNewRoute
   '/procurement/suppliers/new': typeof ProcurementSuppliersNewRoute
   '/projects/$id/edit': typeof ProjectsIdEditRoute
+  '/recurring/$id/edit': typeof RecurringIdEditRoute
   '/settings/branches/new': typeof SettingsBranchesNewRoute
   '/finance/accounts/$id/edit': typeof FinanceAccountsIdEditRoute
   '/finance/budgets/$id/edit': typeof FinanceBudgetsIdEditRoute
@@ -999,7 +1062,9 @@ export interface FileRoutesByTo {
   '/api/campaigns': typeof ApiCampaignsRoute
   '/api/diagnose': typeof ApiDiagnoseRoute
   '/api/donations': typeof ApiDonationsRoute
+  '/api/donor-orgs': typeof ApiDonorOrgsRoute
   '/api/donors': typeof ApiDonorsRoute
+  '/api/endowment-returns': typeof ApiEndowmentReturnsRoute
   '/api/endowments': typeof ApiEndowmentsRoute
   '/api/grants': typeof ApiGrantsRoute
   '/api/health': typeof ApiHealthRoute
@@ -1008,6 +1073,7 @@ export interface FileRoutesByTo {
   '/api/memberships': typeof ApiMembershipsRoute
   '/api/projects': typeof ApiProjectsRoute
   '/api/receipts': typeof ApiReceiptsRoute
+  '/api/recurring': typeof ApiRecurringRoute
   '/api/users': typeof ApiUsersRoute
   '/approvals/new': typeof ApprovalsNewRoute
   '/assets/new': typeof AssetsNewRoute
@@ -1015,8 +1081,10 @@ export interface FileRoutesByTo {
   '/beneficiaries/new': typeof BeneficiariesNewRoute
   '/campaigns/new': typeof CampaignsNewRoute
   '/donations/new': typeof DonationsNewRoute
+  '/donor-orgs/new': typeof DonorOrgsNewRoute
   '/donors/$id': typeof DonorsIdRoute
   '/donors/new': typeof DonorsNewRoute
+  '/endowment-returns/new': typeof EndowmentReturnsNewRoute
   '/endowments/new': typeof EndowmentsNewRoute
   '/finance/accounts': typeof FinanceAccountsRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
@@ -1038,6 +1106,7 @@ export interface FileRoutesByTo {
   '/procurement/suppliers': typeof ProcurementSuppliersRoute
   '/projects/$id': typeof ProjectsIdRoute
   '/projects/new': typeof ProjectsNewRoute
+  '/recurring/new': typeof RecurringNewRoute
   '/settings/backup': typeof SettingsBackupRoute
   '/settings/branches': typeof SettingsBranchesRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
@@ -1066,7 +1135,9 @@ export interface FileRoutesByTo {
   '/beneficiaries/$id/edit': typeof BeneficiariesIdEditRoute
   '/campaigns/$id/edit': typeof CampaignsIdEditRoute
   '/donations/$id/edit': typeof DonationsIdEditRoute
+  '/donor-orgs/$id/edit': typeof DonorOrgsIdEditRoute
   '/donors/$id/edit': typeof DonorsIdEditRoute
+  '/endowment-returns/$id/edit': typeof EndowmentReturnsIdEditRoute
   '/endowments/$id/edit': typeof EndowmentsIdEditRoute
   '/finance/accounts/new': typeof FinanceAccountsNewRoute
   '/finance/budgets/new': typeof FinanceBudgetsNewRoute
@@ -1085,6 +1156,7 @@ export interface FileRoutesByTo {
   '/procurement/requests/new': typeof ProcurementRequestsNewRoute
   '/procurement/suppliers/new': typeof ProcurementSuppliersNewRoute
   '/projects/$id/edit': typeof ProjectsIdEditRoute
+  '/recurring/$id/edit': typeof RecurringIdEditRoute
   '/settings/branches/new': typeof SettingsBranchesNewRoute
   '/finance/accounts/$id/edit': typeof FinanceAccountsIdEditRoute
   '/finance/budgets/$id/edit': typeof FinanceBudgetsIdEditRoute
@@ -1137,7 +1209,9 @@ export interface FileRoutesById {
   '/api/campaigns': typeof ApiCampaignsRoute
   '/api/diagnose': typeof ApiDiagnoseRoute
   '/api/donations': typeof ApiDonationsRoute
+  '/api/donor-orgs': typeof ApiDonorOrgsRoute
   '/api/donors': typeof ApiDonorsRoute
+  '/api/endowment-returns': typeof ApiEndowmentReturnsRoute
   '/api/endowments': typeof ApiEndowmentsRoute
   '/api/grants': typeof ApiGrantsRoute
   '/api/health': typeof ApiHealthRoute
@@ -1146,6 +1220,7 @@ export interface FileRoutesById {
   '/api/memberships': typeof ApiMembershipsRoute
   '/api/projects': typeof ApiProjectsRoute
   '/api/receipts': typeof ApiReceiptsRoute
+  '/api/recurring': typeof ApiRecurringRoute
   '/api/users': typeof ApiUsersRoute
   '/approvals_/new': typeof ApprovalsNewRoute
   '/assets_/new': typeof AssetsNewRoute
@@ -1153,8 +1228,10 @@ export interface FileRoutesById {
   '/beneficiaries_/new': typeof BeneficiariesNewRoute
   '/campaigns_/new': typeof CampaignsNewRoute
   '/donations_/new': typeof DonationsNewRoute
+  '/donor-orgs_/new': typeof DonorOrgsNewRoute
   '/donors_/$id': typeof DonorsIdRoute
   '/donors_/new': typeof DonorsNewRoute
+  '/endowment-returns_/new': typeof EndowmentReturnsNewRoute
   '/endowments_/new': typeof EndowmentsNewRoute
   '/finance/accounts': typeof FinanceAccountsRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
@@ -1176,6 +1253,7 @@ export interface FileRoutesById {
   '/procurement/suppliers': typeof ProcurementSuppliersRoute
   '/projects_/$id': typeof ProjectsIdRoute
   '/projects_/new': typeof ProjectsNewRoute
+  '/recurring_/new': typeof RecurringNewRoute
   '/settings/backup': typeof SettingsBackupRoute
   '/settings/branches': typeof SettingsBranchesRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
@@ -1204,7 +1282,9 @@ export interface FileRoutesById {
   '/beneficiaries_/$id_/edit': typeof BeneficiariesIdEditRoute
   '/campaigns_/$id_/edit': typeof CampaignsIdEditRoute
   '/donations_/$id_/edit': typeof DonationsIdEditRoute
+  '/donor-orgs_/$id_/edit': typeof DonorOrgsIdEditRoute
   '/donors_/$id_/edit': typeof DonorsIdEditRoute
+  '/endowment-returns_/$id_/edit': typeof EndowmentReturnsIdEditRoute
   '/endowments_/$id_/edit': typeof EndowmentsIdEditRoute
   '/finance/accounts_/new': typeof FinanceAccountsNewRoute
   '/finance/budgets_/new': typeof FinanceBudgetsNewRoute
@@ -1223,6 +1303,7 @@ export interface FileRoutesById {
   '/procurement/requests_/new': typeof ProcurementRequestsNewRoute
   '/procurement/suppliers_/new': typeof ProcurementSuppliersNewRoute
   '/projects_/$id_/edit': typeof ProjectsIdEditRoute
+  '/recurring_/$id_/edit': typeof RecurringIdEditRoute
   '/settings/branches_/new': typeof SettingsBranchesNewRoute
   '/finance/accounts_/$id_/edit': typeof FinanceAccountsIdEditRoute
   '/finance/budgets_/$id_/edit': typeof FinanceBudgetsIdEditRoute
@@ -1276,7 +1357,9 @@ export interface FileRouteTypes {
     | '/api/campaigns'
     | '/api/diagnose'
     | '/api/donations'
+    | '/api/donor-orgs'
     | '/api/donors'
+    | '/api/endowment-returns'
     | '/api/endowments'
     | '/api/grants'
     | '/api/health'
@@ -1285,6 +1368,7 @@ export interface FileRouteTypes {
     | '/api/memberships'
     | '/api/projects'
     | '/api/receipts'
+    | '/api/recurring'
     | '/api/users'
     | '/approvals/new'
     | '/assets/new'
@@ -1292,8 +1376,10 @@ export interface FileRouteTypes {
     | '/beneficiaries/new'
     | '/campaigns/new'
     | '/donations/new'
+    | '/donor-orgs/new'
     | '/donors/$id'
     | '/donors/new'
+    | '/endowment-returns/new'
     | '/endowments/new'
     | '/finance/accounts'
     | '/finance/budgets'
@@ -1315,6 +1401,7 @@ export interface FileRouteTypes {
     | '/procurement/suppliers'
     | '/projects/$id'
     | '/projects/new'
+    | '/recurring/new'
     | '/settings/backup'
     | '/settings/branches'
     | '/settings/integrations'
@@ -1343,7 +1430,9 @@ export interface FileRouteTypes {
     | '/beneficiaries/$id/edit'
     | '/campaigns/$id/edit'
     | '/donations/$id/edit'
+    | '/donor-orgs/$id/edit'
     | '/donors/$id/edit'
+    | '/endowment-returns/$id/edit'
     | '/endowments/$id/edit'
     | '/finance/accounts/new'
     | '/finance/budgets/new'
@@ -1362,6 +1451,7 @@ export interface FileRouteTypes {
     | '/procurement/requests/new'
     | '/procurement/suppliers/new'
     | '/projects/$id/edit'
+    | '/recurring/$id/edit'
     | '/settings/branches/new'
     | '/finance/accounts/$id/edit'
     | '/finance/budgets/$id/edit'
@@ -1413,7 +1503,9 @@ export interface FileRouteTypes {
     | '/api/campaigns'
     | '/api/diagnose'
     | '/api/donations'
+    | '/api/donor-orgs'
     | '/api/donors'
+    | '/api/endowment-returns'
     | '/api/endowments'
     | '/api/grants'
     | '/api/health'
@@ -1422,6 +1514,7 @@ export interface FileRouteTypes {
     | '/api/memberships'
     | '/api/projects'
     | '/api/receipts'
+    | '/api/recurring'
     | '/api/users'
     | '/approvals/new'
     | '/assets/new'
@@ -1429,8 +1522,10 @@ export interface FileRouteTypes {
     | '/beneficiaries/new'
     | '/campaigns/new'
     | '/donations/new'
+    | '/donor-orgs/new'
     | '/donors/$id'
     | '/donors/new'
+    | '/endowment-returns/new'
     | '/endowments/new'
     | '/finance/accounts'
     | '/finance/budgets'
@@ -1452,6 +1547,7 @@ export interface FileRouteTypes {
     | '/procurement/suppliers'
     | '/projects/$id'
     | '/projects/new'
+    | '/recurring/new'
     | '/settings/backup'
     | '/settings/branches'
     | '/settings/integrations'
@@ -1480,7 +1576,9 @@ export interface FileRouteTypes {
     | '/beneficiaries/$id/edit'
     | '/campaigns/$id/edit'
     | '/donations/$id/edit'
+    | '/donor-orgs/$id/edit'
     | '/donors/$id/edit'
+    | '/endowment-returns/$id/edit'
     | '/endowments/$id/edit'
     | '/finance/accounts/new'
     | '/finance/budgets/new'
@@ -1499,6 +1597,7 @@ export interface FileRouteTypes {
     | '/procurement/requests/new'
     | '/procurement/suppliers/new'
     | '/projects/$id/edit'
+    | '/recurring/$id/edit'
     | '/settings/branches/new'
     | '/finance/accounts/$id/edit'
     | '/finance/budgets/$id/edit'
@@ -1550,7 +1649,9 @@ export interface FileRouteTypes {
     | '/api/campaigns'
     | '/api/diagnose'
     | '/api/donations'
+    | '/api/donor-orgs'
     | '/api/donors'
+    | '/api/endowment-returns'
     | '/api/endowments'
     | '/api/grants'
     | '/api/health'
@@ -1559,6 +1660,7 @@ export interface FileRouteTypes {
     | '/api/memberships'
     | '/api/projects'
     | '/api/receipts'
+    | '/api/recurring'
     | '/api/users'
     | '/approvals_/new'
     | '/assets_/new'
@@ -1566,8 +1668,10 @@ export interface FileRouteTypes {
     | '/beneficiaries_/new'
     | '/campaigns_/new'
     | '/donations_/new'
+    | '/donor-orgs_/new'
     | '/donors_/$id'
     | '/donors_/new'
+    | '/endowment-returns_/new'
     | '/endowments_/new'
     | '/finance/accounts'
     | '/finance/budgets'
@@ -1589,6 +1693,7 @@ export interface FileRouteTypes {
     | '/procurement/suppliers'
     | '/projects_/$id'
     | '/projects_/new'
+    | '/recurring_/new'
     | '/settings/backup'
     | '/settings/branches'
     | '/settings/integrations'
@@ -1617,7 +1722,9 @@ export interface FileRouteTypes {
     | '/beneficiaries_/$id_/edit'
     | '/campaigns_/$id_/edit'
     | '/donations_/$id_/edit'
+    | '/donor-orgs_/$id_/edit'
     | '/donors_/$id_/edit'
+    | '/endowment-returns_/$id_/edit'
     | '/endowments_/$id_/edit'
     | '/finance/accounts_/new'
     | '/finance/budgets_/new'
@@ -1636,6 +1743,7 @@ export interface FileRouteTypes {
     | '/procurement/requests_/new'
     | '/procurement/suppliers_/new'
     | '/projects_/$id_/edit'
+    | '/recurring_/$id_/edit'
     | '/settings/branches_/new'
     | '/finance/accounts_/$id_/edit'
     | '/finance/budgets_/$id_/edit'
@@ -1688,7 +1796,9 @@ export interface RootRouteChildren {
   ApiCampaignsRoute: typeof ApiCampaignsRoute
   ApiDiagnoseRoute: typeof ApiDiagnoseRoute
   ApiDonationsRoute: typeof ApiDonationsRoute
+  ApiDonorOrgsRoute: typeof ApiDonorOrgsRoute
   ApiDonorsRoute: typeof ApiDonorsRoute
+  ApiEndowmentReturnsRoute: typeof ApiEndowmentReturnsRoute
   ApiEndowmentsRoute: typeof ApiEndowmentsRoute
   ApiGrantsRoute: typeof ApiGrantsRoute
   ApiHealthRoute: typeof ApiHealthRoute
@@ -1697,6 +1807,7 @@ export interface RootRouteChildren {
   ApiMembershipsRoute: typeof ApiMembershipsRoute
   ApiProjectsRoute: typeof ApiProjectsRoute
   ApiReceiptsRoute: typeof ApiReceiptsRoute
+  ApiRecurringRoute: typeof ApiRecurringRoute
   ApiUsersRoute: typeof ApiUsersRoute
   ApprovalsNewRoute: typeof ApprovalsNewRoute
   AssetsNewRoute: typeof AssetsNewRoute
@@ -1704,8 +1815,10 @@ export interface RootRouteChildren {
   BeneficiariesNewRoute: typeof BeneficiariesNewRoute
   CampaignsNewRoute: typeof CampaignsNewRoute
   DonationsNewRoute: typeof DonationsNewRoute
+  DonorOrgsNewRoute: typeof DonorOrgsNewRoute
   DonorsIdRoute: typeof DonorsIdRoute
   DonorsNewRoute: typeof DonorsNewRoute
+  EndowmentReturnsNewRoute: typeof EndowmentReturnsNewRoute
   EndowmentsNewRoute: typeof EndowmentsNewRoute
   FinanceAccountsRoute: typeof FinanceAccountsRoute
   FinanceBudgetsRoute: typeof FinanceBudgetsRoute
@@ -1727,6 +1840,7 @@ export interface RootRouteChildren {
   ProcurementSuppliersRoute: typeof ProcurementSuppliersRoute
   ProjectsIdRoute: typeof ProjectsIdRoute
   ProjectsNewRoute: typeof ProjectsNewRoute
+  RecurringNewRoute: typeof RecurringNewRoute
   SettingsBackupRoute: typeof SettingsBackupRoute
   SettingsBranchesRoute: typeof SettingsBranchesRoute
   SettingsIntegrationsRoute: typeof SettingsIntegrationsRoute
@@ -1755,7 +1869,9 @@ export interface RootRouteChildren {
   BeneficiariesIdEditRoute: typeof BeneficiariesIdEditRoute
   CampaignsIdEditRoute: typeof CampaignsIdEditRoute
   DonationsIdEditRoute: typeof DonationsIdEditRoute
+  DonorOrgsIdEditRoute: typeof DonorOrgsIdEditRoute
   DonorsIdEditRoute: typeof DonorsIdEditRoute
+  EndowmentReturnsIdEditRoute: typeof EndowmentReturnsIdEditRoute
   EndowmentsIdEditRoute: typeof EndowmentsIdEditRoute
   FinanceAccountsNewRoute: typeof FinanceAccountsNewRoute
   FinanceBudgetsNewRoute: typeof FinanceBudgetsNewRoute
@@ -1774,6 +1890,7 @@ export interface RootRouteChildren {
   ProcurementRequestsNewRoute: typeof ProcurementRequestsNewRoute
   ProcurementSuppliersNewRoute: typeof ProcurementSuppliersNewRoute
   ProjectsIdEditRoute: typeof ProjectsIdEditRoute
+  RecurringIdEditRoute: typeof RecurringIdEditRoute
   SettingsBranchesNewRoute: typeof SettingsBranchesNewRoute
   FinanceAccountsIdEditRoute: typeof FinanceAccountsIdEditRoute
   FinanceBudgetsIdEditRoute: typeof FinanceBudgetsIdEditRoute
@@ -2009,6 +2126,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/recurring_/new': {
+      id: '/recurring_/new'
+      path: '/recurring/new'
+      fullPath: '/recurring/new'
+      preLoaderRoute: typeof RecurringNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/projects_/new': {
       id: '/projects_/new'
       path: '/projects/new'
@@ -2156,6 +2280,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EndowmentsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/endowment-returns_/new': {
+      id: '/endowment-returns_/new'
+      path: '/endowment-returns/new'
+      fullPath: '/endowment-returns/new'
+      preLoaderRoute: typeof EndowmentReturnsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/donors_/new': {
       id: '/donors_/new'
       path: '/donors/new'
@@ -2168,6 +2299,13 @@ declare module '@tanstack/react-router' {
       path: '/donors/$id'
       fullPath: '/donors/$id'
       preLoaderRoute: typeof DonorsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/donor-orgs_/new': {
+      id: '/donor-orgs_/new'
+      path: '/donor-orgs/new'
+      fullPath: '/donor-orgs/new'
+      preLoaderRoute: typeof DonorOrgsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/donations_/new': {
@@ -2217,6 +2355,13 @@ declare module '@tanstack/react-router' {
       path: '/api/users'
       fullPath: '/api/users'
       preLoaderRoute: typeof ApiUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/recurring': {
+      id: '/api/recurring'
+      path: '/api/recurring'
+      fullPath: '/api/recurring'
+      preLoaderRoute: typeof ApiRecurringRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/receipts': {
@@ -2275,11 +2420,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiEndowmentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/endowment-returns': {
+      id: '/api/endowment-returns'
+      path: '/api/endowment-returns'
+      fullPath: '/api/endowment-returns'
+      preLoaderRoute: typeof ApiEndowmentReturnsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/donors': {
       id: '/api/donors'
       path: '/api/donors'
       fullPath: '/api/donors'
       preLoaderRoute: typeof ApiDonorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/donor-orgs': {
+      id: '/api/donor-orgs'
+      path: '/api/donor-orgs'
+      fullPath: '/api/donor-orgs'
+      preLoaderRoute: typeof ApiDonorOrgsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/donations': {
@@ -2357,6 +2516,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/branches/new'
       fullPath: '/settings/branches/new'
       preLoaderRoute: typeof SettingsBranchesNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recurring_/$id_/edit': {
+      id: '/recurring_/$id_/edit'
+      path: '/recurring/$id/edit'
+      fullPath: '/recurring/$id/edit'
+      preLoaderRoute: typeof RecurringIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/projects_/$id_/edit': {
@@ -2485,11 +2651,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EndowmentsIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/endowment-returns_/$id_/edit': {
+      id: '/endowment-returns_/$id_/edit'
+      path: '/endowment-returns/$id/edit'
+      fullPath: '/endowment-returns/$id/edit'
+      preLoaderRoute: typeof EndowmentReturnsIdEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/donors_/$id_/edit': {
       id: '/donors_/$id_/edit'
       path: '/donors/$id/edit'
       fullPath: '/donors/$id/edit'
       preLoaderRoute: typeof DonorsIdEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/donor-orgs_/$id_/edit': {
+      id: '/donor-orgs_/$id_/edit'
+      path: '/donor-orgs/$id/edit'
+      fullPath: '/donor-orgs/$id/edit'
+      preLoaderRoute: typeof DonorOrgsIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/donations_/$id_/edit': {
@@ -2776,7 +2956,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCampaignsRoute: ApiCampaignsRoute,
   ApiDiagnoseRoute: ApiDiagnoseRoute,
   ApiDonationsRoute: ApiDonationsRoute,
+  ApiDonorOrgsRoute: ApiDonorOrgsRoute,
   ApiDonorsRoute: ApiDonorsRoute,
+  ApiEndowmentReturnsRoute: ApiEndowmentReturnsRoute,
   ApiEndowmentsRoute: ApiEndowmentsRoute,
   ApiGrantsRoute: ApiGrantsRoute,
   ApiHealthRoute: ApiHealthRoute,
@@ -2785,6 +2967,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMembershipsRoute: ApiMembershipsRoute,
   ApiProjectsRoute: ApiProjectsRoute,
   ApiReceiptsRoute: ApiReceiptsRoute,
+  ApiRecurringRoute: ApiRecurringRoute,
   ApiUsersRoute: ApiUsersRoute,
   ApprovalsNewRoute: ApprovalsNewRoute,
   AssetsNewRoute: AssetsNewRoute,
@@ -2792,8 +2975,10 @@ const rootRouteChildren: RootRouteChildren = {
   BeneficiariesNewRoute: BeneficiariesNewRoute,
   CampaignsNewRoute: CampaignsNewRoute,
   DonationsNewRoute: DonationsNewRoute,
+  DonorOrgsNewRoute: DonorOrgsNewRoute,
   DonorsIdRoute: DonorsIdRoute,
   DonorsNewRoute: DonorsNewRoute,
+  EndowmentReturnsNewRoute: EndowmentReturnsNewRoute,
   EndowmentsNewRoute: EndowmentsNewRoute,
   FinanceAccountsRoute: FinanceAccountsRoute,
   FinanceBudgetsRoute: FinanceBudgetsRoute,
@@ -2815,6 +3000,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProcurementSuppliersRoute: ProcurementSuppliersRoute,
   ProjectsIdRoute: ProjectsIdRoute,
   ProjectsNewRoute: ProjectsNewRoute,
+  RecurringNewRoute: RecurringNewRoute,
   SettingsBackupRoute: SettingsBackupRoute,
   SettingsBranchesRoute: SettingsBranchesRoute,
   SettingsIntegrationsRoute: SettingsIntegrationsRoute,
@@ -2843,7 +3029,9 @@ const rootRouteChildren: RootRouteChildren = {
   BeneficiariesIdEditRoute: BeneficiariesIdEditRoute,
   CampaignsIdEditRoute: CampaignsIdEditRoute,
   DonationsIdEditRoute: DonationsIdEditRoute,
+  DonorOrgsIdEditRoute: DonorOrgsIdEditRoute,
   DonorsIdEditRoute: DonorsIdEditRoute,
+  EndowmentReturnsIdEditRoute: EndowmentReturnsIdEditRoute,
   EndowmentsIdEditRoute: EndowmentsIdEditRoute,
   FinanceAccountsNewRoute: FinanceAccountsNewRoute,
   FinanceBudgetsNewRoute: FinanceBudgetsNewRoute,
@@ -2862,6 +3050,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProcurementRequestsNewRoute: ProcurementRequestsNewRoute,
   ProcurementSuppliersNewRoute: ProcurementSuppliersNewRoute,
   ProjectsIdEditRoute: ProjectsIdEditRoute,
+  RecurringIdEditRoute: RecurringIdEditRoute,
   SettingsBranchesNewRoute: SettingsBranchesNewRoute,
   FinanceAccountsIdEditRoute: FinanceAccountsIdEditRoute,
   FinanceBudgetsIdEditRoute: FinanceBudgetsIdEditRoute,

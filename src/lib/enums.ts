@@ -333,6 +333,45 @@ export const EndowmentStatus = {
 } as const;
 export type EndowmentStatus = (typeof EndowmentStatus)[keyof typeof EndowmentStatus];
 
+export const EndowmentReturnStatus = {
+  REALIZED: "realized",
+  EXPECTED: "expected",
+} as const;
+export type EndowmentReturnStatus =
+  (typeof EndowmentReturnStatus)[keyof typeof EndowmentReturnStatus];
+
+// ============ DONOR ORGANIZATIONS (الجهات المانحة) ============
+
+export const DonorOrgCategory = {
+  GOVERNMENT: "government",
+  INTERNATIONAL: "international",
+  PARTNER: "partner",
+  PRIVATE: "private",
+} as const;
+export type DonorOrgCategory = (typeof DonorOrgCategory)[keyof typeof DonorOrgCategory];
+
+export const DonorOrgStatus = {
+  ACTIVE: "active",
+  INACTIVE: "inactive",
+} as const;
+export type DonorOrgStatus = (typeof DonorOrgStatus)[keyof typeof DonorOrgStatus];
+
+// ============ RECURRING DONATIONS (التبرعات المتكررة) ============
+
+export const RecurringFrequency = {
+  WEEKLY: "weekly",
+  MONTHLY: "monthly",
+  QUARTERLY: "quarterly",
+  YEARLY: "yearly",
+} as const;
+export type RecurringFrequency = (typeof RecurringFrequency)[keyof typeof RecurringFrequency];
+
+export const RecurringStatus = {
+  ACTIVE: "active",
+  PAUSED: "paused",
+} as const;
+export type RecurringStatus = (typeof RecurringStatus)[keyof typeof RecurringStatus];
+
 // ============ GOVERNANCE ============
 
 export const MembershipRole = {

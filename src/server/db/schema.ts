@@ -653,6 +653,59 @@ export const endowments = pgTable("endowments", {
   createdAt: text("created_at").notNull().default(""),
 });
 
+// Investment returns realized/expected per endowment per period (عوائد الأوقاف)
+export const endowmentReturns = pgTable("endowment_returns", {
+  id: text("id").primaryKey(),
+  endowmentId: text("endowment_id").references(() => endowments.id),
+  endowmentName: text("endowment_name").default(""),
+  period: text("period").notNull().default(""),
+  amount: doublePrecision("amount").notNull().default(0),
+  date: text("date").default(""),
+  status: text("status").notNull().default("realized"),
+  notes: text("notes").default(""),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
+// ============ DONOR ORGANIZATIONS (الجهات المانحة) ============
+
+export const donorOrgs = pgTable("donor_orgs", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  category: text("category").notNull().default("government"),
+  contactPerson: text("contact_person").default(""),
+  phone: text("phone").default(""),
+  email: text("email").default(""),
+  grantsCount: integer("grants_count").notNull().default(0),
+  totalAmount: doublePrecision("total_amount").notNull().default(0),
+  status: text("status").notNull().default("active"),
+  notes: text("notes").default(""),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
+// ============ RECURRING DONATIONS (التبرعات المتكررة) ============
+
+export const recurringDonations = pgTable("recurring_donations", {
+  id: text("id").primaryKey(),
+  code: text("code").notNull(),
+  donorName: text("donor_name").notNull().default(""),
+  donorId: text("donor_id").references(() => donors.id),
+  amount: doublePrecision("amount").notNull().default(0),
+  frequency: text("frequency").notNull().default("monthly"),
+  projectId: text("project_id").references(() => projects.id),
+  projectName: text("project_name").default(""),
+  nextRunDate: text("next_run_date").default(""),
+  startDate: text("start_date").default(""),
+  status: text("status").notNull().default("active"),
+  notes: text("notes").default(""),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
 // ============ MEMBERSHIPS ============
 
 export const memberships = pgTable("memberships", {

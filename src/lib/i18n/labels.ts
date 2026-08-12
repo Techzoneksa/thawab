@@ -148,6 +148,21 @@ const LABELS: Record<string, Dict> = {
   },
   endowmentType: { general: "وقف عام", specific: "وقف خاص", investment: "وقف استثماري" },
   endowmentStatus: { active: "نشط", inactive: "غير نشط" },
+  endowmentReturnStatus: { realized: "محقق", expected: "متوقع" },
+  donorOrgCategory: {
+    government: "حكومي",
+    international: "دولي",
+    partner: "شريك",
+    private: "قطاع خاص",
+  },
+  donorOrgStatus: { active: "نشط", inactive: "غير نشط" },
+  recurringFrequency: {
+    weekly: "أسبوعي",
+    monthly: "شهري",
+    quarterly: "ربع سنوي",
+    yearly: "سنوي",
+  },
+  recurringStatus: { active: "نشط", paused: "موقوف" },
   membershipRole: {
     member: "عضو",
     chair: "رئيس",
