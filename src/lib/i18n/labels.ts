@@ -169,6 +169,23 @@ const LABELS: Record<string, Dict> = {
     critical: "حرج",
     success: "نجاح",
   },
+  reportType: {
+    financial: "مالي",
+    donations: "تبرعات",
+    projects: "مشاريع",
+    beneficiaries: "مستفيدون",
+    grants: "منح",
+    procurement: "مشتريات",
+    inventory: "مخزون",
+  },
+  reportPeriod: {
+    monthly: "شهري",
+    quarterly: "ربعي",
+    semiannual: "نصف سنوي",
+    annual: "سنوي",
+    custom: "مخصص",
+  },
+  reportFormat: { pdf: "PDF", excel: "Excel", csv: "CSV" },
   membershipRole: {
     member: "عضو",
     chair: "رئيس",

@@ -383,6 +383,35 @@ export const NotificationTone = {
 } as const;
 export type NotificationTone = (typeof NotificationTone)[keyof typeof NotificationTone];
 
+// ============ SAVED REPORTS (التقارير المحفوظة) ============
+
+export const ReportType = {
+  FINANCIAL: "financial",
+  DONATIONS: "donations",
+  PROJECTS: "projects",
+  BENEFICIARIES: "beneficiaries",
+  GRANTS: "grants",
+  PROCUREMENT: "procurement",
+  INVENTORY: "inventory",
+} as const;
+export type ReportType = (typeof ReportType)[keyof typeof ReportType];
+
+export const ReportPeriod = {
+  MONTHLY: "monthly",
+  QUARTERLY: "quarterly",
+  SEMIANNUAL: "semiannual",
+  ANNUAL: "annual",
+  CUSTOM: "custom",
+} as const;
+export type ReportPeriod = (typeof ReportPeriod)[keyof typeof ReportPeriod];
+
+export const ReportFormat = {
+  PDF: "pdf",
+  EXCEL: "excel",
+  CSV: "csv",
+} as const;
+export type ReportFormat = (typeof ReportFormat)[keyof typeof ReportFormat];
+
 // ============ GOVERNANCE ============
 
 export const MembershipRole = {

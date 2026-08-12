@@ -686,6 +686,21 @@ export const donorOrgs = pgTable("donor_orgs", {
   updatedAt: text("updated_at").notNull().default(""),
 });
 
+// ============ SAVED REPORTS (التقارير المحفوظة) ============
+
+export const savedReports = pgTable("saved_reports", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  type: text("type").notNull().default("financial"),
+  period: text("period").notNull().default("monthly"),
+  format: text("format").notNull().default("pdf"),
+  scheduled: boolean("scheduled").notNull().default(false),
+  notes: text("notes").default(""),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
 // ============ NOTIFICATIONS (التنبيهات) ============
 
 export const notifications = pgTable("notifications", {

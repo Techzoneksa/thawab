@@ -1,15 +1,18 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
   Card,
   Btn,
+  Badge,
   FilterBar,
   Select,
   MobileFilterDrawer,
 } from "@/components/erp/AppShell";
 import { fmtSAR, fmtNum } from "@/data/sample";
 import { getReportSummary } from "@/lib/api/reports";
+import { label } from "@/lib/i18n/labels";
+import { getSavedReports, deleteSavedReport, type SavedReport } from "@/lib/api/saved-reports";
 import * as Icons from "lucide-react";
 import {
   FileText,
@@ -20,9 +23,18 @@ import {
   Filter,
   Plus,
   Clock,
+  Pencil,
+  Trash2,
+  BookMarked,
 } from "lucide-react";
 import { useState } from "react";
-import { showToast, EntityFormDrawer, PrintButton, PrintStyle } from "@/components/erp/actions";
+import {
+  showToast,
+  PrintButton,
+  PrintStyle,
+  ActionMenu,
+  EmptyState,
+} from "@/components/erp/actions";
 
 // Static UI configuration of available report categories (not business data).
 type ReportCategory = { title: string; icon: string; items: string[] };
@@ -70,19 +82,31 @@ export const Route = createFileRoute("/reports")({
 });
 
 function Page() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [filterOpen, setFilterOpen] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState("الكل");
-  const [formName, setFormName] = useState("");
-  const [formType, setFormType] = useState("مالي");
-  const [formPeriod, setFormPeriod] = useState("شهري");
-  const [formFormat, setFormFormat] = useState("PDF");
 
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: ["reportSummary"],
     queryFn: getReportSummary,
   });
   const s = summaryData?.summary;
+
+  const { data: savedData } = useQuery({
+    queryKey: ["saved-reports"],
+    queryFn: getSavedReports,
+  });
+  const savedReports = savedData?.items ?? [];
+
+  const deleteReportMut = useMutation({
+    mutationFn: deleteSavedReport,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-reports"] });
+      showToast("تم حذف التقرير", "success");
+    },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
   const kpis = s
     ? [
@@ -157,16 +181,6 @@ function Page() {
       ? REPORT_CATEGORIES
       : REPORT_CATEGORIES.filter((c) => c.title.includes(typeFilter));
 
-  const handleCreateReport = () => {
-    if (!formName.trim()) {
-      showToast("الرجاء إدخال اسم التقرير", "error");
-      return;
-    }
-    showToast(`تم إنشاء التقرير "${formName}" بنجاح`, "success");
-    setCreateOpen(false);
-    setFormName("");
-  };
-
   const handleSchedule = (name: string) => {
     showToast(`تمت جدولة التقرير "${name}" بنجاح`, "info");
   };
@@ -203,7 +217,7 @@ function Page() {
             <Download size={15} /> تصدير الملخص
           </Btn>
           <PrintButton />
-          <Btn variant="primary" onClick={() => setCreateOpen(true)}>
+          <Btn variant="primary" onClick={() => navigate({ to: "/reports/new" })}>
             <Plus size={15} /> إنشاء تقرير
           </Btn>
         </>
@@ -228,6 +242,71 @@ function Page() {
           ))}
         </div>
       </section>
+
+      <section className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-bold text-muted-foreground flex items-center gap-1.5">
+            <BookMarked size={14} /> التقارير المحفوظة
+          </h2>
+          <button
+            onClick={() => navigate({ to: "/reports/new" })}
+            className="text-primary text-xs font-semibold hover:underline"
+          >
+            + تقرير جديد
+          </button>
+        </div>
+        {savedReports.length === 0 ? (
+          <Card className="p-2">
+            <EmptyState
+              icon={<BookMarked size={32} />}
+              title="لا توجد تقارير محفوظة"
+              description="احفظ تعريف تقرير لإعادة تشغيله أو جدولته لاحقاً"
+              action={
+                <Btn variant="primary" onClick={() => navigate({ to: "/reports/new" })}>
+                  <Plus size={15} /> إنشاء تقرير
+                </Btn>
+              }
+            />
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {savedReports.map((r: SavedReport) => (
+              <Card key={r.id} className="p-3 lg:p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <button
+                    onClick={() => navigate({ to: "/reports/$id/edit", params: { id: r.id } })}
+                    className="font-bold text-sm text-right hover:text-primary min-w-0 truncate"
+                  >
+                    {r.name}
+                  </button>
+                  <ActionMenu
+                    actions={[
+                      {
+                        label: "تعديل",
+                        icon: Pencil,
+                        onClick: () => navigate({ to: "/reports/$id/edit", params: { id: r.id } }),
+                      },
+                      {
+                        label: "حذف",
+                        icon: Trash2,
+                        variant: "destructive" as const,
+                        onClick: () => deleteReportMut.mutate(r.id),
+                      },
+                    ]}
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  <Badge tone="info">{label("reportType", r.type)}</Badge>
+                  <Badge tone="muted">{label("reportPeriod", r.period)}</Badge>
+                  <Badge tone="muted">{label("reportFormat", r.format)}</Badge>
+                  {r.scheduled && <Badge tone="success">مجدول</Badge>}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
       <FilterBar>
         <Select
           label="الفترة"
@@ -309,65 +388,6 @@ function Page() {
           );
         })}
       </div>
-
-      <EntityFormDrawer
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        title="إنشاء تقرير جديد"
-        onSave={handleCreateReport}
-      >
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">اسم التقرير</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formName}
-            onChange={(e) => setFormName(e.target.value)}
-            placeholder="اسم التقرير"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">النوع</label>
-          <select
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formType}
-            onChange={(e) => setFormType(e.target.value)}
-          >
-            <option>مالي</option>
-            <option>تبرعات</option>
-            <option>مشاريع</option>
-            <option>مستفيدين</option>
-            <option>منح</option>
-            <option>مشتريات</option>
-            <option>مخزون</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الفترة</label>
-          <select
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formPeriod}
-            onChange={(e) => setFormPeriod(e.target.value)}
-          >
-            <option>شهري</option>
-            <option>ربعي</option>
-            <option>نصف سنوي</option>
-            <option>سنوي</option>
-            <option>مخصص</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">التنسيق</label>
-          <select
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formFormat}
-            onChange={(e) => setFormFormat(e.target.value)}
-          >
-            <option>PDF</option>
-            <option>Excel</option>
-            <option>CSV</option>
-          </select>
-        </div>
-      </EntityFormDrawer>
 
       <MobileFilterDrawer open={filterOpen} onClose={() => setFilterOpen(false)}>
         <div className="space-y-4">
