@@ -78,6 +78,7 @@ import { Route as ApiBeneficiariesRouteImport } from './routes/api/beneficiaries
 import { Route as ApiAuthRouteImport } from './routes/api/auth'
 import { Route as ApiAuditRouteImport } from './routes/api/audit'
 import { Route as ApiAssetsRouteImport } from './routes/api/assets'
+import { Route as ApiApprovalsRouteImport } from './routes/api/approvals'
 import { Route as ApiAidRouteImport } from './routes/api/aid'
 import { Route as AidNewRouteImport } from './routes/aid_.new'
 import { Route as ProjectsIdEditRouteImport } from './routes/projects_.$id_.edit'
@@ -466,6 +467,11 @@ const ApiAssetsRoute = ApiAssetsRouteImport.update({
   path: '/api/assets',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiApprovalsRoute = ApiApprovalsRouteImport.update({
+  id: '/api/approvals',
+  path: '/api/approvals',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAidRoute = ApiAidRouteImport.update({
   id: '/api/aid',
   path: '/api/aid',
@@ -709,6 +715,7 @@ export interface FileRoutesByFullPath {
   '/workflows': typeof WorkflowsRoute
   '/aid/new': typeof AidNewRoute
   '/api/aid': typeof ApiAidRoute
+  '/api/approvals': typeof ApiApprovalsRoute
   '/api/assets': typeof ApiAssetsRoute
   '/api/audit': typeof ApiAuditRoute
   '/api/auth': typeof ApiAuthRoute
@@ -822,6 +829,7 @@ export interface FileRoutesByTo {
   '/workflows': typeof WorkflowsRoute
   '/aid/new': typeof AidNewRoute
   '/api/aid': typeof ApiAidRoute
+  '/api/approvals': typeof ApiApprovalsRoute
   '/api/assets': typeof ApiAssetsRoute
   '/api/audit': typeof ApiAuditRoute
   '/api/auth': typeof ApiAuthRoute
@@ -936,6 +944,7 @@ export interface FileRoutesById {
   '/workflows': typeof WorkflowsRoute
   '/aid_/new': typeof AidNewRoute
   '/api/aid': typeof ApiAidRoute
+  '/api/approvals': typeof ApiApprovalsRoute
   '/api/assets': typeof ApiAssetsRoute
   '/api/audit': typeof ApiAuditRoute
   '/api/auth': typeof ApiAuthRoute
@@ -1051,6 +1060,7 @@ export interface FileRouteTypes {
     | '/workflows'
     | '/aid/new'
     | '/api/aid'
+    | '/api/approvals'
     | '/api/assets'
     | '/api/audit'
     | '/api/auth'
@@ -1164,6 +1174,7 @@ export interface FileRouteTypes {
     | '/workflows'
     | '/aid/new'
     | '/api/aid'
+    | '/api/approvals'
     | '/api/assets'
     | '/api/audit'
     | '/api/auth'
@@ -1277,6 +1288,7 @@ export interface FileRouteTypes {
     | '/workflows'
     | '/aid_/new'
     | '/api/aid'
+    | '/api/approvals'
     | '/api/assets'
     | '/api/audit'
     | '/api/auth'
@@ -1391,6 +1403,7 @@ export interface RootRouteChildren {
   WorkflowsRoute: typeof WorkflowsRoute
   AidNewRoute: typeof AidNewRoute
   ApiAidRoute: typeof ApiAidRoute
+  ApiApprovalsRoute: typeof ApiApprovalsRoute
   ApiAssetsRoute: typeof ApiAssetsRoute
   ApiAuditRoute: typeof ApiAuditRoute
   ApiAuthRoute: typeof ApiAuthRoute
@@ -1962,6 +1975,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAssetsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/approvals': {
+      id: '/api/approvals'
+      path: '/api/approvals'
+      fullPath: '/api/approvals'
+      preLoaderRoute: typeof ApiApprovalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/aid': {
       id: '/api/aid'
       path: '/api/aid'
@@ -2287,6 +2307,7 @@ const rootRouteChildren: RootRouteChildren = {
   WorkflowsRoute: WorkflowsRoute,
   AidNewRoute: AidNewRoute,
   ApiAidRoute: ApiAidRoute,
+  ApiApprovalsRoute: ApiApprovalsRoute,
   ApiAssetsRoute: ApiAssetsRoute,
   ApiAuditRoute: ApiAuditRoute,
   ApiAuthRoute: ApiAuthRoute,

@@ -230,6 +230,7 @@ export const ApprovalStatus = {
   PENDING: "pending",
   APPROVED: "approved",
   REJECTED: "rejected",
+  RETURNED: "returned",
 } as const;
 export type ApprovalStatus = (typeof ApprovalStatus)[keyof typeof ApprovalStatus];
 
@@ -269,8 +270,7 @@ export const PurchaseOrderStatus = {
   CLOSED: "closed",
   CANCELLED: "cancelled",
 } as const;
-export type PurchaseOrderStatus =
-  (typeof PurchaseOrderStatus)[keyof typeof PurchaseOrderStatus];
+export type PurchaseOrderStatus = (typeof PurchaseOrderStatus)[keyof typeof PurchaseOrderStatus];
 
 export const QuoteStatus = {
   PENDING: "pending",
@@ -285,8 +285,7 @@ export const InventoryItemStatus = {
   ACTIVE: "active",
   INACTIVE: "inactive",
 } as const;
-export type InventoryItemStatus =
-  (typeof InventoryItemStatus)[keyof typeof InventoryItemStatus];
+export type InventoryItemStatus = (typeof InventoryItemStatus)[keyof typeof InventoryItemStatus];
 
 export const WarehouseStatus = {
   ACTIVE: "active",
@@ -300,8 +299,7 @@ export const StockMovementType = {
   TRANSFER: "transfer",
   ADJUSTMENT: "adjustment",
 } as const;
-export type StockMovementType =
-  (typeof StockMovementType)[keyof typeof StockMovementType];
+export type StockMovementType = (typeof StockMovementType)[keyof typeof StockMovementType];
 
 export const StocktakeStatus = {
   DRAFT: "draft",
@@ -386,8 +384,7 @@ export const DepreciationMethod = {
   STRAIGHT_LINE: "straight_line",
   DECLINING_BALANCE: "declining_balance",
 } as const;
-export type DepreciationMethod =
-  (typeof DepreciationMethod)[keyof typeof DepreciationMethod];
+export type DepreciationMethod = (typeof DepreciationMethod)[keyof typeof DepreciationMethod];
 
 export const AssetMovementType = {
   TRANSFER: "transfer",
@@ -395,5 +392,4 @@ export const AssetMovementType = {
   MAINTENANCE: "maintenance",
   REVALUATION: "revaluation",
 } as const;
-export type AssetMovementType =
-  (typeof AssetMovementType)[keyof typeof AssetMovementType];
+export type AssetMovementType = (typeof AssetMovementType)[keyof typeof AssetMovementType];

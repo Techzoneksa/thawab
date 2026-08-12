@@ -101,7 +101,12 @@ const LABELS: Record<string, Dict> = {
     closed: "مغلقة",
   },
   fiscalPeriodStatus: { open: "مفتوحة", closed: "مقفلة" },
-  approvalStatus: { pending: "بانتظار الموافقة", approved: "معتمد", rejected: "مرفوض" },
+  approvalStatus: {
+    pending: "بانتظار الموافقة",
+    approved: "معتمد",
+    rejected: "مرفوض",
+    returned: "مُعاد للتصحيح",
+  },
   priority: { low: "منخفضة", medium: "متوسطة", high: "عالية", urgent: "عاجلة" },
   supplierStatus: { active: "نشط", inactive: "غير نشط", blacklisted: "محظور" },
   purchaseRequestStatus: {
