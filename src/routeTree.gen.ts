@@ -97,6 +97,7 @@ import { Route as ApiAssetsRouteImport } from './routes/api/assets'
 import { Route as ApiApprovalsRouteImport } from './routes/api/approvals'
 import { Route as ApiAidRouteImport } from './routes/api/aid'
 import { Route as AidNewRouteImport } from './routes/aid_.new'
+import { Route as SettingsUsersNewRouteImport } from './routes/settings.users_.new'
 import { Route as SettingsBranchesNewRouteImport } from './routes/settings.branches_.new'
 import { Route as RecurringIdEditRouteImport } from './routes/recurring_.$id_.edit'
 import { Route as ProjectsIdEditRouteImport } from './routes/projects_.$id_.edit'
@@ -143,6 +144,7 @@ import { Route as ApiFinanceCostCentersRouteImport } from './routes/api/finance/
 import { Route as ApiFinanceBudgetsRouteImport } from './routes/api/finance/budgets'
 import { Route as ApiFinanceAccountsRouteImport } from './routes/api/finance/accounts'
 import { Route as AidIdEditRouteImport } from './routes/aid_.$id_.edit'
+import { Route as SettingsUsersIdEditRouteImport } from './routes/settings.users_.$id_.edit'
 import { Route as SettingsBranchesIdEditRouteImport } from './routes/settings.branches_.$id_.edit'
 import { Route as ProcurementSuppliersIdEditRouteImport } from './routes/procurement.suppliers_.$id_.edit'
 import { Route as ProcurementRequestsIdEditRouteImport } from './routes/procurement.requests_.$id_.edit'
@@ -597,6 +599,11 @@ const AidNewRoute = AidNewRouteImport.update({
   path: '/aid/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsUsersNewRoute = SettingsUsersNewRouteImport.update({
+  id: '/settings/users_/new',
+  path: '/settings/users/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsBranchesNewRoute = SettingsBranchesNewRouteImport.update({
   id: '/settings/branches_/new',
   path: '/settings/branches/new',
@@ -827,6 +834,11 @@ const AidIdEditRoute = AidIdEditRouteImport.update({
   path: '/aid/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsUsersIdEditRoute = SettingsUsersIdEditRouteImport.update({
+  id: '/settings/users_/$id_/edit',
+  path: '/settings/users/$id/edit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsBranchesIdEditRoute = SettingsBranchesIdEditRouteImport.update({
   id: '/settings/branches_/$id_/edit',
   path: '/settings/branches/$id/edit',
@@ -1033,6 +1045,7 @@ export interface FileRoutesByFullPath {
   '/projects/$id/edit': typeof ProjectsIdEditRoute
   '/recurring/$id/edit': typeof RecurringIdEditRoute
   '/settings/branches/new': typeof SettingsBranchesNewRoute
+  '/settings/users/new': typeof SettingsUsersNewRoute
   '/finance/accounts/$id/edit': typeof FinanceAccountsIdEditRoute
   '/finance/budgets/$id/edit': typeof FinanceBudgetsIdEditRoute
   '/finance/closing/$id/edit': typeof FinanceClosingIdEditRoute
@@ -1046,6 +1059,7 @@ export interface FileRoutesByFullPath {
   '/procurement/requests/$id/edit': typeof ProcurementRequestsIdEditRoute
   '/procurement/suppliers/$id/edit': typeof ProcurementSuppliersIdEditRoute
   '/settings/branches/$id/edit': typeof SettingsBranchesIdEditRoute
+  '/settings/users/$id/edit': typeof SettingsUsersIdEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -1182,6 +1196,7 @@ export interface FileRoutesByTo {
   '/projects/$id/edit': typeof ProjectsIdEditRoute
   '/recurring/$id/edit': typeof RecurringIdEditRoute
   '/settings/branches/new': typeof SettingsBranchesNewRoute
+  '/settings/users/new': typeof SettingsUsersNewRoute
   '/finance/accounts/$id/edit': typeof FinanceAccountsIdEditRoute
   '/finance/budgets/$id/edit': typeof FinanceBudgetsIdEditRoute
   '/finance/closing/$id/edit': typeof FinanceClosingIdEditRoute
@@ -1195,6 +1210,7 @@ export interface FileRoutesByTo {
   '/procurement/requests/$id/edit': typeof ProcurementRequestsIdEditRoute
   '/procurement/suppliers/$id/edit': typeof ProcurementSuppliersIdEditRoute
   '/settings/branches/$id/edit': typeof SettingsBranchesIdEditRoute
+  '/settings/users/$id/edit': typeof SettingsUsersIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -1332,6 +1348,7 @@ export interface FileRoutesById {
   '/projects_/$id_/edit': typeof ProjectsIdEditRoute
   '/recurring_/$id_/edit': typeof RecurringIdEditRoute
   '/settings/branches_/new': typeof SettingsBranchesNewRoute
+  '/settings/users_/new': typeof SettingsUsersNewRoute
   '/finance/accounts_/$id_/edit': typeof FinanceAccountsIdEditRoute
   '/finance/budgets_/$id_/edit': typeof FinanceBudgetsIdEditRoute
   '/finance/closing_/$id_/edit': typeof FinanceClosingIdEditRoute
@@ -1345,6 +1362,7 @@ export interface FileRoutesById {
   '/procurement/requests_/$id_/edit': typeof ProcurementRequestsIdEditRoute
   '/procurement/suppliers_/$id_/edit': typeof ProcurementSuppliersIdEditRoute
   '/settings/branches_/$id_/edit': typeof SettingsBranchesIdEditRoute
+  '/settings/users_/$id_/edit': typeof SettingsUsersIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -1483,6 +1501,7 @@ export interface FileRouteTypes {
     | '/projects/$id/edit'
     | '/recurring/$id/edit'
     | '/settings/branches/new'
+    | '/settings/users/new'
     | '/finance/accounts/$id/edit'
     | '/finance/budgets/$id/edit'
     | '/finance/closing/$id/edit'
@@ -1496,6 +1515,7 @@ export interface FileRouteTypes {
     | '/procurement/requests/$id/edit'
     | '/procurement/suppliers/$id/edit'
     | '/settings/branches/$id/edit'
+    | '/settings/users/$id/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -1632,6 +1652,7 @@ export interface FileRouteTypes {
     | '/projects/$id/edit'
     | '/recurring/$id/edit'
     | '/settings/branches/new'
+    | '/settings/users/new'
     | '/finance/accounts/$id/edit'
     | '/finance/budgets/$id/edit'
     | '/finance/closing/$id/edit'
@@ -1645,6 +1666,7 @@ export interface FileRouteTypes {
     | '/procurement/requests/$id/edit'
     | '/procurement/suppliers/$id/edit'
     | '/settings/branches/$id/edit'
+    | '/settings/users/$id/edit'
   id:
     | '__root__'
     | '/'
@@ -1781,6 +1803,7 @@ export interface FileRouteTypes {
     | '/projects_/$id_/edit'
     | '/recurring_/$id_/edit'
     | '/settings/branches_/new'
+    | '/settings/users_/new'
     | '/finance/accounts_/$id_/edit'
     | '/finance/budgets_/$id_/edit'
     | '/finance/closing_/$id_/edit'
@@ -1794,6 +1817,7 @@ export interface FileRouteTypes {
     | '/procurement/requests_/$id_/edit'
     | '/procurement/suppliers_/$id_/edit'
     | '/settings/branches_/$id_/edit'
+    | '/settings/users_/$id_/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1931,6 +1955,7 @@ export interface RootRouteChildren {
   ProjectsIdEditRoute: typeof ProjectsIdEditRoute
   RecurringIdEditRoute: typeof RecurringIdEditRoute
   SettingsBranchesNewRoute: typeof SettingsBranchesNewRoute
+  SettingsUsersNewRoute: typeof SettingsUsersNewRoute
   FinanceAccountsIdEditRoute: typeof FinanceAccountsIdEditRoute
   FinanceBudgetsIdEditRoute: typeof FinanceBudgetsIdEditRoute
   FinanceClosingIdEditRoute: typeof FinanceClosingIdEditRoute
@@ -1944,6 +1969,7 @@ export interface RootRouteChildren {
   ProcurementRequestsIdEditRoute: typeof ProcurementRequestsIdEditRoute
   ProcurementSuppliersIdEditRoute: typeof ProcurementSuppliersIdEditRoute
   SettingsBranchesIdEditRoute: typeof SettingsBranchesIdEditRoute
+  SettingsUsersIdEditRoute: typeof SettingsUsersIdEditRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -2564,6 +2590,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AidNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/users_/new': {
+      id: '/settings/users_/new'
+      path: '/settings/users/new'
+      fullPath: '/settings/users/new'
+      preLoaderRoute: typeof SettingsUsersNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/branches_/new': {
       id: '/settings/branches_/new'
       path: '/settings/branches/new'
@@ -2886,6 +2919,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AidIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/users_/$id_/edit': {
+      id: '/settings/users_/$id_/edit'
+      path: '/settings/users/$id/edit'
+      fullPath: '/settings/users/$id/edit'
+      preLoaderRoute: typeof SettingsUsersIdEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/branches_/$id_/edit': {
       id: '/settings/branches_/$id_/edit'
       path: '/settings/branches/$id/edit'
@@ -3115,6 +3155,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectsIdEditRoute: ProjectsIdEditRoute,
   RecurringIdEditRoute: RecurringIdEditRoute,
   SettingsBranchesNewRoute: SettingsBranchesNewRoute,
+  SettingsUsersNewRoute: SettingsUsersNewRoute,
   FinanceAccountsIdEditRoute: FinanceAccountsIdEditRoute,
   FinanceBudgetsIdEditRoute: FinanceBudgetsIdEditRoute,
   FinanceClosingIdEditRoute: FinanceClosingIdEditRoute,
@@ -3128,6 +3169,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProcurementRequestsIdEditRoute: ProcurementRequestsIdEditRoute,
   ProcurementSuppliersIdEditRoute: ProcurementSuppliersIdEditRoute,
   SettingsBranchesIdEditRoute: SettingsBranchesIdEditRoute,
+  SettingsUsersIdEditRoute: SettingsUsersIdEditRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
