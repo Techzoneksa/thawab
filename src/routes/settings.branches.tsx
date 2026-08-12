@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
   Card,
@@ -15,67 +16,40 @@ import {
   EntityFormDrawer,
   ActionMenu,
   ExportButton,
+  EmptyState,
 } from "@/components/erp/actions";
+import { label } from "@/lib/i18n/labels";
+import {
+  getBranches,
+  createBranch,
+  updateBranch,
+  deleteBranch,
+  type Branch,
+} from "@/lib/api/branches";
+import { BranchStatus } from "@/lib/enums";
 import { MapPin, Plus, Pencil, Ban, CheckCircle2, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/settings/branches")({
   head: () => ({ meta: [{ title: "الفروع — ثواب" }] }),
   component: () => {
-    const [branches, setBranches] = useState([
-      {
-        n: "الفرع الرئيسي - الرياض",
-        city: "الرياض",
-        mgr: "د. عبدالله السبيعي",
-        phone: "920001234",
-        email: "hq@albir.org.sa",
-        emp: 32,
-        prj: 18,
-        status: "نشط",
-      },
-      {
-        n: "فرع جدة",
-        city: "جدة",
-        mgr: "أ. محمد العمري",
-        phone: "920001235",
-        email: "jeddah@albir.org.sa",
-        emp: 14,
-        prj: 7,
-        status: "نشط",
-      },
-      {
-        n: "فرع الدمام",
-        city: "الدمام",
-        mgr: "أ. خالد الدوسري",
-        phone: "920001236",
-        email: "dammam@albir.org.sa",
-        emp: 10,
-        prj: 5,
-        status: "نشط",
-      },
-      {
-        n: "فرع أبها",
-        city: "أبها",
-        mgr: "أ. سعيد الغامدي",
-        phone: "920001237",
-        email: "abha@albir.org.sa",
-        emp: 8,
-        prj: 4,
-        status: "نشط",
-      },
-    ]);
-
-    const [addOpen, setAddOpen] = useState(false);
-    const [editOpen, setEditOpen] = useState(false);
-    const [editIdx, setEditIdx] = useState<number | null>(null);
-    const [confirmOpen, setConfirmOpen] = useState(false);
-    const [confirmAction, setConfirmAction] = useState<() => void>(() => {});
+    const queryClient = useQueryClient();
+    const [formOpen, setFormOpen] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [confirmId, setConfirmId] = useState<string | null>(null);
 
     const [formName, setFormName] = useState("");
     const [formCity, setFormCity] = useState("");
     const [formMgr, setFormMgr] = useState("");
     const [formPhone, setFormPhone] = useState("");
     const [formEmail, setFormEmail] = useState("");
-    const [formStatus, setFormStatus] = useState("نشط");
+    const [formStatus, setFormStatus] = useState<string>(BranchStatus.ACTIVE);
+
+    const { data, isLoading, error } = useQuery({
+      queryKey: ["branches"],
+      queryFn: () => getBranches(),
+    });
+    const items: Branch[] = data?.items ?? [];
+    const invalidate = () => queryClient.invalidateQueries({ queryKey: ["branches"] });
 
     function resetForm() {
       setFormName("");
@@ -83,78 +57,83 @@ export const Route = createFileRoute("/settings/branches")({
       setFormMgr("");
       setFormPhone("");
       setFormEmail("");
-      setFormStatus("نشط");
+      setFormStatus(BranchStatus.ACTIVE);
     }
 
-    function handleAdd() {
+    const openAdd = () => {
+      setEditingId(null);
+      resetForm();
+      setFormOpen(true);
+    };
+
+    const openEdit = (b: Branch) => {
+      setEditingId(b.id);
+      setFormName(b.name);
+      setFormCity(b.city ?? "");
+      setFormMgr(b.manager ?? "");
+      setFormPhone(b.phone ?? "");
+      setFormEmail(b.email ?? "");
+      setFormStatus(b.status);
+      setFormOpen(true);
+    };
+
+    const createMutation = useMutation({
+      mutationFn: createBranch,
+      onSuccess: () => {
+        invalidate();
+        showToast("تم إضافة الفرع بنجاح", "success");
+        setFormOpen(false);
+        resetForm();
+      },
+      onError: (e: Error) => showToast(e.message, "error"),
+    });
+
+    const updateMutation = useMutation({
+      mutationFn: updateBranch,
+      onSuccess: () => {
+        invalidate();
+        showToast("تم حفظ التغييرات", "success");
+        setFormOpen(false);
+        setEditingId(null);
+        resetForm();
+      },
+      onError: (e: Error) => showToast(e.message, "error"),
+    });
+
+    const deleteMutation = useMutation({
+      mutationFn: deleteBranch,
+      onSuccess: () => {
+        invalidate();
+        showToast("تم حذف الفرع بنجاح", "success");
+        setConfirmId(null);
+      },
+      onError: (e: Error) => {
+        showToast(e.message, "error");
+        setConfirmId(null);
+      },
+    });
+
+    const handleSave = () => {
       if (!formName.trim()) {
         showToast("يرجى إدخال اسم الفرع", "error");
         return;
       }
-      const newBranch = {
-        n: formName,
-        city: formCity || "—",
-        mgr: formMgr || "—",
-        phone: formPhone || "—",
-        email: formEmail || "—",
-        emp: 0,
-        prj: 0,
-        status: formStatus,
-      };
-      setBranches([...branches, newBranch]);
-      showToast(`تم إضافة الفرع ${formName} بنجاح`, "success");
-      setAddOpen(false);
-      resetForm();
-    }
-
-    function handleEdit(i: number) {
-      const b = branches[i];
-      setEditIdx(i);
-      setFormName(b.n);
-      setFormCity(b.city);
-      setFormMgr(b.mgr);
-      setFormPhone(b.phone);
-      setFormEmail(b.email);
-      setFormStatus(b.status);
-      setEditOpen(true);
-    }
-
-    function handleSaveEdit() {
-      if (editIdx === null) return;
-      const updated = [...branches];
-      updated[editIdx] = {
-        ...updated[editIdx],
-        n: formName,
+      const payload = {
+        name: formName.trim(),
         city: formCity,
-        mgr: formMgr,
+        manager: formMgr,
         phone: formPhone,
         email: formEmail,
         status: formStatus,
       };
-      setBranches(updated);
-      showToast(`تم تعديل الفرع ${formName} بنجاح`, "success");
-      setEditOpen(false);
-      setEditIdx(null);
-      resetForm();
-    }
+      if (editingId) updateMutation.mutate({ id: editingId, ...payload });
+      else createMutation.mutate(payload);
+    };
 
-    function toggleStatus(i: number) {
-      const updated = [...branches];
-      updated[i] = { ...updated[i], status: updated[i].status === "نشط" ? "موقوف" : "نشط" };
-      setBranches(updated);
-      showToast(
-        `تم ${updated[i].status === "نشط" ? "تفعيل" : "تعطيل"} الفرع ${updated[i].n}`,
-        "success",
-      );
-    }
-
-    function handleDelete(i: number) {
-      setConfirmAction(() => () => {
-        setBranches(branches.filter((_, idx) => idx !== i));
-        showToast("تم حذف الفرع بنجاح", "success");
-      });
-      setConfirmOpen(true);
-    }
+    const toggleStatus = (b: Branch) => {
+      const next = b.status === BranchStatus.ACTIVE ? BranchStatus.INACTIVE : BranchStatus.ACTIVE;
+      updateMutation.mutate({ id: b.id, status: next });
+    };
 
     return (
       <AppShell
@@ -163,86 +142,75 @@ export const Route = createFileRoute("/settings/branches")({
         actions={
           <div className="flex items-center gap-2">
             <ExportButton
-              data={branches.map((b) => ({
-                الفرع: b.n,
+              data={items.map((b) => ({
+                الفرع: b.name,
                 المدينة: b.city,
-                المدير: b.mgr,
-                الجوال: b.phone,
-                البريد: b.email,
-                الحالة: b.status,
+                المدير: b.manager ?? "",
+                الجوال: b.phone ?? "",
+                البريد: b.email ?? "",
+                الحالة: label("branchStatus", b.status),
               }))}
               filename="branches.csv"
             />
-            <Btn
-              variant="primary"
-              onClick={() => {
-                resetForm();
-                setAddOpen(true);
-              }}
-            >
+            <Btn variant="primary" onClick={openAdd}>
               <Plus size={15} />
               فرع جديد
             </Btn>
           </div>
         }
       >
-        <MobilePageHeader title="فروع الجمعية" count={`${branches.length} فرع`} />
+        <MobilePageHeader title="فروع الجمعية" count={`${items.length} فرع`} />
         <MobileActionRow>
-          <Btn
-            variant="primary"
-            onClick={() => {
-              resetForm();
-              setAddOpen(true);
-            }}
-          >
+          <Btn variant="primary" onClick={openAdd}>
             <Plus size={15} />
             إضافة فرع
           </Btn>
         </MobileActionRow>
+
+        {isLoading && (
+          <div className="text-sm text-muted-foreground py-8 text-center">جارٍ التحميل…</div>
+        )}
+        {error && (
+          <div className="text-sm text-destructive py-8 text-center">فشل في تحميل الفروع</div>
+        )}
+        {!isLoading && !error && items.length === 0 && (
+          <EmptyState title="لا توجد فروع" description="ابدأ بإضافة أول فرع" />
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 lg:mt-0">
-          {branches.map((b, i) => (
-            <Card key={i} className="p-5">
+          {items.map((b) => (
+            <Card key={b.id} className="p-5">
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="flex items-start gap-3">
                   <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
                     <MapPin size={20} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-bold truncate">{b.n}</h3>
-                    <div className="text-xs text-muted-foreground">{b.city}</div>
+                    <h3 className="font-bold truncate">{b.name}</h3>
+                    <div className="text-xs text-muted-foreground">{b.city || "—"}</div>
                   </div>
                 </div>
-                <Badge tone={statusTone(b.status)}>{b.status}</Badge>
+                <Badge tone={statusTone(b.status)}>{label("branchStatus", b.status)}</Badge>
               </div>
               <div className="text-sm text-muted-foreground space-y-1">
-                <div>المدير: {b.mgr}</div>
-                <div>الجوال: {b.phone}</div>
-                <div>البريد: {b.email}</div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 mt-3 text-center">
-                <div className="rounded-lg bg-muted/60 p-2">
-                  <div className="text-[11px] text-muted-foreground">الموظفون</div>
-                  <div className="font-bold mt-0.5">{b.emp}</div>
-                </div>
-                <div className="rounded-lg bg-muted/60 p-2">
-                  <div className="text-[11px] text-muted-foreground">المشاريع</div>
-                  <div className="font-bold mt-0.5">{b.prj}</div>
-                </div>
+                <div>المدير: {b.manager || "—"}</div>
+                <div>الجوال: {b.phone || "—"}</div>
+                <div>البريد: {b.email || "—"}</div>
               </div>
               <div className="flex justify-end mt-3">
                 <ActionMenu
                   actions={[
-                    { label: "تعديل", icon: Pencil, onClick: () => handleEdit(i) },
+                    { label: "تعديل", icon: Pencil, onClick: () => openEdit(b) },
                     {
-                      label: b.status === "نشط" ? "تعطيل" : "تفعيل",
-                      icon: b.status === "نشط" ? Ban : CheckCircle2,
-                      onClick: () => toggleStatus(i),
+                      label: b.status === BranchStatus.ACTIVE ? "تعطيل" : "تفعيل",
+                      icon: b.status === BranchStatus.ACTIVE ? Ban : CheckCircle2,
+                      onClick: () => toggleStatus(b),
                     },
                     {
                       label: "حذف",
                       icon: Trash2,
                       variant: "destructive",
-                      onClick: () => handleDelete(i),
+                      onClick: () => setConfirmId(b.id),
                     },
                   ]}
                 />
@@ -252,14 +220,15 @@ export const Route = createFileRoute("/settings/branches")({
         </div>
 
         <EntityFormDrawer
-          open={addOpen}
+          open={formOpen}
           onClose={() => {
-            setAddOpen(false);
+            setFormOpen(false);
+            setEditingId(null);
             resetForm();
           }}
-          title="إضافة فرع جديد"
-          onSave={handleAdd}
-          saveText="إضافة"
+          title={editingId ? "تعديل الفرع" : "إضافة فرع جديد"}
+          onSave={handleSave}
+          saveText={editingId ? "حفظ التغييرات" : "إضافة"}
         >
           <div>
             <label className="text-xs text-muted-foreground">اسم الفرع *</label>
@@ -308,89 +277,28 @@ export const Route = createFileRoute("/settings/branches")({
               value={formStatus}
               onChange={(e) => setFormStatus(e.target.value)}
             >
-              <option>نشط</option>
-              <option>موقوف</option>
+              <option value={BranchStatus.ACTIVE}>
+                {label("branchStatus", BranchStatus.ACTIVE)}
+              </option>
+              <option value={BranchStatus.INACTIVE}>
+                {label("branchStatus", BranchStatus.INACTIVE)}
+              </option>
             </select>
           </div>
         </EntityFormDrawer>
 
-        <EntityFormDrawer
-          open={editOpen}
-          onClose={() => {
-            setEditOpen(false);
-            setEditIdx(null);
-            resetForm();
-          }}
-          title="تعديل الفرع"
-          onSave={handleSaveEdit}
-          saveText="حفظ التغييرات"
-        >
-          <div>
-            <label className="text-xs text-muted-foreground">اسم الفرع</label>
-            <input
-              className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">المدينة</label>
-            <input
-              className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
-              value={formCity}
-              onChange={(e) => setFormCity(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">المدير</label>
-            <input
-              className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
-              value={formMgr}
-              onChange={(e) => setFormMgr(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">الجوال</label>
-            <input
-              className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
-              value={formPhone}
-              onChange={(e) => setFormPhone(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">البريد</label>
-            <input
-              className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
-              value={formEmail}
-              onChange={(e) => setFormEmail(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">الحالة</label>
-            <select
-              className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
-              value={formStatus}
-              onChange={(e) => setFormStatus(e.target.value)}
-            >
-              <option>نشط</option>
-              <option>موقوف</option>
-            </select>
-          </div>
-        </EntityFormDrawer>
-
-        <ConfirmDialog
-          open={confirmOpen}
-          onClose={() => setConfirmOpen(false)}
-          onConfirm={() => {
-            confirmAction();
-            setConfirmOpen(false);
-          }}
-          title="تأكيد حذف الفرع"
-          message="هل أنت متأكد من حذف هذا الفرع؟"
-          confirmText="حذف"
-          cancelText="إلغاء"
-          variant="destructive"
-        />
+        {confirmId !== null && (
+          <ConfirmDialog
+            open
+            onClose={() => setConfirmId(null)}
+            onConfirm={() => deleteMutation.mutate(confirmId)}
+            title="تأكيد حذف الفرع"
+            message="هل أنت متأكد من حذف هذا الفرع؟"
+            confirmText="حذف"
+            cancelText="إلغاء"
+            variant="destructive"
+          />
+        )}
       </AppShell>
     );
   },

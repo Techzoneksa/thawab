@@ -15,6 +15,13 @@
       "when": 1786524359087,
       "tag": "0001_overrated_marten_broadcloak",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786525122363,
+      "tag": "0002_optimal_hobgoblin",
+      "breakpoints": true
     }
   ]
 }

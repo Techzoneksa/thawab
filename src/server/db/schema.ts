@@ -770,3 +770,18 @@ export const employees = pgTable("employees", {
   createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
 });
+
+// ============ ORG SETTINGS (single row, id = "org") ============
+
+export const orgSettings = pgTable("org_settings", {
+  id: text("id").primaryKey(),
+  name: text("name").default(""),
+  regNo: text("reg_no").default(""),
+  taxNo: text("tax_no").default(""),
+  email: text("email").default(""),
+  phone: text("phone").default(""),
+  ceo: text("ceo").default(""),
+  fiscalYear: text("fiscal_year").default(""),
+  currency: text("currency").default("SAR"),
+  updatedAt: text("updated_at").notNull().default(""),
+});
