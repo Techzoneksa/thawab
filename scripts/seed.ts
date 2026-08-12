@@ -39,13 +39,13 @@ const ROLES = [
     id: "role-accountant",
     name: "محاسب",
     description: "إدارة الشؤون المالية",
-    permissions: ["finance.*", "donations.*", "campaigns.*", "grants.*", "receipts.*", "donors.view", "reports.*", "audit.view", "documents.*"],
+    permissions: ["finance.*", "donations.*", "campaigns.*", "grants.*", "endowments.*", "receipts.*", "donors.view", "reports.*", "audit.view", "documents.*"],
   },
   {
     id: "role-manager",
     name: "مدير تنفيذي",
     description: "إدارة البرامج والمشاريع",
-    permissions: ["projects.*", "aid.*", "beneficiaries.*", "donations.*", "campaigns.*", "grants.*", "approvals.*", "*.view", "documents.*"],
+    permissions: ["projects.*", "aid.*", "beneficiaries.*", "donations.*", "campaigns.*", "grants.*", "endowments.*", "approvals.*", "*.view", "documents.*"],
   },
   {
     id: "role-data-entry",
