@@ -162,6 +162,25 @@ export async function deactivateSupplier(options: {
   return d.item;
 }
 
+export async function paySupplier(options: {
+  id: string;
+  amount: number;
+  method?: "cash" | "bank";
+  note?: string;
+}): Promise<Supplier> {
+  const res = await fetch(API_BASE, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...options, action: "pay" }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.message || err.error || "فشل في تسجيل السداد");
+  }
+  const d = await res.json();
+  return d.item;
+}
+
 export async function deleteSupplier(options: {
   id: string;
   userId?: string;

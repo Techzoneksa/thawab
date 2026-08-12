@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { and, count, desc, eq, like, or } from "drizzle-orm";
+import { and, count, desc, eq, like, or, sql } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import {
   purchaseOrders,
@@ -8,6 +8,7 @@ import {
   purchaseRequests,
   inventoryItems,
   stockMovements,
+  suppliers,
 } from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
 import { postBalancedEntry, resolveSystemAccountId, SYS } from "@/server/db/gl";
@@ -29,11 +30,9 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const order = (await db
-      .select()
-      .from(purchaseOrders)
-      .where(eq(purchaseOrders.id, id))
-      .limit(1))[0];
+    const order = (
+      await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id)).limit(1)
+    )[0];
     if (!order) return err("أمر الشراء غير موجود", 404, "NOT_FOUND");
     const lines = await db
       .select()
@@ -120,11 +119,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     );
 
     if ("action" in b) {
-      const order = (await db
-        .select()
-        .from(purchaseOrders)
-        .where(eq(purchaseOrders.id, b.id))
-        .limit(1))[0];
+      const order = (
+        await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, b.id)).limit(1)
+      )[0];
       if (!order) return err("أمر الشراء غير موجود", 404, "NOT_FOUND");
 
       const before = JSON.stringify(order);
@@ -169,11 +166,13 @@ async function POST(event: { request: Request }, ctx: Ctx) {
             .set({ status: PurchaseOrderStatus.CANCELLED, updatedAt: now() })
             .where(eq(purchaseOrders.id, b.id));
           if (order.requestId) {
-            const linked = (await tx
-              .select()
-              .from(purchaseRequests)
-              .where(eq(purchaseRequests.id, order.requestId))
-              .limit(1))[0];
+            const linked = (
+              await tx
+                .select()
+                .from(purchaseRequests)
+                .where(eq(purchaseRequests.id, order.requestId))
+                .limit(1)
+            )[0];
             if (linked && linked.status === PurchaseRequestStatus.ORDERED) {
               await tx
                 .update(purchaseRequests)
@@ -193,8 +192,7 @@ async function POST(event: { request: Request }, ctx: Ctx) {
           ip: ctx.ip,
         });
       } else if (b.action === "close") {
-        if (order.status === ORDER_CLOSED)
-          return err("الأمر مغلق بالفعل", 400, "INVALID_STATE");
+        if (order.status === ORDER_CLOSED) return err("الأمر مغلق بالفعل", 400, "INVALID_STATE");
         await db
           .update(purchaseOrders)
           .set({ status: ORDER_CLOSED, updatedAt: now() })
@@ -211,12 +209,11 @@ async function POST(event: { request: Request }, ctx: Ctx) {
         });
       } else {
         // receive
-        if (order.status !== PurchaseOrderStatus.SENT && order.status !== PurchaseOrderStatus.PARTIAL) {
-          return err(
-            "يمكن الاستلام فقط للأوامر المعتمدة أو المستلمة جزئياً",
-            400,
-            "INVALID_STATE",
-          );
+        if (
+          order.status !== PurchaseOrderStatus.SENT &&
+          order.status !== PurchaseOrderStatus.PARTIAL
+        ) {
+          return err("يمكن الاستلام فقط للأوامر المعتمدة أو المستلمة جزئياً", 400, "INVALID_STATE");
         }
 
         const lines = await db
@@ -260,11 +257,13 @@ async function POST(event: { request: Request }, ctx: Ctx) {
             if (r.receivedQty > 0 && line.itemId) {
               anyReceived = true;
               receivedValue += r.receivedQty * (line.unitPrice || 0);
-              const item = (await tx
-                .select()
-                .from(inventoryItems)
-                .where(eq(inventoryItems.id, line.itemId))
-                .limit(1))[0];
+              const item = (
+                await tx
+                  .select()
+                  .from(inventoryItems)
+                  .where(eq(inventoryItems.id, line.itemId))
+                  .limit(1)
+              )[0];
               if (item) {
                 const newQty = (item.quantity || 0) + r.receivedQty;
                 await tx
@@ -311,6 +310,15 @@ async function POST(event: { request: Request }, ctx: Ctx) {
               ],
               userId: ctx.user.id,
             });
+
+            // Track what we owe this supplier (per-supplier payable subledger,
+            // reconcilable to the Accounts Payable control account).
+            if (order.supplierId) {
+              await tx
+                .update(suppliers)
+                .set({ balance: sql`${suppliers.balance} + ${receivedValue}`, updatedAt: ts })
+                .where(eq(suppliers.id, order.supplierId));
+            }
           }
 
           const newStatus = allComplete
@@ -338,21 +346,21 @@ async function POST(event: { request: Request }, ctx: Ctx) {
         });
       }
 
-      const updated = (await db
-        .select()
-        .from(purchaseOrders)
-        .where(eq(purchaseOrders.id, b.id))
-        .limit(1))[0];
+      const updated = (
+        await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, b.id)).limit(1)
+      )[0];
       return Response.json({ item: updated });
     }
 
     // Create
     if (b.requestId) {
-      const req = (await db
-        .select()
-        .from(purchaseRequests)
-        .where(eq(purchaseRequests.id, b.requestId))
-        .limit(1))[0];
+      const req = (
+        await db
+          .select()
+          .from(purchaseRequests)
+          .where(eq(purchaseRequests.id, b.requestId))
+          .limit(1)
+      )[0];
       if (!req) return err("طلب الشراء غير موجود", 404, "NOT_FOUND");
       if (req.status !== PurchaseRequestStatus.APPROVED) {
         return err("يجب أن يكون طلب الشراء معتمداً قبل إنشاء أمر شراء", 400, "INVALID_STATE");
@@ -419,11 +427,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
       ip: ctx.ip,
     });
 
-    const created = (await db
-      .select()
-      .from(purchaseOrders)
-      .where(eq(purchaseOrders.id, orderId))
-      .limit(1))[0];
+    const created = (
+      await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, orderId)).limit(1)
+    )[0];
     return Response.json({ item: created }, { status: 201 });
   });
 }
@@ -440,11 +446,9 @@ const updateSchema = z.object({
 async function PUT(event: { request: Request }, ctx: Ctx) {
   return guard(async () => {
     const b = await parseBody(event.request, updateSchema);
-    const existing = (await db
-      .select()
-      .from(purchaseOrders)
-      .where(eq(purchaseOrders.id, b.id))
-      .limit(1))[0];
+    const existing = (
+      await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, b.id)).limit(1)
+    )[0];
     if (!existing) return err("أمر الشراء غير موجود", 404, "NOT_FOUND");
     if (existing.status !== PurchaseOrderStatus.DRAFT) {
       return err("لا يمكن تعديل أمر شراء في حالته الحالية", 400, "INVALID_STATE");
@@ -473,11 +477,9 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
       ip: ctx.ip,
     });
 
-    const updated = (await db
-      .select()
-      .from(purchaseOrders)
-      .where(eq(purchaseOrders.id, b.id))
-      .limit(1))[0];
+    const updated = (
+      await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, b.id)).limit(1)
+    )[0];
     return Response.json({ item: updated });
   });
 }
@@ -487,11 +489,9 @@ async function DELETE({ request }: { request: Request }, ctx: Ctx) {
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return err("معرف أمر الشراء مطلوب", 400, "BAD_REQUEST");
 
-  const existing = (await db
-    .select()
-    .from(purchaseOrders)
-    .where(eq(purchaseOrders.id, id))
-    .limit(1))[0];
+  const existing = (
+    await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id)).limit(1)
+  )[0];
   if (!existing) return err("أمر الشراء غير موجود", 404, "NOT_FOUND");
   if (existing.status !== PurchaseOrderStatus.DRAFT) {
     return err("لا يمكن حذف أمر شراء غير مسودة. ألغِه بدلاً من ذلك.", 400, "INVALID_STATE");

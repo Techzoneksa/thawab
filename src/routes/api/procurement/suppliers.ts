@@ -1,10 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { and, count, desc, eq, like, or } from "drizzle-orm";
+import { and, count, desc, eq, like, or, sql } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { suppliers, purchaseOrders, stockMovements, fixedAssets } from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
-import { SupplierStatus } from "@/lib/enums";
+import {
+  postBalancedEntry,
+  resolveSystemAccountId,
+  cashOrBankAccountId,
+  SYS,
+} from "@/server/db/gl";
+import { SupplierStatus, JournalSource } from "@/lib/enums";
 
 // GET /api/procurement/suppliers?id=xxx — single with usage info; else list.
 async function GET({ request }: { request: Request }, _ctx: Ctx) {
@@ -100,10 +106,66 @@ const actionSchema = z.object({
   id: z.string().min(1, "معرف المورد مطلوب"),
 });
 
-// POST /api/procurement/suppliers — create, or activate/deactivate.
+const paySchema = z.object({
+  action: z.literal("pay"),
+  id: z.string().min(1, "معرف المورد مطلوب"),
+  amount: z.coerce.number().positive("قيمة السداد يجب أن تكون رقماً موجباً"),
+  method: z.enum(["cash", "bank"]).optional(),
+  note: z.string().optional(),
+});
+
+// POST /api/procurement/suppliers — create, activate/deactivate, or pay.
 async function POST(event: { request: Request }, ctx: Ctx) {
   return guard(async () => {
-    const b = await parseBody(event.request, z.union([actionSchema, createSchema]));
+    const b = await parseBody(event.request, z.union([paySchema, actionSchema, createSchema]));
+
+    // Settle part/all of what we owe a supplier: Dr Accounts Payable / Cr Cash|Bank.
+    if ("action" in b && b.action === "pay") {
+      const supplier = (
+        await db.select().from(suppliers).where(eq(suppliers.id, b.id)).limit(1)
+      )[0];
+      if (!supplier) return err("المورد غير موجود", 404, "NOT_FOUND");
+      const ts = now();
+      const before = JSON.stringify(supplier);
+
+      await db.transaction(async (tx) => {
+        const payable = await resolveSystemAccountId(tx as any, SYS.ACCOUNTS_PAYABLE);
+        const cashBank = await cashOrBankAccountId(
+          tx as any,
+          b.method === "cash" ? "cash" : "bank",
+        );
+        await postBalancedEntry(tx as any, {
+          date: ts.slice(0, 10),
+          description: `سداد للمورد ${supplier.name}${b.note ? ` — ${b.note}` : ""}`,
+          source: JournalSource.PURCHASE,
+          sourceType: "supplier_payment",
+          sourceId: b.id,
+          lines: [
+            { accountId: payable, debit: b.amount },
+            { accountId: cashBank, credit: b.amount },
+          ],
+          userId: ctx.user.id,
+        });
+        await tx
+          .update(suppliers)
+          .set({ balance: sql`${suppliers.balance} - ${b.amount}`, updatedAt: ts })
+          .where(eq(suppliers.id, b.id));
+      });
+
+      await addAudit({
+        action: "pay",
+        entityType: "supplier",
+        entityId: b.id,
+        description: `سداد ${b.amount} للمورد: ${supplier.name}`,
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        before,
+        ip: ctx.ip,
+      });
+
+      const updated = (await db.select().from(suppliers).where(eq(suppliers.id, b.id)).limit(1))[0];
+      return Response.json({ item: updated });
+    }
 
     if ("action" in b) {
       const existing = (
