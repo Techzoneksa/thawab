@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -8,37 +8,18 @@ import {
   statusTone,
   MobilePageHeader,
 } from "@/components/erp/AppShell";
-import { label, options } from "@/lib/i18n/labels";
-import {
-  getMeetings,
-  createMeeting,
-  updateMeeting,
-  deleteMeeting,
-  attendeesCount,
-  type Meeting,
-} from "@/lib/api/meetings";
-import { MeetingStatus } from "@/lib/enums";
-import { CalendarDays, MapPin, Users, Plus, Edit, Trash2, Eye } from "lucide-react";
+import { label } from "@/lib/i18n/labels";
+import { getMeetings, deleteMeeting, attendeesCount, type Meeting } from "@/lib/api/meetings";
+import { CalendarDays, MapPin, Users, Plus, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
-import {
-  showToast,
-  ConfirmDialog,
-  EntityFormDrawer,
-  ActionMenu,
-  EmptyState,
-} from "@/components/erp/actions";
+import { showToast, ConfirmDialog, ActionMenu, EmptyState } from "@/components/erp/actions";
 
 export const Route = createFileRoute("/meetings")({
   head: () => ({ meta: [{ title: "الاجتماعات — ثواب" }] }),
   component: () => {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const [formOpen, setFormOpen] = useState(false);
     const [confirmId, setConfirmId] = useState<string | null>(null);
-    const [editingId, setEditingId] = useState<string | null>(null);
-    const [formTitle, setFormTitle] = useState("");
-    const [formDate, setFormDate] = useState("");
-    const [formLocation, setFormLocation] = useState("");
-    const [formStatus, setFormStatus] = useState<string>(MeetingStatus.SCHEDULED);
 
     const { data, isLoading, error } = useQuery({
       queryKey: ["meetings"],
@@ -46,51 +27,10 @@ export const Route = createFileRoute("/meetings")({
     });
     const items: Meeting[] = data?.items ?? [];
 
-    const invalidate = () => queryClient.invalidateQueries({ queryKey: ["meetings"] });
-
-    const openAdd = () => {
-      setEditingId(null);
-      setFormTitle("");
-      setFormDate("");
-      setFormLocation("");
-      setFormStatus(MeetingStatus.SCHEDULED);
-      setFormOpen(true);
-    };
-
-    const openEdit = (m: Meeting) => {
-      setEditingId(m.id);
-      setFormTitle(m.title);
-      setFormDate(m.date);
-      setFormLocation(m.location ?? "");
-      setFormStatus(m.status);
-      setFormOpen(true);
-    };
-
-    const createMutation = useMutation({
-      mutationFn: createMeeting,
-      onSuccess: () => {
-        invalidate();
-        showToast("تم إضافة الاجتماع بنجاح", "success");
-        setFormOpen(false);
-      },
-      onError: (e: Error) => showToast(e.message, "error"),
-    });
-
-    const updateMutation = useMutation({
-      mutationFn: updateMeeting,
-      onSuccess: () => {
-        invalidate();
-        showToast("تم تحديث الاجتماع بنجاح", "success");
-        setFormOpen(false);
-        setEditingId(null);
-      },
-      onError: (e: Error) => showToast(e.message, "error"),
-    });
-
     const deleteMutation = useMutation({
       mutationFn: deleteMeeting,
       onSuccess: () => {
-        invalidate();
+        queryClient.invalidateQueries({ queryKey: ["meetings"] });
         showToast("تم حذف الاجتماع", "success");
         setConfirmId(null);
       },
@@ -100,27 +40,12 @@ export const Route = createFileRoute("/meetings")({
       },
     });
 
-    const handleSave = () => {
-      if (!formTitle.trim()) {
-        showToast("يرجى إدخال عنوان الاجتماع", "error");
-        return;
-      }
-      const payload = {
-        title: formTitle.trim(),
-        date: formDate || undefined,
-        location: formLocation,
-        status: formStatus,
-      };
-      if (editingId) updateMutation.mutate({ id: editingId, ...payload });
-      else createMutation.mutate(payload);
-    };
-
     return (
       <AppShell
         breadcrumb={["الرئيسية", "الموارد", "الاجتماعات"]}
         title="الاجتماعات والقرارات"
         actions={
-          <Btn variant="primary" onClick={openAdd}>
+          <Btn variant="primary" onClick={() => navigate({ to: "/meetings/new" })}>
             <Plus size={15} /> إضافة اجتماع
           </Btn>
         }
@@ -152,8 +77,11 @@ export const Route = createFileRoute("/meetings")({
                   <Badge tone={statusTone(m.status)}>{label("meetingStatus", m.status)}</Badge>
                   <ActionMenu
                     actions={[
-                      { label: "عرض", icon: Eye, onClick: () => showToast(m.title, "info") },
-                      { label: "تعديل", icon: Edit, onClick: () => openEdit(m) },
+                      {
+                        label: "تعديل",
+                        icon: Pencil,
+                        onClick: () => navigate({ to: "/meetings/$id/edit", params: { id: m.id } }),
+                      },
                       {
                         label: "حذف",
                         icon: Trash2,
@@ -178,58 +106,6 @@ export const Route = createFileRoute("/meetings")({
             </Card>
           ))}
         </div>
-
-        <EntityFormDrawer
-          open={formOpen}
-          onClose={() => {
-            setFormOpen(false);
-            setEditingId(null);
-          }}
-          title={editingId ? "تعديل اجتماع" : "إضافة اجتماع"}
-          onSave={handleSave}
-        >
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">عنوان الاجتماع</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formTitle}
-              onChange={(e) => setFormTitle(e.target.value)}
-              placeholder="عنوان الاجتماع"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">التاريخ</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="date"
-              value={formDate}
-              onChange={(e) => setFormDate(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">المكان</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formLocation}
-              onChange={(e) => setFormLocation(e.target.value)}
-              placeholder="مكان الانعقاد"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الحالة</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formStatus}
-              onChange={(e) => setFormStatus(e.target.value)}
-            >
-              {options("meetingStatus").map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </EntityFormDrawer>
 
         {confirmId !== null && (
           <ConfirmDialog

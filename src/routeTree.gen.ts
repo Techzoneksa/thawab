@@ -46,6 +46,8 @@ import { Route as ProcurementSuppliersRouteImport } from './routes/procurement.s
 import { Route as ProcurementRequestsRouteImport } from './routes/procurement.requests'
 import { Route as ProcurementQuotesRouteImport } from './routes/procurement.quotes'
 import { Route as ProcurementOrdersRouteImport } from './routes/procurement.orders'
+import { Route as MembershipsNewRouteImport } from './routes/memberships_.new'
+import { Route as MeetingsNewRouteImport } from './routes/meetings_.new'
 import { Route as InventoryWarehousesRouteImport } from './routes/inventory.warehouses'
 import { Route as InventoryStocktakeRouteImport } from './routes/inventory.stocktake'
 import { Route as InventoryItemsRouteImport } from './routes/inventory.items'
@@ -92,6 +94,8 @@ import { Route as ProcurementSuppliersNewRouteImport } from './routes/procuremen
 import { Route as ProcurementRequestsNewRouteImport } from './routes/procurement.requests_.new'
 import { Route as ProcurementQuotesNewRouteImport } from './routes/procurement.quotes_.new'
 import { Route as ProcurementOrdersNewRouteImport } from './routes/procurement.orders_.new'
+import { Route as MembershipsIdEditRouteImport } from './routes/memberships_.$id_.edit'
+import { Route as MeetingsIdEditRouteImport } from './routes/meetings_.$id_.edit'
 import { Route as InventoryWarehousesNewRouteImport } from './routes/inventory.warehouses_.new'
 import { Route as InventoryStocktakeNewRouteImport } from './routes/inventory.stocktake_.new'
 import { Route as InventoryItemsNewRouteImport } from './routes/inventory.items_.new'
@@ -319,6 +323,16 @@ const ProcurementQuotesRoute = ProcurementQuotesRouteImport.update({
 const ProcurementOrdersRoute = ProcurementOrdersRouteImport.update({
   id: '/procurement/orders',
   path: '/procurement/orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MembershipsNewRoute = MembershipsNewRouteImport.update({
+  id: '/memberships_/new',
+  path: '/memberships/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MeetingsNewRoute = MeetingsNewRouteImport.update({
+  id: '/meetings_/new',
+  path: '/meetings/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InventoryWarehousesRoute = InventoryWarehousesRouteImport.update({
@@ -549,6 +563,16 @@ const ProcurementQuotesNewRoute = ProcurementQuotesNewRouteImport.update({
 const ProcurementOrdersNewRoute = ProcurementOrdersNewRouteImport.update({
   id: '/procurement/orders_/new',
   path: '/procurement/orders/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MembershipsIdEditRoute = MembershipsIdEditRouteImport.update({
+  id: '/memberships_/$id_/edit',
+  path: '/memberships/$id/edit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MeetingsIdEditRoute = MeetingsIdEditRouteImport.update({
+  id: '/meetings_/$id_/edit',
+  path: '/meetings/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InventoryWarehousesNewRoute = InventoryWarehousesNewRouteImport.update({
@@ -837,6 +861,8 @@ export interface FileRoutesByFullPath {
   '/inventory/items': typeof InventoryItemsRoute
   '/inventory/stocktake': typeof InventoryStocktakeRoute
   '/inventory/warehouses': typeof InventoryWarehousesRoute
+  '/meetings/new': typeof MeetingsNewRoute
+  '/memberships/new': typeof MembershipsNewRoute
   '/procurement/orders': typeof ProcurementOrdersRoute
   '/procurement/quotes': typeof ProcurementQuotesRoute
   '/procurement/requests': typeof ProcurementRequestsRoute
@@ -881,6 +907,8 @@ export interface FileRoutesByFullPath {
   '/inventory/items/new': typeof InventoryItemsNewRoute
   '/inventory/stocktake/new': typeof InventoryStocktakeNewRoute
   '/inventory/warehouses/new': typeof InventoryWarehousesNewRoute
+  '/meetings/$id/edit': typeof MeetingsIdEditRoute
+  '/memberships/$id/edit': typeof MembershipsIdEditRoute
   '/procurement/orders/new': typeof ProcurementOrdersNewRoute
   '/procurement/quotes/new': typeof ProcurementQuotesNewRoute
   '/procurement/requests/new': typeof ProcurementRequestsNewRoute
@@ -965,6 +993,8 @@ export interface FileRoutesByTo {
   '/inventory/items': typeof InventoryItemsRoute
   '/inventory/stocktake': typeof InventoryStocktakeRoute
   '/inventory/warehouses': typeof InventoryWarehousesRoute
+  '/meetings/new': typeof MeetingsNewRoute
+  '/memberships/new': typeof MembershipsNewRoute
   '/procurement/orders': typeof ProcurementOrdersRoute
   '/procurement/quotes': typeof ProcurementQuotesRoute
   '/procurement/requests': typeof ProcurementRequestsRoute
@@ -1009,6 +1039,8 @@ export interface FileRoutesByTo {
   '/inventory/items/new': typeof InventoryItemsNewRoute
   '/inventory/stocktake/new': typeof InventoryStocktakeNewRoute
   '/inventory/warehouses/new': typeof InventoryWarehousesNewRoute
+  '/meetings/$id/edit': typeof MeetingsIdEditRoute
+  '/memberships/$id/edit': typeof MembershipsIdEditRoute
   '/procurement/orders/new': typeof ProcurementOrdersNewRoute
   '/procurement/quotes/new': typeof ProcurementQuotesNewRoute
   '/procurement/requests/new': typeof ProcurementRequestsNewRoute
@@ -1094,6 +1126,8 @@ export interface FileRoutesById {
   '/inventory/items': typeof InventoryItemsRoute
   '/inventory/stocktake': typeof InventoryStocktakeRoute
   '/inventory/warehouses': typeof InventoryWarehousesRoute
+  '/meetings_/new': typeof MeetingsNewRoute
+  '/memberships_/new': typeof MembershipsNewRoute
   '/procurement/orders': typeof ProcurementOrdersRoute
   '/procurement/quotes': typeof ProcurementQuotesRoute
   '/procurement/requests': typeof ProcurementRequestsRoute
@@ -1138,6 +1172,8 @@ export interface FileRoutesById {
   '/inventory/items_/new': typeof InventoryItemsNewRoute
   '/inventory/stocktake_/new': typeof InventoryStocktakeNewRoute
   '/inventory/warehouses_/new': typeof InventoryWarehousesNewRoute
+  '/meetings_/$id_/edit': typeof MeetingsIdEditRoute
+  '/memberships_/$id_/edit': typeof MembershipsIdEditRoute
   '/procurement/orders_/new': typeof ProcurementOrdersNewRoute
   '/procurement/quotes_/new': typeof ProcurementQuotesNewRoute
   '/procurement/requests_/new': typeof ProcurementRequestsNewRoute
@@ -1224,6 +1260,8 @@ export interface FileRouteTypes {
     | '/inventory/items'
     | '/inventory/stocktake'
     | '/inventory/warehouses'
+    | '/meetings/new'
+    | '/memberships/new'
     | '/procurement/orders'
     | '/procurement/quotes'
     | '/procurement/requests'
@@ -1268,6 +1306,8 @@ export interface FileRouteTypes {
     | '/inventory/items/new'
     | '/inventory/stocktake/new'
     | '/inventory/warehouses/new'
+    | '/meetings/$id/edit'
+    | '/memberships/$id/edit'
     | '/procurement/orders/new'
     | '/procurement/quotes/new'
     | '/procurement/requests/new'
@@ -1352,6 +1392,8 @@ export interface FileRouteTypes {
     | '/inventory/items'
     | '/inventory/stocktake'
     | '/inventory/warehouses'
+    | '/meetings/new'
+    | '/memberships/new'
     | '/procurement/orders'
     | '/procurement/quotes'
     | '/procurement/requests'
@@ -1396,6 +1438,8 @@ export interface FileRouteTypes {
     | '/inventory/items/new'
     | '/inventory/stocktake/new'
     | '/inventory/warehouses/new'
+    | '/meetings/$id/edit'
+    | '/memberships/$id/edit'
     | '/procurement/orders/new'
     | '/procurement/quotes/new'
     | '/procurement/requests/new'
@@ -1480,6 +1524,8 @@ export interface FileRouteTypes {
     | '/inventory/items'
     | '/inventory/stocktake'
     | '/inventory/warehouses'
+    | '/meetings_/new'
+    | '/memberships_/new'
     | '/procurement/orders'
     | '/procurement/quotes'
     | '/procurement/requests'
@@ -1524,6 +1570,8 @@ export interface FileRouteTypes {
     | '/inventory/items_/new'
     | '/inventory/stocktake_/new'
     | '/inventory/warehouses_/new'
+    | '/meetings_/$id_/edit'
+    | '/memberships_/$id_/edit'
     | '/procurement/orders_/new'
     | '/procurement/quotes_/new'
     | '/procurement/requests_/new'
@@ -1609,6 +1657,8 @@ export interface RootRouteChildren {
   InventoryItemsRoute: typeof InventoryItemsRoute
   InventoryStocktakeRoute: typeof InventoryStocktakeRoute
   InventoryWarehousesRoute: typeof InventoryWarehousesRoute
+  MeetingsNewRoute: typeof MeetingsNewRoute
+  MembershipsNewRoute: typeof MembershipsNewRoute
   ProcurementOrdersRoute: typeof ProcurementOrdersRoute
   ProcurementQuotesRoute: typeof ProcurementQuotesRoute
   ProcurementRequestsRoute: typeof ProcurementRequestsRoute
@@ -1653,6 +1703,8 @@ export interface RootRouteChildren {
   InventoryItemsNewRoute: typeof InventoryItemsNewRoute
   InventoryStocktakeNewRoute: typeof InventoryStocktakeNewRoute
   InventoryWarehousesNewRoute: typeof InventoryWarehousesNewRoute
+  MeetingsIdEditRoute: typeof MeetingsIdEditRoute
+  MembershipsIdEditRoute: typeof MembershipsIdEditRoute
   ProcurementOrdersNewRoute: typeof ProcurementOrdersNewRoute
   ProcurementQuotesNewRoute: typeof ProcurementQuotesNewRoute
   ProcurementRequestsNewRoute: typeof ProcurementRequestsNewRoute
@@ -1931,6 +1983,20 @@ declare module '@tanstack/react-router' {
       path: '/procurement/orders'
       fullPath: '/procurement/orders'
       preLoaderRoute: typeof ProcurementOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/memberships_/new': {
+      id: '/memberships_/new'
+      path: '/memberships/new'
+      fullPath: '/memberships/new'
+      preLoaderRoute: typeof MembershipsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/meetings_/new': {
+      id: '/meetings_/new'
+      path: '/meetings/new'
+      fullPath: '/meetings/new'
+      preLoaderRoute: typeof MeetingsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inventory/warehouses': {
@@ -2253,6 +2319,20 @@ declare module '@tanstack/react-router' {
       path: '/procurement/orders/new'
       fullPath: '/procurement/orders/new'
       preLoaderRoute: typeof ProcurementOrdersNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/memberships_/$id_/edit': {
+      id: '/memberships_/$id_/edit'
+      path: '/memberships/$id/edit'
+      fullPath: '/memberships/$id/edit'
+      preLoaderRoute: typeof MembershipsIdEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/meetings_/$id_/edit': {
+      id: '/meetings_/$id_/edit'
+      path: '/meetings/$id/edit'
+      fullPath: '/meetings/$id/edit'
+      preLoaderRoute: typeof MeetingsIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inventory/warehouses_/new': {
@@ -2625,6 +2705,8 @@ const rootRouteChildren: RootRouteChildren = {
   InventoryItemsRoute: InventoryItemsRoute,
   InventoryStocktakeRoute: InventoryStocktakeRoute,
   InventoryWarehousesRoute: InventoryWarehousesRoute,
+  MeetingsNewRoute: MeetingsNewRoute,
+  MembershipsNewRoute: MembershipsNewRoute,
   ProcurementOrdersRoute: ProcurementOrdersRoute,
   ProcurementQuotesRoute: ProcurementQuotesRoute,
   ProcurementRequestsRoute: ProcurementRequestsRoute,
@@ -2669,6 +2751,8 @@ const rootRouteChildren: RootRouteChildren = {
   InventoryItemsNewRoute: InventoryItemsNewRoute,
   InventoryStocktakeNewRoute: InventoryStocktakeNewRoute,
   InventoryWarehousesNewRoute: InventoryWarehousesNewRoute,
+  MeetingsIdEditRoute: MeetingsIdEditRoute,
+  MembershipsIdEditRoute: MembershipsIdEditRoute,
   ProcurementOrdersNewRoute: ProcurementOrdersNewRoute,
   ProcurementQuotesNewRoute: ProcurementQuotesNewRoute,
   ProcurementRequestsNewRoute: ProcurementRequestsNewRoute,
