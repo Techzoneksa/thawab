@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -29,28 +29,13 @@ import {
   Pencil,
 } from "lucide-react";
 import { useState } from "react";
-import {
-  showToast,
-  ConfirmDialog,
-  EntityFormDrawer,
-  ActionMenu,
-  EmptyState,
-} from "@/components/erp/actions";
+import { showToast, ConfirmDialog, ActionMenu, EmptyState } from "@/components/erp/actions";
 import { DocumentActions } from "@/components/documents/DocumentActions";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 import { useAuth } from "@/lib/api/auth";
 import { label, options } from "@/lib/i18n/labels";
 import { FiscalPeriodStatus } from "@/lib/enums";
-import {
-  getPeriods,
-  getPeriod,
-  createPeriod,
-  updatePeriod,
-  closePeriod,
-  reopenPeriod,
-  deletePeriod,
-  type FiscalPeriod,
-} from "@/lib/api/periods";
+import { getPeriods, deletePeriod, type FiscalPeriod } from "@/lib/api/periods";
 
 export const Route = createFileRoute("/finance/closing")({
   head: () => ({ meta: [{ title: "الإقفال المالي — ثواب" }] }),
@@ -60,24 +45,11 @@ export const Route = createFileRoute("/finance/closing")({
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
-  const [editing, setEditing] = useState<FiscalPeriod | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [actionTarget, setActionTarget] = useState<{
-    id: string;
-    name: string;
-    action: "close" | "reopen";
-  } | null>(null);
-  const [detailId, setDetailId] = useState<string | null>(null);
-
-  const [formName, setFormName] = useState("");
-  const [formStartDate, setFormStartDate] = useState("");
-  const [formEndDate, setFormEndDate] = useState("");
-  const [formNotes, setFormNotes] = useState("");
-  const [closeNotes, setCloseNotes] = useState("");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["periods", { search: searchQuery, status: statusFilter }],
@@ -86,34 +58,6 @@ function Page() {
 
   const periods = data?.items || [];
   const total = data?.total || 0;
-
-  const { data: detailData } = useQuery({
-    queryKey: ["period", detailId],
-    queryFn: () => (detailId ? getPeriod(detailId) : Promise.resolve(null)),
-    enabled: !!detailId,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: createPeriod,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["periods"] });
-      showToast("تم إضافة الفترة المالية بنجاح", "success");
-      setAddOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updatePeriod,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["periods"] });
-      queryClient.invalidateQueries({ queryKey: ["period"] });
-      showToast("تم تحديث الفترة المالية بنجاح", "success");
-      setAddOpen(false);
-      setEditing(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
 
   const deleteMutation = useMutation({
     mutationFn: deletePeriod,
@@ -125,94 +69,13 @@ function Page() {
     onError: (err: Error) => showToast(err.message, "error"),
   });
 
-  const closeMutation = useMutation({
-    mutationFn: closePeriod,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["periods"] });
-      queryClient.invalidateQueries({ queryKey: ["period"] });
-      showToast("تم إقفال الفترة المالية بنجاح", "success");
-      setActionTarget(null);
-      setCloseNotes("");
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const reopenMutation = useMutation({
-    mutationFn: reopenPeriod,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["periods"] });
-      queryClient.invalidateQueries({ queryKey: ["period"] });
-      showToast("تم إعادة فتح الفترة المالية بنجاح", "success");
-      setActionTarget(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const openAdd = () => {
-    setEditing(null);
-    setFormName("");
-    setFormStartDate("");
-    setFormEndDate("");
-    setFormNotes("");
-    setAddOpen(true);
-  };
-
-  const openEdit = (p: FiscalPeriod) => {
-    if (p.status === FiscalPeriodStatus.CLOSED) {
-      showToast("لا يمكن تعديل فترة مقفلة. أعد فتحها أولاً.", "error");
-      return;
-    }
-    setEditing(p);
-    setFormName(p.name);
-    setFormStartDate(p.startDate);
-    setFormEndDate(p.endDate);
-    setFormNotes(p.notes || "");
-    setAddOpen(true);
-  };
-
-  const handleSave = () => {
-    if (!formName.trim()) return showToast("يرجى إدخال اسم الفترة", "error");
-    if (!formStartDate) return showToast("يرجى تحديد تاريخ البداية", "error");
-    if (!formEndDate) return showToast("يرجى تحديد تاريخ النهاية", "error");
-    if (formStartDate > formEndDate)
-      return showToast("تاريخ البداية يجب أن يكون قبل تاريخ النهاية", "error");
-
-    const basePayload = {
-      name: formName,
-      startDate: formStartDate,
-      endDate: formEndDate,
-      notes: formNotes,
-      userId: user?.id,
-      userName: user?.name,
-    };
-    if (editing) {
-      updateMutation.mutate({ id: editing.id, ...basePayload });
-    } else {
-      createMutation.mutate(basePayload);
-    }
-  };
+  const openAdd = () => navigate({ to: "/finance/closing/new" });
+  const openEdit = (p: FiscalPeriod) =>
+    navigate({ to: "/finance/closing/$id/edit", params: { id: p.id } });
 
   const handleDelete = () => {
     if (deleteTarget) {
       deleteMutation.mutate({ id: deleteTarget, userId: user?.id, userName: user?.name });
-    }
-  };
-
-  const handleActionConfirm = () => {
-    if (!actionTarget) return;
-    if (actionTarget.action === "close") {
-      closeMutation.mutate({
-        id: actionTarget.id,
-        notes: closeNotes,
-        userId: user?.id,
-        userName: user?.name,
-      });
-    } else {
-      reopenMutation.mutate({
-        id: actionTarget.id,
-        userId: user?.id,
-        userName: user?.name,
-      });
     }
   };
 
@@ -381,7 +244,7 @@ function Page() {
             <>
               <Td>
                 <button
-                  onClick={() => setDetailId(p.id)}
+                  onClick={() => openEdit(p)}
                   className="font-semibold hover:text-primary text-right"
                 >
                   {p.name}
@@ -408,15 +271,7 @@ function Page() {
                 )}
               </Td>
               <Td>
-                <ActionMenu
-                  actions={getPeriodActions(
-                    p,
-                    setDetailId,
-                    openEdit,
-                    setDeleteTarget,
-                    setActionTarget,
-                  )}
-                />
+                <ActionMenu actions={getPeriodActions(p, openEdit, setDeleteTarget)} />
               </Td>
             </>
           )}
@@ -424,7 +279,7 @@ function Page() {
             <Card key={p.id} className="p-3">
               <div className="flex items-start justify-between gap-2 mb-2">
                 <button
-                  onClick={() => setDetailId(p.id)}
+                  onClick={() => openEdit(p)}
                   className="text-sm font-bold hover:text-primary text-right"
                 >
                   {p.name}
@@ -449,143 +304,6 @@ function Page() {
         />
       )}
 
-      <EntityFormDrawer
-        open={addOpen}
-        onClose={() => {
-          setAddOpen(false);
-          setEditing(null);
-        }}
-        title={editing ? "تعديل فترة مالية" : "إضافة فترة مالية جديدة"}
-        onSave={handleSave}
-        loading={createMutation.isPending || updateMutation.isPending}
-      >
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">اسم الفترة *</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              placeholder="مثال: شهر شوال 1446، الربع الأول 1446، السنة 1446"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">تاريخ البداية *</label>
-              <input
-                type="date"
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formStartDate}
-                onChange={(e) => setFormStartDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">تاريخ النهاية *</label>
-              <input
-                type="date"
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={formEndDate}
-                onChange={(e) => setFormEndDate(e.target.value)}
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-            <textarea
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              rows={2}
-              value={formNotes}
-              onChange={(e) => setFormNotes(e.target.value)}
-              placeholder="ملاحظات حول الفترة..."
-            />
-          </div>
-          {editing && (
-            <div className="rounded-lg bg-info/10 p-3 text-xs">
-              <div className="font-bold mb-1">معلومات الإقفال</div>
-              {editing.closedAt && (
-                <div>
-                  أُقفلت في {editing.closedAt} بواسطة {editing.closedByName}
-                </div>
-              )}
-              {editing.reopenedAt && (
-                <div className="mt-1">
-                  أُعيد فتحها في {editing.reopenedAt} بواسطة {editing.reopenedByName}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
-        open={!!detailId && !addOpen}
-        onClose={() => setDetailId(null)}
-        title={`تفاصيل الفترة: ${detailData?.item?.name || ""}`}
-        onSave={() => setDetailId(null)}
-        saveText="إغلاق"
-      >
-        {detailData && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow label="الحالة" value={label("fiscalPeriodStatus", detailData.item.status)} />
-              <DetailRow label="من تاريخ" value={detailData.item.startDate} />
-              <DetailRow label="إلى تاريخ" value={detailData.item.endDate} />
-              <DetailRow label="أنشأ بواسطة" value={detailData.item.createdBy || "—"} />
-            </div>
-
-            <Card className="p-3 bg-primary/10">
-              <div className="text-xs font-semibold text-muted-foreground mb-2">
-                إحصائيات الفترة
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <StatBox label="إجمالي القيود" value={fmtNum(detailData.stats.totalEntries)} />
-                <StatBox
-                  label="مرحّلة"
-                  value={fmtNum(detailData.stats.postedEntries)}
-                  tone="success"
-                />
-                <StatBox
-                  label="مسودة"
-                  value={fmtNum(detailData.stats.draftEntries)}
-                  tone="warning"
-                />
-              </div>
-            </Card>
-
-            {detailData.item.closedAt && (
-              <Card className="p-3 bg-success/10">
-                <div className="text-xs font-bold text-success mb-1">معلومات الإقفال</div>
-                <div className="text-xs">
-                  التاريخ: <span className="font-semibold">{detailData.item.closedAt}</span>
-                </div>
-                <div className="text-xs">
-                  بواسطة: <span className="font-semibold">{detailData.item.closedByName}</span>
-                </div>
-              </Card>
-            )}
-
-            {detailData.item.reopenedAt && (
-              <Card className="p-3 bg-warning/10">
-                <div className="text-xs font-bold text-warning mb-1">معلومات إعادة الفتح</div>
-                <div className="text-xs">
-                  التاريخ: <span className="font-semibold">{detailData.item.reopenedAt}</span>
-                </div>
-                <div className="text-xs">
-                  بواسطة: <span className="font-semibold">{detailData.item.reopenedByName}</span>
-                </div>
-              </Card>
-            )}
-
-            {detailData.item.notes && (
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground mb-1">ملاحظات</div>
-                <div className="text-sm">{detailData.item.notes}</div>
-              </div>
-            )}
-          </div>
-        )}
-      </EntityFormDrawer>
-
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -595,54 +313,6 @@ function Page() {
         confirmText="حذف"
         cancelText="إلغاء"
         variant="destructive"
-      />
-
-      {actionTarget?.action === "close" && (
-        <EntityFormDrawer
-          open={!!actionTarget}
-          onClose={() => setActionTarget(null)}
-          title={`إقفال الفترة: ${actionTarget?.name || ""}`}
-          onSave={handleActionConfirm}
-          saveText="تأكيد الإقفال"
-          loading={closeMutation.isPending}
-        >
-          <div className="space-y-3">
-            <div className="rounded-lg bg-warning/10 p-3 text-sm">
-              <div className="font-bold text-warning mb-2">⚠ تنبيهات قبل الإقفال</div>
-              <ul className="text-xs space-y-1 pr-4 list-disc">
-                <li>سيتم منع أي تعديل على القيود ضمن هذه الفترة</li>
-                <li>لا يمكن حذف الفترة بعد الإقفال</li>
-                <li>يجب أن تكون جميع القيود مرحّلة ومتوازنة أولاً</li>
-                <li>يتم تسجيل هذا الإجراء في سجل التدقيق</li>
-              </ul>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">ملاحظات الإقفال</label>
-              <textarea
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                rows={3}
-                value={closeNotes}
-                onChange={(e) => setCloseNotes(e.target.value)}
-                placeholder="ملاحظات اختيارية حول الإقفال..."
-              />
-            </div>
-          </div>
-        </EntityFormDrawer>
-      )}
-
-      <ConfirmDialog
-        open={!!actionTarget && actionTarget.action === "reopen"}
-        onClose={() => setActionTarget(null)}
-        onConfirm={handleActionConfirm}
-        title="إعادة فتح الفترة"
-        message={
-          actionTarget
-            ? `هل تريد إعادة فتح الفترة "${actionTarget.name}"؟ سيتم السماح بإضافة وتعديل القيود مرة أخرى، ويبقى السجل في سجل التدقيق.`
-            : ""
-        }
-        confirmText="إعادة الفتح"
-        cancelText="إلغاء"
-        variant="default"
       />
 
       <MobileFilterDrawer open={filterOpen} onClose={() => setFilterOpen(false)}>
@@ -668,72 +338,30 @@ function Page() {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-b pb-1">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold">{value}</div>
-    </div>
-  );
-}
-
-function StatBox({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "success" | "warning";
-}) {
-  return (
-    <div className="text-center">
-      <div className="text-muted-foreground">{label}</div>
-      <div
-        className={`font-bold tabular-nums ${
-          tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : ""
-        }`}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
 function getPeriodActions(
   p: FiscalPeriod,
-  setDetailId: (id: string) => void,
   openEdit: (p: FiscalPeriod) => void,
   setDeleteTarget: (id: string) => void,
-  setActionTarget: (t: { id: string; name: string; action: "close" | "reopen" }) => void,
 ) {
   const actions: Array<{
     label: string;
     icon: typeof Eye;
     onClick: () => void;
     variant?: "destructive";
-  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(p.id) }];
+  }> = [
+    {
+      label: p.status === FiscalPeriodStatus.OPEN ? "عرض / تعديل" : "عرض التفاصيل",
+      icon: p.status === FiscalPeriodStatus.OPEN ? Pencil : Eye,
+      onClick: () => openEdit(p),
+    },
+  ];
 
   if (p.status === FiscalPeriodStatus.OPEN) {
-    actions.push({ label: "تعديل", icon: Pencil, onClick: () => openEdit(p) });
-    actions.push({
-      label: "إقفال الفترة",
-      icon: Lock,
-      onClick: () => setActionTarget({ id: p.id, name: p.name, action: "close" }),
-    });
     actions.push({
       label: "حذف",
       icon: Trash2,
       onClick: () => setDeleteTarget(p.id),
       variant: "destructive",
-    });
-  }
-
-  if (p.status === FiscalPeriodStatus.CLOSED) {
-    actions.push({
-      label: "إعادة الفتح",
-      icon: Unlock,
-      onClick: () => setActionTarget({ id: p.id, name: p.name, action: "reopen" }),
     });
   }
 

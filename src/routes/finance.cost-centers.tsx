@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -18,13 +18,7 @@ import {
 import { fmtNum, fmtSAR } from "@/data/sample";
 import { Plus, Search, Filter, Eye, Pencil, Trash2, Pause, Play } from "lucide-react";
 import { useState } from "react";
-import {
-  showToast,
-  ConfirmDialog,
-  EntityFormDrawer,
-  ActionMenu,
-  EmptyState,
-} from "@/components/erp/actions";
+import { showToast, ConfirmDialog, ActionMenu, EmptyState } from "@/components/erp/actions";
 import { DocumentActions } from "@/components/documents/DocumentActions";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 import { useAuth } from "@/lib/api/auth";
@@ -32,13 +26,10 @@ import { label, options } from "@/lib/i18n/labels";
 import { CostCenterStatus as CostCenterStatusEnum } from "@/lib/enums";
 import {
   getCostCenters,
-  createCostCenter,
-  updateCostCenter,
   deleteCostCenter,
   deactivateCostCenter,
   activateCostCenter,
   type CostCenter,
-  type CostCenterStatus,
 } from "@/lib/api/cost-centers";
 
 export const Route = createFileRoute("/finance/cost-centers")({
@@ -49,27 +40,16 @@ export const Route = createFileRoute("/finance/cost-centers")({
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
-  const [editing, setEditing] = useState<CostCenter | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [statusTarget, setStatusTarget] = useState<{
     id: string;
     name: string;
     action: "deactivate" | "activate";
   } | null>(null);
-
-  // Form
-  const [formCode, setFormCode] = useState("");
-  const [formName, setFormName] = useState("");
-  const [formManager, setFormManager] = useState("");
-  const [formBudget, setFormBudget] = useState("0");
-  const [formSpent, setFormSpent] = useState("0");
-  const [formStatus, setFormStatus] = useState<CostCenterStatus>(CostCenterStatusEnum.ACTIVE);
-  const [formDescription, setFormDescription] = useState("");
-  const [formNotes, setFormNotes] = useState("");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["cost-centers", { search: searchQuery, status: statusFilter }],
@@ -79,52 +59,9 @@ function Page() {
   const costCenters = data?.items || [];
   const total = data?.total || 0;
 
-  const openAdd = () => {
-    setEditing(null);
-    setFormCode("");
-    setFormName("");
-    setFormManager("");
-    setFormBudget("0");
-    setFormSpent("0");
-    setFormStatus(CostCenterStatusEnum.ACTIVE);
-    setFormDescription("");
-    setFormNotes("");
-    setAddOpen(true);
-  };
-
-  const openEdit = (c: CostCenter) => {
-    setEditing(c);
-    setFormCode(c.code);
-    setFormName(c.name);
-    setFormManager(c.manager);
-    setFormBudget(String(c.budget));
-    setFormSpent(String(c.spent));
-    setFormStatus(c.status as CostCenterStatus);
-    setFormDescription(c.description || "");
-    setFormNotes(c.notes || "");
-    setAddOpen(true);
-  };
-
-  const createMutation = useMutation({
-    mutationFn: createCostCenter,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cost-centers"] });
-      showToast("تم إضافة مركز التكلفة بنجاح", "success");
-      setAddOpen(false);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateCostCenter,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cost-centers"] });
-      showToast("تم تحديث مركز التكلفة بنجاح", "success");
-      setAddOpen(false);
-      setEditing(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
+  const openAdd = () => navigate({ to: "/finance/cost-centers/new" });
+  const openEdit = (c: CostCenter) =>
+    navigate({ to: "/finance/cost-centers/$id/edit", params: { id: c.id } });
 
   const deleteMutation = useMutation({
     mutationFn: deleteCostCenter,
@@ -156,28 +93,6 @@ function Page() {
     },
     onError: (err: Error) => showToast(err.message, "error"),
   });
-
-  const handleSave = () => {
-    if (!formCode.trim()) return showToast("يرجى إدخال رمز المركز", "error");
-    if (!formName.trim()) return showToast("يرجى إدخال اسم المركز", "error");
-    const payload = {
-      code: formCode,
-      name: formName,
-      manager: formManager,
-      budget: parseFloat(formBudget) || 0,
-      spent: parseFloat(formSpent) || 0,
-      status: formStatus,
-      description: formDescription,
-      notes: formNotes,
-      userId: user?.id,
-      userName: user?.name,
-    };
-    if (editing) {
-      updateMutation.mutate({ id: editing.id, ...payload });
-    } else {
-      createMutation.mutate(payload);
-    }
-  };
 
   const handleDelete = () => {
     if (deleteTarget) {
@@ -419,97 +334,6 @@ function Page() {
           }}
         />
       )}
-
-      <EntityFormDrawer
-        open={addOpen}
-        onClose={() => {
-          setAddOpen(false);
-          setEditing(null);
-        }}
-        title={editing ? "تعديل مركز التكلفة" : "إضافة مركز تكلفة جديد"}
-        onSave={handleSave}
-        loading={createMutation.isPending || updateMutation.isPending}
-      >
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الرمز *</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formCode}
-              onChange={(e) => setFormCode(e.target.value)}
-              placeholder="CC-100"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الاسم *</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-            />
-          </div>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">المسؤول</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formManager}
-            onChange={(e) => setFormManager(e.target.value)}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الموازنة (ر.س)</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              value={formBudget}
-              onChange={(e) => setFormBudget(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">المصروف (ر.س)</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              value={formSpent}
-              onChange={(e) => setFormSpent(e.target.value)}
-            />
-          </div>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الحالة</label>
-          <select
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formStatus}
-            onChange={(e) => setFormStatus(e.target.value as CostCenterStatus)}
-          >
-            {options("costCenterStatus").map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الوصف</label>
-          <textarea
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            rows={2}
-            value={formDescription}
-            onChange={(e) => setFormDescription(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-          <textarea
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            rows={2}
-            value={formNotes}
-            onChange={(e) => setFormNotes(e.target.value)}
-          />
-        </div>
-      </EntityFormDrawer>
 
       <ConfirmDialog
         open={!!deleteTarget}
