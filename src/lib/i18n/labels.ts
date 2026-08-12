@@ -201,6 +201,9 @@ const LABELS: Record<string, Dict> = {
     journal_entry: "قيد يومية",
     invoice: "فاتورة",
   },
+  backupFrequency: { daily: "يومي", weekly: "أسبوعي", monthly: "شهري" },
+  backupType: { manual: "يدوي", auto: "تلقائي" },
+  backupStatus: { success: "ناجح", failed: "فشل", running: "قيد التنفيذ" },
   membershipRole: {
     member: "عضو",
     chair: "رئيس",

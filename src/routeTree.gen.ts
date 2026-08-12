@@ -104,6 +104,7 @@ import { Route as SettingsWebhooksNewRouteImport } from './routes/settings.webho
 import { Route as SettingsUsersNewRouteImport } from './routes/settings.users_.new'
 import { Route as SettingsIntegrationsNewRouteImport } from './routes/settings.integrations_.new'
 import { Route as SettingsBranchesNewRouteImport } from './routes/settings.branches_.new'
+import { Route as SettingsBackupSettingsRouteImport } from './routes/settings.backup_.settings'
 import { Route as ReportsIdEditRouteImport } from './routes/reports_.$id_.edit'
 import { Route as RecurringIdEditRouteImport } from './routes/recurring_.$id_.edit'
 import { Route as ProjectsIdEditRouteImport } from './routes/projects_.$id_.edit'
@@ -136,6 +137,7 @@ import { Route as ApiSettingsWebhooksRouteImport } from './routes/api/settings/w
 import { Route as ApiSettingsOrgRouteImport } from './routes/api/settings/org'
 import { Route as ApiSettingsIntegrationsRouteImport } from './routes/api/settings/integrations'
 import { Route as ApiSettingsBranchesRouteImport } from './routes/api/settings/branches'
+import { Route as ApiSettingsBackupRouteImport } from './routes/api/settings/backup'
 import { Route as ApiReportsSummaryRouteImport } from './routes/api/reports/summary'
 import { Route as ApiReportsSavedRouteImport } from './routes/api/reports/saved'
 import { Route as ApiProcurementSuppliersRouteImport } from './routes/api/procurement/suppliers'
@@ -644,6 +646,11 @@ const SettingsBranchesNewRoute = SettingsBranchesNewRouteImport.update({
   path: '/settings/branches/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsBackupSettingsRoute = SettingsBackupSettingsRouteImport.update({
+  id: '/settings/backup_/settings',
+  path: '/settings/backup/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportsIdEditRoute = ReportsIdEditRouteImport.update({
   id: '/reports_/$id_/edit',
   path: '/reports/$id/edit',
@@ -802,6 +809,11 @@ const ApiSettingsIntegrationsRoute = ApiSettingsIntegrationsRouteImport.update({
 const ApiSettingsBranchesRoute = ApiSettingsBranchesRouteImport.update({
   id: '/api/settings/branches',
   path: '/api/settings/branches',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSettingsBackupRoute = ApiSettingsBackupRouteImport.update({
+  id: '/api/settings/backup',
+  path: '/api/settings/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiReportsSummaryRoute = ApiReportsSummaryRouteImport.update({
@@ -1080,6 +1092,7 @@ export interface FileRoutesByFullPath {
   '/api/procurement/suppliers': typeof ApiProcurementSuppliersRoute
   '/api/reports/saved': typeof ApiReportsSavedRoute
   '/api/reports/summary': typeof ApiReportsSummaryRoute
+  '/api/settings/backup': typeof ApiSettingsBackupRoute
   '/api/settings/branches': typeof ApiSettingsBranchesRoute
   '/api/settings/integrations': typeof ApiSettingsIntegrationsRoute
   '/api/settings/org': typeof ApiSettingsOrgRoute
@@ -1112,6 +1125,7 @@ export interface FileRoutesByFullPath {
   '/projects/$id/edit': typeof ProjectsIdEditRoute
   '/recurring/$id/edit': typeof RecurringIdEditRoute
   '/reports/$id/edit': typeof ReportsIdEditRoute
+  '/settings/backup/settings': typeof SettingsBackupSettingsRoute
   '/settings/branches/new': typeof SettingsBranchesNewRoute
   '/settings/integrations/new': typeof SettingsIntegrationsNewRoute
   '/settings/users/new': typeof SettingsUsersNewRoute
@@ -1241,6 +1255,7 @@ export interface FileRoutesByTo {
   '/api/procurement/suppliers': typeof ApiProcurementSuppliersRoute
   '/api/reports/saved': typeof ApiReportsSavedRoute
   '/api/reports/summary': typeof ApiReportsSummaryRoute
+  '/api/settings/backup': typeof ApiSettingsBackupRoute
   '/api/settings/branches': typeof ApiSettingsBranchesRoute
   '/api/settings/integrations': typeof ApiSettingsIntegrationsRoute
   '/api/settings/org': typeof ApiSettingsOrgRoute
@@ -1273,6 +1288,7 @@ export interface FileRoutesByTo {
   '/projects/$id/edit': typeof ProjectsIdEditRoute
   '/recurring/$id/edit': typeof RecurringIdEditRoute
   '/reports/$id/edit': typeof ReportsIdEditRoute
+  '/settings/backup/settings': typeof SettingsBackupSettingsRoute
   '/settings/branches/new': typeof SettingsBranchesNewRoute
   '/settings/integrations/new': typeof SettingsIntegrationsNewRoute
   '/settings/users/new': typeof SettingsUsersNewRoute
@@ -1403,6 +1419,7 @@ export interface FileRoutesById {
   '/api/procurement/suppliers': typeof ApiProcurementSuppliersRoute
   '/api/reports/saved': typeof ApiReportsSavedRoute
   '/api/reports/summary': typeof ApiReportsSummaryRoute
+  '/api/settings/backup': typeof ApiSettingsBackupRoute
   '/api/settings/branches': typeof ApiSettingsBranchesRoute
   '/api/settings/integrations': typeof ApiSettingsIntegrationsRoute
   '/api/settings/org': typeof ApiSettingsOrgRoute
@@ -1435,6 +1452,7 @@ export interface FileRoutesById {
   '/projects_/$id_/edit': typeof ProjectsIdEditRoute
   '/recurring_/$id_/edit': typeof RecurringIdEditRoute
   '/reports_/$id_/edit': typeof ReportsIdEditRoute
+  '/settings/backup_/settings': typeof SettingsBackupSettingsRoute
   '/settings/branches_/new': typeof SettingsBranchesNewRoute
   '/settings/integrations_/new': typeof SettingsIntegrationsNewRoute
   '/settings/users_/new': typeof SettingsUsersNewRoute
@@ -1566,6 +1584,7 @@ export interface FileRouteTypes {
     | '/api/procurement/suppliers'
     | '/api/reports/saved'
     | '/api/reports/summary'
+    | '/api/settings/backup'
     | '/api/settings/branches'
     | '/api/settings/integrations'
     | '/api/settings/org'
@@ -1598,6 +1617,7 @@ export interface FileRouteTypes {
     | '/projects/$id/edit'
     | '/recurring/$id/edit'
     | '/reports/$id/edit'
+    | '/settings/backup/settings'
     | '/settings/branches/new'
     | '/settings/integrations/new'
     | '/settings/users/new'
@@ -1727,6 +1747,7 @@ export interface FileRouteTypes {
     | '/api/procurement/suppliers'
     | '/api/reports/saved'
     | '/api/reports/summary'
+    | '/api/settings/backup'
     | '/api/settings/branches'
     | '/api/settings/integrations'
     | '/api/settings/org'
@@ -1759,6 +1780,7 @@ export interface FileRouteTypes {
     | '/projects/$id/edit'
     | '/recurring/$id/edit'
     | '/reports/$id/edit'
+    | '/settings/backup/settings'
     | '/settings/branches/new'
     | '/settings/integrations/new'
     | '/settings/users/new'
@@ -1888,6 +1910,7 @@ export interface FileRouteTypes {
     | '/api/procurement/suppliers'
     | '/api/reports/saved'
     | '/api/reports/summary'
+    | '/api/settings/backup'
     | '/api/settings/branches'
     | '/api/settings/integrations'
     | '/api/settings/org'
@@ -1920,6 +1943,7 @@ export interface FileRouteTypes {
     | '/projects_/$id_/edit'
     | '/recurring_/$id_/edit'
     | '/reports_/$id_/edit'
+    | '/settings/backup_/settings'
     | '/settings/branches_/new'
     | '/settings/integrations_/new'
     | '/settings/users_/new'
@@ -2050,6 +2074,7 @@ export interface RootRouteChildren {
   ApiProcurementSuppliersRoute: typeof ApiProcurementSuppliersRoute
   ApiReportsSavedRoute: typeof ApiReportsSavedRoute
   ApiReportsSummaryRoute: typeof ApiReportsSummaryRoute
+  ApiSettingsBackupRoute: typeof ApiSettingsBackupRoute
   ApiSettingsBranchesRoute: typeof ApiSettingsBranchesRoute
   ApiSettingsIntegrationsRoute: typeof ApiSettingsIntegrationsRoute
   ApiSettingsOrgRoute: typeof ApiSettingsOrgRoute
@@ -2082,6 +2107,7 @@ export interface RootRouteChildren {
   ProjectsIdEditRoute: typeof ProjectsIdEditRoute
   RecurringIdEditRoute: typeof RecurringIdEditRoute
   ReportsIdEditRoute: typeof ReportsIdEditRoute
+  SettingsBackupSettingsRoute: typeof SettingsBackupSettingsRoute
   SettingsBranchesNewRoute: typeof SettingsBranchesNewRoute
   SettingsIntegrationsNewRoute: typeof SettingsIntegrationsNewRoute
   SettingsUsersNewRoute: typeof SettingsUsersNewRoute
@@ -2770,6 +2796,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsBranchesNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/backup_/settings': {
+      id: '/settings/backup_/settings'
+      path: '/settings/backup/settings'
+      fullPath: '/settings/backup/settings'
+      preLoaderRoute: typeof SettingsBackupSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reports_/$id_/edit': {
       id: '/reports_/$id_/edit'
       path: '/reports/$id/edit'
@@ -2992,6 +3025,13 @@ declare module '@tanstack/react-router' {
       path: '/api/settings/branches'
       fullPath: '/api/settings/branches'
       preLoaderRoute: typeof ApiSettingsBranchesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/settings/backup': {
+      id: '/api/settings/backup'
+      path: '/api/settings/backup'
+      fullPath: '/api/settings/backup'
+      preLoaderRoute: typeof ApiSettingsBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/reports/summary': {
@@ -3330,6 +3370,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProcurementSuppliersRoute: ApiProcurementSuppliersRoute,
   ApiReportsSavedRoute: ApiReportsSavedRoute,
   ApiReportsSummaryRoute: ApiReportsSummaryRoute,
+  ApiSettingsBackupRoute: ApiSettingsBackupRoute,
   ApiSettingsBranchesRoute: ApiSettingsBranchesRoute,
   ApiSettingsIntegrationsRoute: ApiSettingsIntegrationsRoute,
   ApiSettingsOrgRoute: ApiSettingsOrgRoute,
@@ -3362,6 +3403,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectsIdEditRoute: ProjectsIdEditRoute,
   RecurringIdEditRoute: RecurringIdEditRoute,
   ReportsIdEditRoute: ReportsIdEditRoute,
+  SettingsBackupSettingsRoute: SettingsBackupSettingsRoute,
   SettingsBranchesNewRoute: SettingsBranchesNewRoute,
   SettingsIntegrationsNewRoute: SettingsIntegrationsNewRoute,
   SettingsUsersNewRoute: SettingsUsersNewRoute,

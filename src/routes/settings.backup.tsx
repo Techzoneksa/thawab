@@ -1,256 +1,190 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   AppShell,
   Card,
   Btn,
   Badge,
-  Table,
   Td,
+  statusTone,
   MobileTable,
   MobilePageHeader,
   MobileActionRow,
 } from "@/components/erp/AppShell";
-import { showToast, ConfirmDialog, EntityFormDrawer, ActionMenu } from "@/components/erp/actions";
-import {
-  DatabaseBackup,
-  CheckCircle2,
-  Download,
-  RotateCcw,
-  Trash2,
-  Settings as Cog,
-} from "lucide-react";
+import { showToast, ConfirmDialog, ActionMenu, EmptyState } from "@/components/erp/actions";
+import { DatabaseBackup, CheckCircle2, Trash2, Settings as Cog } from "lucide-react";
+import { label } from "@/lib/i18n/labels";
+import { getBackup, runBackup, deleteBackupRecord, type BackupRecord } from "@/lib/api/backup";
 
 export const Route = createFileRoute("/settings/backup")({
   head: () => ({ meta: [{ title: "النسخ الاحتياطي — ثواب" }] }),
-  component: () => {
-    const [backups, setBackups] = useState([
-      { d: "1446/10/12 03:00", size: "1.84 GB", type: "تلقائي يومي", status: "ناجح" },
-      { d: "1446/10/11 03:00", size: "1.82 GB", type: "تلقائي يومي", status: "ناجح" },
-      { d: "1446/10/10 03:00", size: "1.80 GB", type: "تلقائي يومي", status: "ناجح" },
-      { d: "1446/10/05 14:20", size: "1.79 GB", type: "يدوي", status: "ناجح" },
-      { d: "1446/10/01 03:00", size: "1.74 GB", type: "أرشيف شهري", status: "ناجح" },
-    ]);
+  component: Page,
+});
 
-    const [loading, setLoading] = useState(false);
-    const [settingsOpen, setSettingsOpen] = useState(false);
-    const [confirmOpen, setConfirmOpen] = useState(false);
-    const [confirmAction, setConfirmAction] = useState<() => void>(() => {});
-    const [restoreOpen, setRestoreOpen] = useState(false);
-    const [restoreTarget, setRestoreTarget] = useState("");
+function Page() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [delTarget, setDelTarget] = useState<BackupRecord | null>(null);
 
-    const [schedFreq, setSchedFreq] = useState("يومي");
-    const [schedTime, setSchedTime] = useState("03:00");
-    const [schedRetain, setSchedRetain] = useState("30");
+  const { data, isLoading } = useQuery({ queryKey: ["backup"], queryFn: getBackup });
+  const config = data?.config;
+  const records = data?.records ?? [];
+  const lastBackup = records[0];
 
-    function handleCreateBackup() {
-      setLoading(true);
-      setTimeout(() => {
-        const now = new Date();
-        const dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}`;
-        const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-        const newBackup = {
-          d: `${dateStr} ${timeStr}`,
-          size: "1.85 GB",
-          type: "يدوي",
-          status: "ناجح",
-        };
-        setBackups([newBackup, ...backups]);
-        setLoading(false);
-        showToast("تم إنشاء النسخة الاحتياطية بنجاح", "success");
-      }, 1500);
-    }
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["backup"] });
 
-    function handleRestore(b: any) {
-      setRestoreTarget(b.d);
-      setRestoreOpen(true);
-      setConfirmAction(() => () => {
-        showToast(`تمت استعادة النسخة الاحتياطية ${b.d} بنجاح`, "success");
-      });
-    }
+  const runMut = useMutation({
+    mutationFn: runBackup,
+    onSuccess: () => {
+      invalidate();
+      showToast("تم تسجيل نسخة احتياطية جديدة", "success");
+    },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
-    function handleDownload(b: any) {
-      showToast(`بدء تحميل النسخة الاحتياطية ${b.d} (${b.size})`, "success");
-    }
+  const delMut = useMutation({
+    mutationFn: deleteBackupRecord,
+    onSuccess: () => {
+      invalidate();
+      showToast("تم حذف سجل النسخة", "success");
+      setDelTarget(null);
+    },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
 
-    function handleDelete(i: number) {
-      setConfirmAction(() => () => {
-        setBackups(backups.filter((_, idx) => idx !== i));
-        showToast("تم حذف النسخة الاحتياطية", "success");
-      });
-      setConfirmOpen(true);
-    }
-
-    function handleSaveSettings() {
-      showToast("تم حفظ إعدادات النسخ الاحتياطي", "success");
-      setSettingsOpen(false);
-    }
-
-    return (
-      <AppShell
-        breadcrumb={["الرئيسية", "الإعدادات", "النسخ الاحتياطي"]}
-        title="النسخ الاحتياطي والاستعادة"
-        actions={
-          <div className="flex items-center gap-2">
-            <Btn variant="outline" onClick={() => setSettingsOpen(true)}>
-              <Cog size={15} />
-              <span className="hidden md:inline">الإعدادات</span>
-            </Btn>
-            <Btn variant="primary" onClick={handleCreateBackup} disabled={loading}>
-              <DatabaseBackup size={15} className={loading ? "animate-pulse" : ""} />
-              {loading ? "جارٍ الإنشاء..." : "نسخة احتياطية الآن"}
-            </Btn>
-          </div>
-        }
-      >
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-          <Card className="p-5">
-            <div className="text-xs text-muted-foreground">آخر نسخة احتياطية</div>
-            <div className="text-xl font-extrabold mt-1">قبل 6 ساعات</div>
-            <Badge tone="success">
-              <CheckCircle2 size={11} className="inline ms-1" />
-              ناجحة
-            </Badge>
-          </Card>
-          <Card className="p-5">
-            <div className="text-xs text-muted-foreground">حجم البيانات</div>
-            <div className="text-xl font-extrabold mt-1">1.84 GB</div>
-            <div className="text-xs text-muted-foreground mt-1">مشفّرة AES-256</div>
-          </Card>
-          <Card className="p-5">
-            <div className="text-xs text-muted-foreground">موقع التخزين</div>
-            <div className="text-xl font-extrabold mt-1">السعودية</div>
-            <Badge tone="info">3 نسخ جغرافية</Badge>
-          </Card>
+  return (
+    <AppShell
+      breadcrumb={["الرئيسية", "الإعدادات", "النسخ الاحتياطي"]}
+      title="النسخ الاحتياطي والاستعادة"
+      actions={
+        <div className="flex items-center gap-2">
+          <Btn variant="outline" onClick={() => navigate({ to: "/settings/backup/settings" })}>
+            <Cog size={15} />
+            <span className="hidden md:inline">الإعدادات</span>
+          </Btn>
+          <Btn variant="primary" onClick={() => runMut.mutate()} disabled={runMut.isPending}>
+            <DatabaseBackup size={15} className={runMut.isPending ? "animate-pulse" : ""} />
+            {runMut.isPending ? "جارٍ..." : "نسخة احتياطية الآن"}
+          </Btn>
         </div>
-        <MobilePageHeader title="النسخ الاحتياطي" count={`${backups.length} نسخة`} />
-        <MobileActionRow>
-          <Btn variant="outline" onClick={() => setSettingsOpen(true)}>
-            <Cog size={15} /> إعدادات
-          </Btn>
-          <Btn variant="primary" onClick={handleCreateBackup} disabled={loading}>
-            <DatabaseBackup size={15} className={loading ? "animate-pulse" : ""} />
-            {loading ? "جارٍ..." : "إنشاء نسخة"}
-          </Btn>
-        </MobileActionRow>
-        <div className="mt-3 lg:mt-0" />
+      }
+    >
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <Card className="p-5">
+          <div className="text-xs text-muted-foreground">آخر نسخة احتياطية</div>
+          <div className="text-xl font-extrabold mt-1">
+            {lastBackup ? lastBackup.createdAt : "لا توجد"}
+          </div>
+          {lastBackup && (
+            <Badge tone={statusTone(lastBackup.status)}>
+              <CheckCircle2 size={11} className="inline ms-1" />
+              {label("backupStatus", lastBackup.status)}
+            </Badge>
+          )}
+        </Card>
+        <Card className="p-5">
+          <div className="text-xs text-muted-foreground">عدد النسخ المسجّلة</div>
+          <div className="text-xl font-extrabold mt-1 tabular-nums">{records.length}</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            الاحتفاظ: {config?.retention ?? 30} نسخة
+          </div>
+        </Card>
+        <Card className="p-5">
+          <div className="text-xs text-muted-foreground">الجدولة</div>
+          <div className="text-xl font-extrabold mt-1">
+            {config ? label("backupFrequency", config.frequency) : "—"}
+          </div>
+          <Badge tone="info">الوقت {config?.time ?? "—"}</Badge>
+        </Card>
+      </div>
+
+      <MobilePageHeader title="النسخ الاحتياطي" count={`${records.length} نسخة`} />
+      <MobileActionRow>
+        <Btn variant="outline" onClick={() => navigate({ to: "/settings/backup/settings" })}>
+          <Cog size={15} /> إعدادات
+        </Btn>
+        <Btn variant="primary" onClick={() => runMut.mutate()} disabled={runMut.isPending}>
+          <DatabaseBackup size={15} className={runMut.isPending ? "animate-pulse" : ""} />
+          {runMut.isPending ? "جارٍ..." : "إنشاء نسخة"}
+        </Btn>
+      </MobileActionRow>
+      <div className="mt-3 lg:mt-0" />
+
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+        </div>
+      ) : records.length === 0 ? (
+        <Card className="p-2">
+          <EmptyState
+            icon={<DatabaseBackup size={40} />}
+            title="لا توجد نسخ احتياطية"
+            description="اضغط «نسخة احتياطية الآن» لتسجيل أول نسخة، أو اضبط الجدولة التلقائية من الإعدادات"
+            action={
+              <Btn variant="primary" onClick={() => runMut.mutate()}>
+                <DatabaseBackup size={15} /> نسخة احتياطية الآن
+              </Btn>
+            }
+          />
+        </Card>
+      ) : (
         <MobileTable
-          columns={["التاريخ والوقت", "الحجم", "النوع", "الحالة", ""]}
-          rows={backups}
-          renderRow={(b, i) => (
+          columns={["التاريخ والوقت", "النوع", "الحالة", "بواسطة", ""]}
+          rows={records}
+          renderRow={(b: BackupRecord) => (
             <>
-              <Td className="font-mono text-xs">{b.d}</Td>
-              <Td className="tabular-nums">{b.size}</Td>
-              <Td>{b.type}</Td>
+              <Td className="font-mono text-xs">{b.createdAt}</Td>
+              <Td>{label("backupType", b.type)}</Td>
               <Td>
-                <Badge tone="success">{b.status}</Badge>
+                <Badge tone={statusTone(b.status)}>{label("backupStatus", b.status)}</Badge>
               </Td>
+              <Td className="text-muted-foreground text-xs">{b.createdByName || "—"}</Td>
               <Td>
                 <ActionMenu
                   actions={[
-                    { label: "استعادة", icon: RotateCcw, onClick: () => handleRestore(b) },
-                    { label: "تحميل", icon: Download, onClick: () => handleDownload(b) },
                     {
                       label: "حذف",
                       icon: Trash2,
-                      variant: "destructive",
-                      onClick: () => handleDelete(i),
+                      variant: "destructive" as const,
+                      onClick: () => setDelTarget(b),
                     },
                   ]}
                 />
               </Td>
             </>
           )}
-          mobileCard={(b, i) => (
-            <Card key={i} className="p-3">
+          mobileCard={(b: BackupRecord) => (
+            <Card key={b.id} className="p-3">
               <div className="flex items-center justify-between mb-2">
-                <Badge tone="success">{b.status}</Badge>
-                <Badge tone="info">{b.type}</Badge>
+                <Badge tone={statusTone(b.status)}>{label("backupStatus", b.status)}</Badge>
+                <Badge tone="info">{label("backupType", b.type)}</Badge>
               </div>
-              <div className="font-mono text-xs">{b.d}</div>
-              <div className="tabular-nums text-sm font-semibold mt-1">{b.size}</div>
-              <div className="flex gap-2 mt-2">
-                <Btn variant="primary" className="flex-1 text-xs" onClick={() => handleDownload(b)}>
-                  <Download size={12} /> تحميل
-                </Btn>
-                <Btn variant="outline" className="flex-1 text-xs" onClick={() => handleRestore(b)}>
-                  <RotateCcw size={12} /> استعادة
-                </Btn>
-                <Btn variant="outline" className="flex-1 text-xs" onClick={() => handleDelete(i)}>
-                  <Trash2 size={12} />
-                </Btn>
+              <div className="font-mono text-xs">{b.createdAt}</div>
+              <div className="text-xs text-muted-foreground mt-1">{b.createdByName || "—"}</div>
+              <div className="flex justify-end mt-2">
+                <button
+                  onClick={() => setDelTarget(b)}
+                  className="text-destructive text-xs font-semibold"
+                >
+                  حذف
+                </button>
               </div>
             </Card>
           )}
         />
+      )}
 
-        <EntityFormDrawer
-          open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-          title="إعدادات النسخ الاحتياطي"
-          onSave={handleSaveSettings}
-          saveText="حفظ الإعدادات"
-        >
-          <div>
-            <label className="text-xs text-muted-foreground">التكرار</label>
-            <select
-              className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
-              value={schedFreq}
-              onChange={(e) => setSchedFreq(e.target.value)}
-            >
-              <option>يومي</option>
-              <option>أسبوعي</option>
-              <option>شهري</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">الوقت</label>
-            <input
-              type="time"
-              className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
-              value={schedTime}
-              onChange={(e) => setSchedTime(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">الاحتفاظ بـ (عدد النسخ)</label>
-            <input
-              type="number"
-              className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
-              value={schedRetain}
-              onChange={(e) => setSchedRetain(e.target.value)}
-            />
-          </div>
-        </EntityFormDrawer>
-
-        <ConfirmDialog
-          open={confirmOpen}
-          onClose={() => setConfirmOpen(false)}
-          onConfirm={() => {
-            confirmAction();
-            setConfirmOpen(false);
-          }}
-          title="تأكيد حذف النسخة الاحتياطية"
-          message="هل أنت متأكد من حذف هذه النسخة الاحتياطية؟"
-          confirmText="حذف"
-          cancelText="إلغاء"
-          variant="destructive"
-        />
-
-        <ConfirmDialog
-          open={restoreOpen}
-          onClose={() => setRestoreOpen(false)}
-          onConfirm={() => {
-            confirmAction();
-            setRestoreOpen(false);
-          }}
-          title="تأكيد استعادة النسخة الاحتياطية"
-          message={`سيتم استعادة البيانات من النسخة "${restoreTarget}". هل أنت متأكد؟`}
-          confirmText="استعادة"
-          cancelText="إلغاء"
-          variant="default"
-        />
-      </AppShell>
-    );
-  },
-});
+      <ConfirmDialog
+        open={!!delTarget}
+        onClose={() => setDelTarget(null)}
+        onConfirm={() => delTarget && delMut.mutate(delTarget.id)}
+        title="حذف سجل النسخة الاحتياطية"
+        message="سيتم حذف سجل هذه النسخة من التاريخ. لا يؤثر ذلك على النسخ المخزّنة على الخادم."
+        confirmText="حذف"
+        cancelText="إلغاء"
+        variant="destructive"
+      />
+    </AppShell>
+  );
+}

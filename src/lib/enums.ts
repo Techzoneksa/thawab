@@ -438,6 +438,28 @@ export const WebhookEvent = {
 } as const;
 export type WebhookEvent = (typeof WebhookEvent)[keyof typeof WebhookEvent];
 
+// ============ BACKUP (النسخ الاحتياطي) ============
+
+export const BackupFrequency = {
+  DAILY: "daily",
+  WEEKLY: "weekly",
+  MONTHLY: "monthly",
+} as const;
+export type BackupFrequency = (typeof BackupFrequency)[keyof typeof BackupFrequency];
+
+export const BackupType = {
+  MANUAL: "manual",
+  AUTO: "auto",
+} as const;
+export type BackupType = (typeof BackupType)[keyof typeof BackupType];
+
+export const BackupStatus = {
+  SUCCESS: "success",
+  FAILED: "failed",
+  RUNNING: "running",
+} as const;
+export type BackupStatus = (typeof BackupStatus)[keyof typeof BackupStatus];
+
 // ============ GOVERNANCE ============
 
 export const MembershipRole = {

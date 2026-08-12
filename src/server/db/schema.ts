@@ -686,6 +686,29 @@ export const donorOrgs = pgTable("donor_orgs", {
   updatedAt: text("updated_at").notNull().default(""),
 });
 
+// ============ BACKUP (النسخ الاحتياطي) ============
+
+// Single-row config (id = "default").
+export const backupConfig = pgTable("backup_config", {
+  id: text("id").primaryKey(),
+  frequency: text("frequency").notNull().default("daily"),
+  time: text("time").notNull().default("03:00"),
+  retention: integer("retention").notNull().default(30),
+  location: text("location").default("السعودية"),
+  updatedBy: text("updated_by").references(() => users.id),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
+export const backupRecords = pgTable("backup_records", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull().default("manual"),
+  status: text("status").notNull().default("success"),
+  note: text("note").default(""),
+  createdBy: text("created_by").references(() => users.id),
+  createdByName: text("created_by_name").default(""),
+  createdAt: text("created_at").notNull().default(""),
+});
+
 // ============ INTEGRATIONS & WEBHOOKS (التكاملات) ============
 
 export const integrations = pgTable("integrations", {
