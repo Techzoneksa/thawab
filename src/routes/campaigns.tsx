@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
   Card,
@@ -8,7 +9,16 @@ import {
   MobilePageHeader,
 } from "@/components/erp/AppShell";
 import { fmtSAR, fmtNum } from "@/data/sample";
-import { Plus, Megaphone, Edit, Trash2, Eye, CheckCircle, XCircle } from "lucide-react";
+import { label } from "@/lib/i18n/labels";
+import {
+  getCampaigns,
+  createCampaign,
+  updateCampaign,
+  deleteCampaign,
+  type Campaign,
+} from "@/lib/api/campaigns";
+import { CampaignStatus } from "@/lib/enums";
+import { Plus, Megaphone, Trash2, Eye, CheckCircle, XCircle } from "lucide-react";
 import { useState } from "react";
 import {
   showToast,
@@ -19,61 +29,67 @@ import {
   EmptyState,
 } from "@/components/erp/actions";
 
-type CampaignItem = {
-  id: string;
-  name: string;
-  target: number;
-  raised: number;
-  donors: number;
-  status: string;
-  end: string;
-};
-
 export const Route = createFileRoute("/campaigns")({
   head: () => ({ meta: [{ title: "حملات التبرع — ثواب" }] }),
   component: () => {
-    const [data, setData] = useState<CampaignItem[]>([]);
+    const queryClient = useQueryClient();
     const [formOpen, setFormOpen] = useState(false);
-    const [confirmIdx, setConfirmIdx] = useState(-1);
+    const [confirmId, setConfirmId] = useState<string | null>(null);
     const [formName, setFormName] = useState("");
     const [formTarget, setFormTarget] = useState("");
 
-    const nextId = () => `CMP-${String(100 + data.length + 1).slice(-3)}`;
+    const { data, isLoading, error } = useQuery({
+      queryKey: ["campaigns"],
+      queryFn: () => getCampaigns(),
+    });
+    const items: Campaign[] = data?.items ?? [];
+
+    const invalidate = () => queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+
+    const createMutation = useMutation({
+      mutationFn: createCampaign,
+      onSuccess: () => {
+        invalidate();
+        showToast("تم إضافة الحملة بنجاح", "success");
+        setFormOpen(false);
+        setFormName("");
+        setFormTarget("");
+      },
+      onError: (e: Error) => showToast(e.message, "error"),
+    });
+
+    const statusMutation = useMutation({
+      mutationFn: updateCampaign,
+      onSuccess: (c) => {
+        invalidate();
+        showToast(`تم تغيير الحالة إلى ${label("campaignStatus", c.status)}`, "success");
+      },
+      onError: (e: Error) => showToast(e.message, "error"),
+    });
+
+    const deleteMutation = useMutation({
+      mutationFn: deleteCampaign,
+      onSuccess: () => {
+        invalidate();
+        showToast("تم حذف الحملة", "success");
+        setConfirmId(null);
+      },
+      onError: (e: Error) => {
+        showToast(e.message, "error");
+        setConfirmId(null);
+      },
+    });
 
     const handleSave = () => {
       if (!formName.trim() || !formTarget.trim()) {
         showToast("يرجى إدخال البيانات", "error");
         return;
       }
-      setData([
-        {
-          id: nextId(),
-          name: formName,
-          target: Number(formTarget),
-          raised: 0,
-          donors: 0,
-          status: "نشطة",
-          end: "—",
-        },
-        ...data,
-      ]);
-      showToast("تم إضافة الحملة بنجاح", "success");
-      setFormOpen(false);
-      setFormName("");
-      setFormTarget("");
-    };
-
-    const changeStatus = (idx: number, status: string) => {
-      const d = [...data];
-      d[idx] = { ...d[idx], status };
-      setData(d);
-      showToast(`تم تغيير الحالة إلى ${status}`, "success");
-    };
-
-    const handleDelete = () => {
-      setData(data.filter((_, i) => i !== confirmIdx));
-      showToast("تم حذف الحملة", "success");
-      setConfirmIdx(-1);
+      createMutation.mutate({
+        name: formName.trim(),
+        goal: Number(formTarget),
+        status: CampaignStatus.ACTIVE,
+      });
     };
 
     return (
@@ -82,7 +98,10 @@ export const Route = createFileRoute("/campaigns")({
         title="حملات التبرع"
         actions={
           <>
-            <ExportButton data={data} filename="campaigns.csv" />
+            <ExportButton
+              data={items as unknown as Record<string, unknown>[]}
+              filename="campaigns.csv"
+            />
             <Btn
               variant="primary"
               onClick={() => {
@@ -96,13 +115,19 @@ export const Route = createFileRoute("/campaigns")({
           </>
         }
       >
-        <MobilePageHeader title="حملات التبرع" count={`${data.length} حملة`} />
-        {data.length === 0 && (
+        <MobilePageHeader title="حملات التبرع" count={`${items.length} حملة`} />
+        {isLoading && (
+          <div className="text-sm text-muted-foreground py-8 text-center">جارٍ التحميل…</div>
+        )}
+        {error && (
+          <div className="text-sm text-destructive py-8 text-center">فشل في تحميل الحملات</div>
+        )}
+        {!isLoading && !error && items.length === 0 && (
           <EmptyState title="لا توجد حملات" description="ابدأ بإضافة أول حملة تبرع" />
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {data.map((c, idx) => {
-            const pct = Math.round((c.raised / c.target) * 100) || 0;
+          {items.map((c) => {
+            const pct = Math.round((c.raised / c.goal) * 100) || 0;
             return (
               <Card key={c.id} className="p-5">
                 <div className="flex items-start justify-between gap-2">
@@ -116,25 +141,27 @@ export const Route = createFileRoute("/campaigns")({
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Badge tone={statusTone(c.status)}>{c.status}</Badge>
+                    <Badge tone={statusTone(c.status)}>{label("campaignStatus", c.status)}</Badge>
                     <ActionMenu
                       actions={[
                         { label: "عرض", icon: Eye, onClick: () => showToast(c.name, "info") },
                         {
                           label: "إنهاء",
                           icon: CheckCircle,
-                          onClick: () => changeStatus(idx, "مكتملة"),
+                          onClick: () =>
+                            statusMutation.mutate({ id: c.id, status: CampaignStatus.COMPLETED }),
                         },
                         {
                           label: "إلغاء",
                           icon: XCircle,
-                          onClick: () => changeStatus(idx, "ملغاة"),
+                          onClick: () =>
+                            statusMutation.mutate({ id: c.id, status: CampaignStatus.CANCELLED }),
                         },
                         {
                           label: "حذف",
                           icon: Trash2,
                           variant: "destructive" as const,
-                          onClick: () => setConfirmIdx(idx),
+                          onClick: () => setConfirmId(c.id),
                         },
                       ]}
                     />
@@ -143,7 +170,7 @@ export const Route = createFileRoute("/campaigns")({
                 <div className="mt-4">
                   <div className="flex justify-between text-xs mb-1">
                     <span className="font-semibold tabular-nums">{fmtSAR(c.raised)}</span>
-                    <span className="text-muted-foreground">من {fmtSAR(c.target)}</span>
+                    <span className="text-muted-foreground">من {fmtSAR(c.goal)}</span>
                   </div>
                   <div className="h-3 rounded-full bg-muted overflow-hidden">
                     <div
@@ -152,7 +179,8 @@ export const Route = createFileRoute("/campaigns")({
                     />
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    {pct}% من الهدف · {fmtNum(c.donors)} متبرع · حتى {c.end}
+                    {pct}% من الهدف · {fmtNum(c.donorCount ?? 0)} متبرع
+                    {c.endDate ? ` · حتى ${c.endDate}` : ""}
                   </div>
                 </div>
               </Card>
@@ -185,11 +213,11 @@ export const Route = createFileRoute("/campaigns")({
           </div>
         </EntityFormDrawer>
 
-        {confirmIdx >= 0 && (
+        {confirmId !== null && (
           <ConfirmDialog
             open
-            onClose={() => setConfirmIdx(-1)}
-            onConfirm={handleDelete}
+            onClose={() => setConfirmId(null)}
+            onConfirm={() => deleteMutation.mutate(confirmId)}
             title="تأكيد الحذف"
             message="هل أنت متأكد من حذف الحملة؟"
             confirmText="حذف"
