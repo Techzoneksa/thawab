@@ -29,6 +29,18 @@ export function DocumentActions({ document: docSource, perms, className = "" }: 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // NOTE: all hooks must run unconditionally and BEFORE any early return,
+  // otherwise the hook count changes once permissions finish loading and
+  // React throws error #310 ("rendered more hooks than during the previous
+  // render"), crashing every page that renders this component.
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
   const P = {
     preview: perms?.preview ?? "documents.preview",
     print: perms?.print ?? "documents.print",
@@ -40,14 +52,6 @@ export function DocumentActions({ document: docSource, perms, className = "" }: 
   const showPdf = can(P.pdf);
   const showExcel = can(P.excel);
   if (!showPreview && !showPrint && !showPdf && !showExcel) return null;
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
 
   async function withDef(kind: string, fn: (d: DocumentDefinition) => void | Promise<void>) {
     setBusy(kind);
@@ -112,25 +116,51 @@ export function DocumentActions({ document: docSource, perms, className = "" }: 
         </button>
         {menuOpen && (
           <div className="absolute z-50 mt-1 end-0 min-w-[180px] rounded-lg border bg-background shadow-lg p-1">
-            {showPreview && <MenuItem onClick={doPreview} icon={<Eye size={15} />} label="معاينة" />}
+            {showPreview && (
+              <MenuItem onClick={doPreview} icon={<Eye size={15} />} label="معاينة" />
+            )}
             {showPrint && <MenuItem onClick={doPrint} icon={<Printer size={15} />} label="طباعة" />}
-            {showPdf && <MenuItem onClick={doPdf} icon={<FileText size={15} />} label="تنزيل PDF" />}
-            {showExcel && <MenuItem onClick={doExcel} icon={<FileSpreadsheet size={15} />} label="تصدير Excel" />}
+            {showPdf && (
+              <MenuItem onClick={doPdf} icon={<FileText size={15} />} label="تنزيل PDF" />
+            )}
+            {showExcel && (
+              <MenuItem
+                onClick={doExcel}
+                icon={<FileSpreadsheet size={15} />}
+                label="تصدير Excel"
+              />
+            )}
           </div>
         )}
       </div>
 
       {/* Hidden mount so window.print() can isolate the document */}
       {active && !preview && (
-        <div aria-hidden style={{ position: "fixed", left: -99999, top: 0, width: 0, height: 0, overflow: "hidden" }}>
+        <div
+          aria-hidden
+          style={{
+            position: "fixed",
+            left: -99999,
+            top: 0,
+            width: 0,
+            height: 0,
+            overflow: "hidden",
+          }}
+        >
           <DocumentLayout def={active} />
         </div>
       )}
 
       {/* Preview overlay */}
       {preview && active && (
-        <div className="fixed inset-0 z-[100] bg-black/50 flex flex-col" onClick={() => setPreview(false)}>
-          <div className="flex items-center justify-between gap-2 p-2 bg-background border-b" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[100] bg-black/50 flex flex-col"
+          onClick={() => setPreview(false)}
+        >
+          <div
+            className="flex items-center justify-between gap-2 p-2 bg-background border-b"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="font-semibold text-sm px-2">معاينة: {active.title}</div>
             <div className="flex items-center gap-1.5">
               {showPrint && (
@@ -153,7 +183,10 @@ export function DocumentActions({ document: docSource, perms, className = "" }: 
               </button>
             </div>
           </div>
-          <div className="flex-1 overflow-auto p-4 flex justify-center" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="flex-1 overflow-auto p-4 flex justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="shadow-2xl">
               <DocumentLayout def={active} />
             </div>
@@ -173,9 +206,20 @@ export function DocumentActions({ document: docSource, perms, className = "" }: 
   );
 }
 
-function MenuItem({ onClick, icon, label }: { onClick: () => void; icon: React.ReactNode; label: string }) {
+function MenuItem({
+  onClick,
+  icon,
+  label,
+}: {
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
   return (
-    <button onClick={onClick} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted text-start">
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted text-start"
+    >
       {icon} {label}
     </button>
   );
