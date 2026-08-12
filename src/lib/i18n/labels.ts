@@ -175,6 +175,7 @@ const LABELS: Record<string, Dict> = {
     maintenance: "صيانة",
     revaluation: "إعادة تقييم",
   },
+  employeeStatus: { active: "نشط", on_leave: "إجازة", terminated: "منتهي الخدمة" },
 };
 
 export type LabelGroup = keyof typeof LABELS;

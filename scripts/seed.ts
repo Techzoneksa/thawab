@@ -45,7 +45,7 @@ const ROLES = [
     id: "role-manager",
     name: "مدير تنفيذي",
     description: "إدارة البرامج والمشاريع",
-    permissions: ["projects.*", "aid.*", "beneficiaries.*", "donations.*", "campaigns.*", "grants.*", "endowments.*", "memberships.*", "meetings.*", "approvals.*", "*.view", "documents.*"],
+    permissions: ["projects.*", "aid.*", "beneficiaries.*", "donations.*", "campaigns.*", "grants.*", "endowments.*", "memberships.*", "meetings.*", "hr.*", "approvals.*", "*.view", "documents.*"],
   },
   {
     id: "role-data-entry",

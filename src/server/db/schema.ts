@@ -702,9 +702,7 @@ export const fixedAssets = pgTable("fixed_assets", {
   cost: doublePrecision("cost").notNull().default(0),
   salvageValue: doublePrecision("salvage_value").notNull().default(0),
   usefulLifeMonths: integer("useful_life_months").notNull().default(60),
-  accumulatedDepreciation: doublePrecision("accumulated_depreciation")
-    .notNull()
-    .default(0),
+  accumulatedDepreciation: doublePrecision("accumulated_depreciation").notNull().default(0),
   depreciationMethod: text("depreciation_method").notNull().default("straight_line"),
   status: text("status").notNull().default("active"),
   condition: text("condition").default("good"),
@@ -752,6 +750,23 @@ export const assetMovements = pgTable("asset_movements", {
   notes: text("notes").default(""),
   sourceType: text("source_type"),
   sourceId: text("source_id"),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+});
+
+// ============ HR (EMPLOYEES) ============
+
+export const employees = pgTable("employees", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  department: text("department").default(""),
+  title: text("title").default(""),
+  salary: doublePrecision("salary").notNull().default(0),
+  phone: text("phone").default(""),
+  email: text("email").default(""),
+  joinedAt: text("joined_at").default(""),
+  status: text("status").notNull().default("active"),
+  notes: text("notes").default(""),
   createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
 });

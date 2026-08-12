@@ -393,3 +393,12 @@ export const AssetMovementType = {
   REVALUATION: "revaluation",
 } as const;
 export type AssetMovementType = (typeof AssetMovementType)[keyof typeof AssetMovementType];
+
+// ============ HR ============
+
+export const EmployeeStatus = {
+  ACTIVE: "active",
+  ON_LEAVE: "on_leave",
+  TERMINATED: "terminated",
+} as const;
+export type EmployeeStatus = (typeof EmployeeStatus)[keyof typeof EmployeeStatus];
