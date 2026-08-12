@@ -71,6 +71,13 @@
       "when": 1786552476639,
       "tag": "0009_add_backup",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786559084044,
+      "tag": "0010_add_payroll",
+      "breakpoints": true
     }
   ]
 }

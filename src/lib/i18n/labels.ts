@@ -204,6 +204,8 @@ const LABELS: Record<string, Dict> = {
   backupFrequency: { daily: "يومي", weekly: "أسبوعي", monthly: "شهري" },
   backupType: { manual: "يدوي", auto: "تلقائي" },
   backupStatus: { success: "ناجح", failed: "فشل", running: "قيد التنفيذ" },
+  payrollStatus: { draft: "مسودة", approved: "معتمد" },
+  payrollPayMethod: { cash: "نقداً", bank: "تحويل بنكي", accrue: "استحقاق (ذمم)" },
   membershipRole: {
     member: "عضو",
     chair: "رئيس",

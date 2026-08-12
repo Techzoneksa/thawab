@@ -132,6 +132,7 @@ const NAV: NavGroup[] = [
     items: [
       { to: "/assets", label: "الأصول الثابتة", icon: Layers },
       { to: "/hr", label: "الموارد البشرية", icon: Briefcase },
+      { to: "/hr/payroll", label: "مسير الرواتب", icon: Wallet },
       { to: "/memberships", label: "العضويات", icon: UsersRound },
       { to: "/meetings", label: "الاجتماعات", icon: CalendarDays },
     ],

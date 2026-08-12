@@ -460,6 +460,21 @@ export const BackupStatus = {
 } as const;
 export type BackupStatus = (typeof BackupStatus)[keyof typeof BackupStatus];
 
+// ============ PAYROLL (مسير الرواتب) ============
+
+export const PayrollStatus = {
+  DRAFT: "draft",
+  APPROVED: "approved",
+} as const;
+export type PayrollStatus = (typeof PayrollStatus)[keyof typeof PayrollStatus];
+
+export const PayrollPayMethod = {
+  CASH: "cash",
+  BANK: "bank",
+  ACCRUE: "accrue",
+} as const;
+export type PayrollPayMethod = (typeof PayrollPayMethod)[keyof typeof PayrollPayMethod];
+
 // ============ GOVERNANCE ============
 
 export const MembershipRole = {

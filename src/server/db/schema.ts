@@ -915,6 +915,38 @@ export const employees = pgTable("employees", {
   createdAt: text("created_at").notNull().default(""),
 });
 
+// ============ PAYROLL (مسير الرواتب) ============
+
+export const payrollRuns = pgTable("payroll_runs", {
+  id: text("id").primaryKey(),
+  period: text("period").notNull().default(""),
+  status: text("status").notNull().default("draft"),
+  payMethod: text("pay_method").notNull().default("bank"),
+  totalAmount: doublePrecision("total_amount").notNull().default(0),
+  journalEntryId: text("journal_entry_id"),
+  notes: text("notes").default(""),
+  approvedBy: text("approved_by").references(() => users.id),
+  approvedAt: text("approved_at"),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
+export const payrollLines = pgTable("payroll_lines", {
+  id: text("id").primaryKey(),
+  runId: text("run_id")
+    .notNull()
+    .references(() => payrollRuns.id),
+  employeeId: text("employee_id").references(() => employees.id),
+  employeeName: text("employee_name").notNull().default(""),
+  department: text("department").default(""),
+  salary: doublePrecision("salary").notNull().default(0),
+  allowances: doublePrecision("allowances").notNull().default(0),
+  deductions: doublePrecision("deductions").notNull().default(0),
+  net: doublePrecision("net").notNull().default(0),
+  notes: text("notes").default(""),
+});
+
 // ============ ORG SETTINGS (single row, id = "org") ============
 
 export const orgSettings = pgTable("org_settings", {
