@@ -10,6 +10,12 @@ export interface OrgSettings {
   ceo: string;
   fiscalYear: string;
   currency: string;
+  buildingNo: string;
+  street: string;
+  district: string;
+  city: string;
+  postalCode: string;
+  additionalNo: string;
   updatedAt: string;
 }
 

@@ -92,6 +92,12 @@ export const branches = pgTable("branches", {
   phone: text("phone"),
   email: text("email"),
   status: text("status").notNull().default("active"),
+  // National Address (العنوان الوطني السعودي) — city reused from above
+  buildingNo: text("building_no").default(""),
+  street: text("street").default(""),
+  district: text("district").default(""),
+  postalCode: text("postal_code").default(""),
+  additionalNo: text("additional_no").default(""),
   createdAt: text("created_at").notNull().default(""),
 });
 
@@ -790,5 +796,12 @@ export const orgSettings = pgTable("org_settings", {
   ceo: text("ceo").default(""),
   fiscalYear: text("fiscal_year").default(""),
   currency: text("currency").default("SAR"),
+  // National Address (العنوان الوطني السعودي)
+  buildingNo: text("building_no").default(""),
+  street: text("street").default(""),
+  district: text("district").default(""),
+  city: text("city").default(""),
+  postalCode: text("postal_code").default(""),
+  additionalNo: text("additional_no").default(""),
   updatedAt: text("updated_at").notNull().default(""),
 });

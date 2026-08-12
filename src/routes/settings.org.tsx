@@ -16,6 +16,16 @@ const FIELDS: { l: string; k: keyof OrgSettingsInput }[] = [
   { l: "العملة الأساسية", k: "currency" },
 ];
 
+// National Address (العنوان الوطني السعودي)
+const NATIONAL_FIELDS: { l: string; k: keyof OrgSettingsInput }[] = [
+  { l: "رقم المبنى", k: "buildingNo" },
+  { l: "اسم الشارع", k: "street" },
+  { l: "الحي", k: "district" },
+  { l: "المدينة", k: "city" },
+  { l: "الرمز البريدي", k: "postalCode" },
+  { l: "الرقم الإضافي", k: "additionalNo" },
+];
+
 const EMPTY: Required<OrgSettingsInput> = {
   name: "",
   regNo: "",
@@ -25,6 +35,12 @@ const EMPTY: Required<OrgSettingsInput> = {
   ceo: "",
   fiscalYear: "",
   currency: "SAR",
+  buildingNo: "",
+  street: "",
+  district: "",
+  city: "",
+  postalCode: "",
+  additionalNo: "",
 };
 
 export const Route = createFileRoute("/settings/org")({
@@ -82,6 +98,21 @@ export const Route = createFileRoute("/settings/org")({
           <h3 className="font-bold mb-4">المعلومات الأساسية</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {FIELDS.map((f) => (
+              <div key={f.k}>
+                <label className="text-xs text-muted-foreground">{f.l}</label>
+                <input
+                  className="mt-1 w-full rounded-lg border bg-background p-2 text-sm min-h-[44px]"
+                  value={form[f.k] ?? ""}
+                  onChange={(e) => setForm({ ...form, [f.k]: e.target.value })}
+                />
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card className="p-6 mt-4">
+          <h3 className="font-bold mb-4">العنوان الوطني</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {NATIONAL_FIELDS.map((f) => (
               <div key={f.k}>
                 <label className="text-xs text-muted-foreground">{f.l}</label>
                 <input

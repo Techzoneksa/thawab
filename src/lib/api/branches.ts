@@ -5,7 +5,16 @@ const API_BASE = "/api/settings/branches";
 export const BRANCH_STATUSES = Object.values(BranchStatusEnum);
 export type BranchStatus = (typeof BRANCH_STATUSES)[number];
 
-export interface Branch {
+/** Saudi National Address fields (العنوان الوطني). */
+export interface BranchNationalAddress {
+  buildingNo?: string;
+  street?: string;
+  district?: string;
+  postalCode?: string;
+  additionalNo?: string;
+}
+
+export interface Branch extends Required<BranchNationalAddress> {
   id: string;
   name: string;
   city: string;
@@ -16,7 +25,7 @@ export interface Branch {
   createdAt: string;
 }
 
-export interface CreateBranchInput {
+export interface CreateBranchInput extends BranchNationalAddress {
   name: string;
   city?: string;
   manager?: string;
@@ -25,7 +34,7 @@ export interface CreateBranchInput {
   status?: string;
 }
 
-export interface UpdateBranchInput {
+export interface UpdateBranchInput extends BranchNationalAddress {
   id: string;
   name?: string;
   city?: string;
@@ -38,6 +47,12 @@ export interface UpdateBranchInput {
 export async function getBranches(): Promise<{ items: Branch[]; total: number }> {
   const res = await fetch(API_BASE);
   if (!res.ok) throw new Error("فشل في جلب الفروع");
+  return res.json();
+}
+
+export async function getBranch(id: string): Promise<{ item: Branch }> {
+  const res = await fetch(`${API_BASE}?id=${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error("فشل في جلب بيانات الفرع");
   return res.json();
 }
 

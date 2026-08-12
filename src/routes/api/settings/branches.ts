@@ -35,6 +35,12 @@ const createSchema = z.object({
   phone: z.string().optional(),
   email: z.string().optional(),
   status: z.nativeEnum(BranchStatus).optional(),
+  // National Address (العنوان الوطني)
+  buildingNo: z.string().optional(),
+  street: z.string().optional(),
+  district: z.string().optional(),
+  postalCode: z.string().optional(),
+  additionalNo: z.string().optional(),
 });
 
 async function POST(event: { request: Request }, ctx: Ctx) {
@@ -51,6 +57,11 @@ async function POST(event: { request: Request }, ctx: Ctx) {
       phone: b.phone ?? "",
       email: b.email ?? "",
       status: b.status ?? BranchStatus.ACTIVE,
+      buildingNo: b.buildingNo ?? "",
+      street: b.street ?? "",
+      district: b.district ?? "",
+      postalCode: b.postalCode ?? "",
+      additionalNo: b.additionalNo ?? "",
       createdAt: ts,
     });
 
@@ -77,6 +88,11 @@ const updateSchema = z.object({
   phone: z.string().optional(),
   email: z.string().optional(),
   status: z.nativeEnum(BranchStatus).optional(),
+  buildingNo: z.string().optional(),
+  street: z.string().optional(),
+  district: z.string().optional(),
+  postalCode: z.string().optional(),
+  additionalNo: z.string().optional(),
 });
 
 async function PUT(event: { request: Request }, ctx: Ctx) {
@@ -95,6 +111,11 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
         phone: b.phone ?? existing.phone,
         email: b.email ?? existing.email,
         status: b.status ?? existing.status,
+        buildingNo: b.buildingNo ?? existing.buildingNo,
+        street: b.street ?? existing.street,
+        district: b.district ?? existing.district,
+        postalCode: b.postalCode ?? existing.postalCode,
+        additionalNo: b.additionalNo ?? existing.additionalNo,
       })
       .where(eq(branches.id, b.id));
 

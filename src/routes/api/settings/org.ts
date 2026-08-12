@@ -16,6 +16,12 @@ const EMPTY = {
   ceo: "",
   fiscalYear: "",
   currency: "SAR",
+  buildingNo: "",
+  street: "",
+  district: "",
+  city: "",
+  postalCode: "",
+  additionalNo: "",
   updatedAt: "",
 };
 
@@ -34,6 +40,12 @@ const saveSchema = z.object({
   ceo: z.string().optional(),
   fiscalYear: z.string().optional(),
   currency: z.string().optional(),
+  buildingNo: z.string().optional(),
+  street: z.string().optional(),
+  district: z.string().optional(),
+  city: z.string().optional(),
+  postalCode: z.string().optional(),
+  additionalNo: z.string().optional(),
 });
 
 // PUT /api/settings/org — upsert the single org profile row.
@@ -54,6 +66,12 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
       ceo: b.ceo ?? existing?.ceo ?? "",
       fiscalYear: b.fiscalYear ?? existing?.fiscalYear ?? "",
       currency: b.currency ?? existing?.currency ?? "SAR",
+      buildingNo: b.buildingNo ?? existing?.buildingNo ?? "",
+      street: b.street ?? existing?.street ?? "",
+      district: b.district ?? existing?.district ?? "",
+      city: b.city ?? existing?.city ?? "",
+      postalCode: b.postalCode ?? existing?.postalCode ?? "",
+      additionalNo: b.additionalNo ?? existing?.additionalNo ?? "",
       updatedAt: ts,
     };
 

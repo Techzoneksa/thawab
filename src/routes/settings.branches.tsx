@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -13,36 +13,21 @@ import {
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   EmptyState,
 } from "@/components/erp/actions";
 import { label } from "@/lib/i18n/labels";
-import {
-  getBranches,
-  createBranch,
-  updateBranch,
-  deleteBranch,
-  type Branch,
-} from "@/lib/api/branches";
+import { getBranches, updateBranch, deleteBranch, type Branch } from "@/lib/api/branches";
 import { BranchStatus } from "@/lib/enums";
 import { MapPin, Plus, Pencil, Ban, CheckCircle2, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/settings/branches")({
   head: () => ({ meta: [{ title: "الفروع — ثواب" }] }),
   component: () => {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const [formOpen, setFormOpen] = useState(false);
-    const [editingId, setEditingId] = useState<string | null>(null);
     const [confirmId, setConfirmId] = useState<string | null>(null);
-
-    const [formName, setFormName] = useState("");
-    const [formCity, setFormCity] = useState("");
-    const [formMgr, setFormMgr] = useState("");
-    const [formPhone, setFormPhone] = useState("");
-    const [formEmail, setFormEmail] = useState("");
-    const [formStatus, setFormStatus] = useState<string>(BranchStatus.ACTIVE);
 
     const { data, isLoading, error } = useQuery({
       queryKey: ["branches"],
@@ -51,51 +36,11 @@ export const Route = createFileRoute("/settings/branches")({
     const items: Branch[] = data?.items ?? [];
     const invalidate = () => queryClient.invalidateQueries({ queryKey: ["branches"] });
 
-    function resetForm() {
-      setFormName("");
-      setFormCity("");
-      setFormMgr("");
-      setFormPhone("");
-      setFormEmail("");
-      setFormStatus(BranchStatus.ACTIVE);
-    }
-
-    const openAdd = () => {
-      setEditingId(null);
-      resetForm();
-      setFormOpen(true);
-    };
-
-    const openEdit = (b: Branch) => {
-      setEditingId(b.id);
-      setFormName(b.name);
-      setFormCity(b.city ?? "");
-      setFormMgr(b.manager ?? "");
-      setFormPhone(b.phone ?? "");
-      setFormEmail(b.email ?? "");
-      setFormStatus(b.status);
-      setFormOpen(true);
-    };
-
-    const createMutation = useMutation({
-      mutationFn: createBranch,
-      onSuccess: () => {
-        invalidate();
-        showToast("تم إضافة الفرع بنجاح", "success");
-        setFormOpen(false);
-        resetForm();
-      },
-      onError: (e: Error) => showToast(e.message, "error"),
-    });
-
     const updateMutation = useMutation({
       mutationFn: updateBranch,
       onSuccess: () => {
         invalidate();
-        showToast("تم حفظ التغييرات", "success");
-        setFormOpen(false);
-        setEditingId(null);
-        resetForm();
+        showToast("تم تحديث حالة الفرع", "success");
       },
       onError: (e: Error) => showToast(e.message, "error"),
     });
@@ -113,27 +58,13 @@ export const Route = createFileRoute("/settings/branches")({
       },
     });
 
-    const handleSave = () => {
-      if (!formName.trim()) {
-        showToast("يرجى إدخال اسم الفرع", "error");
-        return;
-      }
-      const payload = {
-        name: formName.trim(),
-        city: formCity,
-        manager: formMgr,
-        phone: formPhone,
-        email: formEmail,
-        status: formStatus,
-      };
-      if (editingId) updateMutation.mutate({ id: editingId, ...payload });
-      else createMutation.mutate(payload);
-    };
-
-    const toggleStatus = (b: Branch) => {
-      const next = b.status === BranchStatus.ACTIVE ? BranchStatus.INACTIVE : BranchStatus.ACTIVE;
-      updateMutation.mutate({ id: b.id, status: next });
-    };
+    const goNew = () => navigate({ to: "/settings/branches/new" });
+    const goEdit = (id: string) => navigate({ to: "/settings/branches/$id/edit", params: { id } });
+    const toggleStatus = (b: Branch) =>
+      updateMutation.mutate({
+        id: b.id,
+        status: b.status === BranchStatus.ACTIVE ? BranchStatus.INACTIVE : BranchStatus.ACTIVE,
+      });
 
     return (
       <AppShell
@@ -152,7 +83,7 @@ export const Route = createFileRoute("/settings/branches")({
               }))}
               filename="branches.csv"
             />
-            <Btn variant="primary" onClick={openAdd}>
+            <Btn variant="primary" onClick={goNew}>
               <Plus size={15} />
               فرع جديد
             </Btn>
@@ -161,7 +92,7 @@ export const Route = createFileRoute("/settings/branches")({
       >
         <MobilePageHeader title="فروع الجمعية" count={`${items.length} فرع`} />
         <MobileActionRow>
-          <Btn variant="primary" onClick={openAdd}>
+          <Btn variant="primary" onClick={goNew}>
             <Plus size={15} />
             إضافة فرع
           </Btn>
@@ -196,11 +127,19 @@ export const Route = createFileRoute("/settings/branches")({
                 <div>المدير: {b.manager || "—"}</div>
                 <div>الجوال: {b.phone || "—"}</div>
                 <div>البريد: {b.email || "—"}</div>
+                {(b.district || b.street) && (
+                  <div>
+                    العنوان الوطني:{" "}
+                    {[b.buildingNo, b.street, b.district, b.city, b.postalCode]
+                      .filter(Boolean)
+                      .join("، ") || "—"}
+                  </div>
+                )}
               </div>
               <div className="flex justify-end mt-3">
                 <ActionMenu
                   actions={[
-                    { label: "تعديل", icon: Pencil, onClick: () => openEdit(b) },
+                    { label: "تعديل", icon: Pencil, onClick: () => goEdit(b.id) },
                     {
                       label: b.status === BranchStatus.ACTIVE ? "تعطيل" : "تفعيل",
                       icon: b.status === BranchStatus.ACTIVE ? Ban : CheckCircle2,
@@ -218,74 +157,6 @@ export const Route = createFileRoute("/settings/branches")({
             </Card>
           ))}
         </div>
-
-        <EntityFormDrawer
-          open={formOpen}
-          onClose={() => {
-            setFormOpen(false);
-            setEditingId(null);
-            resetForm();
-          }}
-          title={editingId ? "تعديل الفرع" : "إضافة فرع جديد"}
-          onSave={handleSave}
-          saveText={editingId ? "حفظ التغييرات" : "إضافة"}
-        >
-          <div>
-            <label className="text-xs text-muted-foreground">اسم الفرع *</label>
-            <input
-              className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">المدينة</label>
-            <input
-              className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
-              value={formCity}
-              onChange={(e) => setFormCity(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">المدير</label>
-            <input
-              className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
-              value={formMgr}
-              onChange={(e) => setFormMgr(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">الجوال</label>
-            <input
-              className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
-              value={formPhone}
-              onChange={(e) => setFormPhone(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">البريد</label>
-            <input
-              className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
-              value={formEmail}
-              onChange={(e) => setFormEmail(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">الحالة</label>
-            <select
-              className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
-              value={formStatus}
-              onChange={(e) => setFormStatus(e.target.value)}
-            >
-              <option value={BranchStatus.ACTIVE}>
-                {label("branchStatus", BranchStatus.ACTIVE)}
-              </option>
-              <option value={BranchStatus.INACTIVE}>
-                {label("branchStatus", BranchStatus.INACTIVE)}
-              </option>
-            </select>
-          </div>
-        </EntityFormDrawer>
 
         {confirmId !== null && (
           <ConfirmDialog
