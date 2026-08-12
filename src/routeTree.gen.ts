@@ -97,6 +97,7 @@ import { Route as DonorsIdEditRouteImport } from './routes/donors_.$id_.edit'
 import { Route as DonationsIdEditRouteImport } from './routes/donations_.$id_.edit'
 import { Route as BeneficiariesIdEditRouteImport } from './routes/beneficiaries_.$id_.edit'
 import { Route as AssetsIdEditRouteImport } from './routes/assets_.$id_.edit'
+import { Route as ApiReportsSummaryRouteImport } from './routes/api/reports/summary'
 import { Route as ApiProcurementSuppliersRouteImport } from './routes/api/procurement/suppliers'
 import { Route as ApiProcurementRequestsRouteImport } from './routes/api/procurement/requests'
 import { Route as ApiProcurementQuotesRouteImport } from './routes/api/procurement/quotes'
@@ -563,6 +564,11 @@ const AssetsIdEditRoute = AssetsIdEditRouteImport.update({
   path: '/assets/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiReportsSummaryRoute = ApiReportsSummaryRouteImport.update({
+  id: '/api/reports/summary',
+  path: '/api/reports/summary',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProcurementSuppliersRoute = ApiProcurementSuppliersRouteImport.update({
   id: '/api/procurement/suppliers',
   path: '/api/procurement/suppliers',
@@ -782,6 +788,7 @@ export interface FileRoutesByFullPath {
   '/api/procurement/quotes': typeof ApiProcurementQuotesRoute
   '/api/procurement/requests': typeof ApiProcurementRequestsRoute
   '/api/procurement/suppliers': typeof ApiProcurementSuppliersRoute
+  '/api/reports/summary': typeof ApiReportsSummaryRoute
   '/assets/$id/edit': typeof AssetsIdEditRoute
   '/beneficiaries/$id/edit': typeof BeneficiariesIdEditRoute
   '/donations/$id/edit': typeof DonationsIdEditRoute
@@ -897,6 +904,7 @@ export interface FileRoutesByTo {
   '/api/procurement/quotes': typeof ApiProcurementQuotesRoute
   '/api/procurement/requests': typeof ApiProcurementRequestsRoute
   '/api/procurement/suppliers': typeof ApiProcurementSuppliersRoute
+  '/api/reports/summary': typeof ApiReportsSummaryRoute
   '/assets/$id/edit': typeof AssetsIdEditRoute
   '/beneficiaries/$id/edit': typeof BeneficiariesIdEditRoute
   '/donations/$id/edit': typeof DonationsIdEditRoute
@@ -1013,6 +1021,7 @@ export interface FileRoutesById {
   '/api/procurement/quotes': typeof ApiProcurementQuotesRoute
   '/api/procurement/requests': typeof ApiProcurementRequestsRoute
   '/api/procurement/suppliers': typeof ApiProcurementSuppliersRoute
+  '/api/reports/summary': typeof ApiReportsSummaryRoute
   '/assets_/$id_/edit': typeof AssetsIdEditRoute
   '/beneficiaries_/$id_/edit': typeof BeneficiariesIdEditRoute
   '/donations_/$id_/edit': typeof DonationsIdEditRoute
@@ -1130,6 +1139,7 @@ export interface FileRouteTypes {
     | '/api/procurement/quotes'
     | '/api/procurement/requests'
     | '/api/procurement/suppliers'
+    | '/api/reports/summary'
     | '/assets/$id/edit'
     | '/beneficiaries/$id/edit'
     | '/donations/$id/edit'
@@ -1245,6 +1255,7 @@ export interface FileRouteTypes {
     | '/api/procurement/quotes'
     | '/api/procurement/requests'
     | '/api/procurement/suppliers'
+    | '/api/reports/summary'
     | '/assets/$id/edit'
     | '/beneficiaries/$id/edit'
     | '/donations/$id/edit'
@@ -1360,6 +1371,7 @@ export interface FileRouteTypes {
     | '/api/procurement/quotes'
     | '/api/procurement/requests'
     | '/api/procurement/suppliers'
+    | '/api/reports/summary'
     | '/assets_/$id_/edit'
     | '/beneficiaries_/$id_/edit'
     | '/donations_/$id_/edit'
@@ -1476,6 +1488,7 @@ export interface RootRouteChildren {
   ApiProcurementQuotesRoute: typeof ApiProcurementQuotesRoute
   ApiProcurementRequestsRoute: typeof ApiProcurementRequestsRoute
   ApiProcurementSuppliersRoute: typeof ApiProcurementSuppliersRoute
+  ApiReportsSummaryRoute: typeof ApiReportsSummaryRoute
   AssetsIdEditRoute: typeof AssetsIdEditRoute
   BeneficiariesIdEditRoute: typeof BeneficiariesIdEditRoute
   DonationsIdEditRoute: typeof DonationsIdEditRoute
@@ -2121,6 +2134,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssetsIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/reports/summary': {
+      id: '/api/reports/summary'
+      path: '/api/reports/summary'
+      fullPath: '/api/reports/summary'
+      preLoaderRoute: typeof ApiReportsSummaryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/procurement/suppliers': {
       id: '/api/procurement/suppliers'
       path: '/api/procurement/suppliers'
@@ -2388,6 +2408,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProcurementQuotesRoute: ApiProcurementQuotesRoute,
   ApiProcurementRequestsRoute: ApiProcurementRequestsRoute,
   ApiProcurementSuppliersRoute: ApiProcurementSuppliersRoute,
+  ApiReportsSummaryRoute: ApiReportsSummaryRoute,
   AssetsIdEditRoute: AssetsIdEditRoute,
   BeneficiariesIdEditRoute: BeneficiariesIdEditRoute,
   DonationsIdEditRoute: DonationsIdEditRoute,

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   AppShell,
   Card,
@@ -7,6 +8,8 @@ import {
   Select,
   MobileFilterDrawer,
 } from "@/components/erp/AppShell";
+import { fmtSAR, fmtNum } from "@/data/sample";
+import { getReportSummary } from "@/lib/api/reports";
 import * as Icons from "lucide-react";
 import {
   FileText,
@@ -19,14 +22,7 @@ import {
   Clock,
 } from "lucide-react";
 import { useState } from "react";
-import {
-  showToast,
-  EntityFormDrawer,
-  ExportButton,
-  PrintButton,
-  EmptyState,
-  PrintStyle,
-} from "@/components/erp/actions";
+import { showToast, EntityFormDrawer, PrintButton, PrintStyle } from "@/components/erp/actions";
 
 // Static UI configuration of available report categories (not business data).
 type ReportCategory = { title: string; icon: string; items: string[] };
@@ -82,6 +78,80 @@ function Page() {
   const [formPeriod, setFormPeriod] = useState("شهري");
   const [formFormat, setFormFormat] = useState("PDF");
 
+  const { data: summaryData, isLoading: summaryLoading } = useQuery({
+    queryKey: ["reportSummary"],
+    queryFn: getReportSummary,
+  });
+  const s = summaryData?.summary;
+
+  const kpis = s
+    ? [
+        {
+          l: "إجمالي التبرعات المؤكدة",
+          v: fmtSAR(s.donations.total),
+          sub: `${fmtNum(s.donations.count)} تبرع`,
+        },
+        { l: "عدد المتبرعين", v: fmtNum(s.donors.count), sub: "" },
+        {
+          l: "المستفيدون",
+          v: fmtNum(s.beneficiaries.count),
+          sub: `${fmtNum(s.beneficiaries.active)} نشط`,
+        },
+        {
+          l: "المساعدات المصروفة",
+          v: fmtSAR(s.aid.disbursed),
+          sub: `${fmtNum(s.aid.count)} عملية`,
+        },
+        { l: "المشاريع", v: fmtNum(s.projects.count), sub: `مصروف ${fmtSAR(s.projects.spent)}` },
+        {
+          l: "الحملات — المُحصّل",
+          v: fmtSAR(s.campaigns.raised),
+          sub: `${fmtNum(s.campaigns.count)} حملة`,
+        },
+        { l: "المنح", v: fmtSAR(s.grants.total), sub: `${fmtNum(s.grants.count)} منحة` },
+        {
+          l: "الرواتب الشهرية",
+          v: fmtSAR(s.hr.monthlyPayroll),
+          sub: `${fmtNum(s.hr.active)} موظف نشط`,
+        },
+      ]
+    : [];
+
+  const exportSummary = () => {
+    if (!s) {
+      showToast("لا يوجد ملخص للتصدير بعد", "error");
+      return;
+    }
+    const rows: [string, string | number][] = [
+      ["إجمالي التبرعات المؤكدة", s.donations.total],
+      ["عدد التبرعات المؤكدة", s.donations.count],
+      ["عدد المتبرعين", s.donors.count],
+      ["عدد المستفيدين", s.beneficiaries.count],
+      ["المستفيدون النشطون", s.beneficiaries.active],
+      ["المساعدات المصروفة", s.aid.disbursed],
+      ["عدد المشاريع", s.projects.count],
+      ["ميزانية المشاريع", s.projects.budget],
+      ["مصروف المشاريع", s.projects.spent],
+      ["عدد الحملات", s.campaigns.count],
+      ["المُحصّل من الحملات", s.campaigns.raised],
+      ["عدد المنح", s.grants.count],
+      ["إجمالي المنح", s.grants.total],
+      ["عدد الموظفين", s.hr.count],
+      ["الرواتب الشهرية", s.hr.monthlyPayroll],
+    ];
+    const csv = ["المؤشر,القيمة", ...rows.map(([k, v]) => `${k},${v}`)].join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;bom" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ملخص-التقارير.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("تم تصدير الملخص بنجاح", "success");
+  };
+
   const filtered =
     typeFilter === "الكل"
       ? REPORT_CATEGORIES
@@ -129,6 +199,9 @@ function Page() {
       title="مركز التقارير"
       actions={
         <>
+          <Btn variant="outline" onClick={exportSummary}>
+            <Download size={15} /> تصدير الملخص
+          </Btn>
           <PrintButton />
           <Btn variant="primary" onClick={() => setCreateOpen(true)}>
             <Plus size={15} /> إنشاء تقرير
@@ -137,6 +210,24 @@ function Page() {
       }
     >
       <PrintStyle />
+
+      <section className="mb-4">
+        <h2 className="text-sm font-bold text-muted-foreground mb-2">نظرة عامة (بيانات حيّة)</h2>
+        {summaryLoading && (
+          <div className="text-sm text-muted-foreground py-4 text-center">جارٍ تحميل المؤشرات…</div>
+        )}
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+          {kpis.map((k) => (
+            <Card key={k.l} className="p-3 lg:p-4">
+              <div className="text-xs text-muted-foreground truncate">{k.l}</div>
+              <div className="text-base lg:text-lg font-extrabold tabular-nums mt-1 truncate">
+                {k.v}
+              </div>
+              {k.sub && <div className="text-[11px] text-muted-foreground mt-0.5">{k.sub}</div>}
+            </Card>
+          ))}
+        </div>
+      </section>
       <FilterBar>
         <Select
           label="الفترة"
