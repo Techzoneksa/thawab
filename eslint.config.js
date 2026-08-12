@@ -38,6 +38,11 @@ export default tseslint.config(
     },
   },
   {
+    // TanStack route files use inline `component: () => {…}` arrows, which trip
+    // the *naming* half of rules-of-hooks with false positives. Keep that half
+    // off here, but the *ordering* half (conditional hooks / hooks after an
+    // early return — the cause of React #310 crashes) is enforced repo-wide by
+    // the dedicated `npm run check:hooks` guard.
     files: ["src/routes/**/*.tsx"],
     rules: {
       "react-hooks/rules-of-hooks": "off",

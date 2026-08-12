@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
+    "prebuild": "node scripts/check-hooks.mjs",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "postbuild": "node scripts/postbuild.mjs",
@@ -19,7 +20,8 @@
     "db:studio": "drizzle-kit studio",
     "seed": "node --experimental-strip-types scripts/seed.ts",
     "create-admin": "node --experimental-strip-types scripts/create-admin.ts",
-    "check:encoding": "node scripts/check-encoding.mjs"
+    "check:encoding": "node scripts/check-encoding.mjs",
+    "check:hooks": "node scripts/check-hooks.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
