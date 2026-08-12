@@ -1,17 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
   Btn,
   Card,
   Badge,
-  Table,
   Td,
   statusTone,
   MobileTable,
   MobilePageHeader,
 } from "@/components/erp/AppShell";
 import { fmtSAR } from "@/data/sample";
-import { Plus, Edit, Trash2, Eye } from "lucide-react";
+import { label } from "@/lib/i18n/labels";
+import { getGrants, createGrant, deleteGrant, type Grant } from "@/lib/api/grants";
+import { GrantStatus } from "@/lib/enums";
+import { Plus, Trash2, Eye } from "lucide-react";
 import { useState } from "react";
 import {
   showToast,
@@ -22,56 +25,64 @@ import {
   EmptyState,
 } from "@/components/erp/actions";
 
-type GrantItem = {
-  id: string;
-  donor: string;
-  project: string;
-  amount: number;
-  disbursed: number;
-  status: string;
-  end: string;
-};
-
 export const Route = createFileRoute("/grants")({
   head: () => ({ meta: [{ title: "المنح — ثواب" }] }),
   component: () => {
-    const [data, setData] = useState<GrantItem[]>([]);
+    const queryClient = useQueryClient();
     const [formOpen, setFormOpen] = useState(false);
-    const [confirmIdx, setConfirmIdx] = useState(-1);
+    const [confirmId, setConfirmId] = useState<string | null>(null);
+    const [formName, setFormName] = useState("");
     const [formDonor, setFormDonor] = useState("");
-    const [formProject, setFormProject] = useState("");
     const [formAmount, setFormAmount] = useState("");
+    const [formEnd, setFormEnd] = useState("");
 
-    const nextId = () => `GRT-${String(100 + data.length + 1).slice(-3)}`;
+    const { data, isLoading, error } = useQuery({
+      queryKey: ["grants"],
+      queryFn: () => getGrants(),
+    });
+    const items: Grant[] = data?.items ?? [];
+
+    const invalidate = () => queryClient.invalidateQueries({ queryKey: ["grants"] });
+
+    const createMutation = useMutation({
+      mutationFn: createGrant,
+      onSuccess: () => {
+        invalidate();
+        showToast("تم إضافة المنحة بنجاح", "success");
+        setFormOpen(false);
+        setFormName("");
+        setFormDonor("");
+        setFormAmount("");
+        setFormEnd("");
+      },
+      onError: (e: Error) => showToast(e.message, "error"),
+    });
+
+    const deleteMutation = useMutation({
+      mutationFn: deleteGrant,
+      onSuccess: () => {
+        invalidate();
+        showToast("تم حذف المنحة", "success");
+        setConfirmId(null);
+      },
+      onError: (e: Error) => {
+        showToast(e.message, "error");
+        setConfirmId(null);
+      },
+    });
 
     const handleSave = () => {
-      if (!formDonor.trim()) {
-        showToast("يرجى إدخال اسم الجهة المانحة", "error");
+      if (!formName.trim() || !formDonor.trim()) {
+        showToast("يرجى إدخال اسم المنحة والجهة المانحة", "error");
         return;
       }
-      setData([
-        {
-          id: nextId(),
-          donor: formDonor,
-          project: formProject || "—",
-          amount: Number(formAmount) || 0,
-          disbursed: 0,
-          status: "نشطة",
-          end: "—",
-        },
-        ...data,
-      ]);
-      showToast("تم إضافة المنحة بنجاح", "success");
-      setFormOpen(false);
-      setFormDonor("");
-      setFormProject("");
-      setFormAmount("");
-    };
-
-    const handleDelete = () => {
-      setData(data.filter((_, i) => i !== confirmIdx));
-      showToast("تم حذف المنحة", "success");
-      setConfirmIdx(-1);
+      createMutation.mutate({
+        name: formName.trim(),
+        donor: formDonor.trim(),
+        amount: Number(formAmount) || 0,
+        endDate: formEnd || undefined,
+        status: GrantStatus.ACTIVE,
+      });
     };
 
     return (
@@ -81,13 +92,17 @@ export const Route = createFileRoute("/grants")({
           title="إدارة المنح"
           actions={
             <>
-              <ExportButton data={data} filename="grants.csv" />
+              <ExportButton
+                data={items as unknown as Record<string, unknown>[]}
+                filename="grants.csv"
+              />
               <Btn
                 variant="primary"
                 onClick={() => {
+                  setFormName("");
                   setFormDonor("");
-                  setFormProject("");
                   setFormAmount("");
+                  setFormEnd("");
                   setFormOpen(true);
                 }}
               >
@@ -97,90 +112,62 @@ export const Route = createFileRoute("/grants")({
           }
         >
           <>
-            <MobilePageHeader title="إدارة المنح" count={`${data.length} منحة`} />
-            {data.length === 0 && (
+            <MobilePageHeader title="إدارة المنح" count={`${items.length} منحة`} />
+            {isLoading && (
+              <div className="text-sm text-muted-foreground py-8 text-center">جارٍ التحميل…</div>
+            )}
+            {error && (
+              <div className="text-sm text-destructive py-8 text-center">فشل في تحميل المنح</div>
+            )}
+            {!isLoading && !error && items.length === 0 && (
               <EmptyState title="لا توجد منح" description="ابدأ بإضافة أول منحة" />
             )}
             <MobileTable
-              columns={[
-                "الرقم",
-                "الجهة المانحة",
-                "المشروع",
-                "قيمة المنحة",
-                "المصروف",
-                "النسبة",
-                "ينتهي في",
-                "الحالة",
-                "",
-              ]}
-              rows={data}
-              renderRow={(g, idx) => {
-                const pct = Math.round((g.disbursed / g.amount) * 100) || 0;
-                return (
-                  <>
-                    <Td className="font-mono text-xs">{g.id}</Td>
-                    <Td className="font-semibold">{g.donor}</Td>
-                    <Td>{g.project}</Td>
-                    <Td className="tabular-nums font-bold">{fmtSAR(g.amount)}</Td>
-                    <Td className="tabular-nums">{fmtSAR(g.disbursed)}</Td>
-                    <Td>
-                      <div className="flex items-center gap-2 w-32">
-                        <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
-                          <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
-                        </div>
-                        <span className="text-xs">{pct}%</span>
-                      </div>
-                    </Td>
-                    <Td className="text-muted-foreground">{g.end}</Td>
-                    <Td>
-                      <Badge tone={statusTone(g.status)}>{g.status}</Badge>
-                    </Td>
-                    <Td>
-                      <ActionMenu
-                        actions={[
-                          {
-                            label: "عرض",
-                            icon: Eye,
-                            onClick: () => showToast(`${g.donor} - ${fmtSAR(g.amount)}`, "info"),
-                          },
-                          {
-                            label: "حذف",
-                            icon: Trash2,
-                            variant: "destructive" as const,
-                            onClick: () => setConfirmIdx(idx),
-                          },
-                        ]}
-                      />
-                    </Td>
-                  </>
-                );
-              }}
-              mobileCard={(g) => {
-                const pct = Math.round((g.disbursed / g.amount) * 100) || 0;
-                return (
-                  <Card key={g.id} className="p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <Badge tone={statusTone(g.status)}>{g.status}</Badge>
-                      <span className="font-mono text-xs text-muted-foreground">{g.id}</span>
-                    </div>
-                    <div className="font-semibold">{g.donor}</div>
-                    <div className="text-xs text-muted-foreground mt-1">{g.project}</div>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="tabular-nums font-bold">{fmtSAR(g.amount)}</span>
-                      <span className="text-xs text-muted-foreground">{g.end}</span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
-                        <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className="text-xs">{pct}%</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      مصروف: {fmtSAR(g.disbursed)}
-                    </div>
-                  </Card>
-                );
-              }}
+              columns={["الرقم", "اسم المنحة", "الجهة المانحة", "القيمة", "ينتهي في", "الحالة", ""]}
+              rows={items}
+              renderRow={(g) => (
+                <>
+                  <Td className="font-mono text-xs">{g.id}</Td>
+                  <Td className="font-semibold">{g.name}</Td>
+                  <Td>{g.donor}</Td>
+                  <Td className="tabular-nums font-bold">{fmtSAR(g.amount)}</Td>
+                  <Td className="text-muted-foreground">{g.endDate || "—"}</Td>
+                  <Td>
+                    <Badge tone={statusTone(g.status)}>{label("grantStatus", g.status)}</Badge>
+                  </Td>
+                  <Td>
+                    <ActionMenu
+                      actions={[
+                        {
+                          label: "عرض",
+                          icon: Eye,
+                          onClick: () => showToast(`${g.name} - ${fmtSAR(g.amount)}`, "info"),
+                        },
+                        {
+                          label: "حذف",
+                          icon: Trash2,
+                          variant: "destructive" as const,
+                          onClick: () => setConfirmId(g.id),
+                        },
+                      ]}
+                    />
+                  </Td>
+                </>
+              )}
+              mobileCard={(g) => (
+                <Card key={g.id} className="p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <Badge tone={statusTone(g.status)}>{label("grantStatus", g.status)}</Badge>
+                    <span className="font-mono text-xs text-muted-foreground">{g.id}</span>
+                  </div>
+                  <div className="font-semibold">{g.name}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{g.donor}</div>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="tabular-nums font-bold">{fmtSAR(g.amount)}</span>
+                    <span className="text-xs text-muted-foreground">{g.endDate || "—"}</span>
+                  </div>
+                </Card>
+              )}
             />
           </>
         </AppShell>
@@ -192,21 +179,21 @@ export const Route = createFileRoute("/grants")({
           onSave={handleSave}
         >
           <div>
+            <label className="text-xs font-semibold text-muted-foreground">اسم المنحة</label>
+            <input
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+              value={formName}
+              onChange={(e) => setFormName(e.target.value)}
+              placeholder="اسم المنحة"
+            />
+          </div>
+          <div>
             <label className="text-xs font-semibold text-muted-foreground">الجهة المانحة</label>
             <input
               className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
               value={formDonor}
               onChange={(e) => setFormDonor(e.target.value)}
               placeholder="اسم الجهة"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">المشروع</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formProject}
-              onChange={(e) => setFormProject(e.target.value)}
-              placeholder="المشروع"
             />
           </div>
           <div>
@@ -218,13 +205,22 @@ export const Route = createFileRoute("/grants")({
               onChange={(e) => setFormAmount(e.target.value)}
             />
           </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">تاريخ الانتهاء</label>
+            <input
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+              type="date"
+              value={formEnd}
+              onChange={(e) => setFormEnd(e.target.value)}
+            />
+          </div>
         </EntityFormDrawer>
 
-        {confirmIdx >= 0 && (
+        {confirmId !== null && (
           <ConfirmDialog
             open
-            onClose={() => setConfirmIdx(-1)}
-            onConfirm={handleDelete}
+            onClose={() => setConfirmId(null)}
+            onConfirm={() => deleteMutation.mutate(confirmId)}
             title="تأكيد الحذف"
             message="هل أنت متأكد من حذف المنحة؟"
             confirmText="حذف"
