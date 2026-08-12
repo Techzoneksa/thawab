@@ -68,6 +68,7 @@ import { Route as CampaignsNewRouteImport } from './routes/campaigns_.new'
 import { Route as BeneficiariesNewRouteImport } from './routes/beneficiaries_.new'
 import { Route as BeneficiariesIdRouteImport } from './routes/beneficiaries_.$id'
 import { Route as AssetsNewRouteImport } from './routes/assets_.new'
+import { Route as ApprovalsNewRouteImport } from './routes/approvals_.new'
 import { Route as ApiUsersRouteImport } from './routes/api/users'
 import { Route as ApiReceiptsRouteImport } from './routes/api/receipts'
 import { Route as ApiProjectsRouteImport } from './routes/api/projects'
@@ -433,6 +434,11 @@ const BeneficiariesIdRoute = BeneficiariesIdRouteImport.update({
 const AssetsNewRoute = AssetsNewRouteImport.update({
   id: '/assets_/new',
   path: '/assets/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApprovalsNewRoute = ApprovalsNewRouteImport.update({
+  id: '/approvals_/new',
+  path: '/approvals/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiUsersRoute = ApiUsersRouteImport.update({
@@ -841,6 +847,7 @@ export interface FileRoutesByFullPath {
   '/api/projects': typeof ApiProjectsRoute
   '/api/receipts': typeof ApiReceiptsRoute
   '/api/users': typeof ApiUsersRoute
+  '/approvals/new': typeof ApprovalsNewRoute
   '/assets/new': typeof AssetsNewRoute
   '/beneficiaries/$id': typeof BeneficiariesIdRoute
   '/beneficiaries/new': typeof BeneficiariesNewRoute
@@ -973,6 +980,7 @@ export interface FileRoutesByTo {
   '/api/projects': typeof ApiProjectsRoute
   '/api/receipts': typeof ApiReceiptsRoute
   '/api/users': typeof ApiUsersRoute
+  '/approvals/new': typeof ApprovalsNewRoute
   '/assets/new': typeof AssetsNewRoute
   '/beneficiaries/$id': typeof BeneficiariesIdRoute
   '/beneficiaries/new': typeof BeneficiariesNewRoute
@@ -1106,6 +1114,7 @@ export interface FileRoutesById {
   '/api/projects': typeof ApiProjectsRoute
   '/api/receipts': typeof ApiReceiptsRoute
   '/api/users': typeof ApiUsersRoute
+  '/approvals_/new': typeof ApprovalsNewRoute
   '/assets_/new': typeof AssetsNewRoute
   '/beneficiaries_/$id': typeof BeneficiariesIdRoute
   '/beneficiaries_/new': typeof BeneficiariesNewRoute
@@ -1240,6 +1249,7 @@ export interface FileRouteTypes {
     | '/api/projects'
     | '/api/receipts'
     | '/api/users'
+    | '/approvals/new'
     | '/assets/new'
     | '/beneficiaries/$id'
     | '/beneficiaries/new'
@@ -1372,6 +1382,7 @@ export interface FileRouteTypes {
     | '/api/projects'
     | '/api/receipts'
     | '/api/users'
+    | '/approvals/new'
     | '/assets/new'
     | '/beneficiaries/$id'
     | '/beneficiaries/new'
@@ -1504,6 +1515,7 @@ export interface FileRouteTypes {
     | '/api/projects'
     | '/api/receipts'
     | '/api/users'
+    | '/approvals_/new'
     | '/assets_/new'
     | '/beneficiaries_/$id'
     | '/beneficiaries_/new'
@@ -1637,6 +1649,7 @@ export interface RootRouteChildren {
   ApiProjectsRoute: typeof ApiProjectsRoute
   ApiReceiptsRoute: typeof ApiReceiptsRoute
   ApiUsersRoute: typeof ApiUsersRoute
+  ApprovalsNewRoute: typeof ApprovalsNewRoute
   AssetsNewRoute: typeof AssetsNewRoute
   BeneficiariesIdRoute: typeof BeneficiariesIdRoute
   BeneficiariesNewRoute: typeof BeneficiariesNewRoute
@@ -2137,6 +2150,13 @@ declare module '@tanstack/react-router' {
       path: '/assets/new'
       fullPath: '/assets/new'
       preLoaderRoute: typeof AssetsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/approvals_/new': {
+      id: '/approvals_/new'
+      path: '/approvals/new'
+      fullPath: '/approvals/new'
+      preLoaderRoute: typeof ApprovalsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/users': {
@@ -2685,6 +2705,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProjectsRoute: ApiProjectsRoute,
   ApiReceiptsRoute: ApiReceiptsRoute,
   ApiUsersRoute: ApiUsersRoute,
+  ApprovalsNewRoute: ApprovalsNewRoute,
   AssetsNewRoute: AssetsNewRoute,
   BeneficiariesIdRoute: BeneficiariesIdRoute,
   BeneficiariesNewRoute: BeneficiariesNewRoute,

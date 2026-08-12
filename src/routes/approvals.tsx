@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -15,7 +15,6 @@ import { fmtSAR } from "@/data/sample";
 import { label, options } from "@/lib/i18n/labels";
 import {
   getApprovals,
-  createApproval,
   actOnApproval,
   deleteApproval,
   type Approval,
@@ -48,23 +47,16 @@ export const Route = createFileRoute("/approvals")({
 });
 
 function Page() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [tabStatus, setTabStatus] = useState<string>(ApprovalStatus.PENDING);
   const [typeFilter, setTypeFilter] = useState("الكل");
   const [priorityFilter, setPriorityFilter] = useState("الكل");
 
-  const [formOpen, setFormOpen] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   // Pending reject/return awaiting an optional note.
   const [noteAction, setNoteAction] = useState<{ id: string; action: ApprovalAction } | null>(null);
   const [noteText, setNoteText] = useState("");
-
-  const [formType, setFormType] = useState(TYPE_OPTIONS[0]);
-  const [formSubject, setFormSubject] = useState("");
-  const [formRequester, setFormRequester] = useState("");
-  const [formAmount, setFormAmount] = useState("");
-  const [formPriority, setFormPriority] = useState<string>(Priority.MEDIUM);
-  const [formLevel, setFormLevel] = useState("1");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["approvals"],
@@ -100,22 +92,6 @@ function Page() {
     onError: (e: Error) => showToast(e.message, "error"),
   });
 
-  const createMutation = useMutation({
-    mutationFn: createApproval,
-    onSuccess: () => {
-      invalidate();
-      showToast("تم إنشاء طلب الموافقة", "success");
-      setFormOpen(false);
-      setFormType(TYPE_OPTIONS[0]);
-      setFormSubject("");
-      setFormRequester("");
-      setFormAmount("");
-      setFormPriority(Priority.MEDIUM);
-      setFormLevel("1");
-    },
-    onError: (e: Error) => showToast(e.message, "error"),
-  });
-
   const deleteMutation = useMutation({
     mutationFn: deleteApproval,
     onSuccess: () => {
@@ -128,21 +104,6 @@ function Page() {
       setConfirmId(null);
     },
   });
-
-  const handleCreate = () => {
-    if (!formSubject.trim()) {
-      showToast("يرجى إدخال موضوع الطلب", "error");
-      return;
-    }
-    createMutation.mutate({
-      type: formType,
-      subject: formSubject.trim(),
-      requester: formRequester.trim() || undefined,
-      amount: Number(formAmount) || 0,
-      priority: formPriority,
-      level: Number(formLevel) || 1,
-    });
-  };
 
   const tabNames = STATUS_TABS.map((t) => `${t.name} (${countByStatus(t.status)})`);
   const activeTabName = `${STATUS_TABS.find((t) => t.status === tabStatus)!.name} (${countByStatus(tabStatus)})`;
@@ -157,7 +118,7 @@ function Page() {
             data={all as unknown as Record<string, unknown>[]}
             filename="approvals.csv"
           />
-          <Btn variant="primary" onClick={() => setFormOpen(true)}>
+          <Btn variant="primary" onClick={() => navigate({ to: "/approvals/new" })}>
             <Plus size={15} /> طلب موافقة
           </Btn>
         </>
@@ -291,80 +252,6 @@ function Page() {
           </Card>
         ))}
       </div>
-
-      {/* Create request */}
-      <EntityFormDrawer
-        open={formOpen}
-        onClose={() => setFormOpen(false)}
-        title="طلب موافقة جديد"
-        onSave={handleCreate}
-      >
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">النوع</label>
-          <select
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formType}
-            onChange={(e) => setFormType(e.target.value)}
-          >
-            {TYPE_OPTIONS.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الموضوع</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formSubject}
-            onChange={(e) => setFormSubject(e.target.value)}
-            placeholder="موضوع الطلب"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">مقدم الطلب</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formRequester}
-            onChange={(e) => setFormRequester(e.target.value)}
-            placeholder="يُترك فارغاً = أنت"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">المبلغ</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            type="number"
-            value={formAmount}
-            onChange={(e) => setFormAmount(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الأولوية</label>
-          <select
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={formPriority}
-            onChange={(e) => setFormPriority(e.target.value)}
-          >
-            {options("priority").map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">مستوى الاعتماد</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            type="number"
-            min={1}
-            value={formLevel}
-            onChange={(e) => setFormLevel(e.target.value)}
-          />
-        </div>
-      </EntityFormDrawer>
 
       {/* Note-carrying reject / return */}
       <EntityFormDrawer
