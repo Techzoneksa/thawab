@@ -47,6 +47,7 @@ import { Route as ProcurementSuppliersRouteImport } from './routes/procurement.s
 import { Route as ProcurementRequestsRouteImport } from './routes/procurement.requests'
 import { Route as ProcurementQuotesRouteImport } from './routes/procurement.quotes'
 import { Route as ProcurementOrdersRouteImport } from './routes/procurement.orders'
+import { Route as PermissionsNewRouteImport } from './routes/permissions_.new'
 import { Route as MembershipsNewRouteImport } from './routes/memberships_.new'
 import { Route as MeetingsNewRouteImport } from './routes/meetings_.new'
 import { Route as InventoryWarehousesRouteImport } from './routes/inventory.warehouses'
@@ -73,6 +74,7 @@ import { Route as BeneficiariesIdRouteImport } from './routes/beneficiaries_.$id
 import { Route as AssetsNewRouteImport } from './routes/assets_.new'
 import { Route as ApprovalsNewRouteImport } from './routes/approvals_.new'
 import { Route as ApiUsersRouteImport } from './routes/api/users'
+import { Route as ApiRolesRouteImport } from './routes/api/roles'
 import { Route as ApiRecurringRouteImport } from './routes/api/recurring'
 import { Route as ApiReceiptsRouteImport } from './routes/api/receipts'
 import { Route as ApiProjectsRouteImport } from './routes/api/projects'
@@ -102,6 +104,7 @@ import { Route as ProcurementSuppliersNewRouteImport } from './routes/procuremen
 import { Route as ProcurementRequestsNewRouteImport } from './routes/procurement.requests_.new'
 import { Route as ProcurementQuotesNewRouteImport } from './routes/procurement.quotes_.new'
 import { Route as ProcurementOrdersNewRouteImport } from './routes/procurement.orders_.new'
+import { Route as PermissionsIdEditRouteImport } from './routes/permissions_.$id_.edit'
 import { Route as MembershipsIdEditRouteImport } from './routes/memberships_.$id_.edit'
 import { Route as MeetingsIdEditRouteImport } from './routes/meetings_.$id_.edit'
 import { Route as InventoryWarehousesNewRouteImport } from './routes/inventory.warehouses_.new'
@@ -344,6 +347,11 @@ const ProcurementOrdersRoute = ProcurementOrdersRouteImport.update({
   path: '/procurement/orders',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PermissionsNewRoute = PermissionsNewRouteImport.update({
+  id: '/permissions_/new',
+  path: '/permissions/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MembershipsNewRoute = MembershipsNewRouteImport.update({
   id: '/memberships_/new',
   path: '/memberships/new',
@@ -472,6 +480,11 @@ const ApprovalsNewRoute = ApprovalsNewRouteImport.update({
 const ApiUsersRoute = ApiUsersRouteImport.update({
   id: '/api/users',
   path: '/api/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRolesRoute = ApiRolesRouteImport.update({
+  id: '/api/roles',
+  path: '/api/roles',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiRecurringRoute = ApiRecurringRouteImport.update({
@@ -617,6 +630,11 @@ const ProcurementQuotesNewRoute = ProcurementQuotesNewRouteImport.update({
 const ProcurementOrdersNewRoute = ProcurementOrdersNewRouteImport.update({
   id: '/procurement/orders_/new',
   path: '/procurement/orders/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PermissionsIdEditRoute = PermissionsIdEditRouteImport.update({
+  id: '/permissions_/$id_/edit',
+  path: '/permissions/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MembershipsIdEditRoute = MembershipsIdEditRouteImport.update({
@@ -928,6 +946,7 @@ export interface FileRoutesByFullPath {
   '/api/projects': typeof ApiProjectsRoute
   '/api/receipts': typeof ApiReceiptsRoute
   '/api/recurring': typeof ApiRecurringRoute
+  '/api/roles': typeof ApiRolesRoute
   '/api/users': typeof ApiUsersRoute
   '/approvals/new': typeof ApprovalsNewRoute
   '/assets/new': typeof AssetsNewRoute
@@ -954,6 +973,7 @@ export interface FileRoutesByFullPath {
   '/inventory/warehouses': typeof InventoryWarehousesRoute
   '/meetings/new': typeof MeetingsNewRoute
   '/memberships/new': typeof MembershipsNewRoute
+  '/permissions/new': typeof PermissionsNewRoute
   '/procurement/orders': typeof ProcurementOrdersRoute
   '/procurement/quotes': typeof ProcurementQuotesRoute
   '/procurement/requests': typeof ProcurementRequestsRoute
@@ -1005,6 +1025,7 @@ export interface FileRoutesByFullPath {
   '/inventory/warehouses/new': typeof InventoryWarehousesNewRoute
   '/meetings/$id/edit': typeof MeetingsIdEditRoute
   '/memberships/$id/edit': typeof MembershipsIdEditRoute
+  '/permissions/$id/edit': typeof PermissionsIdEditRoute
   '/procurement/orders/new': typeof ProcurementOrdersNewRoute
   '/procurement/quotes/new': typeof ProcurementQuotesNewRoute
   '/procurement/requests/new': typeof ProcurementRequestsNewRoute
@@ -1074,6 +1095,7 @@ export interface FileRoutesByTo {
   '/api/projects': typeof ApiProjectsRoute
   '/api/receipts': typeof ApiReceiptsRoute
   '/api/recurring': typeof ApiRecurringRoute
+  '/api/roles': typeof ApiRolesRoute
   '/api/users': typeof ApiUsersRoute
   '/approvals/new': typeof ApprovalsNewRoute
   '/assets/new': typeof AssetsNewRoute
@@ -1100,6 +1122,7 @@ export interface FileRoutesByTo {
   '/inventory/warehouses': typeof InventoryWarehousesRoute
   '/meetings/new': typeof MeetingsNewRoute
   '/memberships/new': typeof MembershipsNewRoute
+  '/permissions/new': typeof PermissionsNewRoute
   '/procurement/orders': typeof ProcurementOrdersRoute
   '/procurement/quotes': typeof ProcurementQuotesRoute
   '/procurement/requests': typeof ProcurementRequestsRoute
@@ -1151,6 +1174,7 @@ export interface FileRoutesByTo {
   '/inventory/warehouses/new': typeof InventoryWarehousesNewRoute
   '/meetings/$id/edit': typeof MeetingsIdEditRoute
   '/memberships/$id/edit': typeof MembershipsIdEditRoute
+  '/permissions/$id/edit': typeof PermissionsIdEditRoute
   '/procurement/orders/new': typeof ProcurementOrdersNewRoute
   '/procurement/quotes/new': typeof ProcurementQuotesNewRoute
   '/procurement/requests/new': typeof ProcurementRequestsNewRoute
@@ -1221,6 +1245,7 @@ export interface FileRoutesById {
   '/api/projects': typeof ApiProjectsRoute
   '/api/receipts': typeof ApiReceiptsRoute
   '/api/recurring': typeof ApiRecurringRoute
+  '/api/roles': typeof ApiRolesRoute
   '/api/users': typeof ApiUsersRoute
   '/approvals_/new': typeof ApprovalsNewRoute
   '/assets_/new': typeof AssetsNewRoute
@@ -1247,6 +1272,7 @@ export interface FileRoutesById {
   '/inventory/warehouses': typeof InventoryWarehousesRoute
   '/meetings_/new': typeof MeetingsNewRoute
   '/memberships_/new': typeof MembershipsNewRoute
+  '/permissions_/new': typeof PermissionsNewRoute
   '/procurement/orders': typeof ProcurementOrdersRoute
   '/procurement/quotes': typeof ProcurementQuotesRoute
   '/procurement/requests': typeof ProcurementRequestsRoute
@@ -1298,6 +1324,7 @@ export interface FileRoutesById {
   '/inventory/warehouses_/new': typeof InventoryWarehousesNewRoute
   '/meetings_/$id_/edit': typeof MeetingsIdEditRoute
   '/memberships_/$id_/edit': typeof MembershipsIdEditRoute
+  '/permissions_/$id_/edit': typeof PermissionsIdEditRoute
   '/procurement/orders_/new': typeof ProcurementOrdersNewRoute
   '/procurement/quotes_/new': typeof ProcurementQuotesNewRoute
   '/procurement/requests_/new': typeof ProcurementRequestsNewRoute
@@ -1369,6 +1396,7 @@ export interface FileRouteTypes {
     | '/api/projects'
     | '/api/receipts'
     | '/api/recurring'
+    | '/api/roles'
     | '/api/users'
     | '/approvals/new'
     | '/assets/new'
@@ -1395,6 +1423,7 @@ export interface FileRouteTypes {
     | '/inventory/warehouses'
     | '/meetings/new'
     | '/memberships/new'
+    | '/permissions/new'
     | '/procurement/orders'
     | '/procurement/quotes'
     | '/procurement/requests'
@@ -1446,6 +1475,7 @@ export interface FileRouteTypes {
     | '/inventory/warehouses/new'
     | '/meetings/$id/edit'
     | '/memberships/$id/edit'
+    | '/permissions/$id/edit'
     | '/procurement/orders/new'
     | '/procurement/quotes/new'
     | '/procurement/requests/new'
@@ -1515,6 +1545,7 @@ export interface FileRouteTypes {
     | '/api/projects'
     | '/api/receipts'
     | '/api/recurring'
+    | '/api/roles'
     | '/api/users'
     | '/approvals/new'
     | '/assets/new'
@@ -1541,6 +1572,7 @@ export interface FileRouteTypes {
     | '/inventory/warehouses'
     | '/meetings/new'
     | '/memberships/new'
+    | '/permissions/new'
     | '/procurement/orders'
     | '/procurement/quotes'
     | '/procurement/requests'
@@ -1592,6 +1624,7 @@ export interface FileRouteTypes {
     | '/inventory/warehouses/new'
     | '/meetings/$id/edit'
     | '/memberships/$id/edit'
+    | '/permissions/$id/edit'
     | '/procurement/orders/new'
     | '/procurement/quotes/new'
     | '/procurement/requests/new'
@@ -1661,6 +1694,7 @@ export interface FileRouteTypes {
     | '/api/projects'
     | '/api/receipts'
     | '/api/recurring'
+    | '/api/roles'
     | '/api/users'
     | '/approvals_/new'
     | '/assets_/new'
@@ -1687,6 +1721,7 @@ export interface FileRouteTypes {
     | '/inventory/warehouses'
     | '/meetings_/new'
     | '/memberships_/new'
+    | '/permissions_/new'
     | '/procurement/orders'
     | '/procurement/quotes'
     | '/procurement/requests'
@@ -1738,6 +1773,7 @@ export interface FileRouteTypes {
     | '/inventory/warehouses_/new'
     | '/meetings_/$id_/edit'
     | '/memberships_/$id_/edit'
+    | '/permissions_/$id_/edit'
     | '/procurement/orders_/new'
     | '/procurement/quotes_/new'
     | '/procurement/requests_/new'
@@ -1808,6 +1844,7 @@ export interface RootRouteChildren {
   ApiProjectsRoute: typeof ApiProjectsRoute
   ApiReceiptsRoute: typeof ApiReceiptsRoute
   ApiRecurringRoute: typeof ApiRecurringRoute
+  ApiRolesRoute: typeof ApiRolesRoute
   ApiUsersRoute: typeof ApiUsersRoute
   ApprovalsNewRoute: typeof ApprovalsNewRoute
   AssetsNewRoute: typeof AssetsNewRoute
@@ -1834,6 +1871,7 @@ export interface RootRouteChildren {
   InventoryWarehousesRoute: typeof InventoryWarehousesRoute
   MeetingsNewRoute: typeof MeetingsNewRoute
   MembershipsNewRoute: typeof MembershipsNewRoute
+  PermissionsNewRoute: typeof PermissionsNewRoute
   ProcurementOrdersRoute: typeof ProcurementOrdersRoute
   ProcurementQuotesRoute: typeof ProcurementQuotesRoute
   ProcurementRequestsRoute: typeof ProcurementRequestsRoute
@@ -1885,6 +1923,7 @@ export interface RootRouteChildren {
   InventoryWarehousesNewRoute: typeof InventoryWarehousesNewRoute
   MeetingsIdEditRoute: typeof MeetingsIdEditRoute
   MembershipsIdEditRoute: typeof MembershipsIdEditRoute
+  PermissionsIdEditRoute: typeof PermissionsIdEditRoute
   ProcurementOrdersNewRoute: typeof ProcurementOrdersNewRoute
   ProcurementQuotesNewRoute: typeof ProcurementQuotesNewRoute
   ProcurementRequestsNewRoute: typeof ProcurementRequestsNewRoute
@@ -2175,6 +2214,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProcurementOrdersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/permissions_/new': {
+      id: '/permissions_/new'
+      path: '/permissions/new'
+      fullPath: '/permissions/new'
+      preLoaderRoute: typeof PermissionsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/memberships_/new': {
       id: '/memberships_/new'
       path: '/memberships/new'
@@ -2355,6 +2401,13 @@ declare module '@tanstack/react-router' {
       path: '/api/users'
       fullPath: '/api/users'
       preLoaderRoute: typeof ApiUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/roles': {
+      id: '/api/roles'
+      path: '/api/roles'
+      fullPath: '/api/roles'
+      preLoaderRoute: typeof ApiRolesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/recurring': {
@@ -2558,6 +2611,13 @@ declare module '@tanstack/react-router' {
       path: '/procurement/orders/new'
       fullPath: '/procurement/orders/new'
       preLoaderRoute: typeof ProcurementOrdersNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/permissions_/$id_/edit': {
+      id: '/permissions_/$id_/edit'
+      path: '/permissions/$id/edit'
+      fullPath: '/permissions/$id/edit'
+      preLoaderRoute: typeof PermissionsIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/memberships_/$id_/edit': {
@@ -2968,6 +3028,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProjectsRoute: ApiProjectsRoute,
   ApiReceiptsRoute: ApiReceiptsRoute,
   ApiRecurringRoute: ApiRecurringRoute,
+  ApiRolesRoute: ApiRolesRoute,
   ApiUsersRoute: ApiUsersRoute,
   ApprovalsNewRoute: ApprovalsNewRoute,
   AssetsNewRoute: AssetsNewRoute,
@@ -2994,6 +3055,7 @@ const rootRouteChildren: RootRouteChildren = {
   InventoryWarehousesRoute: InventoryWarehousesRoute,
   MeetingsNewRoute: MeetingsNewRoute,
   MembershipsNewRoute: MembershipsNewRoute,
+  PermissionsNewRoute: PermissionsNewRoute,
   ProcurementOrdersRoute: ProcurementOrdersRoute,
   ProcurementQuotesRoute: ProcurementQuotesRoute,
   ProcurementRequestsRoute: ProcurementRequestsRoute,
@@ -3045,6 +3107,7 @@ const rootRouteChildren: RootRouteChildren = {
   InventoryWarehousesNewRoute: InventoryWarehousesNewRoute,
   MeetingsIdEditRoute: MeetingsIdEditRoute,
   MembershipsIdEditRoute: MembershipsIdEditRoute,
+  PermissionsIdEditRoute: PermissionsIdEditRoute,
   ProcurementOrdersNewRoute: ProcurementOrdersNewRoute,
   ProcurementQuotesNewRoute: ProcurementQuotesNewRoute,
   ProcurementRequestsNewRoute: ProcurementRequestsNewRoute,
