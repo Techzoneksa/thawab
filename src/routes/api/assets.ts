@@ -1,10 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { and, count, desc, eq, like, or } from "drizzle-orm";
+import { and, count, desc, eq, like, or, sql } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { fixedAssets, assetDepreciations, assetMovements, suppliers } from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
-import { AssetStatus, AssetCondition, DepreciationMethod, AssetMovementType } from "@/lib/enums";
+import {
+  AssetStatus,
+  AssetCondition,
+  DepreciationMethod,
+  AssetMovementType,
+  JournalSource,
+} from "@/lib/enums";
+import {
+  postBalancedEntry,
+  resolveSystemAccountId,
+  cashOrBankAccountId,
+  SYS,
+} from "@/server/db/gl";
 
 // GET /api/assets?id=xxx — single asset with depreciation/movement summary.
 // GET /api/assets      — list with search/filter/pagination.
@@ -76,11 +88,17 @@ const createSchema = z.object({
   location: z.string().optional(),
   cost: z.coerce.number().min(0, "التكلفة يجب ألا تكون سالبة").optional(),
   salvageValue: z.coerce.number().min(0, "القيمة المتبقية يجب ألا تكون سالبة").optional(),
-  usefulLifeMonths: z.coerce.number().int().positive("العمر الإنتاجي يجب أن يكون أكبر من صفر").optional(),
+  usefulLifeMonths: z.coerce
+    .number()
+    .int()
+    .positive("العمر الإنتاجي يجب أن يكون أكبر من صفر")
+    .optional(),
   depreciationMethod: z.nativeEnum(DepreciationMethod).optional(),
   condition: z.nativeEnum(AssetCondition).optional(),
   purchaseDate: z.string().optional(),
   supplierId: z.string().nullish(),
+  // Cash/bank when paid directly; ignored when a supplier is set (booked to AP).
+  paymentMethod: z.enum(["cash", "bank"]).optional(),
   serialNumber: z.string().optional(),
   responsiblePerson: z.string().optional(),
   notes: z.string().optional(),
@@ -137,7 +155,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
 
     if (body && typeof body === "object" && "action" in body) {
       const a = actionSchema.parse(body);
-      const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, a.id)).limit(1))[0];
+      const existing = (
+        await db.select().from(fixedAssets).where(eq(fixedAssets.id, a.id)).limit(1)
+      )[0];
       if (!existing) return err("الأصل غير موجود", 404, "NOT_FOUND");
 
       const before = JSON.stringify(existing);
@@ -275,6 +295,22 @@ async function POST(event: { request: Request }, ctx: Ctx) {
             .update(fixedAssets)
             .set({ accumulatedDepreciation: newAccumulated, updatedAt: ts })
             .where(eq(fixedAssets.id, a.id));
+
+          // Dr Depreciation expense / Cr Accumulated depreciation.
+          const depExpense = await resolveSystemAccountId(tx as any, SYS.DEPRECIATION_EXPENSE);
+          const accumulated = await resolveSystemAccountId(tx as any, SYS.ACCUMULATED_DEPRECIATION);
+          await postBalancedEntry(tx as any, {
+            date: (a.date || ts).slice(0, 10),
+            description: `إهلاك أصل — ${existing.name}`,
+            source: JournalSource.DEPRECIATION,
+            sourceType: "asset",
+            sourceId: a.id,
+            lines: [
+              { accountId: depExpense, debit: a.amount },
+              { accountId: accumulated, credit: a.amount },
+            ],
+            userId: ctx.user.id,
+          });
         });
 
         await addAudit({
@@ -293,12 +329,18 @@ async function POST(event: { request: Request }, ctx: Ctx) {
 
         const reason = a.reason || (a.buyer ? `المشتري: ${a.buyer}` : "");
 
+        const dispCost = existing.cost;
+        const dispAccum = existing.accumulatedDepreciation;
+        const proceeds = a.proceeds ?? 0;
+        const bookValue = dispCost - dispAccum;
+        const gain = proceeds - bookValue; // >0 gain, <0 loss
+
         await db.transaction(async (tx) => {
           await tx.insert(assetMovements).values({
             id: genId("AMV"),
             assetId: a.id,
             type: AssetMovementType.DISPOSAL,
-            cost: a.proceeds ?? 0,
+            cost: proceeds,
             date: a.date || ts,
             reason,
             notes: a.notes || "",
@@ -309,6 +351,42 @@ async function POST(event: { request: Request }, ctx: Ctx) {
             .update(fixedAssets)
             .set({ status: AssetStatus.DISPOSED, updatedAt: ts })
             .where(eq(fixedAssets.id, a.id));
+
+          // Remove the asset & its accumulated depreciation from the books,
+          // recognize proceeds and any gain/loss on disposal.
+          if (dispCost > 0 || proceeds > 0) {
+            const fixed = await resolveSystemAccountId(tx as any, SYS.FIXED_ASSETS);
+            const accumulated = await resolveSystemAccountId(
+              tx as any,
+              SYS.ACCUMULATED_DEPRECIATION,
+            );
+            const lines: { accountId: string; debit?: number; credit?: number }[] = [];
+            if (dispAccum > 0) lines.push({ accountId: accumulated, debit: dispAccum });
+            if (proceeds > 0) {
+              const bank = await cashOrBankAccountId(tx as any, "bank");
+              lines.push({ accountId: bank, debit: proceeds });
+            }
+            if (gain < -0.0001) {
+              const loss = await resolveSystemAccountId(tx as any, SYS.ASSET_DISPOSAL_LOSS);
+              lines.push({ accountId: loss, debit: -gain });
+            }
+            if (gain > 0.0001) {
+              const gainAcc = await resolveSystemAccountId(tx as any, SYS.ASSET_DISPOSAL_GAIN);
+              lines.push({ accountId: gainAcc, credit: gain });
+            }
+            if (dispCost > 0) lines.push({ accountId: fixed, credit: dispCost });
+            if (lines.length >= 2) {
+              await postBalancedEntry(tx as any, {
+                date: (a.date || ts).slice(0, 10),
+                description: `استبعاد أصل — ${existing.name}`,
+                source: JournalSource.ADJUSTMENT,
+                sourceType: "asset_disposal",
+                sourceId: a.id,
+                lines,
+                userId: ctx.user.id,
+              });
+            }
+          }
         });
 
         await addAudit({
@@ -323,7 +401,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
         });
       }
 
-      const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, a.id)).limit(1))[0];
+      const updated = (
+        await db.select().from(fixedAssets).where(eq(fixedAssets.id, a.id)).limit(1)
+      )[0];
       return Response.json({ item: updated });
     }
 
@@ -331,47 +411,80 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     const b = createSchema.parse(body);
 
     if (b.supplierId) {
-      const sup = (await db.select().from(suppliers).where(eq(suppliers.id, b.supplierId)).limit(1))[0];
+      const sup = (
+        await db.select().from(suppliers).where(eq(suppliers.id, b.supplierId)).limit(1)
+      )[0];
       if (!sup) return err("المورد غير موجود", 400, "INVALID_SUPPLIER");
     }
 
     const assetId = genId("AST");
     const ts = now();
+    const cost = b.cost ?? 0;
 
-    await db.insert(fixedAssets).values({
-      id: assetId,
-      name: b.name,
-      code: b.code ?? "",
-      category: b.category ?? "",
-      location: b.location ?? "",
-      cost: b.cost ?? 0,
-      salvageValue: b.salvageValue ?? 0,
-      usefulLifeMonths: b.usefulLifeMonths ?? 60,
-      accumulatedDepreciation: 0,
-      depreciationMethod: b.depreciationMethod ?? DepreciationMethod.STRAIGHT_LINE,
-      status: AssetStatus.ACTIVE,
-      condition: b.condition ?? AssetCondition.GOOD,
-      purchaseDate: b.purchaseDate ?? "",
-      supplierId: b.supplierId ?? null,
-      serialNumber: b.serialNumber ?? "",
-      responsiblePerson: b.responsiblePerson ?? "",
-      notes: b.notes ?? "",
-      createdBy: ctx.user.id,
-      createdAt: ts,
-      updatedAt: ts,
+    await db.transaction(async (tx) => {
+      await tx.insert(fixedAssets).values({
+        id: assetId,
+        name: b.name,
+        code: b.code ?? "",
+        category: b.category ?? "",
+        location: b.location ?? "",
+        cost,
+        salvageValue: b.salvageValue ?? 0,
+        usefulLifeMonths: b.usefulLifeMonths ?? 60,
+        accumulatedDepreciation: 0,
+        depreciationMethod: b.depreciationMethod ?? DepreciationMethod.STRAIGHT_LINE,
+        status: AssetStatus.ACTIVE,
+        condition: b.condition ?? AssetCondition.GOOD,
+        purchaseDate: b.purchaseDate ?? "",
+        supplierId: b.supplierId ?? null,
+        serialNumber: b.serialNumber ?? "",
+        responsiblePerson: b.responsiblePerson ?? "",
+        notes: b.notes ?? "",
+        createdBy: ctx.user.id,
+        createdAt: ts,
+        updatedAt: ts,
+      });
+
+      // Capitalize the asset: Dr Fixed Assets / Cr AP (supplier) or cash|bank.
+      if (cost > 0) {
+        const fixed = await resolveSystemAccountId(tx as any, SYS.FIXED_ASSETS);
+        const credit = b.supplierId
+          ? await resolveSystemAccountId(tx as any, SYS.ACCOUNTS_PAYABLE)
+          : await cashOrBankAccountId(tx as any, b.paymentMethod);
+        await postBalancedEntry(tx as any, {
+          date: (b.purchaseDate || ts).slice(0, 10),
+          description: `شراء أصل ثابت — ${b.name}`,
+          source: JournalSource.PURCHASE,
+          sourceType: "asset",
+          sourceId: assetId,
+          lines: [
+            { accountId: fixed, debit: cost },
+            { accountId: credit, credit: cost },
+          ],
+          userId: ctx.user.id,
+        });
+        if (b.supplierId) {
+          await tx
+            .update(suppliers)
+            .set({ balance: sql`${suppliers.balance} + ${cost}`, updatedAt: ts })
+            .where(eq(suppliers.id, b.supplierId));
+        }
+      }
     });
 
     await addAudit({
       action: "create",
       entityType: "asset",
       entityId: assetId,
-      description: `تم إضافة أصل جديد: ${b.name} (التكلفة ${b.cost ?? 0} ر.س)`,
+      description: `تم إضافة أصل جديد: ${b.name} (التكلفة ${cost} ر.س)`,
       userId: ctx.user.id,
       userName: ctx.user.name,
       ip: ctx.ip,
     });
 
-    const created = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, assetId)).limit(1))[0];
+    const created = (
+      await db.select().from(fixedAssets).where(eq(fixedAssets.id, assetId)).limit(1)
+    )[0];
     return Response.json({ item: created }, { status: 201 });
   });
 }
@@ -384,13 +497,17 @@ const updateSchema = createSchema.partial().extend({
 async function PUT(event: { request: Request }, ctx: Ctx) {
   return guard(async () => {
     const b = await parseBody(event.request, updateSchema);
-    const existing = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, b.id)).limit(1))[0];
+    const existing = (
+      await db.select().from(fixedAssets).where(eq(fixedAssets.id, b.id)).limit(1)
+    )[0];
     if (!existing) return err("الأصل غير موجود", 404, "NOT_FOUND");
     if (existing.status === AssetStatus.DISPOSED)
       return err("لا يمكن تعديل أصل مستبعد", 400, "BAD_STATE");
 
     if (b.supplierId) {
-      const sup = (await db.select().from(suppliers).where(eq(suppliers.id, b.supplierId)).limit(1))[0];
+      const sup = (
+        await db.select().from(suppliers).where(eq(suppliers.id, b.supplierId)).limit(1)
+      )[0];
       if (!sup) return err("المورد غير موجود", 400, "INVALID_SUPPLIER");
     }
 
@@ -427,7 +544,9 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
       ip: ctx.ip,
     });
 
-    const updated = (await db.select().from(fixedAssets).where(eq(fixedAssets.id, b.id)).limit(1))[0];
+    const updated = (
+      await db.select().from(fixedAssets).where(eq(fixedAssets.id, b.id)).limit(1)
+    )[0];
     return Response.json({ item: updated });
   });
 }
