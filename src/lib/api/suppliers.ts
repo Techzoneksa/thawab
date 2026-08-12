@@ -14,6 +14,12 @@ export interface Supplier {
   taxNumber: string;
   contactPerson: string;
   address: string;
+  buildingNo: string;
+  street: string;
+  district: string;
+  city: string;
+  postalCode: string;
+  additionalNo: string;
   rating: number;
   balance: number;
   notes: string;
@@ -23,12 +29,22 @@ export interface Supplier {
   updatedAt: string;
 }
 
+/** Saudi National Address fields (العنوان الوطني) — shared by create/update. */
+export interface NationalAddressInput {
+  buildingNo?: string;
+  street?: string;
+  district?: string;
+  city?: string;
+  postalCode?: string;
+  additionalNo?: string;
+}
+
 export interface SupplierFilters {
   search?: string;
   status?: string;
 }
 
-export interface CreateSupplierInput {
+export interface CreateSupplierInput extends NationalAddressInput {
   name: string;
   activity?: string;
   phone?: string;
@@ -43,7 +59,7 @@ export interface CreateSupplierInput {
   userName?: string;
 }
 
-export interface UpdateSupplierInput {
+export interface UpdateSupplierInput extends NationalAddressInput {
   id: string;
   name?: string;
   activity?: string;

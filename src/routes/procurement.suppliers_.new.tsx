@@ -34,6 +34,12 @@ function NewSupplierPage() {
   const [email, setEmail] = useState("");
   const [taxNumber, setTaxNumber] = useState("");
   const [address, setAddress] = useState("");
+  const [buildingNo, setBuildingNo] = useState("");
+  const [street, setStreet] = useState("");
+  const [district, setDistrict] = useState("");
+  const [city, setCity] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [additionalNo, setAdditionalNo] = useState("");
   const [rating, setRating] = useState("3");
   const [status, setStatus] = useState<SupplierStatus>(SupplierStatusEnum.ACTIVE);
   const [notes, setNotes] = useState("");
@@ -59,6 +65,12 @@ function NewSupplierPage() {
         email: email || undefined,
         taxNumber: taxNumber || undefined,
         address: address || undefined,
+        buildingNo: buildingNo || undefined,
+        street: street || undefined,
+        district: district || undefined,
+        city: city || undefined,
+        postalCode: postalCode || undefined,
+        additionalNo: additionalNo || undefined,
         rating: parseFloat(rating) || 0,
         status,
         notes: notes || undefined,
@@ -174,6 +186,65 @@ function NewSupplierPage() {
               placeholder="أي ملاحظات إضافية حول المورد..."
             />
           </FormField>
+        </FormSection>
+      ),
+    },
+    {
+      id: "national-address",
+      label: "العنوان الوطني",
+      content: (
+        <FormSection title="العنوان الوطني السعودي">
+          <FormRow>
+            <FormField label="رقم المبنى" hint="4 أرقام">
+              <FormInput
+                value={buildingNo}
+                onChange={(e) => setBuildingNo(e.target.value)}
+                dir="ltr"
+                placeholder="1234"
+              />
+            </FormField>
+            <FormField label="اسم الشارع">
+              <FormInput
+                value={street}
+                onChange={(e) => setStreet(e.target.value)}
+                placeholder="مثال: طريق الملك فهد"
+              />
+            </FormField>
+          </FormRow>
+          <FormRow>
+            <FormField label="الحي">
+              <FormInput
+                value={district}
+                onChange={(e) => setDistrict(e.target.value)}
+                placeholder="مثال: العليا"
+              />
+            </FormField>
+            <FormField label="المدينة">
+              <FormInput
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="مثال: الرياض"
+              />
+            </FormField>
+          </FormRow>
+          <FormRow>
+            <FormField label="الرمز البريدي" hint="5 أرقام">
+              <FormInput
+                value={postalCode}
+                onChange={(e) => setPostalCode(e.target.value)}
+                dir="ltr"
+                placeholder="12345"
+              />
+            </FormField>
+            <FormField label="الرقم الإضافي" hint="4 أرقام">
+              <FormInput
+                value={additionalNo}
+                onChange={(e) => setAdditionalNo(e.target.value)}
+                dir="ltr"
+                placeholder="6789"
+              />
+            </FormField>
+          </FormRow>
         </FormSection>
       ),
     },

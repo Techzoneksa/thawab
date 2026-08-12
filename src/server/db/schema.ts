@@ -451,6 +451,13 @@ export const suppliers = pgTable("suppliers", {
   taxNumber: text("tax_number").default(""),
   contactPerson: text("contact_person").default(""),
   address: text("address").default(""),
+  // National Address (العنوان الوطني السعودي)
+  buildingNo: text("building_no").default(""),
+  street: text("street").default(""),
+  district: text("district").default(""),
+  city: text("city").default(""),
+  postalCode: text("postal_code").default(""),
+  additionalNo: text("additional_no").default(""),
   rating: doublePrecision("rating").notNull().default(0),
   balance: doublePrecision("balance").notNull().default(0),
   notes: text("notes").default(""),

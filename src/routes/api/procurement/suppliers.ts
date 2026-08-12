@@ -71,6 +71,16 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
   return Response.json({ items, total: Number(total), page, limit });
 }
 
+// National Address (العنوان الوطني السعودي) — shared across create/update.
+const nationalAddressFields = {
+  buildingNo: z.string().optional(),
+  street: z.string().optional(),
+  district: z.string().optional(),
+  city: z.string().optional(),
+  postalCode: z.string().optional(),
+  additionalNo: z.string().optional(),
+};
+
 const createSchema = z.object({
   name: z.string().trim().min(1, "اسم المورد مطلوب"),
   activity: z.string().optional(),
@@ -79,6 +89,7 @@ const createSchema = z.object({
   taxNumber: z.string().optional(),
   contactPerson: z.string().optional(),
   address: z.string().optional(),
+  ...nationalAddressFields,
   rating: z.coerce.number().optional(),
   notes: z.string().optional(),
   status: z.nativeEnum(SupplierStatus).optional(),
@@ -95,11 +106,12 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     const b = await parseBody(event.request, z.union([actionSchema, createSchema]));
 
     if ("action" in b) {
-      const existing = (await db.select().from(suppliers).where(eq(suppliers.id, b.id)).limit(1))[0];
+      const existing = (
+        await db.select().from(suppliers).where(eq(suppliers.id, b.id)).limit(1)
+      )[0];
       if (!existing) return err("المورد غير موجود", 404, "NOT_FOUND");
 
-      const newStatus =
-        b.action === "activate" ? SupplierStatus.ACTIVE : SupplierStatus.INACTIVE;
+      const newStatus = b.action === "activate" ? SupplierStatus.ACTIVE : SupplierStatus.INACTIVE;
       if (existing.status === newStatus) {
         return err(
           `المورد ${b.action === "activate" ? "نشط" : "موقوف"} بالفعل`,
@@ -141,6 +153,12 @@ async function POST(event: { request: Request }, ctx: Ctx) {
       taxNumber: b.taxNumber ?? "",
       contactPerson: b.contactPerson ?? "",
       address: b.address ?? "",
+      buildingNo: b.buildingNo ?? "",
+      street: b.street ?? "",
+      district: b.district ?? "",
+      city: b.city ?? "",
+      postalCode: b.postalCode ?? "",
+      additionalNo: b.additionalNo ?? "",
       rating: b.rating ?? 0,
       notes: b.notes ?? "",
       status: b.status ?? SupplierStatus.ACTIVE,
@@ -186,6 +204,12 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
         taxNumber: b.taxNumber ?? existing.taxNumber,
         contactPerson: b.contactPerson ?? existing.contactPerson,
         address: b.address ?? existing.address,
+        buildingNo: b.buildingNo ?? existing.buildingNo,
+        street: b.street ?? existing.street,
+        district: b.district ?? existing.district,
+        city: b.city ?? existing.city,
+        postalCode: b.postalCode ?? existing.postalCode,
+        additionalNo: b.additionalNo ?? existing.additionalNo,
         rating: b.rating ?? existing.rating,
         notes: b.notes ?? existing.notes,
         status: b.status ?? existing.status,
