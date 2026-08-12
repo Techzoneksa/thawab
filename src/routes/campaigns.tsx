@@ -12,7 +12,7 @@ import { fmtSAR, fmtNum } from "@/data/sample";
 import { label } from "@/lib/i18n/labels";
 import { getCampaigns, updateCampaign, deleteCampaign, type Campaign } from "@/lib/api/campaigns";
 import { CampaignStatus } from "@/lib/enums";
-import { Plus, Megaphone, Pencil, Trash2, Eye, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Megaphone, Pencil, Trash2, CheckCircle, XCircle } from "lucide-react";
 import { useState } from "react";
 import {
   showToast,

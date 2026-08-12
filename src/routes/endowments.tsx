@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -11,20 +11,13 @@ import {
   MobilePageHeader,
 } from "@/components/erp/AppShell";
 import { fmtSAR } from "@/data/sample";
-import { label, options } from "@/lib/i18n/labels";
-import {
-  getEndowments,
-  createEndowment,
-  deleteEndowment,
-  type Endowment,
-} from "@/lib/api/endowments";
-import { EndowmentType } from "@/lib/enums";
-import { Landmark, Plus, Trash2, Eye } from "lucide-react";
+import { label } from "@/lib/i18n/labels";
+import { getEndowments, deleteEndowment, type Endowment } from "@/lib/api/endowments";
+import { Landmark, Plus, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   EmptyState,
@@ -33,12 +26,9 @@ import {
 export const Route = createFileRoute("/endowments")({
   head: () => ({ meta: [{ title: "الأوقاف — ثواب" }] }),
   component: () => {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const [formOpen, setFormOpen] = useState(false);
     const [confirmId, setConfirmId] = useState<string | null>(null);
-    const [formName, setFormName] = useState("");
-    const [formType, setFormType] = useState<string>(EndowmentType.GENERAL);
-    const [formValue, setFormValue] = useState("");
 
     const { data, isLoading, error } = useQuery({
       queryKey: ["endowments"],
@@ -46,25 +36,10 @@ export const Route = createFileRoute("/endowments")({
     });
     const items: Endowment[] = data?.items ?? [];
 
-    const invalidate = () => queryClient.invalidateQueries({ queryKey: ["endowments"] });
-
-    const createMutation = useMutation({
-      mutationFn: createEndowment,
-      onSuccess: () => {
-        invalidate();
-        showToast("تم إضافة الوقف بنجاح", "success");
-        setFormOpen(false);
-        setFormName("");
-        setFormType(EndowmentType.GENERAL);
-        setFormValue("");
-      },
-      onError: (e: Error) => showToast(e.message, "error"),
-    });
-
     const deleteMutation = useMutation({
       mutationFn: deleteEndowment,
       onSuccess: () => {
-        invalidate();
+        queryClient.invalidateQueries({ queryKey: ["endowments"] });
         showToast("تم حذف الوقف", "success");
         setConfirmId(null);
       },
@@ -73,18 +48,6 @@ export const Route = createFileRoute("/endowments")({
         setConfirmId(null);
       },
     });
-
-    const handleSave = () => {
-      if (!formName.trim()) {
-        showToast("يرجى إدخال اسم الوقف", "error");
-        return;
-      }
-      createMutation.mutate({
-        name: formName.trim(),
-        type: formType,
-        value: Number(formValue) || 0,
-      });
-    };
 
     const totalValue = items.reduce((a, e) => a + e.value, 0);
     const totalReturns = items.reduce((a, e) => a + e.returns, 0);
@@ -100,15 +63,7 @@ export const Route = createFileRoute("/endowments")({
                 data={items as unknown as Record<string, unknown>[]}
                 filename="endowments.csv"
               />
-              <Btn
-                variant="primary"
-                onClick={() => {
-                  setFormName("");
-                  setFormType(EndowmentType.GENERAL);
-                  setFormValue("");
-                  setFormOpen(true);
-                }}
-              >
+              <Btn variant="primary" onClick={() => navigate({ to: "/endowments/new" })}>
                 <Plus size={15} /> إضافة وقف
               </Btn>
             </>
@@ -163,9 +118,10 @@ export const Route = createFileRoute("/endowments")({
                     <ActionMenu
                       actions={[
                         {
-                          label: "عرض",
-                          icon: Eye,
-                          onClick: () => showToast(`${w.name} - ${fmtSAR(w.value)}`, "info"),
+                          label: "تعديل",
+                          icon: Pencil,
+                          onClick: () =>
+                            navigate({ to: "/endowments/$id/edit", params: { id: w.id } }),
                         },
                         {
                           label: "حذف",
@@ -200,46 +156,6 @@ export const Route = createFileRoute("/endowments")({
             />
           </>
         </AppShell>
-
-        <EntityFormDrawer
-          open={formOpen}
-          onClose={() => setFormOpen(false)}
-          title="إضافة وقف"
-          onSave={handleSave}
-        >
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">اسم الوقف</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              placeholder="اسم الوقف"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">النوع</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formType}
-              onChange={(e) => setFormType(e.target.value)}
-            >
-              {options("endowmentType").map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">القيمة</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              value={formValue}
-              onChange={(e) => setFormValue(e.target.value)}
-            />
-          </div>
-        </EntityFormDrawer>
 
         {confirmId !== null && (
           <ConfirmDialog

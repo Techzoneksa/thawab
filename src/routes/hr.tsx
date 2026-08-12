@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -11,21 +11,14 @@ import {
   MobilePageHeader,
 } from "@/components/erp/AppShell";
 import { fmtSAR } from "@/data/sample";
-import { label, options } from "@/lib/i18n/labels";
-import {
-  getEmployees,
-  createEmployee,
-  updateEmployee,
-  deleteEmployee,
-  type Employee,
-} from "@/lib/api/hr";
+import { label } from "@/lib/i18n/labels";
+import { getEmployees, deleteEmployee, type Employee } from "@/lib/api/hr";
 import { EmployeeStatus } from "@/lib/enums";
-import { Plus, Briefcase, Calendar, FileText, BarChart3, Edit, Trash2, Eye } from "lucide-react";
+import { Plus, Briefcase, Calendar, FileText, BarChart3, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import {
   showToast,
   ConfirmDialog,
-  EntityFormDrawer,
   ActionMenu,
   ExportButton,
   EmptyState,
@@ -34,71 +27,20 @@ import {
 export const Route = createFileRoute("/hr")({
   head: () => ({ meta: [{ title: "الموارد البشرية — ثواب" }] }),
   component: () => {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const [formOpen, setFormOpen] = useState(false);
-    const [editingId, setEditingId] = useState<string | null>(null);
     const [confirmId, setConfirmId] = useState<string | null>(null);
-    const [formName, setFormName] = useState("");
-    const [formDept, setFormDept] = useState("");
-    const [formTitle, setFormTitle] = useState("");
-    const [formSalary, setFormSalary] = useState("");
-    const [formPhone, setFormPhone] = useState("");
-    const [formStatus, setFormStatus] = useState<string>(EmployeeStatus.ACTIVE);
 
     const { data, isLoading, error } = useQuery({
       queryKey: ["employees"],
       queryFn: () => getEmployees(),
     });
     const items: Employee[] = data?.items ?? [];
-    const invalidate = () => queryClient.invalidateQueries({ queryKey: ["employees"] });
-
-    const openAdd = () => {
-      setEditingId(null);
-      setFormName("");
-      setFormDept("");
-      setFormTitle("");
-      setFormSalary("");
-      setFormPhone("");
-      setFormStatus(EmployeeStatus.ACTIVE);
-      setFormOpen(true);
-    };
-
-    const openEdit = (e: Employee) => {
-      setEditingId(e.id);
-      setFormName(e.name);
-      setFormDept(e.department ?? "");
-      setFormTitle(e.title ?? "");
-      setFormSalary(String(e.salary));
-      setFormPhone(e.phone ?? "");
-      setFormStatus(e.status);
-      setFormOpen(true);
-    };
-
-    const createMutation = useMutation({
-      mutationFn: createEmployee,
-      onSuccess: () => {
-        invalidate();
-        showToast("تم إضافة الموظف بنجاح", "success");
-        setFormOpen(false);
-      },
-      onError: (e: Error) => showToast(e.message, "error"),
-    });
-
-    const updateMutation = useMutation({
-      mutationFn: updateEmployee,
-      onSuccess: () => {
-        invalidate();
-        showToast("تم تعديل الموظف بنجاح", "success");
-        setFormOpen(false);
-        setEditingId(null);
-      },
-      onError: (e: Error) => showToast(e.message, "error"),
-    });
 
     const deleteMutation = useMutation({
       mutationFn: deleteEmployee,
       onSuccess: () => {
-        invalidate();
+        queryClient.invalidateQueries({ queryKey: ["employees"] });
         showToast("تم حذف الموظف", "success");
         setConfirmId(null);
       },
@@ -108,22 +50,7 @@ export const Route = createFileRoute("/hr")({
       },
     });
 
-    const handleSave = () => {
-      if (!formName.trim()) {
-        showToast("يرجى إدخال اسم الموظف", "error");
-        return;
-      }
-      const payload = {
-        name: formName.trim(),
-        department: formDept,
-        title: formTitle,
-        salary: Number(formSalary) || 0,
-        phone: formPhone,
-        status: formStatus,
-      };
-      if (editingId) updateMutation.mutate({ id: editingId, ...payload });
-      else createMutation.mutate(payload);
-    };
+    const goEdit = (id: string) => navigate({ to: "/hr/$id/edit", params: { id } });
 
     const totalSalary = items.reduce((a, e) => a + e.salary, 0);
     const onLeave = items.filter((e) => e.status === EmployeeStatus.ON_LEAVE).length;
@@ -140,7 +67,7 @@ export const Route = createFileRoute("/hr")({
                 data={items as unknown as Record<string, unknown>[]}
                 filename="employees.csv"
               />
-              <Btn variant="primary" onClick={openAdd}>
+              <Btn variant="primary" onClick={() => navigate({ to: "/hr/new" })}>
                 <Plus size={15} /> إضافة موظف
               </Btn>
             </>
@@ -205,12 +132,7 @@ export const Route = createFileRoute("/hr")({
                 <Td>
                   <ActionMenu
                     actions={[
-                      {
-                        label: "عرض",
-                        icon: Eye,
-                        onClick: () => showToast(`${e.name} - ${e.title || ""}`, "info"),
-                      },
-                      { label: "تعديل", icon: Edit, onClick: () => openEdit(e) },
+                      { label: "تعديل", icon: Pencil, onClick: () => goEdit(e.id) },
                       {
                         label: "حذف",
                         icon: Trash2,
@@ -250,14 +172,10 @@ export const Route = createFileRoute("/hr")({
                     <span className="font-bold tabular-nums">{fmtSAR(e.salary)}</span>
                   </div>
                 </div>
-                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="font-mono">{e.id}</span>
-                  <span>تعيين: {e.joinedAt || "—"}</span>
-                </div>
                 <div className="mt-2 pt-2 border-t flex gap-2">
                   <button
                     className="flex-1 rounded-lg border py-2 text-xs font-semibold min-h-[36px]"
-                    onClick={() => openEdit(e)}
+                    onClick={() => goEdit(e.id)}
                   >
                     تعديل
                   </button>
@@ -266,73 +184,6 @@ export const Route = createFileRoute("/hr")({
             )}
           />
         </AppShell>
-
-        <EntityFormDrawer
-          open={formOpen}
-          onClose={() => {
-            setFormOpen(false);
-            setEditingId(null);
-          }}
-          title={editingId ? "تعديل موظف" : "إضافة موظف"}
-          onSave={handleSave}
-        >
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الاسم</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الإدارة</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formDept}
-              onChange={(e) => setFormDept(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">المسمى الوظيفي</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formTitle}
-              onChange={(e) => setFormTitle(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الراتب</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              type="number"
-              value={formSalary}
-              onChange={(e) => setFormSalary(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الجوال</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formPhone}
-              onChange={(e) => setFormPhone(e.target.value)}
-              placeholder="05xxxxxxxx"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">الحالة</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={formStatus}
-              onChange={(e) => setFormStatus(e.target.value)}
-            >
-              {options("employeeStatus").map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </EntityFormDrawer>
 
         {confirmId !== null && (
           <ConfirmDialog

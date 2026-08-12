@@ -13,7 +13,7 @@ import {
 import { fmtSAR } from "@/data/sample";
 import { label } from "@/lib/i18n/labels";
 import { getGrants, deleteGrant, type Grant } from "@/lib/api/grants";
-import { Plus, Pencil, Trash2, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import {
   showToast,
