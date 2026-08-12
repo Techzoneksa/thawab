@@ -10,7 +10,13 @@ import {
   stockMovements,
 } from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
-import { PurchaseOrderStatus, PurchaseRequestStatus, StockMovementType } from "@/lib/enums";
+import { postBalancedEntry, resolveSystemAccountId, SYS } from "@/server/db/gl";
+import {
+  PurchaseOrderStatus,
+  PurchaseRequestStatus,
+  StockMovementType,
+  JournalSource,
+} from "@/lib/enums";
 
 // NOTE: enums.ts PurchaseOrderStatus has no CLOSED key. The "close" workflow still
 // needs a distinct terminal state, so we use the ASCII key "closed" until the enum
@@ -145,6 +151,17 @@ async function POST(event: { request: Request }, ctx: Ctx) {
           return err("الأمر ملغي بالفعل", 400, "INVALID_STATE");
         if (order.status === ORDER_CLOSED)
           return err("لا يمكن إلغاء أمر مغلق", 400, "INVALID_STATE");
+        // Goods already received have booked inventory + a payable in the GL;
+        // cancelling would orphan them. Require reversing the receipt first.
+        if (
+          order.status === PurchaseOrderStatus.RECEIVED ||
+          order.status === PurchaseOrderStatus.PARTIAL
+        )
+          return err(
+            "لا يمكن إلغاء أمر استُلمت بضاعته — عالِج الاستلام أولاً",
+            400,
+            "INVALID_STATE",
+          );
         // Atomic: cancel the order and roll back the linked request if converted.
         await db.transaction(async (tx) => {
           await tx
@@ -225,8 +242,11 @@ async function POST(event: { request: Request }, ctx: Ctx) {
         const ts = now();
         let anyReceived = false;
         let allComplete = true;
+        // Value of inventory goods received in THIS action (qty × unit price),
+        // used to post the goods-received journal entry.
+        let receivedValue = 0;
 
-        // Atomic: update lines, inventory, stock movements, and the order header.
+        // Atomic: update lines, inventory, stock movements, GL entry, and the header.
         await db.transaction(async (tx) => {
           for (const r of b.receipts) {
             const line = lineMap.get(r.lineId);
@@ -239,6 +259,7 @@ async function POST(event: { request: Request }, ctx: Ctx) {
 
             if (r.receivedQty > 0 && line.itemId) {
               anyReceived = true;
+              receivedValue += r.receivedQty * (line.unitPrice || 0);
               const item = (await tx
                 .select()
                 .from(inventoryItems)
@@ -271,6 +292,25 @@ async function POST(event: { request: Request }, ctx: Ctx) {
             if (newReceived < line.quantity - 0.0001) {
               allComplete = false;
             }
+          }
+
+          // Post to the GL: goods received into stock on credit.
+          // Dr Inventory (asset), Cr Accounts Payable (liability owed to supplier).
+          if (receivedValue > 0) {
+            const inventory = await resolveSystemAccountId(tx as any, SYS.INVENTORY);
+            const payable = await resolveSystemAccountId(tx as any, SYS.ACCOUNTS_PAYABLE);
+            await postBalancedEntry(tx as any, {
+              date: ts.slice(0, 10),
+              description: `استلام أصناف — أمر شراء ${order.subject}`,
+              source: JournalSource.PURCHASE,
+              sourceType: "purchase_order",
+              sourceId: order.id,
+              lines: [
+                { accountId: inventory, debit: receivedValue },
+                { accountId: payable, credit: receivedValue },
+              ],
+              userId: ctx.user.id,
+            });
           }
 
           const newStatus = allComplete

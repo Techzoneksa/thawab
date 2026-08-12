@@ -24,6 +24,7 @@ export const SYS = {
   DONATIONS_REVENUE: "donations_revenue",
   AID_EXPENSE: "aid_expense",
   ACCOUNTS_PAYABLE: "accounts_payable",
+  INVENTORY: "inventory",
   NET_ASSETS_UNRESTRICTED: "net_assets_unrestricted",
   NET_ASSETS_RESTRICTED: "net_assets_restricted",
   NET_ASSETS_ENDOWMENT: "net_assets_endowment",
