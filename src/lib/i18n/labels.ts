@@ -186,6 +186,21 @@ const LABELS: Record<string, Dict> = {
     custom: "مخصص",
   },
   reportFormat: { pdf: "PDF", excel: "Excel", csv: "CSV" },
+  integrationCategory: {
+    payments: "مدفوعات",
+    banks: "بنوك",
+    government: "حكومي",
+    telecom: "اتصالات",
+    dev: "تطوير",
+  },
+  integrationStatus: { active: "نشط", inactive: "موقوف" },
+  webhookEvent: {
+    donation_created: "تبرع جديد",
+    beneficiary_created: "مستفيد جديد",
+    project_created: "مشروع جديد",
+    journal_entry: "قيد يومية",
+    invoice: "فاتورة",
+  },
   membershipRole: {
     member: "عضو",
     chair: "رئيس",

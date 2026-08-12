@@ -686,6 +686,32 @@ export const donorOrgs = pgTable("donor_orgs", {
   updatedAt: text("updated_at").notNull().default(""),
 });
 
+// ============ INTEGRATIONS & WEBHOOKS (التكاملات) ============
+
+export const integrations = pgTable("integrations", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  category: text("category").notNull().default("payments"),
+  apiUrl: text("api_url").default(""),
+  apiKey: text("api_key").default(""),
+  status: text("status").notNull().default("active"),
+  info: text("info").default(""),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
+export const webhooks = pgTable("webhooks", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  event: text("event").notNull().default("donation_created"),
+  active: boolean("active").notNull().default(true),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
 // ============ SAVED REPORTS (التقارير المحفوظة) ============
 
 export const savedReports = pgTable("saved_reports", {

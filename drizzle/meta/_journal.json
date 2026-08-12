@@ -57,6 +57,13 @@
       "when": 1786551776650,
       "tag": "0007_add_saved_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786552138252,
+      "tag": "0008_add_integrations_webhooks",
+      "breakpoints": true
     }
   ]
 }

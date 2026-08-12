@@ -100,7 +100,9 @@ import { Route as ApiAssetsRouteImport } from './routes/api/assets'
 import { Route as ApiApprovalsRouteImport } from './routes/api/approvals'
 import { Route as ApiAidRouteImport } from './routes/api/aid'
 import { Route as AidNewRouteImport } from './routes/aid_.new'
+import { Route as SettingsWebhooksNewRouteImport } from './routes/settings.webhooks_.new'
 import { Route as SettingsUsersNewRouteImport } from './routes/settings.users_.new'
+import { Route as SettingsIntegrationsNewRouteImport } from './routes/settings.integrations_.new'
 import { Route as SettingsBranchesNewRouteImport } from './routes/settings.branches_.new'
 import { Route as ReportsIdEditRouteImport } from './routes/reports_.$id_.edit'
 import { Route as RecurringIdEditRouteImport } from './routes/recurring_.$id_.edit'
@@ -130,7 +132,9 @@ import { Route as DonationsIdEditRouteImport } from './routes/donations_.$id_.ed
 import { Route as CampaignsIdEditRouteImport } from './routes/campaigns_.$id_.edit'
 import { Route as BeneficiariesIdEditRouteImport } from './routes/beneficiaries_.$id_.edit'
 import { Route as AssetsIdEditRouteImport } from './routes/assets_.$id_.edit'
+import { Route as ApiSettingsWebhooksRouteImport } from './routes/api/settings/webhooks'
 import { Route as ApiSettingsOrgRouteImport } from './routes/api/settings/org'
+import { Route as ApiSettingsIntegrationsRouteImport } from './routes/api/settings/integrations'
 import { Route as ApiSettingsBranchesRouteImport } from './routes/api/settings/branches'
 import { Route as ApiReportsSummaryRouteImport } from './routes/api/reports/summary'
 import { Route as ApiReportsSavedRouteImport } from './routes/api/reports/saved'
@@ -150,6 +154,7 @@ import { Route as ApiFinanceBudgetsRouteImport } from './routes/api/finance/budg
 import { Route as ApiFinanceAccountsRouteImport } from './routes/api/finance/accounts'
 import { Route as AidIdEditRouteImport } from './routes/aid_.$id_.edit'
 import { Route as SettingsUsersIdEditRouteImport } from './routes/settings.users_.$id_.edit'
+import { Route as SettingsIntegrationsIdEditRouteImport } from './routes/settings.integrations_.$id_.edit'
 import { Route as SettingsBranchesIdEditRouteImport } from './routes/settings.branches_.$id_.edit'
 import { Route as ProcurementSuppliersIdEditRouteImport } from './routes/procurement.suppliers_.$id_.edit'
 import { Route as ProcurementRequestsIdEditRouteImport } from './routes/procurement.requests_.$id_.edit'
@@ -619,9 +624,19 @@ const AidNewRoute = AidNewRouteImport.update({
   path: '/aid/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsWebhooksNewRoute = SettingsWebhooksNewRouteImport.update({
+  id: '/settings/webhooks_/new',
+  path: '/settings/webhooks/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsUsersNewRoute = SettingsUsersNewRouteImport.update({
   id: '/settings/users_/new',
   path: '/settings/users/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsIntegrationsNewRoute = SettingsIntegrationsNewRouteImport.update({
+  id: '/settings/integrations_/new',
+  path: '/settings/integrations/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsBranchesNewRoute = SettingsBranchesNewRouteImport.update({
@@ -769,9 +784,19 @@ const AssetsIdEditRoute = AssetsIdEditRouteImport.update({
   path: '/assets/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSettingsWebhooksRoute = ApiSettingsWebhooksRouteImport.update({
+  id: '/api/settings/webhooks',
+  path: '/api/settings/webhooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSettingsOrgRoute = ApiSettingsOrgRouteImport.update({
   id: '/api/settings/org',
   path: '/api/settings/org',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSettingsIntegrationsRoute = ApiSettingsIntegrationsRouteImport.update({
+  id: '/api/settings/integrations',
+  path: '/api/settings/integrations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSettingsBranchesRoute = ApiSettingsBranchesRouteImport.update({
@@ -869,6 +894,12 @@ const SettingsUsersIdEditRoute = SettingsUsersIdEditRouteImport.update({
   path: '/settings/users/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsIntegrationsIdEditRoute =
+  SettingsIntegrationsIdEditRouteImport.update({
+    id: '/settings/integrations_/$id_/edit',
+    path: '/settings/integrations/$id/edit',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const SettingsBranchesIdEditRoute = SettingsBranchesIdEditRouteImport.update({
   id: '/settings/branches_/$id_/edit',
   path: '/settings/branches/$id/edit',
@@ -1050,7 +1081,9 @@ export interface FileRoutesByFullPath {
   '/api/reports/saved': typeof ApiReportsSavedRoute
   '/api/reports/summary': typeof ApiReportsSummaryRoute
   '/api/settings/branches': typeof ApiSettingsBranchesRoute
+  '/api/settings/integrations': typeof ApiSettingsIntegrationsRoute
   '/api/settings/org': typeof ApiSettingsOrgRoute
+  '/api/settings/webhooks': typeof ApiSettingsWebhooksRoute
   '/assets/$id/edit': typeof AssetsIdEditRoute
   '/beneficiaries/$id/edit': typeof BeneficiariesIdEditRoute
   '/campaigns/$id/edit': typeof CampaignsIdEditRoute
@@ -1080,7 +1113,9 @@ export interface FileRoutesByFullPath {
   '/recurring/$id/edit': typeof RecurringIdEditRoute
   '/reports/$id/edit': typeof ReportsIdEditRoute
   '/settings/branches/new': typeof SettingsBranchesNewRoute
+  '/settings/integrations/new': typeof SettingsIntegrationsNewRoute
   '/settings/users/new': typeof SettingsUsersNewRoute
+  '/settings/webhooks/new': typeof SettingsWebhooksNewRoute
   '/finance/accounts/$id/edit': typeof FinanceAccountsIdEditRoute
   '/finance/budgets/$id/edit': typeof FinanceBudgetsIdEditRoute
   '/finance/closing/$id/edit': typeof FinanceClosingIdEditRoute
@@ -1094,6 +1129,7 @@ export interface FileRoutesByFullPath {
   '/procurement/requests/$id/edit': typeof ProcurementRequestsIdEditRoute
   '/procurement/suppliers/$id/edit': typeof ProcurementSuppliersIdEditRoute
   '/settings/branches/$id/edit': typeof SettingsBranchesIdEditRoute
+  '/settings/integrations/$id/edit': typeof SettingsIntegrationsIdEditRoute
   '/settings/users/$id/edit': typeof SettingsUsersIdEditRoute
 }
 export interface FileRoutesByTo {
@@ -1206,7 +1242,9 @@ export interface FileRoutesByTo {
   '/api/reports/saved': typeof ApiReportsSavedRoute
   '/api/reports/summary': typeof ApiReportsSummaryRoute
   '/api/settings/branches': typeof ApiSettingsBranchesRoute
+  '/api/settings/integrations': typeof ApiSettingsIntegrationsRoute
   '/api/settings/org': typeof ApiSettingsOrgRoute
+  '/api/settings/webhooks': typeof ApiSettingsWebhooksRoute
   '/assets/$id/edit': typeof AssetsIdEditRoute
   '/beneficiaries/$id/edit': typeof BeneficiariesIdEditRoute
   '/campaigns/$id/edit': typeof CampaignsIdEditRoute
@@ -1236,7 +1274,9 @@ export interface FileRoutesByTo {
   '/recurring/$id/edit': typeof RecurringIdEditRoute
   '/reports/$id/edit': typeof ReportsIdEditRoute
   '/settings/branches/new': typeof SettingsBranchesNewRoute
+  '/settings/integrations/new': typeof SettingsIntegrationsNewRoute
   '/settings/users/new': typeof SettingsUsersNewRoute
+  '/settings/webhooks/new': typeof SettingsWebhooksNewRoute
   '/finance/accounts/$id/edit': typeof FinanceAccountsIdEditRoute
   '/finance/budgets/$id/edit': typeof FinanceBudgetsIdEditRoute
   '/finance/closing/$id/edit': typeof FinanceClosingIdEditRoute
@@ -1250,6 +1290,7 @@ export interface FileRoutesByTo {
   '/procurement/requests/$id/edit': typeof ProcurementRequestsIdEditRoute
   '/procurement/suppliers/$id/edit': typeof ProcurementSuppliersIdEditRoute
   '/settings/branches/$id/edit': typeof SettingsBranchesIdEditRoute
+  '/settings/integrations/$id/edit': typeof SettingsIntegrationsIdEditRoute
   '/settings/users/$id/edit': typeof SettingsUsersIdEditRoute
 }
 export interface FileRoutesById {
@@ -1363,7 +1404,9 @@ export interface FileRoutesById {
   '/api/reports/saved': typeof ApiReportsSavedRoute
   '/api/reports/summary': typeof ApiReportsSummaryRoute
   '/api/settings/branches': typeof ApiSettingsBranchesRoute
+  '/api/settings/integrations': typeof ApiSettingsIntegrationsRoute
   '/api/settings/org': typeof ApiSettingsOrgRoute
+  '/api/settings/webhooks': typeof ApiSettingsWebhooksRoute
   '/assets_/$id_/edit': typeof AssetsIdEditRoute
   '/beneficiaries_/$id_/edit': typeof BeneficiariesIdEditRoute
   '/campaigns_/$id_/edit': typeof CampaignsIdEditRoute
@@ -1393,7 +1436,9 @@ export interface FileRoutesById {
   '/recurring_/$id_/edit': typeof RecurringIdEditRoute
   '/reports_/$id_/edit': typeof ReportsIdEditRoute
   '/settings/branches_/new': typeof SettingsBranchesNewRoute
+  '/settings/integrations_/new': typeof SettingsIntegrationsNewRoute
   '/settings/users_/new': typeof SettingsUsersNewRoute
+  '/settings/webhooks_/new': typeof SettingsWebhooksNewRoute
   '/finance/accounts_/$id_/edit': typeof FinanceAccountsIdEditRoute
   '/finance/budgets_/$id_/edit': typeof FinanceBudgetsIdEditRoute
   '/finance/closing_/$id_/edit': typeof FinanceClosingIdEditRoute
@@ -1407,6 +1452,7 @@ export interface FileRoutesById {
   '/procurement/requests_/$id_/edit': typeof ProcurementRequestsIdEditRoute
   '/procurement/suppliers_/$id_/edit': typeof ProcurementSuppliersIdEditRoute
   '/settings/branches_/$id_/edit': typeof SettingsBranchesIdEditRoute
+  '/settings/integrations_/$id_/edit': typeof SettingsIntegrationsIdEditRoute
   '/settings/users_/$id_/edit': typeof SettingsUsersIdEditRoute
 }
 export interface FileRouteTypes {
@@ -1521,7 +1567,9 @@ export interface FileRouteTypes {
     | '/api/reports/saved'
     | '/api/reports/summary'
     | '/api/settings/branches'
+    | '/api/settings/integrations'
     | '/api/settings/org'
+    | '/api/settings/webhooks'
     | '/assets/$id/edit'
     | '/beneficiaries/$id/edit'
     | '/campaigns/$id/edit'
@@ -1551,7 +1599,9 @@ export interface FileRouteTypes {
     | '/recurring/$id/edit'
     | '/reports/$id/edit'
     | '/settings/branches/new'
+    | '/settings/integrations/new'
     | '/settings/users/new'
+    | '/settings/webhooks/new'
     | '/finance/accounts/$id/edit'
     | '/finance/budgets/$id/edit'
     | '/finance/closing/$id/edit'
@@ -1565,6 +1615,7 @@ export interface FileRouteTypes {
     | '/procurement/requests/$id/edit'
     | '/procurement/suppliers/$id/edit'
     | '/settings/branches/$id/edit'
+    | '/settings/integrations/$id/edit'
     | '/settings/users/$id/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1677,7 +1728,9 @@ export interface FileRouteTypes {
     | '/api/reports/saved'
     | '/api/reports/summary'
     | '/api/settings/branches'
+    | '/api/settings/integrations'
     | '/api/settings/org'
+    | '/api/settings/webhooks'
     | '/assets/$id/edit'
     | '/beneficiaries/$id/edit'
     | '/campaigns/$id/edit'
@@ -1707,7 +1760,9 @@ export interface FileRouteTypes {
     | '/recurring/$id/edit'
     | '/reports/$id/edit'
     | '/settings/branches/new'
+    | '/settings/integrations/new'
     | '/settings/users/new'
+    | '/settings/webhooks/new'
     | '/finance/accounts/$id/edit'
     | '/finance/budgets/$id/edit'
     | '/finance/closing/$id/edit'
@@ -1721,6 +1776,7 @@ export interface FileRouteTypes {
     | '/procurement/requests/$id/edit'
     | '/procurement/suppliers/$id/edit'
     | '/settings/branches/$id/edit'
+    | '/settings/integrations/$id/edit'
     | '/settings/users/$id/edit'
   id:
     | '__root__'
@@ -1833,7 +1889,9 @@ export interface FileRouteTypes {
     | '/api/reports/saved'
     | '/api/reports/summary'
     | '/api/settings/branches'
+    | '/api/settings/integrations'
     | '/api/settings/org'
+    | '/api/settings/webhooks'
     | '/assets_/$id_/edit'
     | '/beneficiaries_/$id_/edit'
     | '/campaigns_/$id_/edit'
@@ -1863,7 +1921,9 @@ export interface FileRouteTypes {
     | '/recurring_/$id_/edit'
     | '/reports_/$id_/edit'
     | '/settings/branches_/new'
+    | '/settings/integrations_/new'
     | '/settings/users_/new'
+    | '/settings/webhooks_/new'
     | '/finance/accounts_/$id_/edit'
     | '/finance/budgets_/$id_/edit'
     | '/finance/closing_/$id_/edit'
@@ -1877,6 +1937,7 @@ export interface FileRouteTypes {
     | '/procurement/requests_/$id_/edit'
     | '/procurement/suppliers_/$id_/edit'
     | '/settings/branches_/$id_/edit'
+    | '/settings/integrations_/$id_/edit'
     | '/settings/users_/$id_/edit'
   fileRoutesById: FileRoutesById
 }
@@ -1990,7 +2051,9 @@ export interface RootRouteChildren {
   ApiReportsSavedRoute: typeof ApiReportsSavedRoute
   ApiReportsSummaryRoute: typeof ApiReportsSummaryRoute
   ApiSettingsBranchesRoute: typeof ApiSettingsBranchesRoute
+  ApiSettingsIntegrationsRoute: typeof ApiSettingsIntegrationsRoute
   ApiSettingsOrgRoute: typeof ApiSettingsOrgRoute
+  ApiSettingsWebhooksRoute: typeof ApiSettingsWebhooksRoute
   AssetsIdEditRoute: typeof AssetsIdEditRoute
   BeneficiariesIdEditRoute: typeof BeneficiariesIdEditRoute
   CampaignsIdEditRoute: typeof CampaignsIdEditRoute
@@ -2020,7 +2083,9 @@ export interface RootRouteChildren {
   RecurringIdEditRoute: typeof RecurringIdEditRoute
   ReportsIdEditRoute: typeof ReportsIdEditRoute
   SettingsBranchesNewRoute: typeof SettingsBranchesNewRoute
+  SettingsIntegrationsNewRoute: typeof SettingsIntegrationsNewRoute
   SettingsUsersNewRoute: typeof SettingsUsersNewRoute
+  SettingsWebhooksNewRoute: typeof SettingsWebhooksNewRoute
   FinanceAccountsIdEditRoute: typeof FinanceAccountsIdEditRoute
   FinanceBudgetsIdEditRoute: typeof FinanceBudgetsIdEditRoute
   FinanceClosingIdEditRoute: typeof FinanceClosingIdEditRoute
@@ -2034,6 +2099,7 @@ export interface RootRouteChildren {
   ProcurementRequestsIdEditRoute: typeof ProcurementRequestsIdEditRoute
   ProcurementSuppliersIdEditRoute: typeof ProcurementSuppliersIdEditRoute
   SettingsBranchesIdEditRoute: typeof SettingsBranchesIdEditRoute
+  SettingsIntegrationsIdEditRoute: typeof SettingsIntegrationsIdEditRoute
   SettingsUsersIdEditRoute: typeof SettingsUsersIdEditRoute
 }
 
@@ -2676,11 +2742,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AidNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/webhooks_/new': {
+      id: '/settings/webhooks_/new'
+      path: '/settings/webhooks/new'
+      fullPath: '/settings/webhooks/new'
+      preLoaderRoute: typeof SettingsWebhooksNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/users_/new': {
       id: '/settings/users_/new'
       path: '/settings/users/new'
       fullPath: '/settings/users/new'
       preLoaderRoute: typeof SettingsUsersNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/integrations_/new': {
+      id: '/settings/integrations_/new'
+      path: '/settings/integrations/new'
+      fullPath: '/settings/integrations/new'
+      preLoaderRoute: typeof SettingsIntegrationsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings/branches_/new': {
@@ -2886,11 +2966,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssetsIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/settings/webhooks': {
+      id: '/api/settings/webhooks'
+      path: '/api/settings/webhooks'
+      fullPath: '/api/settings/webhooks'
+      preLoaderRoute: typeof ApiSettingsWebhooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/settings/org': {
       id: '/api/settings/org'
       path: '/api/settings/org'
       fullPath: '/api/settings/org'
       preLoaderRoute: typeof ApiSettingsOrgRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/settings/integrations': {
+      id: '/api/settings/integrations'
+      path: '/api/settings/integrations'
+      fullPath: '/api/settings/integrations'
+      preLoaderRoute: typeof ApiSettingsIntegrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/settings/branches': {
@@ -3024,6 +3118,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/users/$id/edit'
       fullPath: '/settings/users/$id/edit'
       preLoaderRoute: typeof SettingsUsersIdEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/integrations_/$id_/edit': {
+      id: '/settings/integrations_/$id_/edit'
+      path: '/settings/integrations/$id/edit'
+      fullPath: '/settings/integrations/$id/edit'
+      preLoaderRoute: typeof SettingsIntegrationsIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings/branches_/$id_/edit': {
@@ -3230,7 +3331,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiReportsSavedRoute: ApiReportsSavedRoute,
   ApiReportsSummaryRoute: ApiReportsSummaryRoute,
   ApiSettingsBranchesRoute: ApiSettingsBranchesRoute,
+  ApiSettingsIntegrationsRoute: ApiSettingsIntegrationsRoute,
   ApiSettingsOrgRoute: ApiSettingsOrgRoute,
+  ApiSettingsWebhooksRoute: ApiSettingsWebhooksRoute,
   AssetsIdEditRoute: AssetsIdEditRoute,
   BeneficiariesIdEditRoute: BeneficiariesIdEditRoute,
   CampaignsIdEditRoute: CampaignsIdEditRoute,
@@ -3260,7 +3363,9 @@ const rootRouteChildren: RootRouteChildren = {
   RecurringIdEditRoute: RecurringIdEditRoute,
   ReportsIdEditRoute: ReportsIdEditRoute,
   SettingsBranchesNewRoute: SettingsBranchesNewRoute,
+  SettingsIntegrationsNewRoute: SettingsIntegrationsNewRoute,
   SettingsUsersNewRoute: SettingsUsersNewRoute,
+  SettingsWebhooksNewRoute: SettingsWebhooksNewRoute,
   FinanceAccountsIdEditRoute: FinanceAccountsIdEditRoute,
   FinanceBudgetsIdEditRoute: FinanceBudgetsIdEditRoute,
   FinanceClosingIdEditRoute: FinanceClosingIdEditRoute,
@@ -3274,6 +3379,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProcurementRequestsIdEditRoute: ProcurementRequestsIdEditRoute,
   ProcurementSuppliersIdEditRoute: ProcurementSuppliersIdEditRoute,
   SettingsBranchesIdEditRoute: SettingsBranchesIdEditRoute,
+  SettingsIntegrationsIdEditRoute: SettingsIntegrationsIdEditRoute,
   SettingsUsersIdEditRoute: SettingsUsersIdEditRoute,
 }
 export const routeTree = rootRouteImport

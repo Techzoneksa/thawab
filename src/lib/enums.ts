@@ -412,6 +412,32 @@ export const ReportFormat = {
 } as const;
 export type ReportFormat = (typeof ReportFormat)[keyof typeof ReportFormat];
 
+// ============ INTEGRATIONS & WEBHOOKS (التكاملات) ============
+
+export const IntegrationCategory = {
+  PAYMENTS: "payments",
+  BANKS: "banks",
+  GOVERNMENT: "government",
+  TELECOM: "telecom",
+  DEV: "dev",
+} as const;
+export type IntegrationCategory = (typeof IntegrationCategory)[keyof typeof IntegrationCategory];
+
+export const IntegrationStatus = {
+  ACTIVE: "active",
+  INACTIVE: "inactive",
+} as const;
+export type IntegrationStatus = (typeof IntegrationStatus)[keyof typeof IntegrationStatus];
+
+export const WebhookEvent = {
+  DONATION_CREATED: "donation_created",
+  BENEFICIARY_CREATED: "beneficiary_created",
+  PROJECT_CREATED: "project_created",
+  JOURNAL_ENTRY: "journal_entry",
+  INVOICE: "invoice",
+} as const;
+export type WebhookEvent = (typeof WebhookEvent)[keyof typeof WebhookEvent];
+
 // ============ GOVERNANCE ============
 
 export const MembershipRole = {
