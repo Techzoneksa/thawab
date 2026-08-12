@@ -373,6 +373,16 @@ export const RecurringStatus = {
 } as const;
 export type RecurringStatus = (typeof RecurringStatus)[keyof typeof RecurringStatus];
 
+// ============ NOTIFICATIONS (التنبيهات) ============
+
+export const NotificationTone = {
+  INFO: "info",
+  WARNING: "warning",
+  CRITICAL: "critical",
+  SUCCESS: "success",
+} as const;
+export type NotificationTone = (typeof NotificationTone)[keyof typeof NotificationTone];
+
 // ============ GOVERNANCE ============
 
 export const MembershipRole = {

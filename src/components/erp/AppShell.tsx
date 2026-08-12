@@ -1,6 +1,8 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/api/auth";
+import { getNotifications } from "@/lib/api/notifications";
 import {
   LayoutDashboard,
   Bell,
@@ -326,6 +328,13 @@ function Topbar({
   setAiOpen: (v: boolean) => void;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { data: notifData } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => getNotifications(),
+    refetchInterval: 60000,
+    staleTime: 30000,
+  });
+  const unreadCount = notifData?.unread ?? 0;
   const pageTitle =
     pathname === "/"
       ? "لوحة المعلومات"
@@ -386,15 +395,18 @@ function Topbar({
             <Sparkles size={16} /> المساعد الذكي
           </button>
         )}
-        <button
+        <Link
+          to="/notifications"
           className="relative grid h-11 w-11 place-items-center rounded-lg border hover:bg-muted transition-colors"
           aria-label="إشعارات"
         >
           <Bell size={18} />
-          <span className="absolute top-1 left-1 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
-            7
-          </span>
-        </button>
+          {unreadCount > 0 && (
+            <span className="absolute top-1 left-1 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </Link>
         <button
           onClick={onMenu}
           className="flex items-center gap-2 rounded-lg border p-1.5 pr-2 hover:bg-muted transition-colors min-h-[40px]"
@@ -428,13 +440,16 @@ function Topbar({
             <Sparkles size={20} />
           </button>
         )}
-        <button
+        <Link
+          to="/notifications"
           className="relative grid h-11 w-11 place-items-center rounded-lg hover:bg-muted active:bg-muted/80 transition-colors shrink-0"
           aria-label="إشعارات"
         >
           <Bell size={20} />
-          <span className="absolute top-2 left-2 h-2 w-2 rounded-full bg-destructive ring-2 ring-surface" />
-        </button>
+          {unreadCount > 0 && (
+            <span className="absolute top-2 left-2 h-2 w-2 rounded-full bg-destructive ring-2 ring-surface" />
+          )}
+        </Link>
         <button
           onClick={onMenu}
           className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-info text-white text-xs font-bold shadow-sm active:scale-95 transition-transform"

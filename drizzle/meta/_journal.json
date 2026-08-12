@@ -43,6 +43,13 @@
       "when": 1786538830242,
       "tag": "0005_add_donor_orgs_recurring_endowment_returns",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786551447111,
+      "tag": "0006_add_notifications",
+      "breakpoints": true
     }
   ]
 }

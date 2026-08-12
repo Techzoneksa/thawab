@@ -686,6 +686,20 @@ export const donorOrgs = pgTable("donor_orgs", {
   updatedAt: text("updated_at").notNull().default(""),
 });
 
+// ============ NOTIFICATIONS (التنبيهات) ============
+
+export const notifications = pgTable("notifications", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  body: text("body").default(""),
+  tone: text("tone").notNull().default("info"),
+  link: text("link").default(""),
+  read: boolean("read").notNull().default(false),
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(""),
+  readAt: text("read_at"),
+});
+
 // ============ RECURRING DONATIONS (التبرعات المتكررة) ============
 
 export const recurringDonations = pgTable("recurring_donations", {

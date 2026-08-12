@@ -48,6 +48,7 @@ import { Route as ProcurementRequestsRouteImport } from './routes/procurement.re
 import { Route as ProcurementQuotesRouteImport } from './routes/procurement.quotes'
 import { Route as ProcurementOrdersRouteImport } from './routes/procurement.orders'
 import { Route as PermissionsNewRouteImport } from './routes/permissions_.new'
+import { Route as NotificationsNewRouteImport } from './routes/notifications_.new'
 import { Route as MembershipsNewRouteImport } from './routes/memberships_.new'
 import { Route as MeetingsNewRouteImport } from './routes/meetings_.new'
 import { Route as InventoryWarehousesRouteImport } from './routes/inventory.warehouses'
@@ -78,6 +79,7 @@ import { Route as ApiRolesRouteImport } from './routes/api/roles'
 import { Route as ApiRecurringRouteImport } from './routes/api/recurring'
 import { Route as ApiReceiptsRouteImport } from './routes/api/receipts'
 import { Route as ApiProjectsRouteImport } from './routes/api/projects'
+import { Route as ApiNotificationsRouteImport } from './routes/api/notifications'
 import { Route as ApiMembershipsRouteImport } from './routes/api/memberships'
 import { Route as ApiMeetingsRouteImport } from './routes/api/meetings'
 import { Route as ApiHrRouteImport } from './routes/api/hr'
@@ -354,6 +356,11 @@ const PermissionsNewRoute = PermissionsNewRouteImport.update({
   path: '/permissions/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NotificationsNewRoute = NotificationsNewRouteImport.update({
+  id: '/notifications_/new',
+  path: '/notifications/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MembershipsNewRoute = MembershipsNewRouteImport.update({
   id: '/memberships_/new',
   path: '/memberships/new',
@@ -502,6 +509,11 @@ const ApiReceiptsRoute = ApiReceiptsRouteImport.update({
 const ApiProjectsRoute = ApiProjectsRouteImport.update({
   id: '/api/projects',
   path: '/api/projects',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiNotificationsRoute = ApiNotificationsRouteImport.update({
+  id: '/api/notifications',
+  path: '/api/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMembershipsRoute = ApiMembershipsRouteImport.update({
@@ -955,6 +967,7 @@ export interface FileRoutesByFullPath {
   '/api/hr': typeof ApiHrRoute
   '/api/meetings': typeof ApiMeetingsRoute
   '/api/memberships': typeof ApiMembershipsRoute
+  '/api/notifications': typeof ApiNotificationsRoute
   '/api/projects': typeof ApiProjectsRoute
   '/api/receipts': typeof ApiReceiptsRoute
   '/api/recurring': typeof ApiRecurringRoute
@@ -985,6 +998,7 @@ export interface FileRoutesByFullPath {
   '/inventory/warehouses': typeof InventoryWarehousesRoute
   '/meetings/new': typeof MeetingsNewRoute
   '/memberships/new': typeof MembershipsNewRoute
+  '/notifications/new': typeof NotificationsNewRoute
   '/permissions/new': typeof PermissionsNewRoute
   '/procurement/orders': typeof ProcurementOrdersRoute
   '/procurement/quotes': typeof ProcurementQuotesRoute
@@ -1106,6 +1120,7 @@ export interface FileRoutesByTo {
   '/api/hr': typeof ApiHrRoute
   '/api/meetings': typeof ApiMeetingsRoute
   '/api/memberships': typeof ApiMembershipsRoute
+  '/api/notifications': typeof ApiNotificationsRoute
   '/api/projects': typeof ApiProjectsRoute
   '/api/receipts': typeof ApiReceiptsRoute
   '/api/recurring': typeof ApiRecurringRoute
@@ -1136,6 +1151,7 @@ export interface FileRoutesByTo {
   '/inventory/warehouses': typeof InventoryWarehousesRoute
   '/meetings/new': typeof MeetingsNewRoute
   '/memberships/new': typeof MembershipsNewRoute
+  '/notifications/new': typeof NotificationsNewRoute
   '/permissions/new': typeof PermissionsNewRoute
   '/procurement/orders': typeof ProcurementOrdersRoute
   '/procurement/quotes': typeof ProcurementQuotesRoute
@@ -1258,6 +1274,7 @@ export interface FileRoutesById {
   '/api/hr': typeof ApiHrRoute
   '/api/meetings': typeof ApiMeetingsRoute
   '/api/memberships': typeof ApiMembershipsRoute
+  '/api/notifications': typeof ApiNotificationsRoute
   '/api/projects': typeof ApiProjectsRoute
   '/api/receipts': typeof ApiReceiptsRoute
   '/api/recurring': typeof ApiRecurringRoute
@@ -1288,6 +1305,7 @@ export interface FileRoutesById {
   '/inventory/warehouses': typeof InventoryWarehousesRoute
   '/meetings_/new': typeof MeetingsNewRoute
   '/memberships_/new': typeof MembershipsNewRoute
+  '/notifications_/new': typeof NotificationsNewRoute
   '/permissions_/new': typeof PermissionsNewRoute
   '/procurement/orders': typeof ProcurementOrdersRoute
   '/procurement/quotes': typeof ProcurementQuotesRoute
@@ -1411,6 +1429,7 @@ export interface FileRouteTypes {
     | '/api/hr'
     | '/api/meetings'
     | '/api/memberships'
+    | '/api/notifications'
     | '/api/projects'
     | '/api/receipts'
     | '/api/recurring'
@@ -1441,6 +1460,7 @@ export interface FileRouteTypes {
     | '/inventory/warehouses'
     | '/meetings/new'
     | '/memberships/new'
+    | '/notifications/new'
     | '/permissions/new'
     | '/procurement/orders'
     | '/procurement/quotes'
@@ -1562,6 +1582,7 @@ export interface FileRouteTypes {
     | '/api/hr'
     | '/api/meetings'
     | '/api/memberships'
+    | '/api/notifications'
     | '/api/projects'
     | '/api/receipts'
     | '/api/recurring'
@@ -1592,6 +1613,7 @@ export interface FileRouteTypes {
     | '/inventory/warehouses'
     | '/meetings/new'
     | '/memberships/new'
+    | '/notifications/new'
     | '/permissions/new'
     | '/procurement/orders'
     | '/procurement/quotes'
@@ -1713,6 +1735,7 @@ export interface FileRouteTypes {
     | '/api/hr'
     | '/api/meetings'
     | '/api/memberships'
+    | '/api/notifications'
     | '/api/projects'
     | '/api/receipts'
     | '/api/recurring'
@@ -1743,6 +1766,7 @@ export interface FileRouteTypes {
     | '/inventory/warehouses'
     | '/meetings_/new'
     | '/memberships_/new'
+    | '/notifications_/new'
     | '/permissions_/new'
     | '/procurement/orders'
     | '/procurement/quotes'
@@ -1865,6 +1889,7 @@ export interface RootRouteChildren {
   ApiHrRoute: typeof ApiHrRoute
   ApiMeetingsRoute: typeof ApiMeetingsRoute
   ApiMembershipsRoute: typeof ApiMembershipsRoute
+  ApiNotificationsRoute: typeof ApiNotificationsRoute
   ApiProjectsRoute: typeof ApiProjectsRoute
   ApiReceiptsRoute: typeof ApiReceiptsRoute
   ApiRecurringRoute: typeof ApiRecurringRoute
@@ -1895,6 +1920,7 @@ export interface RootRouteChildren {
   InventoryWarehousesRoute: typeof InventoryWarehousesRoute
   MeetingsNewRoute: typeof MeetingsNewRoute
   MembershipsNewRoute: typeof MembershipsNewRoute
+  NotificationsNewRoute: typeof NotificationsNewRoute
   PermissionsNewRoute: typeof PermissionsNewRoute
   ProcurementOrdersRoute: typeof ProcurementOrdersRoute
   ProcurementQuotesRoute: typeof ProcurementQuotesRoute
@@ -2247,6 +2273,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PermissionsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/notifications_/new': {
+      id: '/notifications_/new'
+      path: '/notifications/new'
+      fullPath: '/notifications/new'
+      preLoaderRoute: typeof NotificationsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/memberships_/new': {
       id: '/memberships_/new'
       path: '/memberships/new'
@@ -2455,6 +2488,13 @@ declare module '@tanstack/react-router' {
       path: '/api/projects'
       fullPath: '/api/projects'
       preLoaderRoute: typeof ApiProjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/notifications': {
+      id: '/api/notifications'
+      path: '/api/notifications'
+      fullPath: '/api/notifications'
+      preLoaderRoute: typeof ApiNotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/memberships': {
@@ -3065,6 +3105,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHrRoute: ApiHrRoute,
   ApiMeetingsRoute: ApiMeetingsRoute,
   ApiMembershipsRoute: ApiMembershipsRoute,
+  ApiNotificationsRoute: ApiNotificationsRoute,
   ApiProjectsRoute: ApiProjectsRoute,
   ApiReceiptsRoute: ApiReceiptsRoute,
   ApiRecurringRoute: ApiRecurringRoute,
@@ -3095,6 +3136,7 @@ const rootRouteChildren: RootRouteChildren = {
   InventoryWarehousesRoute: InventoryWarehousesRoute,
   MeetingsNewRoute: MeetingsNewRoute,
   MembershipsNewRoute: MembershipsNewRoute,
+  NotificationsNewRoute: NotificationsNewRoute,
   PermissionsNewRoute: PermissionsNewRoute,
   ProcurementOrdersRoute: ProcurementOrdersRoute,
   ProcurementQuotesRoute: ProcurementQuotesRoute,

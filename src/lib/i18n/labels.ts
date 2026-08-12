@@ -163,6 +163,12 @@ const LABELS: Record<string, Dict> = {
     yearly: "سنوي",
   },
   recurringStatus: { active: "نشط", paused: "موقوف" },
+  notificationTone: {
+    info: "معلومات",
+    warning: "تحذير",
+    critical: "حرج",
+    success: "نجاح",
+  },
   membershipRole: {
     member: "عضو",
     chair: "رئيس",
