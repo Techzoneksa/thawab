@@ -1,6 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppShell, Card, Btn, Badge, MobilePageHeader } from "@/components/erp/AppShell";
-import { UsersRound, Plus, Edit, Trash2, Eye, UserPlus } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  AppShell,
+  Card,
+  Btn,
+  Badge,
+  statusTone,
+  MobilePageHeader,
+} from "@/components/erp/AppShell";
+import { label, options } from "@/lib/i18n/labels";
+import {
+  getMemberships,
+  createMembership,
+  updateMembership,
+  deleteMembership,
+  type Membership,
+} from "@/lib/api/memberships";
+import { MembershipRole, MembershipType } from "@/lib/enums";
+import { UsersRound, Plus, Edit, Trash2, Eye } from "lucide-react";
 import { useState } from "react";
 import {
   showToast,
@@ -11,102 +28,94 @@ import {
   EmptyState,
 } from "@/components/erp/actions";
 
-type MemberItem = {
-  name: string;
-  role: string;
-  since: string;
-  attendance: number;
-  phone: string;
-  active: boolean;
-};
-
 export const Route = createFileRoute("/memberships")({
   head: () => ({ meta: [{ title: "العضويات — ثواب" }] }),
   component: () => {
-    const [data, setData] = useState<MemberItem[]>([]);
+    const queryClient = useQueryClient();
     const [formOpen, setFormOpen] = useState(false);
-    const [subFormOpen, setSubFormOpen] = useState(false);
-    const [confirmIdx, setConfirmIdx] = useState(-1);
-    const [editingIdx, setEditingIdx] = useState(-1);
+    const [confirmId, setConfirmId] = useState<string | null>(null);
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [formName, setFormName] = useState("");
-    const [formRole, setFormRole] = useState("");
+    const [formRole, setFormRole] = useState<string>(MembershipRole.MEMBER);
+    const [formType, setFormType] = useState<string>(MembershipType.BOARD);
     const [formPhone, setFormPhone] = useState("");
-    const [subName, setSubName] = useState("");
-    const [subType, setSubType] = useState("سنوي");
 
-    const openAddMember = () => {
-      setEditingIdx(-1);
+    const { data, isLoading, error } = useQuery({
+      queryKey: ["memberships"],
+      queryFn: () => getMemberships(),
+    });
+    const items: Membership[] = data?.items ?? [];
+
+    const invalidate = () => queryClient.invalidateQueries({ queryKey: ["memberships"] });
+
+    const openAdd = () => {
+      setEditingId(null);
       setFormName("");
-      setFormRole("");
+      setFormRole(MembershipRole.MEMBER);
+      setFormType(MembershipType.BOARD);
       setFormPhone("");
       setFormOpen(true);
     };
 
-    const openEditMember = (idx: number) => {
-      const m = data[idx];
-      setEditingIdx(idx);
+    const openEdit = (m: Membership) => {
+      setEditingId(m.id);
       setFormName(m.name);
       setFormRole(m.role);
-      setFormPhone(m.phone);
+      setFormType(m.type);
+      setFormPhone(m.phone ?? "");
       setFormOpen(true);
     };
 
-    const closeMemberForm = () => {
-      setFormOpen(false);
-      setEditingIdx(-1);
-      setFormName("");
-      setFormRole("");
-      setFormPhone("");
-    };
+    const createMutation = useMutation({
+      mutationFn: createMembership,
+      onSuccess: () => {
+        invalidate();
+        showToast("تم إضافة العضو بنجاح", "success");
+        setFormOpen(false);
+      },
+      onError: (e: Error) => showToast(e.message, "error"),
+    });
 
-    const handleAddMember = () => {
+    const updateMutation = useMutation({
+      mutationFn: updateMembership,
+      onSuccess: () => {
+        invalidate();
+        showToast("تم تحديث بيانات العضو بنجاح", "success");
+        setFormOpen(false);
+        setEditingId(null);
+      },
+      onError: (e: Error) => showToast(e.message, "error"),
+    });
+
+    const deleteMutation = useMutation({
+      mutationFn: deleteMembership,
+      onSuccess: () => {
+        invalidate();
+        showToast("تم حذف العضو", "success");
+        setConfirmId(null);
+      },
+      onError: (e: Error) => {
+        showToast(e.message, "error");
+        setConfirmId(null);
+      },
+    });
+
+    const handleSave = () => {
       if (!formName.trim()) {
         showToast("يرجى إدخال اسم العضو", "error");
         return;
       }
-      if (editingIdx >= 0) {
-        const updated = [...data];
-        updated[editingIdx] = {
-          ...updated[editingIdx],
-          name: formName,
-          role: formRole || updated[editingIdx].role,
-          phone: formPhone,
-        };
-        setData(updated);
-        showToast("تم تحديث بيانات العضو بنجاح", "success");
-      } else {
-        setData([
-          {
-            name: formName,
-            role: formRole || "عضو",
-            since: "1446",
-            attendance: 0,
-            phone: formPhone,
-            active: true,
-          },
-          ...data,
-        ]);
-        showToast("تم إضافة العضو بنجاح", "success");
-      }
-      closeMemberForm();
+      const payload = {
+        name: formName.trim(),
+        role: formRole,
+        type: formType,
+        phone: formPhone,
+      };
+      if (editingId) updateMutation.mutate({ id: editingId, ...payload });
+      else createMutation.mutate(payload);
     };
 
-    const handleAddSub = () => {
-      if (!subName.trim()) {
-        showToast("يرجى إدخال الاسم", "error");
-        return;
-      }
-      showToast(`تم إضافة اشتراك ${subType} للعضو ${subName}`, "success");
-      setSubFormOpen(false);
-      setSubName("");
-      setSubType("سنوي");
-    };
-
-    const handleDelete = () => {
-      setData(data.filter((_, i) => i !== confirmIdx));
-      showToast("تم حذف العضو", "success");
-      setConfirmIdx(-1);
-    };
+    const countType = (t: string) => items.filter((m) => m.type === t).length;
 
     return (
       <AppShell
@@ -114,30 +123,23 @@ export const Route = createFileRoute("/memberships")({
         title="العضويات ومجلس الإدارة"
         actions={
           <>
-            <ExportButton data={data} filename="memberships.csv" />
-            <Btn
-              variant="outline"
-              onClick={() => {
-                setSubName("");
-                setSubType("سنوي");
-                setSubFormOpen(true);
-              }}
-            >
-              <UserPlus size={15} /> إضافة اشتراك
-            </Btn>
-            <Btn variant="primary" onClick={openAddMember}>
+            <ExportButton
+              data={items as unknown as Record<string, unknown>[]}
+              filename="memberships.csv"
+            />
+            <Btn variant="primary" onClick={openAdd}>
               <Plus size={15} /> إضافة عضو
             </Btn>
           </>
         }
       >
-        <MobilePageHeader title="العضويات ومجلس الإدارة" count={`${data.length} عضو مجلس`} />
+        <MobilePageHeader title="العضويات ومجلس الإدارة" count={`${items.length} عضو`} />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
           {[
-            { l: "أعضاء الجمعية العمومية", v: "0" },
-            { l: "مجلس الإدارة", v: String(data.length) },
-            { l: "اشتراكات نشطة", v: "0" },
-            { l: "حضور آخر اجتماع", v: "0%" },
+            { l: "إجمالي الأعضاء", v: String(items.length) },
+            { l: "مجلس الإدارة", v: String(countType(MembershipType.BOARD)) },
+            { l: "الجمعية العمومية", v: String(countType(MembershipType.GENERAL_ASSEMBLY)) },
+            { l: "اللجان", v: String(countType(MembershipType.COMMITTEE)) },
           ].map((s) => (
             <Card key={s.l} className="p-4">
               <div className="text-xs text-muted-foreground">{s.l}</div>
@@ -146,41 +148,44 @@ export const Route = createFileRoute("/memberships")({
           ))}
         </div>
         <Card className="p-5">
-          <h3 className="font-bold mb-3">مجلس الإدارة الحالي</h3>
-          {data.length === 0 && (
+          <h3 className="font-bold mb-3">الأعضاء</h3>
+          {isLoading && (
+            <div className="text-sm text-muted-foreground py-8 text-center">جارٍ التحميل…</div>
+          )}
+          {error && (
+            <div className="text-sm text-destructive py-8 text-center">فشل في تحميل الأعضاء</div>
+          )}
+          {!isLoading && !error && items.length === 0 && (
             <EmptyState title="لا يوجد أعضاء" description="ابدأ بإضافة أعضاء مجلس الإدارة" />
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {data.map((m, idx) => (
-              <div key={m.name} className="flex items-center gap-3 rounded-xl border p-4">
+            {items.map((m) => (
+              <div key={m.id} className="flex items-center gap-3 rounded-xl border p-4">
                 <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
                   <UsersRound size={20} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold truncate">{m.name}</div>
                   <div className="text-xs text-muted-foreground">
-                    {m.role} · منذ {m.since}هـ
+                    {label("membershipRole", m.role)} · {label("membershipType", m.type)}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Badge tone="success">{m.attendance}%</Badge>
+                  <Badge tone={statusTone(m.status)}>{label("membershipStatus", m.status)}</Badge>
                   <ActionMenu
                     actions={[
                       {
                         label: "عرض",
                         icon: Eye,
-                        onClick: () => showToast(`${m.name} - ${m.role}`, "info"),
+                        onClick: () =>
+                          showToast(`${m.name} - ${label("membershipRole", m.role)}`, "info"),
                       },
-                      {
-                        label: "تعديل",
-                        icon: Edit,
-                        onClick: () => openEditMember(idx),
-                      },
+                      { label: "تعديل", icon: Edit, onClick: () => openEdit(m) },
                       {
                         label: "حذف",
                         icon: Trash2,
                         variant: "destructive" as const,
-                        onClick: () => setConfirmIdx(idx),
+                        onClick: () => setConfirmId(m.id),
                       },
                     ]}
                   />
@@ -192,9 +197,12 @@ export const Route = createFileRoute("/memberships")({
 
         <EntityFormDrawer
           open={formOpen}
-          onClose={closeMemberForm}
-          title={editingIdx >= 0 ? "تعديل عضو" : "إضافة عضو"}
-          onSave={handleAddMember}
+          onClose={() => {
+            setFormOpen(false);
+            setEditingId(null);
+          }}
+          title={editingId ? "تعديل عضو" : "إضافة عضو"}
+          onSave={handleSave}
         >
           <div>
             <label className="text-xs font-semibold text-muted-foreground">الاسم</label>
@@ -207,12 +215,31 @@ export const Route = createFileRoute("/memberships")({
           </div>
           <div>
             <label className="text-xs font-semibold text-muted-foreground">المنصب</label>
-            <input
+            <select
               className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
               value={formRole}
               onChange={(e) => setFormRole(e.target.value)}
-              placeholder="المسمى الوظيفي"
-            />
+            >
+              {options("membershipRole").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">الجهة</label>
+            <select
+              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
+              value={formType}
+              onChange={(e) => setFormType(e.target.value)}
+            >
+              {options("membershipType").map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="text-xs font-semibold text-muted-foreground">الجوال</label>
@@ -225,40 +252,11 @@ export const Route = createFileRoute("/memberships")({
           </div>
         </EntityFormDrawer>
 
-        <EntityFormDrawer
-          open={subFormOpen}
-          onClose={() => setSubFormOpen(false)}
-          title="إضافة اشتراك"
-          onSave={handleAddSub}
-        >
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">اسم العضو</label>
-            <input
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={subName}
-              onChange={(e) => setSubName(e.target.value)}
-              placeholder="الاسم"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">نوع الاشتراك</label>
-            <select
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              value={subType}
-              onChange={(e) => setSubType(e.target.value)}
-            >
-              <option>سنوي</option>
-              <option>شهري</option>
-              <option>دائم</option>
-            </select>
-          </div>
-        </EntityFormDrawer>
-
-        {confirmIdx >= 0 && (
+        {confirmId !== null && (
           <ConfirmDialog
             open
-            onClose={() => setConfirmIdx(-1)}
-            onConfirm={handleDelete}
+            onClose={() => setConfirmId(null)}
+            onConfirm={() => deleteMutation.mutate(confirmId)}
             title="تأكيد الحذف"
             message="هل أنت متأكد من حذف العضو؟"
             confirmText="حذف"

@@ -65,6 +65,8 @@ import { Route as AssetsNewRouteImport } from './routes/assets_.new'
 import { Route as ApiUsersRouteImport } from './routes/api/users'
 import { Route as ApiReceiptsRouteImport } from './routes/api/receipts'
 import { Route as ApiProjectsRouteImport } from './routes/api/projects'
+import { Route as ApiMembershipsRouteImport } from './routes/api/memberships'
+import { Route as ApiMeetingsRouteImport } from './routes/api/meetings'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiGrantsRouteImport } from './routes/api/grants'
 import { Route as ApiEndowmentsRouteImport } from './routes/api/endowments'
@@ -399,6 +401,16 @@ const ApiProjectsRoute = ApiProjectsRouteImport.update({
   path: '/api/projects',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMembershipsRoute = ApiMembershipsRouteImport.update({
+  id: '/api/memberships',
+  path: '/api/memberships',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMeetingsRoute = ApiMeetingsRouteImport.update({
+  id: '/api/meetings',
+  path: '/api/meetings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
@@ -708,6 +720,8 @@ export interface FileRoutesByFullPath {
   '/api/endowments': typeof ApiEndowmentsRoute
   '/api/grants': typeof ApiGrantsRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/meetings': typeof ApiMeetingsRoute
+  '/api/memberships': typeof ApiMembershipsRoute
   '/api/projects': typeof ApiProjectsRoute
   '/api/receipts': typeof ApiReceiptsRoute
   '/api/users': typeof ApiUsersRoute
@@ -819,6 +833,8 @@ export interface FileRoutesByTo {
   '/api/endowments': typeof ApiEndowmentsRoute
   '/api/grants': typeof ApiGrantsRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/meetings': typeof ApiMeetingsRoute
+  '/api/memberships': typeof ApiMembershipsRoute
   '/api/projects': typeof ApiProjectsRoute
   '/api/receipts': typeof ApiReceiptsRoute
   '/api/users': typeof ApiUsersRoute
@@ -931,6 +947,8 @@ export interface FileRoutesById {
   '/api/endowments': typeof ApiEndowmentsRoute
   '/api/grants': typeof ApiGrantsRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/meetings': typeof ApiMeetingsRoute
+  '/api/memberships': typeof ApiMembershipsRoute
   '/api/projects': typeof ApiProjectsRoute
   '/api/receipts': typeof ApiReceiptsRoute
   '/api/users': typeof ApiUsersRoute
@@ -1044,6 +1062,8 @@ export interface FileRouteTypes {
     | '/api/endowments'
     | '/api/grants'
     | '/api/health'
+    | '/api/meetings'
+    | '/api/memberships'
     | '/api/projects'
     | '/api/receipts'
     | '/api/users'
@@ -1155,6 +1175,8 @@ export interface FileRouteTypes {
     | '/api/endowments'
     | '/api/grants'
     | '/api/health'
+    | '/api/meetings'
+    | '/api/memberships'
     | '/api/projects'
     | '/api/receipts'
     | '/api/users'
@@ -1266,6 +1288,8 @@ export interface FileRouteTypes {
     | '/api/endowments'
     | '/api/grants'
     | '/api/health'
+    | '/api/meetings'
+    | '/api/memberships'
     | '/api/projects'
     | '/api/receipts'
     | '/api/users'
@@ -1378,6 +1402,8 @@ export interface RootRouteChildren {
   ApiEndowmentsRoute: typeof ApiEndowmentsRoute
   ApiGrantsRoute: typeof ApiGrantsRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiMeetingsRoute: typeof ApiMeetingsRoute
+  ApiMembershipsRoute: typeof ApiMembershipsRoute
   ApiProjectsRoute: typeof ApiProjectsRoute
   ApiReceiptsRoute: typeof ApiReceiptsRoute
   ApiUsersRoute: typeof ApiUsersRoute
@@ -1845,6 +1871,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProjectsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/memberships': {
+      id: '/api/memberships'
+      path: '/api/memberships'
+      fullPath: '/api/memberships'
+      preLoaderRoute: typeof ApiMembershipsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/meetings': {
+      id: '/api/meetings'
+      path: '/api/meetings'
+      fullPath: '/api/meetings'
+      preLoaderRoute: typeof ApiMeetingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
@@ -2258,6 +2298,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiEndowmentsRoute: ApiEndowmentsRoute,
   ApiGrantsRoute: ApiGrantsRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiMeetingsRoute: ApiMeetingsRoute,
+  ApiMembershipsRoute: ApiMembershipsRoute,
   ApiProjectsRoute: ApiProjectsRoute,
   ApiReceiptsRoute: ApiReceiptsRoute,
   ApiUsersRoute: ApiUsersRoute,
