@@ -4,7 +4,8 @@ import { and, count, desc, eq, like, or } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { inventoryItems, warehouses, stockMovements, purchaseOrderLines } from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
-import { InventoryItemStatus, StockMovementType } from "@/lib/enums";
+import { InventoryItemStatus, StockMovementType, JournalSource } from "@/lib/enums";
+import { postBalancedEntry, resolveSystemAccountId, SYS } from "@/server/db/gl";
 
 // GET /api/inventory/items?id=xxx — single with movement/PO usage; else list.
 async function GET({ request }: { request: Request }, _ctx: Ctx) {
@@ -12,7 +13,9 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const item = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1))[0];
+    const item = (
+      await db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1)
+    )[0];
     if (!item) return err("الصنف غير موجود", 404, "NOT_FOUND");
 
     const [{ c: movementCount }] = await db
@@ -68,7 +71,9 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
 }
 
 const postSchema = z.object({
-  action: z.enum(["activate", "deactivate", "receive", "issue", "adjust", "transfer", "create"]).optional(),
+  action: z
+    .enum(["activate", "deactivate", "receive", "issue", "adjust", "transfer", "create"])
+    .optional(),
   id: z.string().optional(),
   name: z.string().optional(),
   sku: z.string().optional(),
@@ -92,7 +97,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
 
     if (b.action === "activate" || b.action === "deactivate") {
       if (!b.id) return err("معرف الصنف مطلوب", 400, "BAD_REQUEST");
-      const existing = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
+      const existing = (
+        await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1)
+      )[0];
       if (!existing) return err("الصنف غير موجود", 404, "NOT_FOUND");
 
       const newStatus =
@@ -120,7 +127,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
         before,
         ip: ctx.ip,
       });
-      const updated = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
+      const updated = (
+        await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1)
+      )[0];
       return Response.json({ item: updated });
     }
 
@@ -137,7 +146,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     if (!b.unit?.trim()) return err("الوحدة مطلوبة", 400, "BAD_REQUEST");
 
     if (b.warehouseId) {
-      const wh = (await db.select().from(warehouses).where(eq(warehouses.id, b.warehouseId)).limit(1))[0];
+      const wh = (
+        await db.select().from(warehouses).where(eq(warehouses.id, b.warehouseId)).limit(1)
+      )[0];
       if (!wh) return err("المستودع غير موجود", 400, "BAD_REQUEST");
     }
 
@@ -191,7 +202,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
       ip: ctx.ip,
     });
 
-    const created = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, itemId)).limit(1))[0];
+    const created = (
+      await db.select().from(inventoryItems).where(eq(inventoryItems.id, itemId)).limit(1)
+    )[0];
     return Response.json({ item: created }, { status: 201 });
   });
 }
@@ -202,7 +215,9 @@ async function handleStockMovement(b: PostBody, ctx: Ctx) {
   const qty = b.quantity ?? 0;
   if (qty <= 0) return err("الكمية يجب أن تكون أكبر من صفر", 400, "BAD_REQUEST");
 
-  const item = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
+  const item = (
+    await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1)
+  )[0];
   if (!item) return err("الصنف غير موجود", 404, "NOT_FOUND");
   if (item.status === InventoryItemStatus.INACTIVE)
     return err("الصنف موقوف. لا يمكن إجراء حركات عليه.", 400, "ITEM_INACTIVE");
@@ -231,6 +246,13 @@ async function handleStockMovement(b: PostBody, ctx: Ctx) {
 
   const whId = b.warehouseId || item.warehouseId;
   const ts = now();
+  const movementId = genId("MV");
+  const unitPrice = item.price || 0;
+
+  // Value moved through the GL (issue = cost of goods distributed; adjust = value delta).
+  const outValue = movementType === StockMovementType.OUT ? qty * unitPrice : 0;
+  const adjustDelta = movementType === StockMovementType.ADJUSTMENT ? newQty - item.quantity : 0;
+  const adjustValue = Math.abs(adjustDelta) * unitPrice;
 
   await db.transaction(async (tx) => {
     await tx
@@ -239,7 +261,7 @@ async function handleStockMovement(b: PostBody, ctx: Ctx) {
       .where(eq(inventoryItems.id, b.id!));
 
     await tx.insert(stockMovements).values({
-      id: genId("MV"),
+      id: movementId,
       itemId: b.id!,
       warehouseId: whId || null,
       type: movementType,
@@ -252,6 +274,57 @@ async function handleStockMovement(b: PostBody, ctx: Ctx) {
       createdBy: ctx.user.id,
       createdAt: ts,
     });
+
+    // Inventory issue (صرف مخزون / توزيع عيني): Dr in-kind aid expense, Cr inventory.
+    if (movementType === StockMovementType.OUT && outValue > 0) {
+      // Prefer the dedicated in-kind aid account (5102); fall back to the general
+      // aid expense on databases seeded before the inkind_aid system key existed.
+      let inkindAid: string;
+      try {
+        inkindAid = await resolveSystemAccountId(tx as any, SYS.INKIND_AID);
+      } catch {
+        inkindAid = await resolveSystemAccountId(tx as any, SYS.AID_EXPENSE);
+      }
+      const inventory = await resolveSystemAccountId(tx as any, SYS.INVENTORY);
+      await postBalancedEntry(tx as any, {
+        date: ts.slice(0, 10),
+        description: `صرف/توزيع مخزون — ${item.name}: ${qty} ${item.unit}`,
+        source: JournalSource.DISTRIBUTION,
+        sourceType: "inventory_issue",
+        sourceId: movementId,
+        lines: [
+          { accountId: inkindAid, debit: outValue },
+          { accountId: inventory, credit: outValue },
+        ],
+        userId: ctx.user.id,
+      });
+    }
+
+    // Manual quantity adjustment: value the delta so inventory stays correct.
+    if (movementType === StockMovementType.ADJUSTMENT && adjustValue > 0) {
+      const inventory = await resolveSystemAccountId(tx as any, SYS.INVENTORY);
+      const adjustment = await resolveSystemAccountId(tx as any, SYS.INVENTORY_ADJUSTMENT);
+      // Shortage (delta < 0): Dr adjustment, Cr inventory. Surplus: reverse.
+      const glLines =
+        adjustDelta < 0
+          ? [
+              { accountId: adjustment, debit: adjustValue },
+              { accountId: inventory, credit: adjustValue },
+            ]
+          : [
+              { accountId: inventory, debit: adjustValue },
+              { accountId: adjustment, credit: adjustValue },
+            ];
+      await postBalancedEntry(tx as any, {
+        date: ts.slice(0, 10),
+        description: `تسوية مخزون يدوية — ${item.name} (الرصيد ${newQty})`,
+        source: JournalSource.ADJUSTMENT,
+        sourceType: "inventory_adjust",
+        sourceId: movementId,
+        lines: glLines,
+        userId: ctx.user.id,
+      });
+    }
   });
 
   await addAudit({
@@ -264,7 +337,9 @@ async function handleStockMovement(b: PostBody, ctx: Ctx) {
     ip: ctx.ip,
   });
 
-  const updated = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
+  const updated = (
+    await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1)
+  )[0];
   return Response.json({ item: updated });
 }
 
@@ -278,7 +353,9 @@ async function handleTransfer(b: PostBody, ctx: Ctx) {
   if (b.fromWarehouseId === b.toWarehouseId)
     return err("المستودع المصدر والهدف يجب أن يكونا مختلفين", 400, "BAD_REQUEST");
 
-  const item = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
+  const item = (
+    await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1)
+  )[0];
   if (!item) return err("الصنف غير موجود", 404, "NOT_FOUND");
   if (item.status === InventoryItemStatus.INACTIVE)
     return err("الصنف موقوف. لا يمكن إجراء تحويل عليه.", 400, "ITEM_INACTIVE");
@@ -345,7 +422,9 @@ async function handleTransfer(b: PostBody, ctx: Ctx) {
     ip: ctx.ip,
   });
 
-  const updated = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
+  const updated = (
+    await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1)
+  )[0];
   return Response.json({ item: updated });
 }
 
@@ -366,7 +445,9 @@ const updateSchema = z.object({
 async function PUT(event: { request: Request }, ctx: Ctx) {
   return guard(async () => {
     const b = await parseBody(event.request, updateSchema);
-    const existing = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
+    const existing = (
+      await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1)
+    )[0];
     if (!existing) return err("الصنف غير موجود", 404, "NOT_FOUND");
 
     const before = JSON.stringify(existing);
@@ -397,7 +478,9 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
       ip: ctx.ip,
     });
 
-    const updated = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1))[0];
+    const updated = (
+      await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1)
+    )[0];
     return Response.json({ item: updated });
   });
 }
@@ -407,7 +490,9 @@ async function DELETE({ request }: { request: Request }, ctx: Ctx) {
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return err("معرف الصنف مطلوب", 400, "BAD_REQUEST");
 
-  const existing = (await db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1))[0];
+  const existing = (
+    await db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1)
+  )[0];
   if (!existing) return err("الصنف غير موجود", 404, "NOT_FOUND");
 
   const [{ c: movementCount }] = await db

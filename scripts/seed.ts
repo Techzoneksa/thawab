@@ -201,7 +201,7 @@ const COA: Row[] = [
   ["5", "المصروفات", "expense", false],
   ["51", "مصروفات البرامج والمساعدات", "expense", false],
   ["5101", "مساعدات نقدية للمستفيدين", "expense", true, "aid_expense"],
-  ["5102", "مساعدات عينية", "expense", true],
+  ["5102", "مساعدات عينية", "expense", true, "inkind_aid"],
   ["5103", "سلال غذائية", "expense", true],
   ["5104", "كفالة الأيتام", "expense", true],
   ["5105", "مساعدات طبية وعلاجية", "expense", true],

@@ -23,6 +23,7 @@ export const SYS = {
   BANK: "bank_main",
   DONATIONS_REVENUE: "donations_revenue",
   AID_EXPENSE: "aid_expense",
+  INKIND_AID: "inkind_aid",
   ACCOUNTS_PAYABLE: "accounts_payable",
   INVENTORY: "inventory",
   INVENTORY_ADJUSTMENT: "inventory_adjustment",
