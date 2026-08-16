@@ -26,6 +26,16 @@ if (existsSync(sourcePublic)) {
   await cp(sourcePublic, targetPublic, { recursive: true });
 }
 
+// Ship the drizzle migration files inside the server bundle so runtime
+// auto-migrate can find them even when the deploy only includes `server/`
+// (not the repo root). ensureInit() checks `server/drizzle` as a candidate.
+const sourceDrizzle = resolve(root, "drizzle");
+if (existsSync(sourceDrizzle)) {
+  const targetDrizzle = resolve(targetServer, "drizzle");
+  await cp(sourceDrizzle, targetDrizzle, { recursive: true });
+  console.log(`[postbuild] copied migrations to ${targetDrizzle}/`);
+}
+
 console.log(`[postbuild] mirrored server bundle to ${targetServer}/`);
 if (existsSync(sourcePublic)) {
   console.log(`[postbuild] mirrored static assets to ${targetPublic}/`);

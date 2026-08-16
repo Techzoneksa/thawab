@@ -26,9 +26,18 @@ let _initPromise: Promise<void> | null = null;
 export function ensureInit(): Promise<void> {
   if (_initPromise) return _initPromise;
   _initPromise = (async () => {
-    const folder = resolve(process.cwd(), "drizzle");
-    if (!existsSync(folder)) {
-      console.warn(`[db] migrations folder not found at ${folder} — assuming DB migrated externally (npm run db:migrate).`);
+    // Look in several candidate locations: the repo root (dev / full-repo
+    // deploys) and inside the server bundle (postbuild ships migrations to
+    // `server/drizzle` for deploys that only include the built server).
+    const candidates = [
+      resolve(process.cwd(), "drizzle"),
+      resolve(process.cwd(), "server", "drizzle"),
+    ];
+    const folder = candidates.find((c) => existsSync(c));
+    if (!folder) {
+      console.warn(
+        `[db] migrations folder not found (checked: ${candidates.join(", ")}) — assuming DB migrated externally (npm run db:migrate).`,
+      );
       return;
     }
     const t0 = Date.now();
