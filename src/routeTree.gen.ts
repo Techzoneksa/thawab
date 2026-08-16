@@ -27,6 +27,7 @@ import { Route as DonorsRouteImport } from './routes/donors'
 import { Route as DonorOrgsRouteImport } from './routes/donor-orgs'
 import { Route as DonationsRouteImport } from './routes/donations'
 import { Route as DistributionRouteImport } from './routes/distribution'
+import { Route as DataRouteImport } from './routes/data'
 import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as BeneficiariesRouteImport } from './routes/beneficiaries'
 import { Route as AuditRouteImport } from './routes/audit'
@@ -157,6 +158,8 @@ import { Route as ApiFinanceJournalRouteImport } from './routes/api/finance/jour
 import { Route as ApiFinanceCostCentersRouteImport } from './routes/api/finance/cost-centers'
 import { Route as ApiFinanceBudgetsRouteImport } from './routes/api/finance/budgets'
 import { Route as ApiFinanceAccountsRouteImport } from './routes/api/finance/accounts'
+import { Route as ApiDataImportRouteImport } from './routes/api/data/import'
+import { Route as ApiDataExportRouteImport } from './routes/api/data/export'
 import { Route as AidIdEditRouteImport } from './routes/aid_.$id_.edit'
 import { Route as SettingsUsersIdEditRouteImport } from './routes/settings.users_.$id_.edit'
 import { Route as SettingsIntegrationsIdEditRouteImport } from './routes/settings.integrations_.$id_.edit'
@@ -263,6 +266,11 @@ const DonationsRoute = DonationsRouteImport.update({
 const DistributionRoute = DistributionRouteImport.update({
   id: '/distribution',
   path: '/distribution',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DataRoute = DataRouteImport.update({
+  id: '/data',
+  path: '/data',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CampaignsRoute = CampaignsRouteImport.update({
@@ -915,6 +923,16 @@ const ApiFinanceAccountsRoute = ApiFinanceAccountsRouteImport.update({
   path: '/api/finance/accounts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDataImportRoute = ApiDataImportRouteImport.update({
+  id: '/api/data/import',
+  path: '/api/data/import',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDataExportRoute = ApiDataExportRouteImport.update({
+  id: '/api/data/export',
+  path: '/api/data/export',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AidIdEditRoute = AidIdEditRouteImport.update({
   id: '/aid_/$id_/edit',
   path: '/aid/$id/edit',
@@ -1015,6 +1033,7 @@ export interface FileRoutesByFullPath {
   '/audit': typeof AuditRoute
   '/beneficiaries': typeof BeneficiariesRoute
   '/campaigns': typeof CampaignsRoute
+  '/data': typeof DataRoute
   '/distribution': typeof DistributionRoute
   '/donations': typeof DonationsRoute
   '/donor-orgs': typeof DonorOrgsRoute
@@ -1101,6 +1120,8 @@ export interface FileRoutesByFullPath {
   '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
   '/aid/$id/edit': typeof AidIdEditRoute
+  '/api/data/export': typeof ApiDataExportRoute
+  '/api/data/import': typeof ApiDataImportRoute
   '/api/finance/accounts': typeof ApiFinanceAccountsRoute
   '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
   '/api/finance/cost-centers': typeof ApiFinanceCostCentersRoute
@@ -1182,6 +1203,7 @@ export interface FileRoutesByTo {
   '/audit': typeof AuditRoute
   '/beneficiaries': typeof BeneficiariesRoute
   '/campaigns': typeof CampaignsRoute
+  '/data': typeof DataRoute
   '/distribution': typeof DistributionRoute
   '/donations': typeof DonationsRoute
   '/donor-orgs': typeof DonorOrgsRoute
@@ -1268,6 +1290,8 @@ export interface FileRoutesByTo {
   '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
   '/aid/$id/edit': typeof AidIdEditRoute
+  '/api/data/export': typeof ApiDataExportRoute
+  '/api/data/import': typeof ApiDataImportRoute
   '/api/finance/accounts': typeof ApiFinanceAccountsRoute
   '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
   '/api/finance/cost-centers': typeof ApiFinanceCostCentersRoute
@@ -1350,6 +1374,7 @@ export interface FileRoutesById {
   '/audit': typeof AuditRoute
   '/beneficiaries': typeof BeneficiariesRoute
   '/campaigns': typeof CampaignsRoute
+  '/data': typeof DataRoute
   '/distribution': typeof DistributionRoute
   '/donations': typeof DonationsRoute
   '/donor-orgs': typeof DonorOrgsRoute
@@ -1436,6 +1461,8 @@ export interface FileRoutesById {
   '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
   '/aid_/$id_/edit': typeof AidIdEditRoute
+  '/api/data/export': typeof ApiDataExportRoute
+  '/api/data/import': typeof ApiDataImportRoute
   '/api/finance/accounts': typeof ApiFinanceAccountsRoute
   '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
   '/api/finance/cost-centers': typeof ApiFinanceCostCentersRoute
@@ -1519,6 +1546,7 @@ export interface FileRouteTypes {
     | '/audit'
     | '/beneficiaries'
     | '/campaigns'
+    | '/data'
     | '/distribution'
     | '/donations'
     | '/donor-orgs'
@@ -1605,6 +1633,8 @@ export interface FileRouteTypes {
     | '/settings/system'
     | '/settings/users'
     | '/aid/$id/edit'
+    | '/api/data/export'
+    | '/api/data/import'
     | '/api/finance/accounts'
     | '/api/finance/budgets'
     | '/api/finance/cost-centers'
@@ -1686,6 +1716,7 @@ export interface FileRouteTypes {
     | '/audit'
     | '/beneficiaries'
     | '/campaigns'
+    | '/data'
     | '/distribution'
     | '/donations'
     | '/donor-orgs'
@@ -1772,6 +1803,8 @@ export interface FileRouteTypes {
     | '/settings/system'
     | '/settings/users'
     | '/aid/$id/edit'
+    | '/api/data/export'
+    | '/api/data/import'
     | '/api/finance/accounts'
     | '/api/finance/budgets'
     | '/api/finance/cost-centers'
@@ -1853,6 +1886,7 @@ export interface FileRouteTypes {
     | '/audit'
     | '/beneficiaries'
     | '/campaigns'
+    | '/data'
     | '/distribution'
     | '/donations'
     | '/donor-orgs'
@@ -1939,6 +1973,8 @@ export interface FileRouteTypes {
     | '/settings/system'
     | '/settings/users'
     | '/aid_/$id_/edit'
+    | '/api/data/export'
+    | '/api/data/import'
     | '/api/finance/accounts'
     | '/api/finance/budgets'
     | '/api/finance/cost-centers'
@@ -2021,6 +2057,7 @@ export interface RootRouteChildren {
   AuditRoute: typeof AuditRoute
   BeneficiariesRoute: typeof BeneficiariesRoute
   CampaignsRoute: typeof CampaignsRoute
+  DataRoute: typeof DataRoute
   DistributionRoute: typeof DistributionRoute
   DonationsRoute: typeof DonationsRoute
   DonorOrgsRoute: typeof DonorOrgsRoute
@@ -2106,6 +2143,8 @@ export interface RootRouteChildren {
   SettingsSystemRoute: typeof SettingsSystemRoute
   SettingsUsersRoute: typeof SettingsUsersRoute
   AidIdEditRoute: typeof AidIdEditRoute
+  ApiDataExportRoute: typeof ApiDataExportRoute
+  ApiDataImportRoute: typeof ApiDataImportRoute
   ApiFinanceAccountsRoute: typeof ApiFinanceAccountsRoute
   ApiFinanceBudgetsRoute: typeof ApiFinanceBudgetsRoute
   ApiFinanceCostCentersRoute: typeof ApiFinanceCostCentersRoute
@@ -2303,6 +2342,13 @@ declare module '@tanstack/react-router' {
       path: '/distribution'
       fullPath: '/distribution'
       preLoaderRoute: typeof DistributionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/data': {
+      id: '/data'
+      path: '/data'
+      fullPath: '/data'
+      preLoaderRoute: typeof DataRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/campaigns': {
@@ -3215,6 +3261,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFinanceAccountsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/data/import': {
+      id: '/api/data/import'
+      path: '/api/data/import'
+      fullPath: '/api/data/import'
+      preLoaderRoute: typeof ApiDataImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/data/export': {
+      id: '/api/data/export'
+      path: '/api/data/export'
+      fullPath: '/api/data/export'
+      preLoaderRoute: typeof ApiDataExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/aid_/$id_/edit': {
       id: '/aid_/$id_/edit'
       path: '/aid/$id/edit'
@@ -3369,6 +3429,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuditRoute: AuditRoute,
   BeneficiariesRoute: BeneficiariesRoute,
   CampaignsRoute: CampaignsRoute,
+  DataRoute: DataRoute,
   DistributionRoute: DistributionRoute,
   DonationsRoute: DonationsRoute,
   DonorOrgsRoute: DonorOrgsRoute,
@@ -3454,6 +3515,8 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsSystemRoute: SettingsSystemRoute,
   SettingsUsersRoute: SettingsUsersRoute,
   AidIdEditRoute: AidIdEditRoute,
+  ApiDataExportRoute: ApiDataExportRoute,
+  ApiDataImportRoute: ApiDataImportRoute,
   ApiFinanceAccountsRoute: ApiFinanceAccountsRoute,
   ApiFinanceBudgetsRoute: ApiFinanceBudgetsRoute,
   ApiFinanceCostCentersRoute: ApiFinanceCostCentersRoute,

@@ -8,6 +8,7 @@ import {
   Bell,
   CheckSquare,
   Wallet,
+  ArrowDownUp,
   BookOpen,
   FileSpreadsheet,
   PiggyBank,
@@ -141,6 +142,7 @@ const NAV: NavGroup[] = [
     label: "التقارير والحوكمة",
     items: [
       { to: "/reports", label: "مركز التقارير", icon: FileBarChart },
+      { to: "/data", label: "الاستيراد والتصدير", icon: ArrowDownUp },
       { to: "/audit", label: "سجل التدقيق", icon: FileSearch },
       { to: "/permissions", label: "الصلاحيات", icon: KeyRound },
       { to: "/workflows", label: "سير العمل", icon: Workflow },
