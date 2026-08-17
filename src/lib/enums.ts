@@ -175,6 +175,13 @@ export type AccountStatus = (typeof AccountStatus)[keyof typeof AccountStatus];
 
 export const JournalStatus = {
   DRAFT: "draft",
+  // Phase 1B governance lifecycle (maker → checker → poster). These sit BETWEEN
+  // draft and posted and never touch the General Ledger (GL_STATES stays
+  // [posted, reversed]). "returned" is expressed as a transition back to DRAFT,
+  // so it needs no persistent status.
+  SUBMITTED: "submitted",
+  APPROVED: "approved",
+  REJECTED: "rejected",
   PENDING: "pending",
   POSTED: "posted",
   REVERSED: "reversed",

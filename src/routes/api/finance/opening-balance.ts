@@ -3,10 +3,12 @@ import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { db, addAudit } from "@/server/db/index";
 import { journalEntries, journalLines } from "@/server/db/schema";
+import { and, inArray } from "drizzle-orm";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
-import { postBalancedEntry, existingSourceEntryId } from "@/server/db/gl";
+import { postBalancedEntry } from "@/server/db/gl";
 import { AppError } from "@/server/db/errors";
 import { JournalStatus } from "@/lib/enums";
+import { FINANCE_PERMISSIONS } from "@/lib/finance-permissions";
 
 const OPENING_SOURCE = "opening_balance";
 
@@ -62,9 +64,31 @@ async function POST(event: { request: Request }, ctx: Ctx) {
         "UNBALANCED",
       );
 
+    // Governance (Phase 1B): opening balances are created as DRAFT and must
+    // pass through the SAME certified journal workflow (submit → approve →
+    // post). Creating never posts, so no one can create-and-post in one step.
     const entryId = await db.transaction(async (tx) => {
-      const dup = await existingSourceEntryId(tx as any, OPENING_SOURCE, sourceId);
-      if (dup) throw new AppError(`يوجد رصيد افتتاحي مُرحّل بالفعل للسنة ${year}`);
+      // One active opening journal per fiscal year (draft/submitted/approved/
+      // posted). The DB unique index additionally guarantees one POSTED opening
+      // per year at post time.
+      const active = await tx
+        .select({ id: journalEntries.id })
+        .from(journalEntries)
+        .where(
+          and(
+            eq(journalEntries.sourceType, OPENING_SOURCE),
+            eq(journalEntries.sourceId, sourceId),
+            inArray(journalEntries.status, [
+              JournalStatus.DRAFT,
+              JournalStatus.SUBMITTED,
+              JournalStatus.APPROVED,
+              JournalStatus.POSTED,
+            ]),
+          ),
+        )
+        .limit(1);
+      if (active.length > 0)
+        throw new AppError(`يوجد رصيد افتتاحي قائم بالفعل للسنة ${year}`, 409, "OPENING_EXISTS");
       return postBalancedEntry(tx as any, {
         date,
         description: `الأرصدة الافتتاحية — ${year}`,
@@ -77,15 +101,15 @@ async function POST(event: { request: Request }, ctx: Ctx) {
           credit: Number(l.credit || 0),
         })),
         userId: ctx.user.id,
-        status: JournalStatus.POSTED,
+        status: JournalStatus.DRAFT,
       });
     });
 
     await addAudit({
-      action: "post",
+      action: "JOURNAL_CREATED",
       entityType: "opening_balance",
       entityId: entryId,
-      description: `ترحيل أرصدة افتتاحية للسنة ${year} بإجمالي ${totalDebit} ر.س`,
+      description: `إنشاء مسودة أرصدة افتتاحية للسنة ${year} بإجمالي ${totalDebit} ر.س (تتطلب اعتماداً وترحيلاً)`,
       userId: ctx.user.id,
       userName: ctx.user.name,
       ip: ctx.ip,
@@ -106,7 +130,8 @@ export const Route = createFileRoute("/api/finance/opening-balance")({
   server: {
     handlers: {
       GET: authHandler("finance.view", GET),
-      POST: authHandler("finance.create", POST),
+      // Create draft only — approval & posting go through the journal workflow.
+      POST: authHandler(FINANCE_PERMISSIONS.openingCreate, POST),
     },
   },
 });

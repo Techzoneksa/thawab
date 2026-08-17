@@ -317,6 +317,13 @@ export const journalEntries = pgTable(
     sourceType: text("source_type"),
     sourceId: text("source_id"),
     status: text("status").notNull().default("draft"),
+    // Phase 1B workflow actors (maker → checker → poster). Full chronological
+    // history lives in finance_workflow_events; these are the latest-actor
+    // convenience columns.
+    submittedBy: text("submitted_by").references(() => users.id),
+    submittedAt: text("submitted_at"),
+    approvedBy: text("approved_by").references(() => users.id),
+    approvedAt: text("approved_at"),
     postedBy: text("posted_by").references(() => users.id),
     postedAt: text("posted_at"),
     reversedBy: text("reversed_by"),
@@ -357,6 +364,31 @@ export const journalLines = pgTable(
   (t) => ({
     entryIdx: index("journal_lines_entry_idx").on(t.journalEntryId),
     accountIdx: index("journal_lines_account_idx").on(t.accountId),
+  }),
+);
+
+// Phase 1B — immutable financial workflow history. Every governance transition
+// (submit/approve/return/reject/post/reverse/cancel, period close/reopen)
+// appends one row; rows are never updated or deleted. Reason is required for
+// return/reject/reverse/reopen. No PII beyond actor id/name.
+export const financeWorkflowEvents = pgTable(
+  "finance_workflow_events",
+  {
+    id: text("id").primaryKey(),
+    entityType: text("entity_type").notNull(), // journal_entry | fiscal_period
+    entityId: text("entity_id").notNull(),
+    action: text("action").notNull(), // submit|approve|return|reject|post|reverse|cancel|close|reopen
+    fromStatus: text("from_status"),
+    toStatus: text("to_status"),
+    userId: text("user_id").references(() => users.id),
+    userName: text("user_name").default(""),
+    reason: text("reason").default(""),
+    metadata: text("metadata").default("{}"),
+    createdAt: text("created_at").notNull().default(""),
+  },
+  (t) => ({
+    entityIdx: index("finance_workflow_events_entity_idx").on(t.entityType, t.entityId),
+    createdIdx: index("finance_workflow_events_created_idx").on(t.createdAt),
   }),
 );
 

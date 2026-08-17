@@ -4,6 +4,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { accounts, costCenters, budgets, budgetLines, importBatches } from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
+import { hasPermission } from "@/server/db/auth";
 import { postBalancedEntry } from "@/server/db/gl";
 import { JournalStatus, Fund, BudgetStatus } from "@/lib/enums";
 
@@ -53,6 +54,13 @@ const validFund = (f?: string): f is (typeof Fund)[keyof typeof Fund] =>
 async function POST(event: { request: Request }, ctx: Ctx) {
   return guard(async () => {
     const body = await parseBody(event.request, importSchema);
+
+    // Governance (Phase 1B): journal import requires the dedicated import
+    // permission — which never implies posting (imported journals are created
+    // as DRAFT and must pass submit → approve → post like any manual journal).
+    const needed = body.type === "journal" ? "finance.import.journal" : "finance.budget.create";
+    if (!(await hasPermission(ctx.user.role, needed)))
+      return err("لا تملك صلاحية لهذا الاستيراد", 403, "FORBIDDEN");
 
     // Resolve account codes → ids (shared by both flows).
     const accs = await db.select().from(accounts);
@@ -298,5 +306,5 @@ async function POST(event: { request: Request }, ctx: Ctx) {
 }
 
 export const Route = createFileRoute("/api/data/import")({
-  server: { handlers: { POST: authHandler("finance.create", POST) } },
+  server: { handlers: { POST: authHandler("finance.view", POST) } },
 });

@@ -11,9 +11,12 @@ import {
   importBatches,
 } from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
-import { postBalancedEntry, postDraftEntry, reverseEntry } from "@/server/db/gl";
+import { postBalancedEntry } from "@/server/db/gl";
+import { hasPermission } from "@/server/db/auth";
+import { transitionJournal, journalWorkflowHistory } from "@/server/db/finance-workflow";
 import { AppError } from "@/server/db/errors";
 import { JournalStatus, Fund } from "@/lib/enums";
+import { FINANCE_PERMISSIONS } from "@/lib/finance-permissions";
 
 const lineSchema = z.object({
   accountId: z.string().min(1),
@@ -37,7 +40,8 @@ const createSchema = z.object({
 
 const actionSchema = z.object({
   id: z.string().min(1),
-  action: z.enum(["post", "reverse", "cancel"]),
+  action: z.enum(["submit", "approve", "return", "reject", "post", "reverse", "cancel"]),
+  reason: z.string().optional(),
 });
 
 async function enrichLines(rows: any[]) {
@@ -108,6 +112,7 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
               .limit(1)
           )[0] || null
         : null;
+    const workflowHistory = await journalWorkflowHistory(id);
     return Response.json({
       item,
       lines,
@@ -115,6 +120,7 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
       reversedOf,
       reversalEntries,
       importBatch,
+      workflowHistory,
     });
   }
 
@@ -182,71 +188,18 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     // Distinguish create vs lifecycle action.
     const body = await event.request.json().catch(() => ({}));
     if (body && typeof body === "object" && "action" in body) {
-      const { id, action } = actionSchema.parse(body);
-      const entry = (
-        await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1)
-      )[0];
-      if (!entry) return err("القيد غير موجود", 404, "NOT_FOUND");
-
-      if (action === "post") {
-        // Single controlled path: balanced + accounts valid + OPEN period.
-        // postDraftEntry enforces the closed-period lock on the entry's date.
-        await db.transaction((tx) => postDraftEntry(tx as any, id, ctx.user.id));
-        await addAudit({
-          action: "post",
-          entityType: "journal_entry",
-          entityId: id,
-          description: `ترحيل القيد ${entry.number}`,
-          userId: ctx.user.id,
-          userName: ctx.user.name,
-          ip: ctx.ip,
-        });
-        const updated = (
-          await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1)
-        )[0];
-        return Response.json({ item: updated });
-      }
-
-      if (action === "reverse") {
-        const reversingId = await db.transaction((tx) => reverseEntry(tx as any, id, ctx.user.id));
-        await addAudit({
-          action: "reverse",
-          entityType: "journal_entry",
-          entityId: id,
-          description: `عكس القيد ${entry.number}`,
-          userId: ctx.user.id,
-          userName: ctx.user.name,
-          ip: ctx.ip,
-        });
-        const updated = (
-          await db.select().from(journalEntries).where(eq(journalEntries.id, reversingId)).limit(1)
-        )[0];
-        return Response.json({ item: updated });
-      }
-
-      // cancel
-      if (entry.status === JournalStatus.POSTED || entry.status === JournalStatus.REVERSED)
-        return err("لا يمكن إلغاء قيد مرحّل أو معكوس", 400, "BAD_STATE");
-      await db
-        .update(journalEntries)
-        .set({ status: JournalStatus.CANCELLED, updatedAt: now() })
-        .where(eq(journalEntries.id, id));
-      await addAudit({
-        action: "cancel",
-        entityType: "journal_entry",
-        entityId: id,
-        description: `إلغاء القيد ${entry.number}`,
-        userId: ctx.user.id,
-        userName: ctx.user.name,
-        ip: ctx.ip,
-      });
-      const cancelled = (
-        await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1)
-      )[0];
-      return Response.json({ item: cancelled });
+      // Every governance transition (submit/approve/return/reject/post/reverse/
+      // cancel) is enforced server-side by the workflow service: state matrix +
+      // exact per-action permission + maker≠checker + required reason. Posting
+      // and reversal reuse the certified Phase 1A engine.
+      const { id, action, reason } = actionSchema.parse(body);
+      const { item, reversalId } = await transitionJournal(ctx, id, action, reason);
+      return Response.json({ item, reversalId });
     }
 
-    // Create a new (draft) balanced entry.
+    // Create a new (draft) balanced entry — requires the create permission.
+    if (!(await hasPermission(ctx.user.role, FINANCE_PERMISSIONS.journalCreate)))
+      return err("لا تملك صلاحية إنشاء القيود", 403, "FORBIDDEN");
     const b = createSchema.parse(body);
     const entryId = await db.transaction((tx) =>
       postBalancedEntry(tx as any, {
@@ -385,10 +338,14 @@ async function DELETE({ request }: { request: Request }, ctx: Ctx) {
 export const Route = createFileRoute("/api/finance/journal")({
   server: {
     handlers: {
+      // Reads stay under the finance read permission. Every WRITE is granular:
+      // POST create → finance.journal.create (checked inside); POST actions →
+      // per-action permission enforced by the workflow service. Draft edit/
+      // delete require finance.journal.update_draft.
       GET: authHandler("finance.view", GET),
-      POST: authHandler("finance.create", POST),
-      PUT: authHandler("finance.update", PUT),
-      DELETE: authHandler("finance.delete", DELETE),
+      POST: authHandler("finance.view", POST),
+      PUT: authHandler(FINANCE_PERMISSIONS.journalUpdateDraft, PUT),
+      DELETE: authHandler(FINANCE_PERMISSIONS.journalUpdateDraft, DELETE),
     },
   },
 });

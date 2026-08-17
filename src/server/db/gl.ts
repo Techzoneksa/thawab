@@ -227,8 +227,15 @@ export async function postDraftEntry(tx: Db, entryId: string, userId: string): P
     await tx.select().from(journalEntries).where(eq(journalEntries.id, entryId)).limit(1)
   )[0];
   if (!entry) throw new AppError("GL: القيد غير موجود");
-  if (entry.status !== JournalStatus.DRAFT && entry.status !== JournalStatus.PENDING)
-    throw new AppError("GL: يمكن ترحيل المسودات فقط");
+  // Accepts pre-posting states only. Phase 1B routes manual journals through
+  // DRAFT → SUBMITTED → APPROVED and posts from APPROVED; automated subledger
+  // postings still arrive as DRAFT/PENDING. Posted/reversed/etc. are rejected.
+  if (
+    entry.status !== JournalStatus.DRAFT &&
+    entry.status !== JournalStatus.PENDING &&
+    entry.status !== JournalStatus.APPROVED
+  )
+    throw new AppError("GL: لا يمكن ترحيل هذا القيد في حالته الحالية");
 
   const lines = await tx
     .select()

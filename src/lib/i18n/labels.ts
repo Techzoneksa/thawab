@@ -87,6 +87,9 @@ const LABELS: Record<string, Dict> = {
   accountStatus: { active: "نشط", inactive: "غير نشط" },
   journalStatus: {
     draft: "مسودة",
+    submitted: "بانتظار الاعتماد",
+    approved: "معتمد",
+    rejected: "مرفوض",
     pending: "بانتظار الاعتماد",
     posted: "مرحّل",
     reversed: "معكوس",

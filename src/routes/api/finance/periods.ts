@@ -2,9 +2,19 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { fiscalPeriods, journalEntries, journalLines } from "@/server/db/schema";
-import { eq, like, and, desc, sql } from "drizzle-orm";
+import { eq, like, and, desc, inArray, sql } from "drizzle-orm";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
+import { hasPermission } from "@/server/db/auth";
+import { recordWorkflowEvent } from "@/server/db/finance-workflow";
 import { FiscalPeriodStatus, JournalStatus } from "@/lib/enums";
+import { FINANCE_PERMISSIONS } from "@/lib/finance-permissions";
+
+/** 403 helper — granular finance permission check inside a multi-action route. */
+async function require(ctx: Ctx, permission: string): Promise<Response | null> {
+  return (await hasPermission(ctx.user.role, permission))
+    ? null
+    : err("لا تملك صلاحية لهذا الإجراء المالي", 403, "FORBIDDEN");
+}
 
 // Map a database-level fiscal-period invariant violation (overlap trigger or
 // valid-range CHECK) to a controlled application error — the DB is the final
@@ -111,6 +121,8 @@ const createSchema = z.object({
 // POST /api/finance/periods - create a new fiscal period
 async function POST(event: { request: Request }, ctx: Ctx) {
   return guard(async () => {
+    const denied = await require(ctx, FINANCE_PERMISSIONS.periodManage);
+    if (denied) return denied;
     const b = await parseBody(event.request, createSchema);
 
     if (b.startDate > b.endDate) {
@@ -180,6 +192,7 @@ async function POST(event: { request: Request }, ctx: Ctx) {
 const putSchema = z.object({
   id: z.string().min(1, "معرف الفترة مطلوب"),
   action: z.enum(["close", "reopen"]).optional(),
+  reason: z.string().optional(),
   name: z.string().trim().min(1).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
@@ -198,26 +211,44 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
 
     // ---- CLOSE ----
     if (b.action === "close") {
+      const denied = await require(ctx, FINANCE_PERMISSIONS.periodClose);
+      if (denied) return denied;
       if (period.status === FiscalPeriodStatus.CLOSED) {
         return err("الفترة مقفلة بالفعل", 400, "ALREADY_CLOSED");
       }
 
-      // Block if any DRAFT entries exist in the period.
-      const draftEntries = await db
-        .select()
+      // Block if any UNRESOLVED workflow items exist in the period: drafts,
+      // submitted (awaiting approval), or approved-but-not-posted journals.
+      // A period must not close over accounting documents still in the pipeline.
+      const openItems = await db
+        .select({ status: journalEntries.status })
         .from(journalEntries)
         .where(
           and(
             sql`${journalEntries.date} >= ${period.startDate}`,
             sql`${journalEntries.date} <= ${period.endDate}`,
-            eq(journalEntries.status, JournalStatus.DRAFT),
+            inArray(journalEntries.status, [
+              JournalStatus.DRAFT,
+              JournalStatus.SUBMITTED,
+              JournalStatus.APPROVED,
+            ]),
           ),
         );
-      if (draftEntries.length > 0) {
-        return err(
-          `لا يمكن إقفال الفترة: يوجد ${draftEntries.length} قيد مسودة في هذه الفترة. قم بترحيلها أو إلغائها أولاً.`,
-          400,
-          "HAS_DRAFTS",
+      if (openItems.length > 0) {
+        const counts = { draft: 0, submitted: 0, approved: 0 };
+        for (const it of openItems) {
+          if (it.status === JournalStatus.DRAFT) counts.draft++;
+          else if (it.status === JournalStatus.SUBMITTED) counts.submitted++;
+          else if (it.status === JournalStatus.APPROVED) counts.approved++;
+        }
+        return Response.json(
+          {
+            error: true,
+            code: "HAS_OPEN_WORKFLOW_ITEMS",
+            message: `لا يمكن إقفال الفترة: يوجد مستندات محاسبية غير منتهية — مسودات: ${counts.draft}، بانتظار الاعتماد: ${counts.submitted}، معتمدة غير مُرحّلة: ${counts.approved}. أكملها أو ألغِها أولاً.`,
+            counts,
+          },
+          { status: 400 },
         );
       }
 
@@ -254,20 +285,32 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
 
       const before = JSON.stringify(period);
       const ts = now();
-      await db
-        .update(fiscalPeriods)
-        .set({
-          status: FiscalPeriodStatus.CLOSED,
-          closedAt: ts,
-          closedById: ctx.user.id,
-          closedByName: ctx.user.name,
-          notes: b.notes ?? period.notes,
-          updatedAt: ts,
-        })
-        .where(eq(fiscalPeriods.id, b.id));
+      await db.transaction(async (tx) => {
+        await tx
+          .update(fiscalPeriods)
+          .set({
+            status: FiscalPeriodStatus.CLOSED,
+            closedAt: ts,
+            closedById: ctx.user.id,
+            closedByName: ctx.user.name,
+            notes: b.notes ?? period.notes,
+            updatedAt: ts,
+          })
+          .where(eq(fiscalPeriods.id, b.id));
+        await recordWorkflowEvent(tx as any, {
+          entityType: "fiscal_period",
+          entityId: b.id,
+          action: "close",
+          fromStatus: FiscalPeriodStatus.OPEN,
+          toStatus: FiscalPeriodStatus.CLOSED,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          reason: (b.reason ?? "").trim(),
+        });
+      });
 
       await addAudit({
-        action: "close",
+        action: "PERIOD_CLOSED",
         entityType: "fiscal_period",
         entityId: b.id,
         description: `تم إقفال الفترة المالية: ${period.name} (من ${period.startDate} إلى ${period.endDate})`,
@@ -283,30 +326,46 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
       return Response.json({ item: updated });
     }
 
-    // ---- REOPEN ----
+    // ---- REOPEN ---- (higher-risk: dedicated permission + required reason)
     if (b.action === "reopen") {
+      const denied = await require(ctx, FINANCE_PERMISSIONS.periodReopen);
+      if (denied) return denied;
       if (period.status !== FiscalPeriodStatus.CLOSED) {
         return err("لا يمكن إعادة فتح فترة غير مقفلة", 400, "NOT_CLOSED");
       }
+      const reopenReason = (b.reason ?? "").trim();
+      if (!reopenReason) return err("سبب إعادة الفتح مطلوب", 400, "REASON_REQUIRED");
 
       const before = JSON.stringify(period);
       const ts = now();
-      await db
-        .update(fiscalPeriods)
-        .set({
-          status: FiscalPeriodStatus.OPEN,
-          reopenedAt: ts,
-          reopenedById: ctx.user.id,
-          reopenedByName: ctx.user.name,
-          updatedAt: ts,
-        })
-        .where(eq(fiscalPeriods.id, b.id));
+      await db.transaction(async (tx) => {
+        await tx
+          .update(fiscalPeriods)
+          .set({
+            status: FiscalPeriodStatus.OPEN,
+            reopenedAt: ts,
+            reopenedById: ctx.user.id,
+            reopenedByName: ctx.user.name,
+            updatedAt: ts,
+          })
+          .where(eq(fiscalPeriods.id, b.id));
+        await recordWorkflowEvent(tx as any, {
+          entityType: "fiscal_period",
+          entityId: b.id,
+          action: "reopen",
+          fromStatus: FiscalPeriodStatus.CLOSED,
+          toStatus: FiscalPeriodStatus.OPEN,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          reason: reopenReason,
+        });
+      });
 
       await addAudit({
-        action: "reopen",
+        action: "PERIOD_REOPENED",
         entityType: "fiscal_period",
         entityId: b.id,
-        description: `تم إعادة فتح الفترة المالية: ${period.name}`,
+        description: `تم إعادة فتح الفترة المالية: ${period.name} — ${reopenReason}`,
         userId: ctx.user.id,
         userName: ctx.user.name,
         before,
@@ -320,6 +379,8 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
     }
 
     // ---- UPDATE METADATA ----
+    const denied = await require(ctx, FINANCE_PERMISSIONS.periodManage);
+    if (denied) return denied;
     if (period.status === FiscalPeriodStatus.CLOSED) {
       return err("لا يمكن تعديل فترة مقفلة. أعد فتحها أولاً.", 400, "PERIOD_CLOSED");
     }
@@ -385,6 +446,8 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
 // DELETE /api/finance/periods?id=xxx - only open periods (never delete closed).
 // Identity comes from the session, never the query.
 async function DELETE({ request }: { request: Request }, ctx: Ctx) {
+  const denied = await require(ctx, FINANCE_PERMISSIONS.periodManage);
+  if (denied) return denied;
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return err("معرف الفترة مطلوب", 400, "BAD_REQUEST");
 
@@ -414,10 +477,12 @@ async function DELETE({ request }: { request: Request }, ctx: Ctx) {
 export const Route = createFileRoute("/api/finance/periods")({
   server: {
     handlers: {
+      // Reads under finance read; each mutation checks its granular permission
+      // inside (period.close / period.reopen / period.manage).
       GET: authHandler("finance.view", GET),
-      POST: authHandler("finance.create", POST),
-      PUT: authHandler("finance.update", PUT),
-      DELETE: authHandler("finance.delete", DELETE),
+      POST: authHandler("finance.view", POST),
+      PUT: authHandler("finance.view", PUT),
+      DELETE: authHandler("finance.view", DELETE),
     },
   },
 });

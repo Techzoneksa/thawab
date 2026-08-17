@@ -26,6 +26,9 @@ import {
   CheckCircle,
   RotateCcw,
   XCircle,
+  Send,
+  ThumbsUp,
+  Undo2,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
@@ -46,18 +49,80 @@ import {
   getJournalEntries,
   getJournalEntry,
   deleteJournalEntry,
-  postJournalEntry,
-  reverseJournalEntry,
-  cancelJournalEntry,
-  type JournalFund,
+  journalAction,
+  type JournalWorkflowAction,
   type JournalEntry,
   type JournalLine,
+  type WorkflowEvent,
 } from "@/lib/api/journal";
 
 export const Route = createFileRoute("/finance/journal")({
   head: () => ({ meta: [{ title: "قيود اليومية — ثواب" }] }),
   component: Page,
 });
+
+const ACTION_LABELS: Record<
+  JournalWorkflowAction,
+  { title: string; verb: string; done: string; reasonRequired: boolean; destructive?: boolean }
+> = {
+  submit: {
+    title: "إرسال للاعتماد",
+    verb: "إرسال",
+    done: "تم إرسال القيد للاعتماد",
+    reasonRequired: false,
+  },
+  approve: {
+    title: "اعتماد القيد",
+    verb: "اعتماد",
+    done: "تم اعتماد القيد",
+    reasonRequired: false,
+  },
+  return: {
+    title: "إعادة للتعديل",
+    verb: "إعادة",
+    done: "تمت إعادة القيد للمُعِدّ",
+    reasonRequired: true,
+  },
+  reject: {
+    title: "رفض القيد",
+    verb: "رفض",
+    done: "تم رفض القيد",
+    reasonRequired: true,
+    destructive: true,
+  },
+  post: { title: "ترحيل القيد", verb: "ترحيل", done: "تم ترحيل القيد", reasonRequired: false },
+  reverse: { title: "عكس القيد", verb: "عكس", done: "تم عكس القيد", reasonRequired: true },
+  cancel: {
+    title: "إلغاء القيد",
+    verb: "إلغاء",
+    done: "تم إلغاء القيد",
+    reasonRequired: false,
+    destructive: true,
+  },
+};
+
+const WF_ACTION_LABEL: Record<string, string> = {
+  submit: "إرسال للاعتماد",
+  approve: "اعتماد",
+  return: "إعادة للتعديل",
+  reject: "رفض",
+  post: "ترحيل",
+  reverse: "عكس",
+  cancel: "إلغاء",
+  close: "إغلاق فترة",
+  reopen: "إعادة فتح فترة",
+};
+
+// Operational work-queue presets (item 30).
+const QUEUES: { key: string; label: string; status: string }[] = [
+  { key: "all", label: "الكل", status: "" },
+  { key: "draft", label: "مسودات", status: JournalStatus.DRAFT },
+  { key: "awaiting_approval", label: "بانتظار الاعتماد", status: JournalStatus.SUBMITTED },
+  { key: "awaiting_posting", label: "معتمدة بانتظار الترحيل", status: JournalStatus.APPROVED },
+  { key: "posted", label: "مرحّلة", status: JournalStatus.POSTED },
+  { key: "rejected", label: "مرفوضة", status: JournalStatus.REJECTED },
+  { key: "reversed", label: "معكوسة", status: JournalStatus.REVERSED },
+];
 
 interface DraftLine {
   accountId: string;
@@ -81,8 +146,9 @@ function Page() {
   const [actionTarget, setActionTarget] = useState<{
     id: string;
     number: string;
-    action: "post" | "reverse" | "cancel";
+    action: JournalWorkflowAction;
   } | null>(null);
+  const [actionReason, setActionReason] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
@@ -133,29 +199,14 @@ function Page() {
   });
 
   const actionMutation = useMutation({
-    mutationFn: async (vars: {
-      id: string;
-      action: "post" | "reverse" | "cancel";
-      userId?: string;
-      userName?: string;
-    }) => {
-      const fns = {
-        post: postJournalEntry,
-        reverse: reverseJournalEntry,
-        cancel: cancelJournalEntry,
-      };
-      return fns[vars.action]({ id: vars.id, userId: vars.userId, userName: vars.userName });
-    },
+    mutationFn: (vars: { id: string; action: JournalWorkflowAction; reason?: string }) =>
+      journalAction(vars),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["journal"] });
       queryClient.invalidateQueries({ queryKey: ["journal-entry"] });
-      const labels = {
-        post: "تم ترحيل القيد",
-        reverse: "تم عكس القيد",
-        cancel: "تم إلغاء القيد",
-      };
-      showToast(labels[vars.action], "success");
+      showToast(ACTION_LABELS[vars.action].done, "success");
       setActionTarget(null);
+      setActionReason("");
     },
     onError: (err: Error) => showToast(err.message, "error"),
   });
@@ -166,15 +217,18 @@ function Page() {
     }
   };
 
+  const reasonNeeded = actionTarget ? ACTION_LABELS[actionTarget.action].reasonRequired : false;
   const handleActionConfirm = () => {
-    if (actionTarget) {
-      actionMutation.mutate({
-        id: actionTarget.id,
-        action: actionTarget.action,
-        userId: user?.id,
-        userName: user?.name,
-      });
+    if (!actionTarget) return;
+    if (reasonNeeded && !actionReason.trim()) {
+      showToast("السبب مطلوب لهذا الإجراء", "error");
+      return;
     }
+    actionMutation.mutate({
+      id: actionTarget.id,
+      action: actionTarget.action,
+      reason: actionReason.trim() || undefined,
+    });
   };
 
   const buildDoc = async (): Promise<DocumentDefinition> => {
@@ -256,6 +310,22 @@ function Page() {
               {s.value}
             </div>
           </Card>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {QUEUES.map((q) => (
+          <button
+            key={q.key}
+            onClick={() => setStatusFilter(q.status)}
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              statusFilter === q.status
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-background hover:bg-muted"
+            }`}
+          >
+            {q.label}
+          </button>
         ))}
       </div>
 
@@ -530,6 +600,46 @@ function Page() {
                 ))}
               </Card>
             )}
+
+            {/* Workflow timeline — how the journal reached its current state. */}
+            <div>
+              <div className="text-xs font-semibold text-muted-foreground mb-1">
+                مسار الاعتماد والترحيل
+              </div>
+              {detailData.workflowHistory && detailData.workflowHistory.length > 0 ? (
+                <ol className="relative space-y-2 border-r-2 border-muted pr-3">
+                  {detailData.workflowHistory.map((w: WorkflowEvent) => (
+                    <li key={w.id} className="text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold">
+                          {WF_ACTION_LABEL[w.action] || w.action}
+                        </span>
+                        <span className="text-muted-foreground tabular-nums">
+                          {w.createdAt?.slice(0, 16).replace("T", " ")}
+                        </span>
+                      </div>
+                      <div className="text-muted-foreground">
+                        بواسطة {w.userName || "—"}
+                        {w.fromStatus && w.toStatus ? (
+                          <>
+                            {" "}
+                            · {label("journalStatus", w.fromStatus)} →{" "}
+                            {label("journalStatus", w.toStatus)}
+                          </>
+                        ) : null}
+                      </div>
+                      {w.reason ? (
+                        <div className="mt-0.5 rounded bg-muted/40 px-2 py-1">
+                          السبب: {w.reason}
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <div className="text-xs text-muted-foreground">لا يوجد سجل مسار بعد.</div>
+              )}
+            </div>
           </div>
         )}
       </EntityFormDrawer>
@@ -545,36 +655,61 @@ function Page() {
         variant="destructive"
       />
 
-      <ConfirmDialog
-        open={!!actionTarget}
-        onClose={() => setActionTarget(null)}
-        onConfirm={handleActionConfirm}
-        title={
-          actionTarget
-            ? actionTarget.action === "post"
-              ? "ترحيل القيد"
-              : actionTarget.action === "reverse"
-                ? "عكس القيد"
-                : "إلغاء القيد"
-            : ""
-        }
-        message={
-          actionTarget
-            ? `هل تريد ${actionTarget.action === "post" ? "ترحيل" : actionTarget.action === "reverse" ? "عكس" : "إلغاء"} القيد "${actionTarget.number}"؟`
-            : ""
-        }
-        confirmText={
-          actionTarget
-            ? actionTarget.action === "post"
-              ? "ترحيل"
-              : actionTarget.action === "reverse"
-                ? "عكس"
-                : "إلغاء"
-            : ""
-        }
-        cancelText="رجوع"
-        variant={actionTarget?.action === "cancel" ? "destructive" : "default"}
-      />
+      {actionTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => {
+            setActionTarget(null);
+            setActionReason("");
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-card p-5 shadow-xl"
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <div className="text-base font-bold">{ACTION_LABELS[actionTarget.action].title}</div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              {`هل تريد ${ACTION_LABELS[actionTarget.action].verb} القيد "${actionTarget.number}"؟`}
+            </div>
+            {reasonNeeded && (
+              <div className="mt-3">
+                <label className="text-xs font-semibold text-muted-foreground">السبب (مطلوب)</label>
+                <textarea
+                  autoFocus
+                  className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
+                  rows={3}
+                  value={actionReason}
+                  onChange={(ev) => setActionReason(ev.target.value)}
+                  placeholder="اكتب سبباً واضحاً…"
+                />
+              </div>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <Btn
+                variant="ghost"
+                onClick={() => {
+                  setActionTarget(null);
+                  setActionReason("");
+                }}
+              >
+                رجوع
+              </Btn>
+              <Btn
+                variant="primary"
+                className={
+                  ACTION_LABELS[actionTarget.action].destructive
+                    ? "!bg-destructive !text-destructive-foreground"
+                    : undefined
+                }
+                disabled={actionMutation.isPending || (reasonNeeded && !actionReason.trim())}
+                onClick={handleActionConfirm}
+              >
+                {ACTION_LABELS[actionTarget.action].verb}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
 
       <MobileFilterDrawer open={filterOpen} onClose={() => setFilterOpen(false)}>
         <div className="space-y-4">
@@ -628,54 +763,55 @@ function getJournalActions(
   setDetailId: (id: string) => void,
   openEdit: (e: JournalEntry) => void,
   setDeleteTarget: (id: string) => void,
-  setActionTarget: (t: {
-    id: string;
-    number: string;
-    action: "post" | "reverse" | "cancel";
-  }) => void,
+  setActionTarget: (t: { id: string; number: string; action: JournalWorkflowAction }) => void,
 ) {
+  const t = (action: JournalWorkflowAction) => ({ id: e.id, number: e.number, action });
   const actions: Array<{
     label: string;
     icon: any;
     onClick: () => void;
     variant?: "destructive";
-  }> = [
-    {
-      label: "عرض التفاصيل",
-      icon: Eye,
-      onClick: () => setDetailId(e.id),
-    },
-  ];
+  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(e.id) }];
 
+  // Contextual by workflow state. The server is authoritative — buttons the
+  // user is not permitted to use return 403 on click.
   if (e.status === JournalStatus.DRAFT || e.status === JournalStatus.PENDING) {
     actions.push({ label: "تعديل", icon: Pencil, onClick: () => openEdit(e) });
     actions.push({
-      label: "ترحيل",
-      icon: CheckCircle,
-      onClick: () => setActionTarget({ id: e.id, number: e.number, action: "post" }),
+      label: "إرسال للاعتماد",
+      icon: Send,
+      onClick: () => setActionTarget(t("submit")),
     });
-    if (e.status === JournalStatus.DRAFT) {
-      actions.push({
-        label: "إلغاء",
-        icon: XCircle,
-        onClick: () => setActionTarget({ id: e.id, number: e.number, action: "cancel" }),
-        variant: "destructive",
-      });
+    actions.push({
+      label: "إلغاء",
+      icon: XCircle,
+      onClick: () => setActionTarget(t("cancel")),
+      variant: "destructive",
+    });
+    if (e.status === JournalStatus.DRAFT)
       actions.push({
         label: "حذف",
         icon: Trash2,
         onClick: () => setDeleteTarget(e.id),
         variant: "destructive",
       });
-    }
-  }
-
-  if (e.status === JournalStatus.POSTED) {
+  } else if (e.status === JournalStatus.SUBMITTED) {
+    actions.push({ label: "اعتماد", icon: ThumbsUp, onClick: () => setActionTarget(t("approve")) });
     actions.push({
-      label: "عكس",
-      icon: RotateCcw,
-      onClick: () => setActionTarget({ id: e.id, number: e.number, action: "reverse" }),
+      label: "إعادة للتعديل",
+      icon: Undo2,
+      onClick: () => setActionTarget(t("return")),
     });
+    actions.push({
+      label: "رفض",
+      icon: XCircle,
+      onClick: () => setActionTarget(t("reject")),
+      variant: "destructive",
+    });
+  } else if (e.status === JournalStatus.APPROVED) {
+    actions.push({ label: "ترحيل", icon: CheckCircle, onClick: () => setActionTarget(t("post")) });
+  } else if (e.status === JournalStatus.POSTED) {
+    actions.push({ label: "عكس", icon: RotateCcw, onClick: () => setActionTarget(t("reverse")) });
   }
 
   return actions;

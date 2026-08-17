@@ -40,6 +40,10 @@ export interface JournalEntry {
   sourceType: string | null;
   sourceId: string | null;
   status: JournalStatus | string;
+  submittedBy?: string | null;
+  submittedAt?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
   postedBy: string | null;
   postedAt: string | null;
   reversedBy: string | null;
@@ -125,12 +129,26 @@ export async function getJournalEntries(filters: JournalFilters = {}): Promise<{
   return res.json();
 }
 
+export interface WorkflowEvent {
+  id: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  userId: string | null;
+  userName: string;
+  reason: string;
+  createdAt: string;
+}
+
 export async function getJournalEntry(id: string): Promise<{
   item: JournalEntry;
   lines: JournalLine[];
   totals: { debit: number; credit: number; balanced: boolean };
   reversedOf: JournalEntry | null;
   reversalEntries: JournalEntry[];
+  workflowHistory?: WorkflowEvent[];
 }> {
   const res = await fetch(`${API_BASE}?id=${id}`);
   if (!res.ok) throw new Error("فشل في جلب بيانات القيد");
@@ -180,56 +198,40 @@ export async function deleteJournalEntry(options: {
   }
 }
 
-export async function postJournalEntry(options: {
+export type JournalWorkflowAction =
+  "submit" | "approve" | "return" | "reject" | "post" | "reverse" | "cancel";
+
+const ACTION_ERR: Record<JournalWorkflowAction, string> = {
+  submit: "فشل إرسال القيد للاعتماد",
+  approve: "فشل اعتماد القيد",
+  return: "فشل إعادة القيد للتعديل",
+  reject: "فشل رفض القيد",
+  post: "فشل ترحيل القيد",
+  reverse: "فشل عكس القيد",
+  cancel: "فشل إلغاء القيد",
+};
+
+/** Drive one governance transition. Server enforces permission + state + reason. */
+export async function journalAction(options: {
   id: string;
-  userId?: string;
-  userName?: string;
+  action: JournalWorkflowAction;
+  reason?: string;
 }): Promise<JournalEntry> {
   const res = await fetch(API_BASE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...options, action: "post" }),
+    body: JSON.stringify(options),
   });
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.message || err.error || "فشل في ترحيل القيد");
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || err.error || ACTION_ERR[options.action]);
   }
   const d = await res.json();
   return d.item;
 }
 
-export async function reverseJournalEntry(options: {
-  id: string;
-  userId?: string;
-  userName?: string;
-}): Promise<JournalEntry> {
-  const res = await fetch(API_BASE, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...options, action: "reverse" }),
-  });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.message || err.error || "فشل في عكس القيد");
-  }
-  const d = await res.json();
-  return d.item;
-}
-
-export async function cancelJournalEntry(options: {
-  id: string;
-  userId?: string;
-  userName?: string;
-}): Promise<JournalEntry> {
-  const res = await fetch(API_BASE, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...options, action: "cancel" }),
-  });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.message || err.error || "فشل في إلغاء القيد");
-  }
-  const d = await res.json();
-  return d.item;
-}
+export const postJournalEntry = (o: { id: string }) => journalAction({ id: o.id, action: "post" });
+export const reverseJournalEntry = (o: { id: string; reason?: string }) =>
+  journalAction({ id: o.id, action: "reverse", reason: o.reason });
+export const cancelJournalEntry = (o: { id: string }) =>
+  journalAction({ id: o.id, action: "cancel" });

@@ -4,10 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, AlertCircle } from "lucide-react";
 import { AppShell, statusTone } from "@/components/erp/AppShell";
 import { fmtSAR } from "@/data/sample";
-import {
-  EnterpriseFormLayout,
-  type EnterpriseTab,
-} from "@/components/erp/EnterpriseFormLayout";
+import { EnterpriseFormLayout, type EnterpriseTab } from "@/components/erp/EnterpriseFormLayout";
 import {
   FormField,
   FormInput,
@@ -104,7 +101,11 @@ function EditJournalPage() {
       setFund(item.fund as JournalFund);
       setProjectId(item.projectId || "");
       setNotes(item.notes || "");
-      setLines(serverLines.length > 0 ? serverLines.map((l, i) => fromServerLine(l, `l${i}`)) : [newLine("l1"), newLine("l2")]);
+      setLines(
+        serverLines.length > 0
+          ? serverLines.map((l, i) => fromServerLine(l, `l${i}`))
+          : [newLine("l1"), newLine("l2")],
+      );
     }
   }, [item, serverLines]);
 
@@ -127,7 +128,7 @@ function EditJournalPage() {
   });
 
   const postMutation = useMutation({
-    mutationFn: () => postJournalEntry({ id, userId: user?.id, userName: user?.name }),
+    mutationFn: () => postJournalEntry({ id }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["journal-entry", id] });
       queryClient.invalidateQueries({ queryKey: ["journal"] });
@@ -137,7 +138,7 @@ function EditJournalPage() {
   });
 
   const reverseMutation = useMutation({
-    mutationFn: () => reverseJournalEntry({ id, userId: user?.id, userName: user?.name }),
+    mutationFn: () => reverseJournalEntry({ id }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["journal-entry", id] });
       queryClient.invalidateQueries({ queryKey: ["journal"] });
@@ -147,7 +148,7 @@ function EditJournalPage() {
   });
 
   const cancelMutation = useMutation({
-    mutationFn: () => cancelJournalEntry({ id, userId: user?.id, userName: user?.name }),
+    mutationFn: () => cancelJournalEntry({ id }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["journal-entry", id] });
       queryClient.invalidateQueries({ queryKey: ["journal"] });
@@ -211,7 +212,10 @@ function EditJournalPage() {
       <AppShell title="قيود اليومية">
         <div className="text-center py-12">
           <div className="text-base font-bold mb-2">القيد غير موجود</div>
-          <button onClick={() => navigate({ to: "/finance/journal" })} className="text-primary hover:underline text-sm">
+          <button
+            onClick={() => navigate({ to: "/finance/journal" })}
+            className="text-primary hover:underline text-sm"
+          >
             العودة
           </button>
         </div>
@@ -224,7 +228,14 @@ function EditJournalPage() {
       id: "lines",
       label: "بنود القيد",
       content: (
-        <FormSection title="بنود القيد" description={isEditable ? "يجب أن يتساوى إجمالي المدين مع إجمالي الدائن" : "للقراءة فقط — القيد مرحّل"}>
+        <FormSection
+          title="بنود القيد"
+          description={
+            isEditable
+              ? "يجب أن يتساوى إجمالي المدين مع إجمالي الدائن"
+              : "للقراءة فقط — القيد مرحّل"
+          }
+        >
           <div className="rounded-xl border bg-card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
@@ -251,7 +262,9 @@ function EditJournalPage() {
                         >
                           <option value="">— اختر —</option>
                           {accounts.map((a) => (
-                            <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                            <option key={a.id} value={a.id}>
+                              {a.code} — {a.name}
+                            </option>
                           ))}
                         </select>
                       </td>
@@ -315,10 +328,16 @@ function EditJournalPage() {
                   <Plus size={14} />
                   إضافة سطر
                 </button>
-              ) : <span />}
+              ) : (
+                <span />
+              )}
               <div className="flex items-center gap-4 text-sm font-bold tabular-nums">
-                <span>مدين: <span className="text-foreground">{fmtSAR(totals.debit)}</span></span>
-                <span>دائن: <span className="text-foreground">{fmtSAR(totals.credit)}</span></span>
+                <span>
+                  مدين: <span className="text-foreground">{fmtSAR(totals.debit)}</span>
+                </span>
+                <span>
+                  دائن: <span className="text-foreground">{fmtSAR(totals.credit)}</span>
+                </span>
                 <span className={totals.diff === 0 ? "text-success" : "text-destructive"}>
                   فرق: {fmtSAR(totals.diff)}
                 </span>
@@ -344,24 +363,50 @@ function EditJournalPage() {
               <FormInput value={item.number} disabled dir="ltr" />
             </FormField>
             <FormField label="تاريخ القيد">
-              <FormInput type="date" value={date} onChange={(e) => setDate(e.target.value)} dir="ltr" disabled={!isEditable} />
+              <FormInput
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                dir="ltr"
+                disabled={!isEditable}
+              />
             </FormField>
           </FormRow>
           <FormRow>
             <FormField label="نوع الصندوق">
-              <FormSelect value={fund} onChange={(e) => setFund(e.target.value as JournalFund)} disabled={!isEditable}>
-                {options("fund").map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+              <FormSelect
+                value={fund}
+                onChange={(e) => setFund(e.target.value as JournalFund)}
+                disabled={!isEditable}
+              >
+                {options("fund").map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </FormSelect>
             </FormField>
             <FormField label="المشروع">
-              <FormSelect value={projectId} onChange={(e) => setProjectId(e.target.value)} disabled={!isEditable}>
+              <FormSelect
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                disabled={!isEditable}
+              >
                 <option value="">— خارج مشروع —</option>
-                {projects.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
               </FormSelect>
             </FormField>
           </FormRow>
           <FormField label="وصف القيد" required>
-            <FormInput value={description} onChange={(e) => setDescription(e.target.value)} disabled={!isEditable} />
+            <FormInput
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              disabled={!isEditable}
+            />
           </FormField>
         </FormSection>
       ),
@@ -372,7 +417,12 @@ function EditJournalPage() {
       content: (
         <FormSection title="ملاحظات">
           <FormField label="ملاحظات">
-            <FormTextarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={5} disabled={!isEditable} />
+            <FormTextarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={5}
+              disabled={!isEditable}
+            />
           </FormField>
         </FormSection>
       ),
@@ -418,7 +468,11 @@ function EditJournalPage() {
         draftNumber={item.number}
         status={{ label: label("journalStatus", item.status), tone: statusTone(item.status) }}
         isReadOnly={!isEditable}
-        readonlyReason={!isEditable ? `القيد ${label("journalStatus", item.status)} - يمكن فقط عكسه أو إلغاؤه` : ""}
+        readonlyReason={
+          !isEditable
+            ? `القيد ${label("journalStatus", item.status)} - يمكن فقط عكسه أو إلغاؤه`
+            : ""
+        }
         tabs={tabs}
         defaultTab="lines"
         loading={saving || updateMutation.isPending}

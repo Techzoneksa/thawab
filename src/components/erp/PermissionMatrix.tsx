@@ -1,4 +1,5 @@
 import { PERM_MODULES, PERM_ACTIONS } from "@/lib/permissions-catalog";
+import { FINANCE_PERM_GROUPS } from "@/lib/finance-permissions";
 
 /**
  * Controlled module×action permission grid. Operates on the full permission
@@ -112,6 +113,54 @@ export function PermissionMatrix({
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Phase 1B — granular finance governance permissions (segregation of
+          duties). These do not fit the 4-action grid, so they are assigned
+          individually. A wildcard (finance.* or *) covers them all. */}
+      <div className="rounded-xl border bg-card p-3">
+        <div className="text-sm font-bold mb-1">صلاحيات الحوكمة المالية التفصيلية</div>
+        <div className="text-xs text-muted-foreground mb-3">
+          فصل المهام: الإنشاء ≠ الاعتماد ≠ الترحيل ≠ العكس ≠ إغلاق/فتح الفترات. تُسنَد كلٌّ على حدة.
+        </div>
+        <div
+          className={
+            superAdmin || moduleFull("finance")
+              ? "opacity-40 pointer-events-none space-y-3"
+              : "space-y-3"
+          }
+        >
+          {FINANCE_PERM_GROUPS.map((g) => (
+            <div key={g.key} className="rounded-lg border bg-muted/20 p-2">
+              <div className="text-xs font-semibold mb-1.5">{g.label}</div>
+              <div className="grid sm:grid-cols-2 gap-1.5">
+                {g.perms.map((p) => (
+                  <label key={p.key} className="flex items-start gap-2 cursor-pointer text-xs">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 mt-0.5"
+                      checked={superAdmin || moduleFull("finance") || set.has(p.key)}
+                      disabled={superAdmin || moduleFull("finance")}
+                      onChange={() =>
+                        mutate((s) => {
+                          if (s.has(p.key)) s.delete(p.key);
+                          else s.add(p.key);
+                        })
+                      }
+                    />
+                    <span>
+                      <span className="font-medium">{p.label}</span>
+                      {p.desc ? <span className="text-muted-foreground"> — {p.desc}</span> : null}
+                      <span className="block text-[10px] text-muted-foreground/70 font-mono ltr:text-left rtl:text-right">
+                        {p.key}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
