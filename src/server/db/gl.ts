@@ -88,7 +88,16 @@ export async function cashOrBankAccountId(tx: Db, method: string | undefined): P
   return resolveSystemAccountId(tx, isCash ? SYS.CASH : SYS.BANK);
 }
 
-export async function assertPeriodOpen(tx: Db, dateISO: string) {
+/**
+ * The single authoritative fiscal-period rule for EVERY accounting-impacting
+ * posting. A posting date MUST fall inside a defined OPEN period:
+ *   - no matching period   → REJECT (there is no "undefined period = open")
+ *   - matching but not OPEN → REJECT
+ *   - matching and OPEN     → return its id
+ * Dates are business dates (text YYYY-MM-DD) compared lexicographically, so
+ * there is no timezone/UTC shift and boundaries are inclusive on both ends.
+ */
+export async function resolvePostingPeriod(tx: Db, dateISO: string): Promise<string> {
   const day = dateISO.slice(0, 10);
   const period = (
     await tx
@@ -97,10 +106,11 @@ export async function assertPeriodOpen(tx: Db, dateISO: string) {
       .where(and(lte(fiscalPeriods.startDate, day), gte(fiscalPeriods.endDate, day)))
       .limit(1)
   )[0];
-  if (period && period.status === FiscalPeriodStatus.CLOSED) {
-    throw new AppError(`GL: الفترة المالية "${period.name}" مقفلة — لا يمكن الترحيل فيها`);
-  }
-  return period?.id ?? null;
+  if (!period)
+    throw new AppError(`GL: لا توجد فترة مالية معرّفة تشمل التاريخ ${day} — لا يمكن الترحيل`);
+  if (period.status !== FiscalPeriodStatus.OPEN)
+    throw new AppError(`GL: الفترة المالية "${period.name}" غير مفتوحة — لا يمكن الترحيل فيها`);
+  return period.id as string;
 }
 
 async function nextJournalNumber(tx: Db, dateISO: string): Promise<string> {
@@ -156,7 +166,8 @@ export async function postBalancedEntry(tx: Db, input: PostEntryInput): Promise<
   }
 
   const status = input.status ?? JournalStatus.POSTED;
-  const periodId = status === JournalStatus.POSTED ? await assertPeriodOpen(tx, input.date) : null;
+  const periodId =
+    status === JournalStatus.POSTED ? await resolvePostingPeriod(tx, input.date) : null;
   const number = await nextJournalNumber(tx, input.date);
   const ts = now();
   const entryId = genId("JE");
@@ -243,8 +254,8 @@ export async function postDraftEntry(tx: Db, entryId: string, userId: string): P
       `GL: القيد غير متوازن — مجموع المدين ${totalDebit} لا يساوي مجموع الدائن ${totalCredit}`,
     );
 
-  // Enforce the closed-period lock on the entry's OWN date.
-  await assertPeriodOpen(tx, entry.date);
+  // Enforce the fiscal-period rule on the entry's OWN date (must be OPEN).
+  await resolvePostingPeriod(tx, entry.date);
 
   const ts = now();
   await tx

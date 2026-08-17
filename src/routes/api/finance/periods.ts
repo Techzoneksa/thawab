@@ -13,48 +13,52 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const period = (await db
-      .select()
-      .from(fiscalPeriods)
-      .where(eq(fiscalPeriods.id, id))
-      .limit(1))[0];
+    const period = (
+      await db.select().from(fiscalPeriods).where(eq(fiscalPeriods.id, id)).limit(1)
+    )[0];
     if (!period) return err("الفترة المالية غير موجودة", 404, "NOT_FOUND");
 
     // Count entries within period range
     const entryCount =
-      (await db
-        .select({ count: sql<number>`COUNT(*)` })
-        .from(journalEntries)
-        .where(
-          and(
-            sql`${journalEntries.date} >= ${period.startDate}`,
-            sql`${journalEntries.date} <= ${period.endDate}`,
-          ),
-        ))[0]?.count || 0;
+      (
+        await db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(journalEntries)
+          .where(
+            and(
+              sql`${journalEntries.date} >= ${period.startDate}`,
+              sql`${journalEntries.date} <= ${period.endDate}`,
+            ),
+          )
+      )[0]?.count || 0;
 
     const postedCount =
-      (await db
-        .select({ count: sql<number>`COUNT(*)` })
-        .from(journalEntries)
-        .where(
-          and(
-            sql`${journalEntries.date} >= ${period.startDate}`,
-            sql`${journalEntries.date} <= ${period.endDate}`,
-            eq(journalEntries.status, JournalStatus.POSTED),
-          ),
-        ))[0]?.count || 0;
+      (
+        await db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(journalEntries)
+          .where(
+            and(
+              sql`${journalEntries.date} >= ${period.startDate}`,
+              sql`${journalEntries.date} <= ${period.endDate}`,
+              eq(journalEntries.status, JournalStatus.POSTED),
+            ),
+          )
+      )[0]?.count || 0;
 
     const draftCount =
-      (await db
-        .select({ count: sql<number>`COUNT(*)` })
-        .from(journalEntries)
-        .where(
-          and(
-            sql`${journalEntries.date} >= ${period.startDate}`,
-            sql`${journalEntries.date} <= ${period.endDate}`,
-            eq(journalEntries.status, JournalStatus.DRAFT),
-          ),
-        ))[0]?.count || 0;
+      (
+        await db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(journalEntries)
+          .where(
+            and(
+              sql`${journalEntries.date} >= ${period.startDate}`,
+              sql`${journalEntries.date} <= ${period.endDate}`,
+              eq(journalEntries.status, JournalStatus.DRAFT),
+            ),
+          )
+      )[0]?.count || 0;
 
     return Response.json({
       item: period,
@@ -101,10 +105,24 @@ async function POST(event: { request: Request }, ctx: Ctx) {
       return err("تاريخ البداية يجب أن يكون قبل تاريخ النهاية", 400, "BAD_RANGE");
     }
 
-    const existing = await db
+    // Deterministic single-period-per-date rule: reject any overlap so a
+    // posting date never resolves to two periods. Ranges [a,b] and [c,d]
+    // overlap iff a <= d AND c <= b (ISO text dates compare chronologically).
+    const overlap = await db
       .select()
       .from(fiscalPeriods)
-      .where(eq(fiscalPeriods.name, b.name));
+      .where(
+        and(
+          sql`${fiscalPeriods.startDate} <= ${b.endDate}`,
+          sql`${fiscalPeriods.endDate} >= ${b.startDate}`,
+        ),
+      )
+      .limit(1);
+    if (overlap.length > 0) {
+      return err(`الفترة تتداخل مع فترة موجودة: ${overlap[0].name}`, 400, "PERIOD_OVERLAP");
+    }
+
+    const existing = await db.select().from(fiscalPeriods).where(eq(fiscalPeriods.name, b.name));
     if (existing.length > 0) {
       return err("يوجد فترة مالية بنفس الاسم بالفعل", 400, "DUPLICATE_NAME");
     }
@@ -134,11 +152,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
       ip: ctx.ip,
     });
 
-    const created = (await db
-      .select()
-      .from(fiscalPeriods)
-      .where(eq(fiscalPeriods.id, periodId))
-      .limit(1))[0];
+    const created = (
+      await db.select().from(fiscalPeriods).where(eq(fiscalPeriods.id, periodId)).limit(1)
+    )[0];
     return Response.json({ item: created }, { status: 201 });
   });
 }
@@ -157,11 +173,9 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
   return guard(async () => {
     const b = await parseBody(event.request, putSchema);
 
-    const period = (await db
-      .select()
-      .from(fiscalPeriods)
-      .where(eq(fiscalPeriods.id, b.id))
-      .limit(1))[0];
+    const period = (
+      await db.select().from(fiscalPeriods).where(eq(fiscalPeriods.id, b.id)).limit(1)
+    )[0];
     if (!period) return err("الفترة المالية غير موجودة", 404, "NOT_FOUND");
 
     // ---- CLOSE ----
@@ -245,11 +259,9 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
         ip: ctx.ip,
       });
 
-      const updated = (await db
-        .select()
-        .from(fiscalPeriods)
-        .where(eq(fiscalPeriods.id, b.id))
-        .limit(1))[0];
+      const updated = (
+        await db.select().from(fiscalPeriods).where(eq(fiscalPeriods.id, b.id)).limit(1)
+      )[0];
       return Response.json({ item: updated });
     }
 
@@ -283,11 +295,9 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
         ip: ctx.ip,
       });
 
-      const updated = (await db
-        .select()
-        .from(fiscalPeriods)
-        .where(eq(fiscalPeriods.id, b.id))
-        .limit(1))[0];
+      const updated = (
+        await db.select().from(fiscalPeriods).where(eq(fiscalPeriods.id, b.id)).limit(1)
+      )[0];
       return Response.json({ item: updated });
     }
 
@@ -300,6 +310,22 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
     const endDate = b.endDate ?? period.endDate;
     if (startDate > endDate) {
       return err("تاريخ البداية يجب أن يكون قبل تاريخ النهاية", 400, "BAD_RANGE");
+    }
+
+    // Reject overlap with any OTHER period (deterministic single period/date).
+    const overlap = await db
+      .select()
+      .from(fiscalPeriods)
+      .where(
+        and(
+          sql`${fiscalPeriods.id} <> ${b.id}`,
+          sql`${fiscalPeriods.startDate} <= ${endDate}`,
+          sql`${fiscalPeriods.endDate} >= ${startDate}`,
+        ),
+      )
+      .limit(1);
+    if (overlap.length > 0) {
+      return err(`الفترة تتداخل مع فترة موجودة: ${overlap[0].name}`, 400, "PERIOD_OVERLAP");
     }
 
     const before = JSON.stringify(period);
@@ -325,11 +351,9 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
       ip: ctx.ip,
     });
 
-    const updated = (await db
-      .select()
-      .from(fiscalPeriods)
-      .where(eq(fiscalPeriods.id, b.id))
-      .limit(1))[0];
+    const updated = (
+      await db.select().from(fiscalPeriods).where(eq(fiscalPeriods.id, b.id)).limit(1)
+    )[0];
     return Response.json({ item: updated });
   });
 }
@@ -340,18 +364,12 @@ async function DELETE({ request }: { request: Request }, ctx: Ctx) {
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return err("معرف الفترة مطلوب", 400, "BAD_REQUEST");
 
-  const existing = (await db
-    .select()
-    .from(fiscalPeriods)
-    .where(eq(fiscalPeriods.id, id))
-    .limit(1))[0];
+  const existing = (
+    await db.select().from(fiscalPeriods).where(eq(fiscalPeriods.id, id)).limit(1)
+  )[0];
   if (!existing) return err("الفترة المالية غير موجودة", 404, "NOT_FOUND");
   if (existing.status !== FiscalPeriodStatus.OPEN) {
-    return err(
-      "لا يمكن حذف فترة مقفلة. يحتفظ النظام بالفترة للسجل التاريخي.",
-      400,
-      "NOT_OPEN",
-    );
+    return err("لا يمكن حذف فترة مقفلة. يحتفظ النظام بالفترة للسجل التاريخي.", 400, "NOT_OPEN");
   }
 
   const before = JSON.stringify(existing);

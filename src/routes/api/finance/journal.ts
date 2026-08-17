@@ -2,7 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { and, count, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import { db, now, addAudit } from "@/server/db/index";
-import { journalEntries, journalLines, accounts, costCenters, projects } from "@/server/db/schema";
+import {
+  journalEntries,
+  journalLines,
+  accounts,
+  costCenters,
+  projects,
+  importBatches,
+} from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
 import { postBalancedEntry, postDraftEntry, reverseEntry } from "@/server/db/gl";
 import { AppError } from "@/server/db/errors";
@@ -89,12 +96,25 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
       .select()
       .from(journalEntries)
       .where(eq(journalEntries.reversedOf, id));
+    // Traceability: imported journals link to their import batch (filename,
+    // hash, who/when) via source_type='journal_import', source_id=batchId.
+    const importBatch =
+      item.sourceType === "journal_import" && item.sourceId
+        ? (
+            await db
+              .select()
+              .from(importBatches)
+              .where(eq(importBatches.id, item.sourceId))
+              .limit(1)
+          )[0] || null
+        : null;
     return Response.json({
       item,
       lines,
       totals: { debit, credit, balanced: Math.abs(debit - credit) < 0.005 },
       reversedOf,
       reversalEntries,
+      importBatch,
     });
   }
 

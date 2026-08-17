@@ -13,4 +13,4 @@ CREATE TABLE "import_batches" (
 --> statement-breakpoint
 ALTER TABLE "import_batches" ADD CONSTRAINT "import_batches_imported_by_users_id_fk" FOREIGN KEY ("imported_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "import_batches_hash_idx" ON "import_batches" USING btree ("file_hash");--> statement-breakpoint
-CREATE UNIQUE INDEX "journal_entries_source_unique_idx" ON "journal_entries" USING btree ("source_type","source_id") WHERE "status" = 'posted' AND "source_id" IS NOT NULL AND "source_type" NOT IN ('manual','journal_import','reversal');
+CREATE UNIQUE INDEX "journal_entries_source_unique_idx" ON "journal_entries" USING btree ("source_type","source_id") WHERE "status" = 'posted' AND "source_id" IS NOT NULL AND "source_type" IN ('donation','aid','payroll','supplier_payment','inventory_issue','inventory_adjust','opening_balance');
