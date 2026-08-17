@@ -6,10 +6,10 @@
  */
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { resolve } from "node:path";
 import { db, getDb, diagnose, runRawSql, closeDb } from "./client";
 import { auditLog } from "./schema";
+import { runBootMigrations } from "./migrate-controlled";
 
 export { db, getDb, diagnose, runRawSql, closeDb };
 
@@ -42,8 +42,11 @@ export function ensureInit(): Promise<void> {
     }
     const t0 = Date.now();
     try {
-      await migrate(getDb(), { migrationsFolder: folder });
-      console.log(`[db] migrations applied (${Date.now() - t0}ms)`);
+      // Controlled runner: non-gated migrations apply normally; the
+      // finance-integrity migrations (0011–0013) apply only if the read-only
+      // preflight gate passes, else they are deferred to the admin action.
+      await runBootMigrations(getDb() as any, folder);
+      console.log(`[db] migrations checked (${Date.now() - t0}ms)`);
     } catch (e) {
       // Do not crash the app — external migration is the source of truth.
       console.error("[db] auto-migrate skipped:", e instanceof Error ? e.message : e);

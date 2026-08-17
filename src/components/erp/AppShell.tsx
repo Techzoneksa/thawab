@@ -159,6 +159,7 @@ const NAV: NavGroup[] = [
       { to: "/settings/integrations", label: "التكاملات", icon: Plug },
       { to: "/settings/backup", label: "النسخ الاحتياطي", icon: DatabaseBackup },
       { to: "/settings/system", label: "إعدادات النظام", icon: SlidersHorizontal },
+      { to: "/admin/system/finance-preflight", label: "فحص الجاهزية المالية", icon: Scale },
     ],
   },
 ];

@@ -163,6 +163,7 @@ import { Route as ApiFinanceAccountsRouteImport } from './routes/api/finance/acc
 import { Route as ApiDataImportRouteImport } from './routes/api/data/import'
 import { Route as ApiDataExportRouteImport } from './routes/api/data/export'
 import { Route as AidIdEditRouteImport } from './routes/aid_.$id_.edit'
+import { Route as AdminSystemFinancePreflightRouteImport } from './routes/admin.system.finance-preflight'
 import { Route as SettingsUsersIdEditRouteImport } from './routes/settings.users_.$id_.edit'
 import { Route as SettingsIntegrationsIdEditRouteImport } from './routes/settings.integrations_.$id_.edit'
 import { Route as SettingsBranchesIdEditRouteImport } from './routes/settings.branches_.$id_.edit'
@@ -179,6 +180,7 @@ import { Route as FinanceCostCentersIdEditRouteImport } from './routes/finance.c
 import { Route as FinanceClosingIdEditRouteImport } from './routes/finance.closing_.$id_.edit'
 import { Route as FinanceBudgetsIdEditRouteImport } from './routes/finance.budgets_.$id_.edit'
 import { Route as FinanceAccountsIdEditRouteImport } from './routes/finance.accounts_.$id_.edit'
+import { Route as ApiInternalFinancePreflightRouteImport } from './routes/api/internal/finance/preflight'
 
 const WorkflowsRoute = WorkflowsRouteImport.update({
   id: '/workflows',
@@ -951,6 +953,12 @@ const AidIdEditRoute = AidIdEditRouteImport.update({
   path: '/aid/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminSystemFinancePreflightRoute =
+  AdminSystemFinancePreflightRouteImport.update({
+    id: '/admin/system/finance-preflight',
+    path: '/admin/system/finance-preflight',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const SettingsUsersIdEditRoute = SettingsUsersIdEditRouteImport.update({
   id: '/settings/users_/$id_/edit',
   path: '/settings/users/$id/edit',
@@ -1037,6 +1045,12 @@ const FinanceAccountsIdEditRoute = FinanceAccountsIdEditRouteImport.update({
   path: '/finance/accounts/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInternalFinancePreflightRoute =
+  ApiInternalFinancePreflightRouteImport.update({
+    id: '/api/internal/finance/preflight',
+    path: '/api/internal/finance/preflight',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -1133,6 +1147,7 @@ export interface FileRoutesByFullPath {
   '/settings/org': typeof SettingsOrgRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/admin/system/finance-preflight': typeof AdminSystemFinancePreflightRoute
   '/aid/$id/edit': typeof AidIdEditRoute
   '/api/data/export': typeof ApiDataExportRoute
   '/api/data/import': typeof ApiDataImportRoute
@@ -1193,6 +1208,7 @@ export interface FileRoutesByFullPath {
   '/settings/integrations/new': typeof SettingsIntegrationsNewRoute
   '/settings/users/new': typeof SettingsUsersNewRoute
   '/settings/webhooks/new': typeof SettingsWebhooksNewRoute
+  '/api/internal/finance/preflight': typeof ApiInternalFinancePreflightRoute
   '/finance/accounts/$id/edit': typeof FinanceAccountsIdEditRoute
   '/finance/budgets/$id/edit': typeof FinanceBudgetsIdEditRoute
   '/finance/closing/$id/edit': typeof FinanceClosingIdEditRoute
@@ -1305,6 +1321,7 @@ export interface FileRoutesByTo {
   '/settings/org': typeof SettingsOrgRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/admin/system/finance-preflight': typeof AdminSystemFinancePreflightRoute
   '/aid/$id/edit': typeof AidIdEditRoute
   '/api/data/export': typeof ApiDataExportRoute
   '/api/data/import': typeof ApiDataImportRoute
@@ -1365,6 +1382,7 @@ export interface FileRoutesByTo {
   '/settings/integrations/new': typeof SettingsIntegrationsNewRoute
   '/settings/users/new': typeof SettingsUsersNewRoute
   '/settings/webhooks/new': typeof SettingsWebhooksNewRoute
+  '/api/internal/finance/preflight': typeof ApiInternalFinancePreflightRoute
   '/finance/accounts/$id/edit': typeof FinanceAccountsIdEditRoute
   '/finance/budgets/$id/edit': typeof FinanceBudgetsIdEditRoute
   '/finance/closing/$id/edit': typeof FinanceClosingIdEditRoute
@@ -1478,6 +1496,7 @@ export interface FileRoutesById {
   '/settings/org': typeof SettingsOrgRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/users': typeof SettingsUsersRoute
+  '/admin/system/finance-preflight': typeof AdminSystemFinancePreflightRoute
   '/aid_/$id_/edit': typeof AidIdEditRoute
   '/api/data/export': typeof ApiDataExportRoute
   '/api/data/import': typeof ApiDataImportRoute
@@ -1538,6 +1557,7 @@ export interface FileRoutesById {
   '/settings/integrations_/new': typeof SettingsIntegrationsNewRoute
   '/settings/users_/new': typeof SettingsUsersNewRoute
   '/settings/webhooks_/new': typeof SettingsWebhooksNewRoute
+  '/api/internal/finance/preflight': typeof ApiInternalFinancePreflightRoute
   '/finance/accounts_/$id_/edit': typeof FinanceAccountsIdEditRoute
   '/finance/budgets_/$id_/edit': typeof FinanceBudgetsIdEditRoute
   '/finance/closing_/$id_/edit': typeof FinanceClosingIdEditRoute
@@ -1652,6 +1672,7 @@ export interface FileRouteTypes {
     | '/settings/org'
     | '/settings/system'
     | '/settings/users'
+    | '/admin/system/finance-preflight'
     | '/aid/$id/edit'
     | '/api/data/export'
     | '/api/data/import'
@@ -1712,6 +1733,7 @@ export interface FileRouteTypes {
     | '/settings/integrations/new'
     | '/settings/users/new'
     | '/settings/webhooks/new'
+    | '/api/internal/finance/preflight'
     | '/finance/accounts/$id/edit'
     | '/finance/budgets/$id/edit'
     | '/finance/closing/$id/edit'
@@ -1824,6 +1846,7 @@ export interface FileRouteTypes {
     | '/settings/org'
     | '/settings/system'
     | '/settings/users'
+    | '/admin/system/finance-preflight'
     | '/aid/$id/edit'
     | '/api/data/export'
     | '/api/data/import'
@@ -1884,6 +1907,7 @@ export interface FileRouteTypes {
     | '/settings/integrations/new'
     | '/settings/users/new'
     | '/settings/webhooks/new'
+    | '/api/internal/finance/preflight'
     | '/finance/accounts/$id/edit'
     | '/finance/budgets/$id/edit'
     | '/finance/closing/$id/edit'
@@ -1996,6 +2020,7 @@ export interface FileRouteTypes {
     | '/settings/org'
     | '/settings/system'
     | '/settings/users'
+    | '/admin/system/finance-preflight'
     | '/aid_/$id_/edit'
     | '/api/data/export'
     | '/api/data/import'
@@ -2056,6 +2081,7 @@ export interface FileRouteTypes {
     | '/settings/integrations_/new'
     | '/settings/users_/new'
     | '/settings/webhooks_/new'
+    | '/api/internal/finance/preflight'
     | '/finance/accounts_/$id_/edit'
     | '/finance/budgets_/$id_/edit'
     | '/finance/closing_/$id_/edit'
@@ -2168,6 +2194,7 @@ export interface RootRouteChildren {
   SettingsOrgRoute: typeof SettingsOrgRoute
   SettingsSystemRoute: typeof SettingsSystemRoute
   SettingsUsersRoute: typeof SettingsUsersRoute
+  AdminSystemFinancePreflightRoute: typeof AdminSystemFinancePreflightRoute
   AidIdEditRoute: typeof AidIdEditRoute
   ApiDataExportRoute: typeof ApiDataExportRoute
   ApiDataImportRoute: typeof ApiDataImportRoute
@@ -2226,6 +2253,7 @@ export interface RootRouteChildren {
   SettingsIntegrationsNewRoute: typeof SettingsIntegrationsNewRoute
   SettingsUsersNewRoute: typeof SettingsUsersNewRoute
   SettingsWebhooksNewRoute: typeof SettingsWebhooksNewRoute
+  ApiInternalFinancePreflightRoute: typeof ApiInternalFinancePreflightRoute
   FinanceAccountsIdEditRoute: typeof FinanceAccountsIdEditRoute
   FinanceBudgetsIdEditRoute: typeof FinanceBudgetsIdEditRoute
   FinanceClosingIdEditRoute: typeof FinanceClosingIdEditRoute
@@ -3323,6 +3351,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AidIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/system/finance-preflight': {
+      id: '/admin/system/finance-preflight'
+      path: '/admin/system/finance-preflight'
+      fullPath: '/admin/system/finance-preflight'
+      preLoaderRoute: typeof AdminSystemFinancePreflightRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/users_/$id_/edit': {
       id: '/settings/users_/$id_/edit'
       path: '/settings/users/$id/edit'
@@ -3433,6 +3468,13 @@ declare module '@tanstack/react-router' {
       path: '/finance/accounts/$id/edit'
       fullPath: '/finance/accounts/$id/edit'
       preLoaderRoute: typeof FinanceAccountsIdEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/finance/preflight': {
+      id: '/api/internal/finance/preflight'
+      path: '/api/internal/finance/preflight'
+      fullPath: '/api/internal/finance/preflight'
+      preLoaderRoute: typeof ApiInternalFinancePreflightRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -3556,6 +3598,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsOrgRoute: SettingsOrgRoute,
   SettingsSystemRoute: SettingsSystemRoute,
   SettingsUsersRoute: SettingsUsersRoute,
+  AdminSystemFinancePreflightRoute: AdminSystemFinancePreflightRoute,
   AidIdEditRoute: AidIdEditRoute,
   ApiDataExportRoute: ApiDataExportRoute,
   ApiDataImportRoute: ApiDataImportRoute,
@@ -3614,6 +3657,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsIntegrationsNewRoute: SettingsIntegrationsNewRoute,
   SettingsUsersNewRoute: SettingsUsersNewRoute,
   SettingsWebhooksNewRoute: SettingsWebhooksNewRoute,
+  ApiInternalFinancePreflightRoute: ApiInternalFinancePreflightRoute,
   FinanceAccountsIdEditRoute: FinanceAccountsIdEditRoute,
   FinanceBudgetsIdEditRoute: FinanceBudgetsIdEditRoute,
   FinanceClosingIdEditRoute: FinanceClosingIdEditRoute,
