@@ -4,6 +4,7 @@ import { count, eq } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { roles, users } from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
+import { invalidateAuthCache } from "@/server/db/auth";
 
 function parsePerms(raw: string): string[] {
   try {
@@ -118,6 +119,8 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
         permissions: JSON.stringify(perms),
       })
       .where(eq(roles.id, b.id));
+    // Permissions changed — drop cached auth so it takes effect immediately.
+    invalidateAuthCache();
 
     await addAudit({
       action: "update",
@@ -154,6 +157,7 @@ async function DELETE({ request }: { request: Request }, ctx: Ctx) {
 
   const before = JSON.stringify(existing);
   await db.delete(roles).where(eq(roles.id, id));
+  invalidateAuthCache();
   await addAudit({
     action: "delete",
     entityType: "role",

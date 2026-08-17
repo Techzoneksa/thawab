@@ -60,19 +60,45 @@ export async function createSession(userId: string, ip = "", userAgent = "") {
   return token;
 }
 
+// ---------- short-TTL auth caches ----------
+// Every authenticated request resolves session → user → role permissions.
+// When the DB is far from the app server, that is 3 cross-region round-trips
+// on *every* API call. These in-memory caches (short TTL) collapse them to
+// ~0 on repeat calls, trading a few seconds of staleness for big latency wins.
+const AUTH_USER_TTL_MS = 15_000;
+const AUTH_ROLE_TTL_MS = 30_000;
+const _userCache = new Map<string, { user: unknown; at: number }>();
+const _roleCache = new Map<string, { perms: string[]; at: number }>();
+
+/** Clear cached auth state. Called on logout, password change, and role edits. */
+export function invalidateAuthCache(opts?: { token?: string; roleId?: string }) {
+  if (opts?.token) _userCache.delete(opts.token);
+  if (opts?.roleId) _roleCache.delete(opts.roleId);
+  if (!opts) {
+    _userCache.clear();
+    _roleCache.clear();
+  }
+}
+
 export async function getCurrentUser(token: string | undefined | null) {
   if (!token) return null;
+  const cached = _userCache.get(token);
+  if (cached && Date.now() - cached.at < AUTH_USER_TTL_MS) return cached.user as any;
+
   const session = (await db.select().from(sessions).where(eq(sessions.token, token)).limit(1))[0];
   if (!session) return null;
   if (new Date(session.expiresAt) < new Date()) {
     await db.delete(sessions).where(eq(sessions.id, session.id));
+    _userCache.delete(token);
     return null;
   }
   const user = (await db.select().from(users).where(eq(users.id, session.userId)).limit(1))[0];
   if (!user || user.status !== UserStatus.ACTIVE) return null;
   const { password: _pw, ...safe } = user;
   const permissions = await getRolePermissions(user.role);
-  return { ...safe, permissions };
+  const result = { ...safe, permissions };
+  _userCache.set(token, { user: result, at: Date.now() });
+  return result;
 }
 
 // ---------- login with rate limiting ----------
@@ -99,7 +125,7 @@ async function recordAttempt(email: string, ip: string, success: boolean) {
 const GENERIC_ERROR = "البريد الإلكتروني أو كلمة المرور غير صحيحة";
 
 export async function login(email: string, password: string, ip = "", userAgent = "") {
-  if (await recentFailures(email, ip) >= MAX_FAILS) {
+  if ((await recentFailures(email, ip)) >= MAX_FAILS) {
     return { error: "تم تجاوز عدد المحاولات المسموح. حاول لاحقاً.", code: "LOCKED_OUT" };
   }
 
@@ -117,6 +143,7 @@ export async function login(email: string, password: string, ip = "", userAgent 
 
 export async function logout(token: string) {
   await db.delete(sessions).where(eq(sessions.token, token));
+  invalidateAuthCache({ token });
 }
 
 export async function verifyUserPassword(userId: string, password: string): Promise<boolean> {
@@ -131,18 +158,24 @@ export async function changePassword(userId: string, newPassword: string) {
     .where(eq(users.id, userId));
   // Invalidate all other sessions on password change.
   await db.delete(sessions).where(eq(sessions.userId, userId));
+  invalidateAuthCache();
 }
 
 // ---------- RBAC ----------
 
 export async function getRolePermissions(roleId: string): Promise<string[]> {
+  const cached = _roleCache.get(roleId);
+  if (cached && Date.now() - cached.at < AUTH_ROLE_TTL_MS) return cached.perms;
   const row = (await db.select().from(roles).where(eq(roles.id, roleId)).limit(1))[0];
   if (!row) return [];
+  let perms: string[];
   try {
-    return JSON.parse(row.permissions);
+    perms = JSON.parse(row.permissions);
   } catch {
-    return [];
+    perms = [];
   }
+  _roleCache.set(roleId, { perms, at: Date.now() });
+  return perms;
 }
 
 export async function hasPermission(roleId: string, permission: string): Promise<boolean> {
