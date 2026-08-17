@@ -1,5 +1,6 @@
-import { copyFile, mkdir, cp, rm } from "node:fs/promises";
+import { copyFile, mkdir, cp, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -34,6 +35,21 @@ if (existsSync(sourceDrizzle)) {
   const targetDrizzle = resolve(targetServer, "drizzle");
   await cp(sourceDrizzle, targetDrizzle, { recursive: true });
   console.log(`[postbuild] copied migrations to ${targetDrizzle}/`);
+}
+
+// Stamp the deployed commit so the running app can report its revision
+// (used by the finance certification). Falls back silently if git is absent.
+let commit = process.env.APP_COMMIT || "";
+if (!commit) {
+  try {
+    commit = execSync("git rev-parse --short HEAD", { cwd: root }).toString().trim();
+  } catch {
+    /* no git in build env — leave blank */
+  }
+}
+if (commit) {
+  await writeFile(resolve(targetServer, "commit.txt"), commit);
+  console.log(`[postbuild] stamped commit ${commit}`);
 }
 
 console.log(`[postbuild] mirrored server bundle to ${targetServer}/`);

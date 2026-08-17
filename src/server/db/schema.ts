@@ -452,6 +452,23 @@ export const importBatches = pgTable(
   }),
 );
 
+// ============ FINANCE CERTIFICATIONS ============
+// Immutable record of each Phase 1A production certification (insert + read
+// only; never updated/deleted). Stores accounting-integrity metrics only — no
+// secrets, no narration/PII.
+export const financeCertifications = pgTable("finance_certifications", {
+  id: text("id").primaryKey(),
+  phase: text("phase").notNull().default("FINANCE_PHASE_1A"),
+  environment: text("environment").notNull().default("production"),
+  status: text("status").notNull(), // PRODUCTION_READY | PRODUCTION_BLOCKED | PENDING_MIGRATIONS
+  applicationCommit: text("application_commit").default(""),
+  resultJson: text("result_json").notNull().default("{}"),
+  certifiedBy: text("certified_by").references(() => users.id),
+  certifiedByName: text("certified_by_name").default(""),
+  certifiedAt: text("certified_at").notNull().default(""),
+  createdAt: text("created_at").notNull().default(""),
+});
+
 // ============ APPROVALS ============
 
 export const approvals = pgTable("approvals", {

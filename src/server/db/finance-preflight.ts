@@ -289,6 +289,72 @@ export async function accountingFingerprint(dbh: Db): Promise<string> {
   return r[0]?.fp ?? "";
 }
 
+export type CertStatus = "PRODUCTION_READY" | "PENDING_MIGRATIONS" | "PRODUCTION_BLOCKED";
+
+/** Three production states from a preflight report. */
+export function determineStatus(report: any): CertStatus {
+  if (!report.migrationReady) return "PRODUCTION_BLOCKED"; // accounting gate failed
+  const objs = report.checks.migrationObjects;
+  if (!Object.values(objs).every(Boolean)) return "PENDING_MIGRATIONS";
+  return "PRODUCTION_READY";
+}
+
+export interface CertHistory {
+  fingerprintBefore: string;
+  fingerprintAfter: string;
+  journalEntriesBefore: number | null;
+  journalEntriesAfter: number | null;
+  journalLinesBefore: number | null;
+  journalLinesAfter: number | null;
+}
+
+/** Certification snapshot — pure accounting-integrity metrics (no PII/secrets). */
+export function buildSnapshot(report: any, history: CertHistory) {
+  const c = report.checks;
+  const objs = c.migrationObjects;
+  const allObjects = Object.values(objs).every(Boolean);
+  return {
+    generalLedger: c.generalLedger,
+    trialBalance: c.trialBalance,
+    financialPosition: c.financialPosition,
+    financialPerformance: c.incomeExpense,
+    fiscalIntegrity: {
+      invalid_ranges: c.fiscalPeriods.invalid_range_count,
+      overlaps: c.fiscalPeriods.overlap_count,
+      critical_gaps: c.fiscalPeriods.gaps.length,
+    },
+    sourceIntegrity: { duplicate_protected_sources: c.duplicates.count },
+    legacyBalance: {
+      legacy_nonzero_accounts: c.legacyBalances.nonzero_legacy_balance,
+      legacy_inconsistencies: c.legacyInconsistencies,
+      accounting_source_of_truth: "GENERAL_LEDGER",
+    },
+    reversalIntegrity: {
+      available: c.reversal.available,
+      net_effect: c.reversal.available ? c.reversal.combined_net_effect : null,
+      valid: !c.reversal.available || c.reversal.combined_net_effect === 0,
+    },
+    migrationIntegrity: {
+      "0011": !!(objs.import_batches && objs.journal_entries_source_unique_idx),
+      "0012": !!objs.fiscal_periods_valid_range,
+      "0013": !!(objs.fiscal_periods_no_overlap && objs.fiscal_periods_no_overlap_trg),
+      required_objects_present: allObjects,
+      objects: objs,
+    },
+    historyIntegrity: {
+      fingerprint_before: history.fingerprintBefore,
+      fingerprint_after: history.fingerprintAfter,
+      fingerprint_match: history.fingerprintBefore === history.fingerprintAfter,
+      journal_entries_before: history.journalEntriesBefore,
+      journal_entries_after: history.journalEntriesAfter,
+      journal_entries_match: history.journalEntriesBefore === history.journalEntriesAfter,
+      journal_lines_before: history.journalLinesBefore,
+      journal_lines_after: history.journalLinesAfter,
+      journal_lines_match: history.journalLinesBefore === history.journalLinesAfter,
+    },
+  };
+}
+
 /** The blocking checks that gate migration application. */
 export async function preflightGate(dbh: Db) {
   const [dups, periods, gl, tb, fp] = await Promise.all([

@@ -4,14 +4,37 @@ import { AppShell, Card, Btn, Badge } from "@/components/erp/AppShell";
 import { showToast, ConfirmDialog } from "@/components/erp/actions";
 import { useAuth, userCan } from "@/lib/api/auth";
 import { fmtSAR } from "@/data/sample";
-import { CheckCircle2, XCircle, ShieldAlert, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, ShieldAlert, Loader2, Clock, Copy } from "lucide-react";
 import { useState } from "react";
 import { getPreflight, applyFinanceMigrations } from "@/lib/api/finance-preflight";
 
 export const Route = createFileRoute("/admin/system/finance-preflight")({
-  head: () => ({ meta: [{ title: "فحص الجاهزية المالية — ثواب" }] }),
+  head: () => ({ meta: [{ title: "اعتماد الجاهزية المالية — ثواب" }] }),
   component: Page,
 });
+
+type CertStatus = "PRODUCTION_READY" | "PENDING_MIGRATIONS" | "PRODUCTION_BLOCKED";
+
+const STATUS_META: Record<
+  CertStatus,
+  { label: string; tone: "success" | "warning" | "destructive"; border: string }
+> = {
+  PRODUCTION_READY: {
+    label: "✅ المرحلة 1أ — جاهز للإنتاج (PRODUCTION READY)",
+    tone: "success",
+    border: "border-success",
+  },
+  PENDING_MIGRATIONS: {
+    label: "⏳ بانتظار تطبيق الترحيلات (PENDING MIGRATIONS)",
+    tone: "warning",
+    border: "border-warning",
+  },
+  PRODUCTION_BLOCKED: {
+    label: "❌ محجوب — يوجد عوائق نزاهة (PRODUCTION BLOCKED)",
+    tone: "destructive",
+    border: "border-destructive",
+  },
+};
 
 function Stat({ label, value, ok }: { label: string; value: string; ok?: boolean }) {
   return (
@@ -46,6 +69,72 @@ function CheckCard({
   );
 }
 
+/** Build a plain-text certificate for copying (no PII/secrets — metrics only). */
+function buildCertText(data: any): string {
+  const s = data.snapshot;
+  const cert = data.certification;
+  const L: string[] = [];
+  L.push("========================================");
+  L.push("THAWAB — FINANCE PHASE 1A CERTIFICATION");
+  L.push("========================================");
+  L.push(`Status:            ${data.status}`);
+  L.push(`Environment:       ${data.environment ?? "production"}`);
+  L.push(`Application commit: ${data.applicationCommit ?? "unknown"}`);
+  if (cert) {
+    L.push(`Certificate ID:    ${cert.id}`);
+    L.push(`Certified by:      ${cert.certifiedByName ?? cert.certifiedBy ?? "-"}`);
+    L.push(`Certified at:      ${cert.certifiedAt ?? "-"}`);
+  } else {
+    L.push("Certificate ID:    (not issued — status is not PRODUCTION_READY)");
+  }
+  L.push("");
+  L.push("-- Accounting integrity --------------------");
+  L.push(
+    `General Ledger:    ${s.generalLedger.balanced ? "BALANCED" : "UNBALANCED"} (diff ${s.generalLedger.difference})`,
+  );
+  L.push(
+    `Trial Balance:     ${s.trialBalance.balanced ? "BALANCED" : "UNBALANCED"} (diff ${s.trialBalance.difference}, ${s.trialBalance.account_count} accounts)`,
+  );
+  L.push(
+    `Financial Position:${s.financialPosition.balanced ? " BALANCED" : " UNRECONCILED"} (diff ${s.financialPosition.equation_difference})`,
+  );
+  L.push(
+    `Performance:       revenue ${s.financialPerformance.revenue}, expenses ${s.financialPerformance.expenses}, surplus ${s.financialPerformance.surplus_deficit}`,
+  );
+  L.push(
+    `Fiscal integrity:  invalid_ranges ${s.fiscalIntegrity.invalid_ranges}, overlaps ${s.fiscalIntegrity.overlaps}, gaps ${s.fiscalIntegrity.critical_gaps}`,
+  );
+  L.push(`Source integrity:  duplicates ${s.sourceIntegrity.duplicate_protected_sources}`);
+  L.push(
+    `Reversal integrity:${s.reversalIntegrity.available ? ` net ${s.reversalIntegrity.net_effect} (${s.reversalIntegrity.valid ? "VALID" : "INVALID"})` : " N/A (none in production)"}`,
+  );
+  L.push(`Source of truth:   ${s.legacyBalance.accounting_source_of_truth}`);
+  L.push(
+    `Legacy balances:   ${s.legacyBalance.legacy_nonzero_accounts} non-zero, ${s.legacyBalance.legacy_inconsistencies} inconsistencies (review-only)`,
+  );
+  L.push("");
+  L.push("-- Migration integrity ---------------------");
+  L.push(`0011 import/source-unique: ${s.migrationIntegrity["0011"] ? "PRESENT" : "MISSING"}`);
+  L.push(`0012 period valid-range:   ${s.migrationIntegrity["0012"] ? "PRESENT" : "MISSING"}`);
+  L.push(`0013 period overlap-guard: ${s.migrationIntegrity["0013"] ? "PRESENT" : "MISSING"}`);
+  L.push(
+    `All required objects:      ${s.migrationIntegrity.required_objects_present ? "PRESENT" : "MISSING"}`,
+  );
+  L.push("");
+  L.push("-- History integrity (immutability) --------");
+  L.push(
+    `Fingerprint match:  ${s.historyIntegrity.fingerprint_match ? "YES" : "NO"} (${s.historyIntegrity.fingerprint_before} -> ${s.historyIntegrity.fingerprint_after})`,
+  );
+  L.push(
+    `Journal entries:    ${s.historyIntegrity.journal_entries_before} -> ${s.historyIntegrity.journal_entries_after} (${s.historyIntegrity.journal_entries_match ? "unchanged" : "CHANGED"})`,
+  );
+  L.push(
+    `Journal lines:      ${s.historyIntegrity.journal_lines_before} -> ${s.historyIntegrity.journal_lines_after} (${s.historyIntegrity.journal_lines_match ? "unchanged" : "CHANGED"})`,
+  );
+  L.push("========================================");
+  return L.join("\n");
+}
+
 function Page() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -63,7 +152,9 @@ function Page() {
     mutationFn: applyFinanceMigrations,
     onSuccess: (r) => {
       if (r.blocked) showToast("مرفوض — يوجد عوائق في الفحص", "error");
-      else showToast(`تم تطبيق: ${r.applied.join(", ") || "لا جديد"}`, "success");
+      else if (r.migration === "MIGRATION_SUCCESS")
+        showToast(`تم تطبيق الترحيلات: ${r.applied?.join("، ") || "لا جديد"}`, "success");
+      else showToast("لم تكتمل الترحيلات — راجع النتيجة", "error");
       queryClient.invalidateQueries({ queryKey: ["finance-preflight"] });
       setConfirmApply(false);
     },
@@ -72,7 +163,7 @@ function Page() {
 
   if (!isSuperAdmin) {
     return (
-      <AppShell title="فحص الجاهزية المالية" breadcrumb={["الإعدادات", "النظام"]}>
+      <AppShell title="اعتماد الجاهزية المالية" breadcrumb={["الإعدادات", "النظام"]}>
         <Card className="p-8 text-center">
           <ShieldAlert size={40} className="mx-auto text-destructive mb-3" />
           <div className="font-bold">هذه الأداة لمدير النظام الأعلى فقط</div>
@@ -85,12 +176,23 @@ function Page() {
   }
 
   const c = data?.checks;
-  const pass = data?.overall === "PASS";
+  const status: CertStatus | undefined = data?.status;
+  const meta = status ? STATUS_META[status] : null;
+  const cert = data?.certification;
+
+  const copyCert = async () => {
+    try {
+      await navigator.clipboard.writeText(buildCertText(data));
+      showToast("تم نسخ شهادة الاعتماد", "success");
+    } catch {
+      showToast("تعذّر النسخ", "error");
+    }
+  };
 
   return (
     <AppShell
-      title="فحص الجاهزية المالية"
-      breadcrumb={["الإعدادات", "النظام", "فحص الجاهزية المالية"]}
+      title="اعتماد الجاهزية المالية"
+      breadcrumb={["الإعدادات", "النظام", "اعتماد الجاهزية المالية"]}
       actions={
         <Btn variant="outline" onClick={() => refetch()}>
           إعادة الفحص
@@ -99,7 +201,8 @@ function Page() {
     >
       <div className="max-w-5xl space-y-4">
         <div className="rounded-xl border bg-info/5 p-3 text-xs text-muted-foreground">
-          بيئة الإنتاج · فحص للقراءة فقط (READ-ONLY) — لا يعدّل أي بيانات محاسبية.
+          بيئة الإنتاج · فحص واعتماد تلقائي للقراءة فقط (READ-ONLY) — يُنفَّذ الفحص تلقائياً عند فتح
+          الصفحة ولا يعدّل أي بيانات محاسبية.
         </div>
 
         {isLoading ? (
@@ -108,32 +211,66 @@ function Page() {
           </div>
         ) : error ? (
           <Card className="p-6 text-center text-destructive">{(error as Error).message}</Card>
-        ) : data ? (
+        ) : data && meta && c ? (
           <>
-            <Card className={`p-5 border-2 ${pass ? "border-success" : "border-destructive"}`}>
-              <div className="flex items-center gap-3">
-                {pass ? (
-                  <CheckCircle2 size={32} className="text-success" />
+            {/* Certification panel */}
+            <Card className={`p-5 border-2 ${meta.border}`}>
+              <div className="flex items-start gap-3">
+                {status === "PRODUCTION_READY" ? (
+                  <CheckCircle2 size={32} className="text-success shrink-0" />
+                ) : status === "PENDING_MIGRATIONS" ? (
+                  <Clock size={32} className="text-warning shrink-0" />
                 ) : (
-                  <XCircle size={32} className="text-destructive" />
+                  <XCircle size={32} className="text-destructive shrink-0" />
                 )}
-                <div>
-                  <div className="text-lg font-extrabold">
-                    {pass ? "PASS — جاهز للترحيلات" : "FAIL — يوجد عوائق"}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    الوضع: {data.mode} · جاهزية الترحيل: {data.migrationReady ? "نعم" : "لا"}
+                <div className="flex-1">
+                  <div className="text-lg font-extrabold">{meta.label}</div>
+                  <div className="mt-1 grid gap-x-6 gap-y-0.5 text-xs text-muted-foreground sm:grid-cols-2">
+                    <div>
+                      نسخة التطبيق (commit):{" "}
+                      <b className="tabular-nums">{data.applicationCommit}</b>
+                    </div>
+                    <div>
+                      جاهزية المحاسبة: <b>{data.migrationReady ? "سليمة" : "غير سليمة"}</b>
+                    </div>
+                    {cert ? (
+                      <>
+                        <div>
+                          رقم الشهادة: <b className="tabular-nums">{cert.id}</b>
+                        </div>
+                        <div>
+                          اعتُمدت بواسطة: <b>{cert.certifiedByName || cert.certifiedBy}</b>
+                        </div>
+                        <div>
+                          تاريخ الاعتماد: <b className="tabular-nums">{cert.certifiedAt}</b>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="sm:col-span-2">
+                        لم تُصدَر شهادة بعد — تُصدَر تلقائياً فور بلوغ الحالة PRODUCTION_READY.
+                      </div>
+                    )}
                   </div>
                 </div>
+                <Btn variant="outline" onClick={copyCert} className="shrink-0">
+                  <Copy size={14} /> نسخ الشهادة
+                </Btn>
               </div>
+
               {data.blockingIssues?.length > 0 && (
-                <ul className="mt-3 space-y-1 text-sm">
+                <ul className="mt-3 space-y-1 text-sm border-t pt-3">
                   {data.blockingIssues.map((b: any, i: number) => (
                     <li key={i} className="text-destructive">
                       <b>{b.severity}</b> — {b.message}
                     </li>
                   ))}
                 </ul>
+              )}
+              {status === "PENDING_MIGRATIONS" && (
+                <div className="mt-3 border-t pt-3 text-sm text-warning-foreground">
+                  الفحص المحاسبي سليم، لكن كائنات النزاهة في قاعدة البيانات (0011–0013) غير مطبّقة
+                  بعد. طبّق الترحيلات أدناه لإكمال الاعتماد.
+                </div>
               )}
             </Card>
 
@@ -220,20 +357,6 @@ function Page() {
               </CheckCard>
 
               <CheckCard
-                title="الأرصدة القديمة (accounts.balance)"
-                ok={c.legacyInconsistencies === 0}
-              >
-                <Stat label="إجمالي الحسابات" value={String(c.legacyBalances.total_accounts)} />
-                <Stat label="غير صفرية" value={String(c.legacyBalances.nonzero_legacy_balance)} />
-                <Stat
-                  label="تعارضات مع GL"
-                  value={String(c.legacyInconsistencies)}
-                  ok={c.legacyInconsistencies === 0}
-                />
-                <Stat label="—" value="" />
-              </CheckCard>
-
-              <CheckCard
                 title="سلامة العكس"
                 ok={!c.reversal.available || c.reversal.combined_net_effect === 0}
               >
@@ -265,12 +388,69 @@ function Page() {
               </CheckCard>
             </div>
 
+            {/* Legacy data review — kept separate from GL (source of truth) */}
+            <Card className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-bold">
+                  مراجعة البيانات القديمة (accounts.balance) — للاطّلاع فقط
+                </h3>
+                <Badge tone={c.legacyInconsistencies === 0 ? "success" : "warning"}>
+                  {c.legacyInconsistencies === 0 ? "لا تعارضات" : "يتطلّب مراجعة"}
+                </Badge>
+              </div>
+              <div className="text-xs text-muted-foreground mb-3">
+                مصدر الحقيقة المحاسبية هو دفتر الأستاذ (GL). هذه القيم القديمة تُعرض للمراجعة فقط
+                ولا تُصلَّح أو تُرحَّل تلقائياً.
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <Stat label="إجمالي الحسابات" value={String(c.legacyBalances.total_accounts)} />
+                <Stat
+                  label="أرصدة غير صفرية"
+                  value={String(c.legacyBalances.nonzero_legacy_balance)}
+                />
+                <Stat
+                  label="تعارضات محتملة مع GL"
+                  value={String(c.legacyInconsistencies)}
+                  ok={c.legacyInconsistencies === 0}
+                />
+                <Stat label="أرصدة صفرية" value={String(c.legacyBalances.zero_legacy_balance)} />
+              </div>
+            </Card>
+
+            {/* Immutable history integrity */}
+            {data.snapshot?.historyIntegrity && (
+              <Card className="p-4">
+                <h3 className="text-sm font-bold mb-2">
+                  سلامة التاريخ المحاسبي (عدم القابلية للتغيير)
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <Stat
+                    label="بصمة التاريخ متطابقة"
+                    value={data.snapshot.historyIntegrity.fingerprint_match ? "نعم ✓" : "لا ✗"}
+                    ok={data.snapshot.historyIntegrity.fingerprint_match}
+                  />
+                  <Stat
+                    label="عدد القيود (قبل/بعد)"
+                    value={`${data.snapshot.historyIntegrity.journal_entries_before} / ${data.snapshot.historyIntegrity.journal_entries_after}`}
+                    ok={data.snapshot.historyIntegrity.journal_entries_match}
+                  />
+                  <Stat
+                    label="عدد البنود (قبل/بعد)"
+                    value={`${data.snapshot.historyIntegrity.journal_lines_before} / ${data.snapshot.historyIntegrity.journal_lines_after}`}
+                    ok={data.snapshot.historyIntegrity.journal_lines_match}
+                  />
+                </div>
+              </Card>
+            )}
+
+            {/* Migration application (only meaningful when PENDING_MIGRATIONS) */}
             <Card className="p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="text-sm">
                   <div className="font-bold">تطبيق ترحيلات النزاهة المالية (0011–0013)</div>
                   <div className="text-xs text-muted-foreground">
-                    يُعيد الفحص قبل التطبيق ويرفض إن وُجدت عوائق. لا يغيّر أي تاريخ محاسبي.
+                    يُعيد الفحص قبل التطبيق ويرفض إن وُجدت عوائق. لا يغيّر أي تاريخ محاسبي، ويُصدر
+                    الشهادة تلقائياً بعد نجاح التطبيق.
                   </div>
                 </div>
                 <Btn
@@ -284,20 +464,54 @@ function Page() {
               </div>
               {applyMut.data && (
                 <div className="mt-3 rounded-lg border bg-muted/30 p-3 text-xs space-y-1">
+                  <div>
+                    النتيجة: <b>{applyMut.data.migration}</b>
+                  </div>
                   <div>المطبّقة: {applyMut.data.applied?.join("، ") || "لا جديد"}</div>
                   <div>
                     بصمة التاريخ المحاسبي متطابقة قبل/بعد:{" "}
-                    <b>{applyMut.data.historyIntegrity?.fingerprintMatch ? "نعم ✓" : "لا ✗"}</b>
-                  </div>
-                  <div>
-                    كائنات قاعدة البيانات:{" "}
-                    {Object.values(applyMut.data.migrationObjects || {}).every(Boolean)
-                      ? "كلها موجودة ✓"
-                      : "ناقصة ✗"}
+                    <b>
+                      {applyMut.data.snapshot?.historyIntegrity?.fingerprint_match
+                        ? "نعم ✓"
+                        : "لا ✗"}
+                    </b>
                   </div>
                 </div>
               )}
             </Card>
+
+            {/* Certification ledger (recent immutable records) */}
+            {data.certifications?.length > 0 && (
+              <Card className="p-4">
+                <h3 className="text-sm font-bold mb-2">سجل الاعتمادات</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-muted-foreground text-right">
+                        <th className="py-1 pe-3 font-medium">رقم الشهادة</th>
+                        <th className="py-1 pe-3 font-medium">الحالة</th>
+                        <th className="py-1 pe-3 font-medium">النسخة</th>
+                        <th className="py-1 pe-3 font-medium">بواسطة</th>
+                        <th className="py-1 pe-3 font-medium">التاريخ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.certifications.map((r: any) => (
+                        <tr key={r.id} className="border-t">
+                          <td className="py-1 pe-3 tabular-nums">{r.id}</td>
+                          <td className="py-1 pe-3">
+                            <Badge tone="success">{r.status}</Badge>
+                          </td>
+                          <td className="py-1 pe-3 tabular-nums">{r.applicationCommit}</td>
+                          <td className="py-1 pe-3">{r.certifiedByName}</td>
+                          <td className="py-1 pe-3 tabular-nums">{r.certifiedAt}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            )}
           </>
         ) : null}
       </div>
