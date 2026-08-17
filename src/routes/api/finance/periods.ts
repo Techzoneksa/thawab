@@ -6,6 +6,18 @@ import { eq, like, and, desc, sql } from "drizzle-orm";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
 import { FiscalPeriodStatus, JournalStatus } from "@/lib/enums";
 
+// Map a database-level fiscal-period invariant violation (overlap trigger or
+// valid-range CHECK) to a controlled application error — the DB is the final
+// safety layer; the app pre-checks give the same errors first.
+function mapPeriodDbError(e: unknown): Response | null {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (msg.includes("PERIOD_OVERLAP"))
+    return err("الفترة تتداخل مع فترة مالية موجودة", 400, "PERIOD_OVERLAP");
+  if (msg.includes("fiscal_periods_valid_range"))
+    return err("تاريخ البداية يجب أن يكون قبل تاريخ النهاية", 400, "BAD_RANGE");
+  return null;
+}
+
 // GET /api/finance/periods - list
 // GET /api/finance/periods?id=xxx - single with stats
 async function GET({ request }: { request: Request }, _ctx: Ctx) {
@@ -130,17 +142,23 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     const periodId = genId("FP");
     const ts = now();
 
-    await db.insert(fiscalPeriods).values({
-      id: periodId,
-      name: b.name,
-      startDate: b.startDate,
-      endDate: b.endDate,
-      status: FiscalPeriodStatus.OPEN,
-      notes: b.notes || "",
-      createdBy: ctx.user.id,
-      createdAt: ts,
-      updatedAt: ts,
-    });
+    try {
+      await db.insert(fiscalPeriods).values({
+        id: periodId,
+        name: b.name,
+        startDate: b.startDate,
+        endDate: b.endDate,
+        status: FiscalPeriodStatus.OPEN,
+        notes: b.notes || "",
+        createdBy: ctx.user.id,
+        createdAt: ts,
+        updatedAt: ts,
+      });
+    } catch (e) {
+      const mapped = mapPeriodDbError(e);
+      if (mapped) return mapped;
+      throw e;
+    }
 
     await addAudit({
       action: "create",
@@ -329,16 +347,22 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
     }
 
     const before = JSON.stringify(period);
-    await db
-      .update(fiscalPeriods)
-      .set({
-        name: b.name ?? period.name,
-        startDate,
-        endDate,
-        notes: b.notes ?? period.notes,
-        updatedAt: now(),
-      })
-      .where(eq(fiscalPeriods.id, b.id));
+    try {
+      await db
+        .update(fiscalPeriods)
+        .set({
+          name: b.name ?? period.name,
+          startDate,
+          endDate,
+          notes: b.notes ?? period.notes,
+          updatedAt: now(),
+        })
+        .where(eq(fiscalPeriods.id, b.id));
+    } catch (e) {
+      const mapped = mapPeriodDbError(e);
+      if (mapped) return mapped;
+      throw e;
+    }
 
     await addAudit({
       action: "update",

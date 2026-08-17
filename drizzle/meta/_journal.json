@@ -92,6 +92,13 @@
       "when": 1786954500000,
       "tag": "0012_period_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1786954600000,
+      "tag": "0013_period_overlap_guard",
+      "breakpoints": true
     }
   ]
 }
