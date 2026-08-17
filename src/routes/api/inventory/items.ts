@@ -4,6 +4,7 @@ import { and, count, desc, eq, like, or } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { inventoryItems, warehouses, stockMovements, purchaseOrderLines } from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
+import { hasPermission } from "@/server/db/auth";
 import { InventoryItemStatus, StockMovementType, JournalSource } from "@/lib/enums";
 import { postBalancedEntry, resolveSystemAccountId, SYS } from "@/server/db/gl";
 
@@ -214,6 +215,16 @@ async function handleStockMovement(b: PostBody, ctx: Ctx) {
   if (!b.id) return err("معرف الصنف مطلوب", 400, "BAD_REQUEST");
   const qty = b.quantity ?? 0;
   if (qty <= 0) return err("الكمية يجب أن تكون أكبر من صفر", 400, "BAD_REQUEST");
+
+  // Phase 1B.2 governance: issue/adjust create posted GL impact, so they require
+  // a dedicated finalization permission — the generic `inventory.create`
+  // data-entry permission (the route gate) is NOT sufficient. `receive` posts no
+  // GL and stays under inventory.create. Authorization only; the certified
+  // posting engine and its idempotency/period checks are unchanged.
+  if (b.action === "issue" && !(await hasPermission(ctx.user.role, "inventory.issue.finalize")))
+    return err("لا تملك صلاحية اعتماد وإصدار حركة صرف مخزون", 403, "FORBIDDEN");
+  if (b.action === "adjust" && !(await hasPermission(ctx.user.role, "inventory.adjust.finalize")))
+    return err("لا تملك صلاحية اعتماد وترحيل تسوية مخزون", 403, "FORBIDDEN");
 
   const item = (
     await db.select().from(inventoryItems).where(eq(inventoryItems.id, b.id)).limit(1)

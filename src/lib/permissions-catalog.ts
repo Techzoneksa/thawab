@@ -44,6 +44,26 @@ export const PERM_MODULES: PermModule[] = [
   { key: "settings", label: "الإعدادات" },
 ];
 
+/**
+ * High-authority finalization permissions that do NOT fit the module×action
+ * grid: performing these inventory movements creates posted GL impact, so they
+ * are separated from the generic `inventory.create` data-entry permission
+ * (Phase 1B.2). Assign only to an inventory supervisor/controller, never to a
+ * normal operator.
+ */
+export const INVENTORY_FINALIZE_PERMS: { key: string; label: string; desc?: string }[] = [
+  {
+    key: "inventory.issue.finalize",
+    label: "اعتماد وإصدار حركة صرف مخزون",
+    desc: "تُنشئ قيد صرف/توزيع في الأستاذ العام — صلاحية عالية",
+  },
+  {
+    key: "inventory.adjust.finalize",
+    label: "اعتماد وترحيل تسوية مخزون",
+    desc: "تُنشئ قيد تسوية في الأستاذ العام — صلاحية عالية",
+  },
+];
+
 const MODULE_KEYS = new Set(PERM_MODULES.map((m) => m.key));
 const ACTION_KEYS = new Set(PERM_ACTIONS.map((a) => a.key));
 

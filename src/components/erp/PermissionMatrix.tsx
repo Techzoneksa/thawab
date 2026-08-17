@@ -1,4 +1,4 @@
-import { PERM_MODULES, PERM_ACTIONS } from "@/lib/permissions-catalog";
+import { PERM_MODULES, PERM_ACTIONS, INVENTORY_FINALIZE_PERMS } from "@/lib/permissions-catalog";
 import { FINANCE_PERM_GROUPS } from "@/lib/finance-permissions";
 
 /**
@@ -160,6 +160,46 @@ export function PermissionMatrix({
                 ))}
               </div>
             </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Phase 1B.2 — high-authority inventory finalization permissions that
+          create posted GL impact. Kept separate from generic inventory.create. */}
+      <div className="rounded-xl border bg-card p-3">
+        <div className="text-sm font-bold mb-1">صلاحيات اعتماد حركات المخزون (تأثير محاسبي)</div>
+        <div className="text-xs text-muted-foreground mb-3">
+          هذه الصلاحيات تُنشئ قيوداً في الأستاذ العام. لا تُمنح لمستخدم المخزون التشغيلي العادي.
+        </div>
+        <div
+          className={
+            superAdmin
+              ? "opacity-40 pointer-events-none grid sm:grid-cols-2 gap-1.5"
+              : "grid sm:grid-cols-2 gap-1.5"
+          }
+        >
+          {INVENTORY_FINALIZE_PERMS.map((p) => (
+            <label key={p.key} className="flex items-start gap-2 cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                className="h-4 w-4 mt-0.5"
+                checked={superAdmin || set.has(p.key)}
+                disabled={superAdmin}
+                onChange={() =>
+                  mutate((s) => {
+                    if (s.has(p.key)) s.delete(p.key);
+                    else s.add(p.key);
+                  })
+                }
+              />
+              <span>
+                <span className="font-medium">{p.label}</span>
+                {p.desc ? <span className="text-muted-foreground"> — {p.desc}</span> : null}
+                <span className="block text-[10px] text-muted-foreground/70 font-mono">
+                  {p.key}
+                </span>
+              </span>
+            </label>
           ))}
         </div>
       </div>
