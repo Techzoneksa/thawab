@@ -1,4 +1,4 @@
-import { copyFile, mkdir, cp, rm, writeFile } from "node:fs/promises";
+import { mkdir, cp, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
@@ -15,8 +15,35 @@ if (!existsSync(sourceServer)) {
   process.exit(1);
 }
 
-// Wipe and recreate the mirror so deleted/changed chunks are not left
-// behind in `server/` from a previous build.
+// Resolve the build commit (same rule as vite.config.ts / getAppCommit).
+let commit = process.env.APP_COMMIT || "";
+if (!commit) {
+  try {
+    commit = execSync("git rev-parse --short HEAD", { cwd: root }).toString().trim();
+  } catch {
+    /* no git in build env — leave blank; bundle still carries the baked constant */
+  }
+}
+
+// Make the CANONICAL Nitro artifact (.output/server) self-contained FIRST, so
+// whichever entry the host launches — `.output/server/index.mjs` (Nitro's
+// serverEntry) or the repo-root `server/index.mjs` mirror — finds migrations
+// and the commit stamp next to the bundle, independent of process.cwd().
+// (Root cause of the production "commit unknown / migrations MISSING" blockers:
+// these files previously lived only in the repo-root mirror.)
+const sourceDrizzle = resolve(root, "drizzle");
+if (existsSync(sourceDrizzle)) {
+  await cp(sourceDrizzle, resolve(sourceServer, "drizzle"), { recursive: true });
+  console.log(`[postbuild] embedded migrations in ${sourceServer}/drizzle/`);
+}
+if (commit) {
+  await writeFile(resolve(sourceServer, "commit.txt"), commit);
+  console.log(`[postbuild] stamped commit ${commit} in ${sourceServer}/commit.txt`);
+}
+
+// Mirror the (now self-contained) server bundle to the repo root so Node hosts
+// that auto-detect `node server/index.mjs` boot without a wrapper. The mirror
+// inherits drizzle/ and commit.txt from the source above.
 await rm(targetServer, { recursive: true, force: true });
 await mkdir(targetServer, { recursive: true });
 await cp(sourceServer, targetServer, { recursive: true });
@@ -25,31 +52,6 @@ if (existsSync(sourcePublic)) {
   await rm(targetPublic, { recursive: true, force: true });
   await mkdir(targetPublic, { recursive: true });
   await cp(sourcePublic, targetPublic, { recursive: true });
-}
-
-// Ship the drizzle migration files inside the server bundle so runtime
-// auto-migrate can find them even when the deploy only includes `server/`
-// (not the repo root). ensureInit() checks `server/drizzle` as a candidate.
-const sourceDrizzle = resolve(root, "drizzle");
-if (existsSync(sourceDrizzle)) {
-  const targetDrizzle = resolve(targetServer, "drizzle");
-  await cp(sourceDrizzle, targetDrizzle, { recursive: true });
-  console.log(`[postbuild] copied migrations to ${targetDrizzle}/`);
-}
-
-// Stamp the deployed commit so the running app can report its revision
-// (used by the finance certification). Falls back silently if git is absent.
-let commit = process.env.APP_COMMIT || "";
-if (!commit) {
-  try {
-    commit = execSync("git rev-parse --short HEAD", { cwd: root }).toString().trim();
-  } catch {
-    /* no git in build env — leave blank */
-  }
-}
-if (commit) {
-  await writeFile(resolve(targetServer, "commit.txt"), commit);
-  console.log(`[postbuild] stamped commit ${commit}`);
 }
 
 console.log(`[postbuild] mirrored server bundle to ${targetServer}/`);

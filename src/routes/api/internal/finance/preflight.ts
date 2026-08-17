@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { and, desc, eq } from "drizzle-orm";
-import { db, addAudit, now, genId } from "@/server/db/index";
+import { db, addAudit, now, genId, getBootMigrationStatus } from "@/server/db/index";
 import { financeCertifications } from "@/server/db/schema";
 import { authHandler, guard, err, type Ctx } from "@/server/db/api-utils";
 import { getAppCommit } from "@/server/db/app-info";
@@ -111,6 +111,7 @@ async function GET(_event: { request: Request }, ctx: Ctx) {
       warnings: report.warnings,
       snapshot,
       checks: report.checks,
+      bootMigration: getBootMigrationStatus(), // surfaces swallowed boot-migration failures
       certification: currentCert, // certificate for THIS commit only (or null)
       certifications: await recentCertifications(certTableExists),
     });

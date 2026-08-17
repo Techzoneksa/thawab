@@ -312,6 +312,17 @@ function Page() {
                   بعد. طبّق الترحيلات أدناه لإكمال البنية ثم اعتمد.
                 </div>
               )}
+              {!data.commitResolved && (
+                <div className="mt-3 border-t pt-3 text-sm text-destructive">
+                  تعذّر تحديد نسخة التطبيق (commit=unknown). لا يمكن إصدار الشهادة حتى تُحلّ النسخة
+                  — تأكّد من أن البناء ضمّن بصمة الإصدار.
+                </div>
+              )}
+              {data.bootMigration?.error && (
+                <div className="mt-3 border-t pt-3 text-xs text-muted-foreground">
+                  تشخيص الترحيل عند الإقلاع: {data.bootMigration.error}
+                </div>
+              )}
               {status === "READY_TO_CERTIFY" && (
                 <div className="mt-3 border-t pt-3 text-sm text-muted-foreground">
                   الفحص المحاسبي سليم وكل كائنات قاعدة البيانات موجودة، ولا توجد شهادة لهذه النسخة

@@ -11,7 +11,8 @@
  */
 import { sql } from "drizzle-orm";
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { preflightGate } from "./finance-preflight";
 
@@ -161,11 +162,45 @@ export async function applyFinanceInfraMigrations(db: Db, folder: string) {
   return { applied: done };
 }
 
-/** Resolve the shipped drizzle folder (repo root or inside the server bundle). */
+/**
+ * A drizzle folder is only valid if it actually contains the migration journal
+ * — guards against matching an empty/partial directory.
+ */
+function isMigrationsFolder(dir: string): boolean {
+  return existsSync(dir) && existsSync(resolve(dir, "meta", "_journal.json"));
+}
+
+/**
+ * Candidate migration-folder locations, cwd- AND module-relative.
+ *
+ * Production root cause (Phase 1A plumbing): the Nitro `node-server` artifact
+ * runs `.output/server/index.mjs` whose process.cwd() is NOT the repo/mirror
+ * root, so cwd-relative lookups missed the shipped migrations. Anchoring to this
+ * module's own URL lets discovery find `drizzle/` shipped inside the server
+ * bundle (postbuild copies it next to the entry) regardless of cwd.
+ */
+export function drizzleFolderCandidates(): string[] {
+  const list = [resolve(process.cwd(), "drizzle"), resolve(process.cwd(), "server", "drizzle")];
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    // Walk a few levels up from the (possibly chunked) module location and
+    // probe for a sibling `drizzle` dir — covers `.output/server/_ssr/*` →
+    // `.output/server/drizzle`, plain `server/` mirror, and dev `src/`.
+    for (const base of [
+      here,
+      resolve(here, ".."),
+      resolve(here, "..", ".."),
+      resolve(here, "..", "..", ".."),
+    ]) {
+      list.push(resolve(base, "drizzle"), resolve(base, "server", "drizzle"));
+    }
+  } catch {
+    /* import.meta.url unavailable — cwd candidates only */
+  }
+  return list;
+}
+
+/** Resolve the shipped drizzle folder (repo root, server bundle, or module-relative). */
 export function resolveDrizzleFolder(): string | null {
-  const candidates = [
-    resolve(process.cwd(), "drizzle"),
-    resolve(process.cwd(), "server", "drizzle"),
-  ];
-  return candidates.find((c) => existsSync(c)) ?? null;
+  return drizzleFolderCandidates().find(isMigrationsFolder) ?? null;
 }

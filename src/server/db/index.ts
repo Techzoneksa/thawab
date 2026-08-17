@@ -5,15 +5,36 @@
  * On first request we run any pending migrations against Postgres.
  */
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
 import { db, getDb, diagnose, runRawSql, closeDb } from "./client";
 import { auditLog } from "./schema";
-import { runBootMigrations } from "./migrate-controlled";
+import {
+  runBootMigrations,
+  resolveDrizzleFolder,
+  drizzleFolderCandidates,
+} from "./migrate-controlled";
 
 export { db, getDb, diagnose, runRawSql, closeDb };
 
 let _initPromise: Promise<void> | null = null;
+
+// Last boot-migration outcome — exposed (read-only) so a swallowed failure is
+// visible to the preflight diagnostics instead of silently leaving objects
+// MISSING. Never contains secrets: a status label + a short message only.
+export interface BootMigrationStatus {
+  ran: boolean;
+  folderFound: boolean;
+  error: string | null;
+  checkedCandidates: string[];
+}
+let _bootMigration: BootMigrationStatus = {
+  ran: false,
+  folderFound: false,
+  error: null,
+  checkedCandidates: [],
+};
+export function getBootMigrationStatus(): BootMigrationStatus {
+  return _bootMigration;
+}
 
 /**
  * Best-effort auto-migration on first request.
@@ -26,18 +47,21 @@ let _initPromise: Promise<void> | null = null;
 export function ensureInit(): Promise<void> {
   if (_initPromise) return _initPromise;
   _initPromise = (async () => {
-    // Look in several candidate locations: the repo root (dev / full-repo
-    // deploys) and inside the server bundle (postbuild ships migrations to
-    // `server/drizzle` for deploys that only include the built server).
-    const candidates = [
-      resolve(process.cwd(), "drizzle"),
-      resolve(process.cwd(), "server", "drizzle"),
-    ];
-    const folder = candidates.find((c) => existsSync(c));
+    // Discover the migrations folder cwd- AND module-relative (see
+    // resolveDrizzleFolder) so it is found inside the deployed server bundle
+    // regardless of process.cwd().
+    const candidates = drizzleFolderCandidates();
+    const folder = resolveDrizzleFolder();
+    _bootMigration = {
+      ran: false,
+      folderFound: !!folder,
+      error: null,
+      checkedCandidates: candidates,
+    };
     if (!folder) {
-      console.warn(
-        `[db] migrations folder not found (checked: ${candidates.join(", ")}) — assuming DB migrated externally (npm run db:migrate).`,
-      );
+      const msg = `migrations folder not found (checked: ${candidates.join(", ")})`;
+      _bootMigration.error = msg;
+      console.warn(`[db] ${msg} — assuming DB migrated externally (npm run db:migrate).`);
       return;
     }
     const t0 = Date.now();
@@ -46,10 +70,13 @@ export function ensureInit(): Promise<void> {
       // finance-integrity migrations (0011–0013) apply only if the read-only
       // preflight gate passes, else they are deferred to the admin action.
       await runBootMigrations(getDb() as any, folder);
+      _bootMigration.ran = true;
       console.log(`[db] migrations checked (${Date.now() - t0}ms)`);
     } catch (e) {
-      // Do not crash the app — external migration is the source of truth.
-      console.error("[db] auto-migrate skipped:", e instanceof Error ? e.message : e);
+      // Do not crash the app — external migration is the source of truth — but
+      // record the failure so diagnostics can surface it (item 10).
+      _bootMigration.error = e instanceof Error ? e.message : String(e);
+      console.error("[db] auto-migrate skipped:", _bootMigration.error);
     }
   })();
   return _initPromise;
