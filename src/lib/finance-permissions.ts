@@ -255,6 +255,30 @@ export function findTransition(from: string, action: JournalAction): Transition 
   return JOURNAL_TRANSITIONS.find((t) => t.from === from && t.action === action) ?? null;
 }
 
+/**
+ * Source-aware permission overrides. The journal workflow stays a SINGLE shared
+ * engine, but authorization understands the journal's source: an opening-balance
+ * journal is approved/posted with the dedicated opening-balance permissions, not
+ * the generic journal ones. Normal manual/import journals use the base matrix
+ * permission. Extend this table (not the engine) for future source-specific
+ * governance.
+ */
+const SOURCE_PERMISSION_OVERRIDES: Record<string, Partial<Record<JournalAction, string>>> = {
+  opening_balance: {
+    approve: FINANCE_PERMISSIONS.openingApprove,
+    post: FINANCE_PERMISSIONS.openingPost,
+  },
+};
+
+/** Effective permission for (sourceType, action), falling back to the base. */
+export function effectivePermission(
+  sourceType: string | null | undefined,
+  action: JournalAction,
+  base: string,
+): string {
+  return SOURCE_PERMISSION_OVERRIDES[sourceType ?? ""]?.[action] ?? base;
+}
+
 export interface TransitionDecision {
   ok: boolean;
   toStatus?: string;
@@ -275,6 +299,7 @@ export function evaluateTransition(input: {
   createdBy?: string | null;
   currentUserId: string;
   reason?: string;
+  sourceType?: string | null;
 }): TransitionDecision {
   const t = findTransition(input.fromStatus, input.action);
   if (!t)
@@ -283,28 +308,31 @@ export function evaluateTransition(input: {
       code: "ILLEGAL_TRANSITION",
       message: `انتقال غير مسموح: لا يمكن تنفيذ "${input.action}" على قيد بحالة "${input.fromStatus}"`,
     };
-  if (!input.hasPerm(t.permission))
+  // Source-aware permission (e.g. opening_balance.approve/post instead of the
+  // generic journal permissions).
+  const perm = effectivePermission(input.sourceType, input.action, t.permission);
+  if (!input.hasPerm(perm))
     return {
       ok: false,
-      permission: t.permission,
+      permission: perm,
       code: "FORBIDDEN",
       message: "لا تملك صلاحية لهذا الإجراء المالي",
     };
   if (t.makerCheckerBlocked && input.createdBy && input.createdBy === input.currentUserId)
     return {
       ok: false,
-      permission: t.permission,
+      permission: perm,
       code: "SELF_APPROVAL",
       message: "لا يمكنك اعتماد قيد أنشأته بنفسك (فصل المهام)",
     };
   if (t.reasonRequired && !(input.reason ?? "").trim())
     return {
       ok: false,
-      permission: t.permission,
+      permission: perm,
       code: "REASON_REQUIRED",
       message: "السبب مطلوب لهذا الإجراء",
     };
-  return { ok: true, toStatus: t.to, permission: t.permission };
+  return { ok: true, toStatus: t.to, permission: perm };
 }
 
 /** HTTP status for a decision failure code. */

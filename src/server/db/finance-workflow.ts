@@ -22,6 +22,7 @@ import { JournalStatus } from "@/lib/enums";
 import {
   findTransition,
   evaluateTransition,
+  effectivePermission,
   decisionHttpStatus,
   type JournalAction,
 } from "@/lib/finance-permissions";
@@ -92,14 +93,18 @@ export async function transitionJournal(
   // Authorization decision (state matrix → permission → maker≠checker → reason)
   // via the single shared pure function. The permission is resolved once here.
   const t = findTransition(entry.status, action);
-  const granted = t ? await hasPermission(ctx.user.role, t.permission) : false;
+  // Source-aware permission: opening-balance journals are approved/posted with
+  // the dedicated opening-balance permissions, not the generic journal ones.
+  const perm = t ? effectivePermission(entry.sourceType, action, t.permission) : null;
+  const granted = perm ? await hasPermission(ctx.user.role, perm) : false;
   const decision = evaluateTransition({
     fromStatus: entry.status,
     action,
-    hasPerm: (p) => (t ? p === t.permission && granted : false),
+    hasPerm: (p) => (perm ? p === perm && granted : false),
     createdBy: entry.createdBy,
     currentUserId: ctx.user.id,
     reason,
+    sourceType: entry.sourceType,
   });
   if (!decision.ok || !t)
     throw new AppError(

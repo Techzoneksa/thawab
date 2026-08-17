@@ -231,21 +231,25 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
               JournalStatus.DRAFT,
               JournalStatus.SUBMITTED,
               JournalStatus.APPROVED,
+              // Legacy status: any pre-Phase-1B unposted journal must also block
+              // close — no old status may hide from the period-close check.
+              JournalStatus.PENDING,
             ]),
           ),
         );
       if (openItems.length > 0) {
-        const counts = { draft: 0, submitted: 0, approved: 0 };
+        const counts = { draft: 0, submitted: 0, approved: 0, pending: 0 };
         for (const it of openItems) {
           if (it.status === JournalStatus.DRAFT) counts.draft++;
           else if (it.status === JournalStatus.SUBMITTED) counts.submitted++;
           else if (it.status === JournalStatus.APPROVED) counts.approved++;
+          else if (it.status === JournalStatus.PENDING) counts.pending++;
         }
         return Response.json(
           {
             error: true,
             code: "HAS_OPEN_WORKFLOW_ITEMS",
-            message: `لا يمكن إقفال الفترة: يوجد مستندات محاسبية غير منتهية — مسودات: ${counts.draft}، بانتظار الاعتماد: ${counts.submitted}، معتمدة غير مُرحّلة: ${counts.approved}. أكملها أو ألغِها أولاً.`,
+            message: `لا يمكن إقفال الفترة: يوجد مستندات محاسبية غير منتهية — مسودات: ${counts.draft}، بانتظار الاعتماد: ${counts.submitted}، معتمدة غير مُرحّلة: ${counts.approved}، قديمة (pending): ${counts.pending}. أكملها أو ألغِها أولاً.`,
             counts,
           },
           { status: 400 },
