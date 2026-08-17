@@ -223,6 +223,7 @@ export async function rowCounts(dbh: Db) {
 export async function checkMigrationObjects(dbh: Db) {
   const exists = async (q: string) => Boolean((await rows(dbh, sql.raw(q)))[0]?.ok);
   return {
+    // 0011 — import traceability + source cardinality
     import_batches: await exists(`SELECT to_regclass('public.import_batches') IS NOT NULL ok`),
     import_batches_hash_idx: await exists(
       `SELECT count(*)>0 ok FROM pg_indexes WHERE indexname='import_batches_hash_idx'`,
@@ -230,14 +231,23 @@ export async function checkMigrationObjects(dbh: Db) {
     journal_entries_source_unique_idx: await exists(
       `SELECT count(*)>0 ok FROM pg_indexes WHERE indexname='journal_entries_source_unique_idx'`,
     ),
+    // 0012 — fiscal-period valid range
     fiscal_periods_valid_range: await exists(
       `SELECT count(*)>0 ok FROM pg_constraint WHERE conname='fiscal_periods_valid_range'`,
     ),
+    // 0013 — fiscal-period overlap guard
     fiscal_periods_no_overlap: await exists(
       `SELECT count(*)>0 ok FROM pg_proc WHERE proname='fiscal_periods_no_overlap'`,
     ),
     fiscal_periods_no_overlap_trg: await exists(
       `SELECT count(*)>0 ok FROM pg_trigger WHERE tgname='fiscal_periods_no_overlap_trg'`,
+    ),
+    // 0014 — certification storage + idempotency (part of Phase 1A infrastructure)
+    finance_certifications: await exists(
+      `SELECT to_regclass('public.finance_certifications') IS NOT NULL ok`,
+    ),
+    finance_certification_unique_constraint_or_index: await exists(
+      `SELECT count(*)>0 ok FROM pg_indexes WHERE indexname='finance_certifications_phase_env_commit_idx'`,
     ),
   };
 }
@@ -289,14 +299,35 @@ export async function accountingFingerprint(dbh: Db): Promise<string> {
   return r[0]?.fp ?? "";
 }
 
-export type CertStatus = "PRODUCTION_READY" | "PENDING_MIGRATIONS" | "PRODUCTION_BLOCKED";
+export type CertStatus =
+  "PRODUCTION_BLOCKED" | "PENDING_MIGRATIONS" | "READY_TO_CERTIFY" | "PRODUCTION_READY";
 
-/** Three production states from a preflight report. */
-export function determineStatus(report: any): CertStatus {
+/** True only when every required Phase 1A DB object (0011–0014) is present. */
+export function requiredObjectsPresent(report: any): boolean {
+  return Object.values(report.checks.migrationObjects).every(Boolean);
+}
+
+/**
+ * Certification lifecycle state for the CURRENT deployed commit.
+ *
+ * - PRODUCTION_BLOCKED   — accounting integrity gate failed (P0/P1).
+ * - PENDING_MIGRATIONS   — accounting passes but required DB objects (incl.
+ *                          finance_certifications from 0014) are incomplete.
+ * - READY_TO_CERTIFY     — accounting passes, all objects present, but the
+ *                          current runtime commit has no certificate yet.
+ * - PRODUCTION_READY     — a certificate exists for the current runtime commit
+ *                          AND the live preflight still passes (already certified).
+ *
+ * `certForCurrentCommit` must be computed from the certificate whose
+ * application_commit equals the resolved runtime commit — never a historical one.
+ */
+export function determineStatus(
+  report: any,
+  opts: { certForCurrentCommit?: boolean } = {},
+): CertStatus {
   if (!report.migrationReady) return "PRODUCTION_BLOCKED"; // accounting gate failed
-  const objs = report.checks.migrationObjects;
-  if (!Object.values(objs).every(Boolean)) return "PENDING_MIGRATIONS";
-  return "PRODUCTION_READY";
+  if (!requiredObjectsPresent(report)) return "PENDING_MIGRATIONS";
+  return opts.certForCurrentCommit ? "PRODUCTION_READY" : "READY_TO_CERTIFY";
 }
 
 export interface CertHistory {
@@ -335,9 +366,16 @@ export function buildSnapshot(report: any, history: CertHistory) {
       valid: !c.reversal.available || c.reversal.combined_net_effect === 0,
     },
     migrationIntegrity: {
-      "0011": !!(objs.import_batches && objs.journal_entries_source_unique_idx),
+      "0011": !!(
+        objs.import_batches &&
+        objs.import_batches_hash_idx &&
+        objs.journal_entries_source_unique_idx
+      ),
       "0012": !!objs.fiscal_periods_valid_range,
       "0013": !!(objs.fiscal_periods_no_overlap && objs.fiscal_periods_no_overlap_trg),
+      "0014": !!(
+        objs.finance_certifications && objs.finance_certification_unique_constraint_or_index
+      ),
       required_objects_present: allObjects,
       objects: objs,
     },

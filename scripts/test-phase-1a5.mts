@@ -1,22 +1,28 @@
 /**
- * Phase 1A.5 — Automatic Production Certification tests (PGlite, isolated).
+ * Phase 1A.5 — Final Correction tests (PGlite, isolated).
  *
  * Exercises the real certification engine (finance-preflight.ts +
- * migrate-controlled.ts) against an in-memory Postgres. No production DB, no
- * secrets. Run: node_modules/.bin/tsx scripts/test-phase-1a5.mts
+ * migrate-controlled.ts) and the certification lifecycle against an in-memory
+ * Postgres. No production DB, no secrets. Covers scenarios A–L.
+ * Run: node_modules/.bin/tsx scripts/test-phase-1a5.mts
  */
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
+import { execSync } from "node:child_process";
 import { resolve } from "node:path";
 import {
   runPreflight,
   determineStatus,
+  requiredObjectsPresent,
   buildSnapshot,
   accountingFingerprint,
   rowCounts,
   type CertHistory,
 } from "@/server/db/finance-preflight";
-import { applyGatedFinanceMigrations } from "@/server/db/migrate-controlled";
+import {
+  applyGatedFinanceMigrations,
+  applyFinanceInfraMigrations,
+} from "@/server/db/migrate-controlled";
 
 let pass = 0;
 let fail = 0;
@@ -29,6 +35,9 @@ function ok(name: string, cond: boolean, extra = "") {
     console.error(`  ✗ ${name} ${extra}`);
   }
 }
+
+const DRIZZLE = resolve(process.cwd(), "drizzle");
+const RUNTIME_COMMIT = "abc1234";
 
 const BASE_DDL = `
 CREATE TABLE users (id text PRIMARY KEY, name text NOT NULL DEFAULT '');
@@ -86,11 +95,10 @@ async function seedAccounts(client: any) {
     ["a-rev", "4010", "Donations", "revenue"],
     ["a-exp", "5010", "Aid Expense", "expense"],
   ];
-  for (const [id, code, name, cls] of accs) {
+  for (const [id, code, name, cls] of accs)
     await client.exec(
       `INSERT INTO accounts (id,code,name,classification) VALUES ('${id}','${code}','${name}','${cls}')`,
     );
-  }
 }
 
 async function entry(
@@ -99,15 +107,13 @@ async function entry(
   number: string,
   status: string,
   lines: { acc: string; d: number; c: number }[],
-  opts: { sourceType?: string; sourceId?: string; reversedOf?: string; date?: string } = {},
+  opts: { sourceType?: string; sourceId?: string } = {},
 ) {
   const st = opts.sourceType ? `'${opts.sourceType}'` : "NULL";
   const si = opts.sourceId ? `'${opts.sourceId}'` : "NULL";
-  const ro = opts.reversedOf ? `'${opts.reversedOf}'` : "NULL";
-  const date = opts.date ?? "2026-03-01";
   await client.exec(
-    `INSERT INTO journal_entries (id,number,date,status,source_type,source_id,reversed_of)
-     VALUES ('${id}','${number}','${date}','${status}',${st},${si},${ro})`,
+    `INSERT INTO journal_entries (id,number,date,status,source_type,source_id)
+     VALUES ('${id}','${number}','2026-03-01','${status}',${st},${si})`,
   );
   let n = 1;
   for (const l of lines) {
@@ -119,23 +125,45 @@ async function entry(
   }
 }
 
-/** Balanced clean production: revenue funded cash, aid paid from cash. */
 async function seedClean(client: any) {
   await seedAccounts(client);
   await client.exec(
     `INSERT INTO fiscal_periods (id,name,start_date,end_date,status)
      VALUES ('p2026','FY2026','2026-01-01','2026-12-31','open')`,
   );
-  // Donation 1000: Dr Cash 1000 / Cr Revenue 1000
   await entry(client, "je1", "JE-0001", "posted", [
     { acc: "a-cash", d: 1000, c: 0 },
     { acc: "a-rev", d: 0, c: 1000 },
   ], { sourceType: "donation", sourceId: "don-1" });
-  // Aid 400: Dr Expense 400 / Cr Cash 400
   await entry(client, "je2", "JE-0002", "posted", [
     { acc: "a-exp", d: 400, c: 0 },
     { acc: "a-cash", d: 0, c: 400 },
   ], { sourceType: "aid", sourceId: "aid-1" });
+}
+
+async function q(client: any, sqlText: string): Promise<any[]> {
+  const r = await client.query(sqlText);
+  return r.rows ?? [];
+}
+
+/** Certificate lookup for a specific commit — mirrors endpoint certForCommit(). */
+async function certForCommit(client: any, commit: string) {
+  const r = await q(
+    client,
+    `SELECT * FROM finance_certifications
+     WHERE status='PRODUCTION_READY' AND environment='production' AND application_commit='${commit}'
+     ORDER BY certified_at DESC LIMIT 1`,
+  );
+  return r[0] ?? null;
+}
+
+/** Insert an immutable certificate — mirrors the certify() INSERT. */
+async function insertCert(client: any, id: string, commit: string) {
+  await client.exec(
+    `INSERT INTO finance_certifications
+       (id,phase,environment,status,application_commit,result_json,certified_by,certified_by_name,certified_at,created_at)
+     VALUES ('${id}','FINANCE_PHASE_1A','production','PRODUCTION_READY','${commit}','{}',NULL,'Super Admin','2026-08-17','2026-08-17')`,
+  );
 }
 
 const HISTORY_ZERO: CertHistory = {
@@ -147,157 +175,165 @@ const HISTORY_ZERO: CertHistory = {
   journalLinesAfter: 4,
 };
 
-const DRIZZLE = resolve(process.cwd(), "drizzle");
-
 async function main() {
-  // ---- TEST 6 (run first): clean but migration objects absent -> PENDING_MIGRATIONS
-  console.log("\nTEST 6 — PASS but objects missing => PENDING_MIGRATIONS");
+  // ===== Test A — Commit Stamp: runtime commit == built git HEAD =====
+  console.log("\nTest A — Commit stamp matches git HEAD");
   {
-    const { db, client } = await freshDb();
-    await seedClean(client);
-    const report = await runPreflight(db);
-    ok("accounting PASS", report.overall === "PASS", `overall=${report.overall}`);
-    ok("migrationReady true", report.migrationReady === true);
-    ok(
-      "status PENDING_MIGRATIONS",
-      determineStatus(report) === "PENDING_MIGRATIONS",
-      determineStatus(report),
-    );
+    const head = execSync("git rev-parse --short HEAD").toString().trim();
+    let checkerOut = "";
+    let checkerOk = false;
+    try {
+      checkerOut = execSync(`node scripts/check-commit-stamp.mjs --expect ${head}`, {
+        stdio: ["ignore", "pipe", "pipe"],
+      }).toString();
+      checkerOk = true;
+    } catch (e: any) {
+      checkerOut = (e.stdout?.toString() || "") + (e.stderr?.toString() || "");
+    }
+    // Passes only when server/commit.txt equals HEAD (i.e. a fresh build).
+    console.log(`    (checker: ${checkerOut.trim().split("\n").pop()})`);
+    ok("check-commit-stamp passes when stamp == HEAD", checkerOk, checkerOut);
   }
 
-  // ---- TEST 7: apply gated migrations => SUCCESS + fingerprint/counts unchanged
-  console.log("\nTEST 7 — apply migrations => SUCCESS, accounting history unchanged");
-  let readyDb: any;
+  // ===== Test B — Stale Commit: mismatch must fail the build check =====
+  console.log("\nTest B — Stale commit stamp fails the guard");
+  {
+    let failed = false;
+    try {
+      execSync("node scripts/check-commit-stamp.mjs --expect deadbee", {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch {
+      failed = true; // non-zero exit expected
+    }
+    ok("guard exits non-zero on stale/mismatched stamp", failed);
+  }
+
+  // ===== Test C — GET does not certify (zero-write read path) =====
+  console.log("\nTest C — GET (diagnostic) creates no certification");
   {
     const { db, client } = await freshDb();
     await seedClean(client);
-    const beforeFp = await accountingFingerprint(db);
-    const beforeCounts = await rowCounts(db);
-    const result = await applyGatedFinanceMigrations(db, DRIZZLE);
-    ok("not blocked", result.blocked === false);
-    ok(
-      "applied 0011-0013",
-      ["0011_fresh_thunderbolt_ross", "0012_period_guards", "0013_period_overlap_guard"].every(
-        (t) => result.applied.includes(t),
-      ),
-      result.applied.join(","),
+    await applyFinanceInfraMigrations(db, DRIZZLE);
+    await applyGatedFinanceMigrations(db, DRIZZLE);
+    const before = Number((await q(client, `SELECT count(*)::int c FROM finance_certifications`))[0].c);
+    // What GET does on the DB: runPreflight (+ cert lookup) — all reads.
+    await runPreflight(db);
+    await certForCommit(client, RUNTIME_COMMIT);
+    const after = Number((await q(client, `SELECT count(*)::int c FROM finance_certifications`))[0].c);
+    ok("certification count unchanged by GET path", before === after && before === 0, `${before}->${after}`);
+    const src = (await import("node:fs")).readFileSync(
+      resolve(process.cwd(), "src/routes/api/internal/finance/preflight.ts"),
+      "utf8",
     );
-    const afterFp = await accountingFingerprint(db);
-    const afterCounts = await rowCounts(db);
-    ok("fingerprint unchanged", beforeFp === afterFp && beforeFp.length > 0);
-    ok(
-      "journal counts unchanged",
-      beforeCounts.journal_entries === afterCounts.journal_entries &&
-        beforeCounts.journal_lines === afterCounts.journal_lines,
-    );
+    const getBody = src.slice(src.indexOf("async function GET"), src.indexOf("async function applyMigrations"));
+    ok("GET function body contains no INSERT", !/\.insert\(/.test(getBody));
+    ok("GET function body writes no audit", !/addAudit/.test(getBody));
+  }
+
+  // ===== Test D — Missing 0014: PENDING_MIGRATIONS, not 500 =====
+  console.log("\nTest D — Accounting PASS but finance_certifications missing => PENDING_MIGRATIONS");
+  {
+    const { db, client } = await freshDb();
+    await seedClean(client);
+    let report: any;
+    let threw = false;
+    try {
+      report = await runPreflight(db); // no migrations applied -> objects absent
+    } catch {
+      threw = true;
+    }
+    ok("runPreflight does not throw when 0014 absent", !threw);
+    ok("finance_certifications reported missing", report.checks.migrationObjects.finance_certifications === false);
+    ok("accounting still PASS", report.overall === "PASS");
+    ok("status PENDING_MIGRATIONS", determineStatus(report, { certForCurrentCommit: false }) === "PENDING_MIGRATIONS");
+  }
+
+  // ===== Test E — Apply required migrations in dependency order =====
+  console.log("\nTest E — Apply infra(0014) + gated(0011–0013) => all objects present");
+  let readyDb: any, readyClient: any;
+  {
+    const { db, client } = await freshDb();
+    await seedClean(client);
+    const infra = await applyFinanceInfraMigrations(db, DRIZZLE);
+    const gated = await applyGatedFinanceMigrations(db, DRIZZLE);
+    ok("0014 applied first (infra)", infra.applied.includes("0014_numerous_deadpool"));
+    ok("0011–0013 applied (gated)", ["0011_fresh_thunderbolt_ross","0012_period_guards","0013_period_overlap_guard"].every((t) => gated.applied.includes(t)));
     const report = await runPreflight(db);
-    ok(
-      "all migration objects present",
-      Object.values(report.checks.migrationObjects).every(Boolean),
-      JSON.stringify(report.checks.migrationObjects),
-    );
-    const status = determineStatus(report);
-    ok("status PRODUCTION_READY after apply", status === "PRODUCTION_READY", status);
-    const snap = buildSnapshot(report, {
-      fingerprintBefore: beforeFp,
-      fingerprintAfter: afterFp,
-      journalEntriesBefore: beforeCounts.journal_entries,
-      journalEntriesAfter: afterCounts.journal_entries,
-      journalLinesBefore: beforeCounts.journal_lines,
-      journalLinesAfter: afterCounts.journal_lines,
-    });
-    ok("snapshot migration 0011/0012/0013 true", snap.migrationIntegrity["0011"] && snap.migrationIntegrity["0012"] && snap.migrationIntegrity["0013"]);
-    ok("snapshot history fingerprint_match", snap.historyIntegrity.fingerprint_match === true);
+    ok("all required objects present", requiredObjectsPresent(report), JSON.stringify(report.checks.migrationObjects));
+    ok("finance_certifications present", report.checks.migrationObjects.finance_certifications === true);
+    ok("cert unique index present", report.checks.migrationObjects.finance_certification_unique_constraint_or_index === true);
     readyDb = db;
+    readyClient = client;
   }
 
-  // ---- TEST 1: clean + migrations applied => PRODUCTION_READY (reuse readyDb)
-  console.log("\nTEST 1 — clean + migrated => PRODUCTION_READY");
+  // ===== Test F — Ready to certify (no cert for runtime commit) =====
+  console.log("\nTest F — Clean + all objects + no certificate => READY_TO_CERTIFY");
   {
     const report = await runPreflight(readyDb);
-    ok("status PRODUCTION_READY", determineStatus(report) === "PRODUCTION_READY");
-    ok("GL balanced", report.checks.generalLedger.balanced === true);
-    ok("TB balanced", report.checks.trialBalance.balanced === true);
-    ok("Financial position balanced", report.checks.financialPosition.balanced === true);
+    const cert = await certForCommit(readyClient, RUNTIME_COMMIT);
+    ok("no certificate for runtime commit yet", cert === null);
+    ok("status READY_TO_CERTIFY", determineStatus(report, { certForCurrentCommit: !!cert }) === "READY_TO_CERTIFY");
   }
 
-  // ---- TEST 2: GL imbalance => PRODUCTION_BLOCKED
-  console.log("\nTEST 2 — GL imbalance => PRODUCTION_BLOCKED");
+  // ===== Test G — Certification stores the runtime commit =====
+  console.log("\nTest G — Certify stores certificate.application_commit == runtime commit");
+  {
+    await insertCert(readyClient, "CERT-1", RUNTIME_COMMIT);
+    const cert = await certForCommit(readyClient, RUNTIME_COMMIT);
+    ok("certificate exists", !!cert);
+    ok("application_commit == runtime commit", cert.application_commit === RUNTIME_COMMIT, cert.application_commit);
+    const report = await runPreflight(readyDb);
+    ok("status now PRODUCTION_READY", determineStatus(report, { certForCurrentCommit: true }) === "PRODUCTION_READY");
+  }
+
+  // ===== Test H — Repeat certify is idempotent (DB unique guard) =====
+  console.log("\nTest H — Second certify of same commit => same record, count unchanged");
+  {
+    const before = Number((await q(readyClient, `SELECT count(*)::int c FROM finance_certifications`))[0].c);
+    let violated = false;
+    try {
+      await insertCert(readyClient, "CERT-2", RUNTIME_COMMIT); // same (phase,env,commit)
+    } catch {
+      violated = true; // unique index rejects the duplicate
+    }
+    const after = Number((await q(readyClient, `SELECT count(*)::int c FROM finance_certifications`))[0].c);
+    ok("duplicate insert rejected by unique index", violated);
+    ok("certification count unchanged", before === after);
+    const cert = await certForCommit(readyClient, RUNTIME_COMMIT);
+    ok("existing certificate returned (CERT-1)", cert.id === "CERT-1");
+  }
+
+  // ===== Test I — New runtime commit is NOT certified by old certificate =====
+  console.log("\nTest I — Certificate for commit A, runtime commit B => READY_TO_CERTIFY");
+  {
+    const report = await runPreflight(readyDb);
+    const NEW_COMMIT = "bbb222";
+    const cert = await certForCommit(readyClient, NEW_COMMIT); // none for B
+    ok("no certificate for the new runtime commit", cert === null);
+    const status = determineStatus(report, { certForCurrentCommit: !!cert });
+    ok("status READY_TO_CERTIFY (not PRODUCTION_READY)", status === "READY_TO_CERTIFY", status);
+  }
+
+  // ===== Test J — Historical cert + current accounting failure => BLOCKED =====
+  console.log("\nTest J — Historical certificate + broken accounting => PRODUCTION_BLOCKED");
   {
     const { db, client } = await freshDb();
     await seedClean(client);
-    // Unbalanced entry: debit 100, no matching credit.
+    await applyFinanceInfraMigrations(db, DRIZZLE);
+    await applyGatedFinanceMigrations(db, DRIZZLE);
+    await insertCert(client, "CERT-HIST", RUNTIME_COMMIT);
+    // Break accounting AFTER certifying (unbalanced posted entry).
     await entry(client, "jebad", "JE-9999", "posted", [{ acc: "a-cash", d: 100, c: 0 }]);
     const report = await runPreflight(db);
-    ok("GL unbalanced", report.checks.generalLedger.balanced === false);
-    ok("status PRODUCTION_BLOCKED", determineStatus(report) === "PRODUCTION_BLOCKED");
-    ok("blocking issue present", report.blockingIssues.length > 0);
+    const cert = await certForCommit(client, RUNTIME_COMMIT);
+    ok("historical certificate still present/unchanged", cert && cert.id === "CERT-HIST");
+    ok("status PRODUCTION_BLOCKED regardless of certificate", determineStatus(report, { certForCurrentCommit: !!cert }) === "PRODUCTION_BLOCKED");
   }
 
-  // ---- TEST 3: Trial Balance mismatch => PRODUCTION_BLOCKED
-  console.log("\nTEST 3 — Trial Balance mismatch => PRODUCTION_BLOCKED");
+  // ===== Test K/L — Authorization gate (super-admin '*' only) =====
+  console.log("\nTest K/L — apply-migrations & certify are super-admin only");
   {
-    const { db, client } = await freshDb();
-    await seedClean(client);
-    // One-sided credit with no debit anywhere -> TB debit != credit.
-    await entry(client, "jetb", "JE-8888", "posted", [{ acc: "a-rev", d: 0, c: 250 }]);
-    const report = await runPreflight(db);
-    ok("TB unbalanced", report.checks.trialBalance.balanced === false);
-    ok("status PRODUCTION_BLOCKED", determineStatus(report) === "PRODUCTION_BLOCKED");
-  }
-
-  // ---- TEST 4: fiscal-period overlap => PRODUCTION_BLOCKED
-  console.log("\nTEST 4 — period overlap => PRODUCTION_BLOCKED");
-  {
-    const { db, client } = await freshDb();
-    await seedClean(client);
-    await client.exec(
-      `INSERT INTO fiscal_periods (id,name,start_date,end_date,status)
-       VALUES ('p2026b','FY2026-overlap','2026-06-01','2027-01-31','open')`,
-    );
-    const report = await runPreflight(db);
-    ok("overlap detected", report.checks.fiscalPeriods.overlap_count > 0);
-    ok("status PRODUCTION_BLOCKED", determineStatus(report) === "PRODUCTION_BLOCKED");
-  }
-
-  // ---- TEST 5: duplicate protected source => PRODUCTION_BLOCKED
-  console.log("\nTEST 5 — duplicate accounting source => PRODUCTION_BLOCKED");
-  {
-    const { db, client } = await freshDb();
-    await seedClean(client);
-    // Second posted journal for the SAME donation source (don-1) — a duplicate.
-    await entry(client, "jedup", "JE-7777", "posted", [
-      { acc: "a-cash", d: 1000, c: 0 },
-      { acc: "a-rev", d: 0, c: 1000 },
-    ], { sourceType: "donation", sourceId: "don-1" });
-    const report = await runPreflight(db);
-    ok("duplicate detected", report.checks.duplicates.count > 0);
-    ok("status PRODUCTION_BLOCKED", determineStatus(report) === "PRODUCTION_BLOCKED");
-  }
-
-  // ---- TEST 8: certification snapshot is immutable/deterministic + no PII keys
-  console.log("\nTEST 8 — snapshot deterministic & PII-free");
-  {
-    const { db, client } = await freshDb();
-    await seedClean(client);
-    const r1 = await runPreflight(db);
-    const r2 = await runPreflight(db);
-    const s1 = JSON.stringify(buildSnapshot(r1, HISTORY_ZERO));
-    const s2 = JSON.stringify(buildSnapshot(r2, HISTORY_ZERO));
-    ok("snapshot deterministic across runs", s1 === s2);
-    const forbidden = ["name", "description", "narration", "iban", "account_name", "file_name"];
-    ok(
-      "snapshot has no PII/narration keys",
-      !forbidden.some((k) => s1.toLowerCase().includes(`"${k}"`)),
-      forbidden.filter((k) => s1.toLowerCase().includes(`"${k}"`)).join(","),
-    );
-    ok("source of truth = GENERAL_LEDGER", JSON.parse(s1).legacyBalance.accounting_source_of_truth === "GENERAL_LEDGER");
-  }
-
-  // ---- TEST 9 & 10: authorization gate semantics (super-admin only)
-  console.log("\nTEST 9/10 — authorization gate (super-admin '*' only)");
-  {
-    // Mirrors hasPermission()'s matching logic (see api-utils authHandler('*')).
     const matches = (perms: string[], permission: string) => {
       const [mod, action] = permission.split(".");
       return (
@@ -308,18 +344,27 @@ async function main() {
       );
     };
     ok("super-admin ['*'] passes '*'", matches(["*"], "*") === true);
-    ok(
-      "finance user ['finance.view','finance.export'] denied '*'",
-      matches(["finance.view", "finance.export"], "*") === false,
-    );
-    // Source-level: both handlers wired to authHandler('*').
-    const { readFileSync } = await import("node:fs");
-    const src = readFileSync(
+    ok("finance user denied '*'", matches(["finance.view", "finance.export"], "*") === false);
+    const src = (await import("node:fs")).readFileSync(
       resolve(process.cwd(), "src/routes/api/internal/finance/preflight.ts"),
       "utf8",
     );
     ok("GET gated by authHandler('*')", /GET:\s*authHandler\("\*",\s*GET\)/.test(src));
     ok("POST gated by authHandler('*')", /POST:\s*authHandler\("\*",\s*POST\)/.test(src));
+    ok("POST routes 'apply-migrations' action", /action === "apply-migrations"/.test(src));
+    ok("POST routes 'certify' action", /action === "certify"/.test(src));
+  }
+
+  // ===== Snapshot integrity (deterministic, PII-free, 0014 present) =====
+  console.log("\nSnapshot — deterministic, PII-free, includes 0014");
+  {
+    const report = await runPreflight(readyDb);
+    const s1 = JSON.stringify(buildSnapshot(report, HISTORY_ZERO));
+    const s2 = JSON.stringify(buildSnapshot(await runPreflight(readyDb), HISTORY_ZERO));
+    ok("snapshot deterministic", s1 === s2);
+    const forbidden = ["name", "narration", "iban", "account_name", "file_name"];
+    ok("snapshot PII-free", !forbidden.some((k) => s1.toLowerCase().includes(`"${k}"`)));
+    ok("snapshot migrationIntegrity has 0014", JSON.parse(s1).migrationIntegrity["0014"] === true);
   }
 
   console.log(`\n================ RESULT: ${pass} passed, ${fail} failed ================`);

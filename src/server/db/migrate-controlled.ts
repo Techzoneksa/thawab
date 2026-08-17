@@ -23,6 +23,13 @@ export const GATED_TAGS = [
   "0013_period_overlap_guard",
 ];
 
+// Certification infrastructure (finance_certifications table + idempotency
+// index). This is schema-only and independent of the accounting data, so it is
+// NEVER gated: it must exist before any certification INSERT is attempted. It
+// carries no dependency on 0011–0013, so its apply order relative to them does
+// not matter — it applies unconditionally at boot and via the infra apply path.
+export const INFRA_TAGS = ["0014_numerous_deadpool"];
+
 async function rows(db: Db, q: any): Promise<any[]> {
   const r = await db.execute(q);
   return Array.isArray(r) ? r : (r?.rows ?? []);
@@ -127,6 +134,31 @@ export async function applyGatedFinanceMigrations(db: Db, folder: string) {
     done.push(e.tag);
   }
   return { applied: done, blocked: false, blockingIssues: [] };
+}
+
+/**
+ * Apply certification-infrastructure migrations (INFRA_TAGS, e.g. 0014)
+ * unconditionally. Never gated — the finance_certifications table and its
+ * idempotency index must exist before a certificate is issued. Idempotent:
+ * already-applied files are skipped by content hash.
+ */
+export async function applyFinanceInfraMigrations(db: Db, folder: string) {
+  await ensureTracking(db);
+  const journal = readJournal(folder);
+  const applied = new Set(
+    (await rows(db, sql.raw(`SELECT hash FROM drizzle."__drizzle_migrations"`))).map((r) => r.hash),
+  );
+  const done: string[] = [];
+  for (const e of journal.entries) {
+    if (!INFRA_TAGS.includes(e.tag)) continue;
+    const file = resolve(folder, e.tag + ".sql");
+    if (!existsSync(file)) continue;
+    const hash = createHash("sha256").update(readFileSync(file, "utf8")).digest("hex");
+    if (applied.has(hash)) continue;
+    await applyFile(db, folder, e.tag, Number(e.when), hash);
+    done.push(e.tag);
+  }
+  return { applied: done };
 }
 
 /** Resolve the shipped drizzle folder (repo root or inside the server bundle). */

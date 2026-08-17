@@ -11,4 +11,5 @@ CREATE TABLE "finance_certifications" (
 	"created_at" text DEFAULT '' NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "finance_certifications" ADD CONSTRAINT "finance_certifications_certified_by_users_id_fk" FOREIGN KEY ("certified_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "finance_certifications" ADD CONSTRAINT "finance_certifications_certified_by_users_id_fk" FOREIGN KEY ("certified_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "finance_certifications_phase_env_commit_idx" ON "finance_certifications" ("phase","environment","application_commit");

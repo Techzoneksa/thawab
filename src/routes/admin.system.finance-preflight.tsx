@@ -6,14 +6,15 @@ import { useAuth, userCan } from "@/lib/api/auth";
 import { fmtSAR } from "@/data/sample";
 import { CheckCircle2, XCircle, ShieldAlert, Loader2, Clock, Copy } from "lucide-react";
 import { useState } from "react";
-import { getPreflight, applyFinanceMigrations } from "@/lib/api/finance-preflight";
+import { getPreflight, applyFinanceMigrations, certifyPhase1A } from "@/lib/api/finance-preflight";
 
 export const Route = createFileRoute("/admin/system/finance-preflight")({
   head: () => ({ meta: [{ title: "اعتماد الجاهزية المالية — ثواب" }] }),
   component: Page,
 });
 
-type CertStatus = "PRODUCTION_READY" | "PENDING_MIGRATIONS" | "PRODUCTION_BLOCKED";
+type CertStatus =
+  "PRODUCTION_BLOCKED" | "PENDING_MIGRATIONS" | "READY_TO_CERTIFY" | "PRODUCTION_READY";
 
 const STATUS_META: Record<
   CertStatus,
@@ -23,6 +24,11 @@ const STATUS_META: Record<
     label: "✅ المرحلة 1أ — جاهز للإنتاج (PRODUCTION READY)",
     tone: "success",
     border: "border-success",
+  },
+  READY_TO_CERTIFY: {
+    label: "🟦 جاهز للاعتماد (READY TO CERTIFY)",
+    tone: "success",
+    border: "border-info",
   },
   PENDING_MIGRATIONS: {
     label: "⏳ بانتظار تطبيق الترحيلات (PENDING MIGRATIONS)",
@@ -85,7 +91,7 @@ function buildCertText(data: any): string {
     L.push(`Certified by:      ${cert.certifiedByName ?? cert.certifiedBy ?? "-"}`);
     L.push(`Certified at:      ${cert.certifiedAt ?? "-"}`);
   } else {
-    L.push("Certificate ID:    (not issued — status is not PRODUCTION_READY)");
+    L.push("Certificate ID:    (no certificate for this deployed commit)");
   }
   L.push("");
   L.push("-- Accounting integrity --------------------");
@@ -117,6 +123,7 @@ function buildCertText(data: any): string {
   L.push(`0011 import/source-unique: ${s.migrationIntegrity["0011"] ? "PRESENT" : "MISSING"}`);
   L.push(`0012 period valid-range:   ${s.migrationIntegrity["0012"] ? "PRESENT" : "MISSING"}`);
   L.push(`0013 period overlap-guard: ${s.migrationIntegrity["0013"] ? "PRESENT" : "MISSING"}`);
+  L.push(`0014 certification store:  ${s.migrationIntegrity["0014"] ? "PRESENT" : "MISSING"}`);
   L.push(
     `All required objects:      ${s.migrationIntegrity.required_objects_present ? "PRESENT" : "MISSING"}`,
   );
@@ -139,6 +146,7 @@ function Page() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [confirmApply, setConfirmApply] = useState(false);
+  const [confirmCertify, setConfirmCertify] = useState(false);
   const isSuperAdmin = userCan(user, "*");
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -157,6 +165,21 @@ function Page() {
       else showToast("لم تكتمل الترحيلات — راجع النتيجة", "error");
       queryClient.invalidateQueries({ queryKey: ["finance-preflight"] });
       setConfirmApply(false);
+    },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
+
+  const certifyMut = useMutation({
+    mutationFn: certifyPhase1A,
+    onSuccess: (r) => {
+      if (r.certified)
+        showToast(
+          r.idempotent ? "الشهادة موجودة مسبقاً لهذه النسخة" : "تم إصدار شهادة الاعتماد",
+          "success",
+        );
+      else showToast(`غير مؤهّل للاعتماد: ${r.reasons?.join("، ") || r.status}`, "error");
+      queryClient.invalidateQueries({ queryKey: ["finance-preflight"] });
+      setConfirmCertify(false);
     },
     onError: (e: Error) => showToast(e.message, "error"),
   });
@@ -201,8 +224,9 @@ function Page() {
     >
       <div className="max-w-5xl space-y-4">
         <div className="rounded-xl border bg-info/5 p-3 text-xs text-muted-foreground">
-          بيئة الإنتاج · فحص واعتماد تلقائي للقراءة فقط (READ-ONLY) — يُنفَّذ الفحص تلقائياً عند فتح
-          الصفحة ولا يعدّل أي بيانات محاسبية.
+          بيئة الإنتاج · يُنفَّذ فحص تشخيصي للقراءة فقط (GET) تلقائياً عند فتح الصفحة — لا يعدّل أي
+          بيانات محاسبية ولا يُصدر شهادة. تطبيق الترحيلات وإصدار الشهادة إجراءان صريحان بضغطة من
+          مدير النظام.
         </div>
 
         {isLoading ? (
@@ -216,7 +240,7 @@ function Page() {
             {/* Certification panel */}
             <Card className={`p-5 border-2 ${meta.border}`}>
               <div className="flex items-start gap-3">
-                {status === "PRODUCTION_READY" ? (
+                {status === "PRODUCTION_READY" || status === "READY_TO_CERTIFY" ? (
                   <CheckCircle2 size={32} className="text-success shrink-0" />
                 ) : status === "PENDING_MIGRATIONS" ? (
                   <Clock size={32} className="text-warning shrink-0" />
@@ -233,6 +257,9 @@ function Page() {
                     <div>
                       جاهزية المحاسبة: <b>{data.migrationReady ? "سليمة" : "غير سليمة"}</b>
                     </div>
+                    <div>
+                      نسخة محدّدة بدقة: <b>{data.commitResolved ? "نعم" : "لا (غير محدّدة)"}</b>
+                    </div>
                     {cert ? (
                       <>
                         <div>
@@ -247,14 +274,27 @@ function Page() {
                       </>
                     ) : (
                       <div className="sm:col-span-2">
-                        لم تُصدَر شهادة بعد — تُصدَر تلقائياً فور بلوغ الحالة PRODUCTION_READY.
+                        لا توجد شهادة لهذه النسخة (commit) — تُصدَر بضغطة «اعتماد المرحلة 1أ» عند
+                        بلوغ الحالة READY&nbsp;TO&nbsp;CERTIFY.
                       </div>
                     )}
                   </div>
                 </div>
-                <Btn variant="outline" onClick={copyCert} className="shrink-0">
-                  <Copy size={14} /> نسخ الشهادة
-                </Btn>
+                <div className="flex shrink-0 flex-col gap-2">
+                  {status === "READY_TO_CERTIFY" && (
+                    <Btn
+                      variant="primary"
+                      onClick={() => setConfirmCertify(true)}
+                      disabled={certifyMut.isPending}
+                    >
+                      {certifyMut.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+                      اعتماد المرحلة 1أ
+                    </Btn>
+                  )}
+                  <Btn variant="outline" onClick={copyCert}>
+                    <Copy size={14} /> نسخ الشهادة
+                  </Btn>
+                </div>
               </div>
 
               {data.blockingIssues?.length > 0 && (
@@ -268,8 +308,14 @@ function Page() {
               )}
               {status === "PENDING_MIGRATIONS" && (
                 <div className="mt-3 border-t pt-3 text-sm text-warning-foreground">
-                  الفحص المحاسبي سليم، لكن كائنات النزاهة في قاعدة البيانات (0011–0013) غير مطبّقة
-                  بعد. طبّق الترحيلات أدناه لإكمال الاعتماد.
+                  الفحص المحاسبي سليم، لكن كائنات النزاهة في قاعدة البيانات (0011–0014) غير مكتملة
+                  بعد. طبّق الترحيلات أدناه لإكمال البنية ثم اعتمد.
+                </div>
+              )}
+              {status === "READY_TO_CERTIFY" && (
+                <div className="mt-3 border-t pt-3 text-sm text-muted-foreground">
+                  الفحص المحاسبي سليم وكل كائنات قاعدة البيانات موجودة، ولا توجد شهادة لهذه النسخة
+                  بعد. اضغط «اعتماد المرحلة 1أ» لإصدار شهادة غير قابلة للتعديل لهذه النسخة تحديداً.
                 </div>
               )}
             </Card>
@@ -379,7 +425,7 @@ function Page() {
               </CheckCard>
 
               <CheckCard
-                title="جاهزية الترحيلات (0011–0013)"
+                title="كائنات قاعدة البيانات (0011–0014)"
                 ok={Object.values(c.migrationObjects).every(Boolean)}
               >
                 {Object.entries(c.migrationObjects).map(([k, v]) => (
@@ -447,15 +493,16 @@ function Page() {
             <Card className="p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="text-sm">
-                  <div className="font-bold">تطبيق ترحيلات النزاهة المالية (0011–0013)</div>
+                  <div className="font-bold">تطبيق كائنات النزاهة المالية (0011–0014)</div>
                   <div className="text-xs text-muted-foreground">
-                    يُعيد الفحص قبل التطبيق ويرفض إن وُجدت عوائق. لا يغيّر أي تاريخ محاسبي، ويُصدر
-                    الشهادة تلقائياً بعد نجاح التطبيق.
+                    يطبّق بنية الشهادات (0014) ثم يعيد الفحص المحاسبي ويطبّق الترحيلات المشروطة
+                    (0011–0013) إن لم توجد عوائق. لا يغيّر أي تاريخ محاسبي ولا يُصدر شهادة —
+                    الاعتماد إجراء منفصل.
                   </div>
                 </div>
                 <Btn
                   variant="primary"
-                  disabled={!data.migrationReady || applyMut.isPending}
+                  disabled={status !== "PENDING_MIGRATIONS" || applyMut.isPending}
                   onClick={() => setConfirmApply(true)}
                 >
                   {applyMut.isPending ? <Loader2 size={15} className="animate-spin" /> : null}
@@ -520,9 +567,20 @@ function Page() {
         open={confirmApply}
         onClose={() => setConfirmApply(false)}
         onConfirm={() => applyMut.mutate()}
-        title="تطبيق ترحيلات النزاهة المالية"
-        message="سيُعاد الفحص أولاً؛ إن لم توجد عوائق ستُطبَّق الترحيلات 0011–0013. لا يُعدَّل أي قيد محاسبي. متابعة؟"
+        title="تطبيق كائنات النزاهة المالية"
+        message="ستُطبَّق بنية الشهادات (0014) ثم يُعاد الفحص المحاسبي؛ إن لم توجد عوائق ستُطبَّق الترحيلات 0011–0013. لا يُعدَّل أي قيد محاسبي ولا تُصدَر شهادة. متابعة؟"
         confirmText="تطبيق"
+        cancelText="إلغاء"
+        variant="default"
+      />
+
+      <ConfirmDialog
+        open={confirmCertify}
+        onClose={() => setConfirmCertify(false)}
+        onConfirm={() => certifyMut.mutate()}
+        title="اعتماد المرحلة 1أ للإنتاج"
+        message="سيُعاد تنفيذ جميع فحوص النزاهة على الخادم، وإن نجحت جميعها ستُصدَر شهادة اعتماد غير قابلة للتعديل لهذه النسخة (commit) تحديداً وباسمك. لا يمكن تعديل الشهادة أو حذفها لاحقاً. متابعة؟"
+        confirmText="اعتماد"
         cancelText="إلغاء"
         variant="default"
       />
