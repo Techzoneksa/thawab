@@ -513,6 +513,66 @@ export const financeCertifications = pgTable(
   }),
 );
 
+// ============ CASH & BANK (Phase 2A) ============
+// Operational master records. They NEVER store an accounting balance — every
+// displayed balance derives from the General Ledger of `linked_account_id`.
+// One GL account maps to at most one operational identity (unique per table +
+// cross-table check in the service). Mapping is immutable once the account has
+// posted history.
+export const cashboxes = pgTable(
+  "cashboxes",
+  {
+    id: text("id").primaryKey(),
+    code: text("code").notNull().unique(),
+    name: text("name").notNull(),
+    linkedAccountId: text("linked_account_id")
+      .notNull()
+      .references(() => accounts.id),
+    currency: text("currency").notNull().default("SAR"),
+    status: text("status").notNull().default("active"), // active | inactive
+    branchId: text("branch_id").references(() => branches.id),
+    isDefault: boolean("is_default").notNull().default(false),
+    notes: text("notes").default(""),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+  },
+  (t) => ({
+    // One GL account → at most one cashbox.
+    linkedIdx: uniqueIndex("cashboxes_linked_account_idx").on(t.linkedAccountId),
+    statusIdx: index("cashboxes_status_idx").on(t.status),
+  }),
+);
+
+export const bankAccounts = pgTable(
+  "bank_accounts",
+  {
+    id: text("id").primaryKey(),
+    code: text("code").notNull().unique(),
+    bankName: text("bank_name").notNull(),
+    accountName: text("account_name").notNull().default(""),
+    accountNumber: text("account_number"),
+    iban: text("iban"), // display form (as entered, normalized)
+    ibanNormalized: text("iban_normalized"), // unique when present
+    currency: text("currency").notNull().default("SAR"),
+    linkedAccountId: text("linked_account_id")
+      .notNull()
+      .references(() => accounts.id),
+    status: text("status").notNull().default("active"),
+    branchId: text("branch_id").references(() => branches.id),
+    isDefault: boolean("is_default").notNull().default(false),
+    notes: text("notes").default(""),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+  },
+  (t) => ({
+    linkedIdx: uniqueIndex("bank_accounts_linked_account_idx").on(t.linkedAccountId),
+    ibanIdx: uniqueIndex("bank_accounts_iban_normalized_idx").on(t.ibanNormalized),
+    statusIdx: index("bank_accounts_status_idx").on(t.status),
+  }),
+);
+
 // ============ APPROVALS ============
 
 export const approvals = pgTable("approvals", {

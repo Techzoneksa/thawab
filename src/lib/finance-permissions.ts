@@ -41,6 +41,19 @@ export const FINANCE_PERMISSIONS = {
   periodClose: "finance.period.close",
   periodReopen: "finance.period.reopen",
 
+  cashView: "finance.cash.view",
+  cashCreate: "finance.cash.create",
+  cashUpdate: "finance.cash.update",
+  cashDeactivate: "finance.cash.deactivate",
+
+  bankView: "finance.bank.view",
+  bankCreate: "finance.bank.create",
+  bankUpdate: "finance.bank.update",
+  bankDeactivate: "finance.bank.deactivate",
+
+  cashBankLedgerView: "finance.cash_bank.ledger.view",
+  cashBankAuditView: "finance.cash_bank.audit.view",
+
   reportsView: "finance.reports.view",
 
   budgetView: "finance.budget.view",
@@ -151,6 +164,34 @@ export const FINANCE_PERM_GROUPS: FinancePermGroup[] = [
         label: "استيراد قيود (Excel)",
         desc: "ينشئ مسودات فقط",
       },
+    ],
+  },
+  {
+    key: "finance-cash",
+    label: "المالية — الصناديق",
+    perms: [
+      { key: FINANCE_PERMISSIONS.cashView, label: "عرض الصناديق" },
+      { key: FINANCE_PERMISSIONS.cashCreate, label: "إنشاء صندوق" },
+      { key: FINANCE_PERMISSIONS.cashUpdate, label: "تعديل صندوق" },
+      { key: FINANCE_PERMISSIONS.cashDeactivate, label: "تعطيل صندوق" },
+    ],
+  },
+  {
+    key: "finance-bank",
+    label: "المالية — الحسابات البنكية",
+    perms: [
+      { key: FINANCE_PERMISSIONS.bankView, label: "عرض الحسابات البنكية" },
+      { key: FINANCE_PERMISSIONS.bankCreate, label: "إضافة حساب بنكي" },
+      { key: FINANCE_PERMISSIONS.bankUpdate, label: "تعديل حساب بنكي" },
+      { key: FINANCE_PERMISSIONS.bankDeactivate, label: "تعطيل حساب بنكي" },
+    ],
+  },
+  {
+    key: "finance-cash-bank-shared",
+    label: "المالية — النقد والبنوك (مشترك)",
+    perms: [
+      { key: FINANCE_PERMISSIONS.cashBankLedgerView, label: "عرض حركة النقد والبنوك" },
+      { key: FINANCE_PERMISSIONS.cashBankAuditView, label: "عرض سجل تدقيق النقد والبنوك" },
     ],
   },
   {

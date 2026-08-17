@@ -65,6 +65,7 @@ import { Route as FinanceLedgerRouteImport } from './routes/finance.ledger'
 import { Route as FinanceJournalRouteImport } from './routes/finance.journal'
 import { Route as FinanceCostCentersRouteImport } from './routes/finance.cost-centers'
 import { Route as FinanceClosingRouteImport } from './routes/finance.closing'
+import { Route as FinanceCashBankRouteImport } from './routes/finance.cash-bank'
 import { Route as FinanceBudgetsRouteImport } from './routes/finance.budgets'
 import { Route as FinanceAccountsRouteImport } from './routes/finance.accounts'
 import { Route as EndowmentsNewRouteImport } from './routes/endowments_.new'
@@ -158,7 +159,9 @@ import { Route as ApiFinanceOpeningBalanceRouteImport } from './routes/api/finan
 import { Route as ApiFinanceLedgerRouteImport } from './routes/api/finance/ledger'
 import { Route as ApiFinanceJournalRouteImport } from './routes/api/finance/journal'
 import { Route as ApiFinanceCostCentersRouteImport } from './routes/api/finance/cost-centers'
+import { Route as ApiFinanceCashboxesRouteImport } from './routes/api/finance/cashboxes'
 import { Route as ApiFinanceBudgetsRouteImport } from './routes/api/finance/budgets'
+import { Route as ApiFinanceBankAccountsRouteImport } from './routes/api/finance/bank-accounts'
 import { Route as ApiFinanceAccountsRouteImport } from './routes/api/finance/accounts'
 import { Route as ApiDataImportRouteImport } from './routes/api/data/import'
 import { Route as ApiDataExportRouteImport } from './routes/api/data/export'
@@ -460,6 +463,11 @@ const FinanceCostCentersRoute = FinanceCostCentersRouteImport.update({
 const FinanceClosingRoute = FinanceClosingRouteImport.update({
   id: '/finance/closing',
   path: '/finance/closing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FinanceCashBankRoute = FinanceCashBankRouteImport.update({
+  id: '/finance/cash-bank',
+  path: '/finance/cash-bank',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FinanceBudgetsRoute = FinanceBudgetsRouteImport.update({
@@ -928,9 +936,19 @@ const ApiFinanceCostCentersRoute = ApiFinanceCostCentersRouteImport.update({
   path: '/api/finance/cost-centers',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFinanceCashboxesRoute = ApiFinanceCashboxesRouteImport.update({
+  id: '/api/finance/cashboxes',
+  path: '/api/finance/cashboxes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiFinanceBudgetsRoute = ApiFinanceBudgetsRouteImport.update({
   id: '/api/finance/budgets',
   path: '/api/finance/budgets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFinanceBankAccountsRoute = ApiFinanceBankAccountsRouteImport.update({
+  id: '/api/finance/bank-accounts',
+  path: '/api/finance/bank-accounts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiFinanceAccountsRoute = ApiFinanceAccountsRouteImport.update({
@@ -1117,6 +1135,7 @@ export interface FileRoutesByFullPath {
   '/endowments/new': typeof EndowmentsNewRoute
   '/finance/accounts': typeof FinanceAccountsRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
+  '/finance/cash-bank': typeof FinanceCashBankRoute
   '/finance/closing': typeof FinanceClosingRoute
   '/finance/cost-centers': typeof FinanceCostCentersRoute
   '/finance/journal': typeof FinanceJournalRoute
@@ -1152,7 +1171,9 @@ export interface FileRoutesByFullPath {
   '/api/data/export': typeof ApiDataExportRoute
   '/api/data/import': typeof ApiDataImportRoute
   '/api/finance/accounts': typeof ApiFinanceAccountsRoute
+  '/api/finance/bank-accounts': typeof ApiFinanceBankAccountsRoute
   '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
+  '/api/finance/cashboxes': typeof ApiFinanceCashboxesRoute
   '/api/finance/cost-centers': typeof ApiFinanceCostCentersRoute
   '/api/finance/journal': typeof ApiFinanceJournalRoute
   '/api/finance/ledger': typeof ApiFinanceLedgerRoute
@@ -1291,6 +1312,7 @@ export interface FileRoutesByTo {
   '/endowments/new': typeof EndowmentsNewRoute
   '/finance/accounts': typeof FinanceAccountsRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
+  '/finance/cash-bank': typeof FinanceCashBankRoute
   '/finance/closing': typeof FinanceClosingRoute
   '/finance/cost-centers': typeof FinanceCostCentersRoute
   '/finance/journal': typeof FinanceJournalRoute
@@ -1326,7 +1348,9 @@ export interface FileRoutesByTo {
   '/api/data/export': typeof ApiDataExportRoute
   '/api/data/import': typeof ApiDataImportRoute
   '/api/finance/accounts': typeof ApiFinanceAccountsRoute
+  '/api/finance/bank-accounts': typeof ApiFinanceBankAccountsRoute
   '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
+  '/api/finance/cashboxes': typeof ApiFinanceCashboxesRoute
   '/api/finance/cost-centers': typeof ApiFinanceCostCentersRoute
   '/api/finance/journal': typeof ApiFinanceJournalRoute
   '/api/finance/ledger': typeof ApiFinanceLedgerRoute
@@ -1466,6 +1490,7 @@ export interface FileRoutesById {
   '/endowments_/new': typeof EndowmentsNewRoute
   '/finance/accounts': typeof FinanceAccountsRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
+  '/finance/cash-bank': typeof FinanceCashBankRoute
   '/finance/closing': typeof FinanceClosingRoute
   '/finance/cost-centers': typeof FinanceCostCentersRoute
   '/finance/journal': typeof FinanceJournalRoute
@@ -1501,7 +1526,9 @@ export interface FileRoutesById {
   '/api/data/export': typeof ApiDataExportRoute
   '/api/data/import': typeof ApiDataImportRoute
   '/api/finance/accounts': typeof ApiFinanceAccountsRoute
+  '/api/finance/bank-accounts': typeof ApiFinanceBankAccountsRoute
   '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
+  '/api/finance/cashboxes': typeof ApiFinanceCashboxesRoute
   '/api/finance/cost-centers': typeof ApiFinanceCostCentersRoute
   '/api/finance/journal': typeof ApiFinanceJournalRoute
   '/api/finance/ledger': typeof ApiFinanceLedgerRoute
@@ -1642,6 +1669,7 @@ export interface FileRouteTypes {
     | '/endowments/new'
     | '/finance/accounts'
     | '/finance/budgets'
+    | '/finance/cash-bank'
     | '/finance/closing'
     | '/finance/cost-centers'
     | '/finance/journal'
@@ -1677,7 +1705,9 @@ export interface FileRouteTypes {
     | '/api/data/export'
     | '/api/data/import'
     | '/api/finance/accounts'
+    | '/api/finance/bank-accounts'
     | '/api/finance/budgets'
+    | '/api/finance/cashboxes'
     | '/api/finance/cost-centers'
     | '/api/finance/journal'
     | '/api/finance/ledger'
@@ -1816,6 +1846,7 @@ export interface FileRouteTypes {
     | '/endowments/new'
     | '/finance/accounts'
     | '/finance/budgets'
+    | '/finance/cash-bank'
     | '/finance/closing'
     | '/finance/cost-centers'
     | '/finance/journal'
@@ -1851,7 +1882,9 @@ export interface FileRouteTypes {
     | '/api/data/export'
     | '/api/data/import'
     | '/api/finance/accounts'
+    | '/api/finance/bank-accounts'
     | '/api/finance/budgets'
+    | '/api/finance/cashboxes'
     | '/api/finance/cost-centers'
     | '/api/finance/journal'
     | '/api/finance/ledger'
@@ -1990,6 +2023,7 @@ export interface FileRouteTypes {
     | '/endowments_/new'
     | '/finance/accounts'
     | '/finance/budgets'
+    | '/finance/cash-bank'
     | '/finance/closing'
     | '/finance/cost-centers'
     | '/finance/journal'
@@ -2025,7 +2059,9 @@ export interface FileRouteTypes {
     | '/api/data/export'
     | '/api/data/import'
     | '/api/finance/accounts'
+    | '/api/finance/bank-accounts'
     | '/api/finance/budgets'
+    | '/api/finance/cashboxes'
     | '/api/finance/cost-centers'
     | '/api/finance/journal'
     | '/api/finance/ledger'
@@ -2165,6 +2201,7 @@ export interface RootRouteChildren {
   EndowmentsNewRoute: typeof EndowmentsNewRoute
   FinanceAccountsRoute: typeof FinanceAccountsRoute
   FinanceBudgetsRoute: typeof FinanceBudgetsRoute
+  FinanceCashBankRoute: typeof FinanceCashBankRoute
   FinanceClosingRoute: typeof FinanceClosingRoute
   FinanceCostCentersRoute: typeof FinanceCostCentersRoute
   FinanceJournalRoute: typeof FinanceJournalRoute
@@ -2199,7 +2236,9 @@ export interface RootRouteChildren {
   ApiDataExportRoute: typeof ApiDataExportRoute
   ApiDataImportRoute: typeof ApiDataImportRoute
   ApiFinanceAccountsRoute: typeof ApiFinanceAccountsRoute
+  ApiFinanceBankAccountsRoute: typeof ApiFinanceBankAccountsRoute
   ApiFinanceBudgetsRoute: typeof ApiFinanceBudgetsRoute
+  ApiFinanceCashboxesRoute: typeof ApiFinanceCashboxesRoute
   ApiFinanceCostCentersRoute: typeof ApiFinanceCostCentersRoute
   ApiFinanceJournalRoute: typeof ApiFinanceJournalRoute
   ApiFinanceLedgerRoute: typeof ApiFinanceLedgerRoute
@@ -2663,6 +2702,13 @@ declare module '@tanstack/react-router' {
       path: '/finance/closing'
       fullPath: '/finance/closing'
       preLoaderRoute: typeof FinanceClosingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/finance/cash-bank': {
+      id: '/finance/cash-bank'
+      path: '/finance/cash-bank'
+      fullPath: '/finance/cash-bank'
+      preLoaderRoute: typeof FinanceCashBankRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/finance/budgets': {
@@ -3316,11 +3362,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFinanceCostCentersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/finance/cashboxes': {
+      id: '/api/finance/cashboxes'
+      path: '/api/finance/cashboxes'
+      fullPath: '/api/finance/cashboxes'
+      preLoaderRoute: typeof ApiFinanceCashboxesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/finance/budgets': {
       id: '/api/finance/budgets'
       path: '/api/finance/budgets'
       fullPath: '/api/finance/budgets'
       preLoaderRoute: typeof ApiFinanceBudgetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/finance/bank-accounts': {
+      id: '/api/finance/bank-accounts'
+      path: '/api/finance/bank-accounts'
+      fullPath: '/api/finance/bank-accounts'
+      preLoaderRoute: typeof ApiFinanceBankAccountsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/finance/accounts': {
@@ -3569,6 +3629,7 @@ const rootRouteChildren: RootRouteChildren = {
   EndowmentsNewRoute: EndowmentsNewRoute,
   FinanceAccountsRoute: FinanceAccountsRoute,
   FinanceBudgetsRoute: FinanceBudgetsRoute,
+  FinanceCashBankRoute: FinanceCashBankRoute,
   FinanceClosingRoute: FinanceClosingRoute,
   FinanceCostCentersRoute: FinanceCostCentersRoute,
   FinanceJournalRoute: FinanceJournalRoute,
@@ -3603,7 +3664,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDataExportRoute: ApiDataExportRoute,
   ApiDataImportRoute: ApiDataImportRoute,
   ApiFinanceAccountsRoute: ApiFinanceAccountsRoute,
+  ApiFinanceBankAccountsRoute: ApiFinanceBankAccountsRoute,
   ApiFinanceBudgetsRoute: ApiFinanceBudgetsRoute,
+  ApiFinanceCashboxesRoute: ApiFinanceCashboxesRoute,
   ApiFinanceCostCentersRoute: ApiFinanceCostCentersRoute,
   ApiFinanceJournalRoute: ApiFinanceJournalRoute,
   ApiFinanceLedgerRoute: ApiFinanceLedgerRoute,
