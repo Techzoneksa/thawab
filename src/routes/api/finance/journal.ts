@@ -4,7 +4,7 @@ import { and, count, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import { db, now, addAudit } from "@/server/db/index";
 import { journalEntries, journalLines, accounts, costCenters, projects } from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
-import { postBalancedEntry, reverseEntry } from "@/server/db/gl";
+import { postBalancedEntry, postDraftEntry, reverseEntry } from "@/server/db/gl";
 import { AppError } from "@/server/db/errors";
 import { JournalStatus, Fund } from "@/lib/enums";
 
@@ -38,9 +38,15 @@ async function enrichLines(rows: any[]) {
   const accIds = [...new Set(rows.map((l) => l.accountId).filter(Boolean))];
   const ccIds = [...new Set(rows.map((l) => l.costCenterId).filter(Boolean))];
   const prIds = [...new Set(rows.map((l) => l.projectId).filter(Boolean))];
-  const accs = accIds.length ? await db.select().from(accounts).where(inArray(accounts.id, accIds)) : [];
-  const ccs = ccIds.length ? await db.select().from(costCenters).where(inArray(costCenters.id, ccIds)) : [];
-  const prs = prIds.length ? await db.select().from(projects).where(inArray(projects.id, prIds)) : [];
+  const accs = accIds.length
+    ? await db.select().from(accounts).where(inArray(accounts.id, accIds))
+    : [];
+  const ccs = ccIds.length
+    ? await db.select().from(costCenters).where(inArray(costCenters.id, ccIds))
+    : [];
+  const prs = prIds.length
+    ? await db.select().from(projects).where(inArray(projects.id, prIds))
+    : [];
   const accMap = new Map(accs.map((a) => [a.id, a]));
   const ccMap = new Map(ccs.map((c) => [c.id, c]));
   const prMap = new Map(prs.map((p) => [p.id, p]));
@@ -58,7 +64,9 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const id = url.searchParams.get("id");
 
   if (id) {
-    const item = (await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1))[0];
+    const item = (
+      await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1)
+    )[0];
     if (!item) return err("القيد غير موجود", 404, "NOT_FOUND");
     const rawLines = await db
       .select()
@@ -69,7 +77,13 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
     const debit = rawLines.reduce((s, l) => s + Number(l.debit || 0), 0);
     const credit = rawLines.reduce((s, l) => s + Number(l.credit || 0), 0);
     const reversedOf = item.reversedOf
-      ? (await db.select().from(journalEntries).where(eq(journalEntries.id, item.reversedOf)).limit(1))[0] || null
+      ? (
+          await db
+            .select()
+            .from(journalEntries)
+            .where(eq(journalEntries.id, item.reversedOf))
+            .limit(1)
+        )[0] || null
       : null;
     const reversalEntries = await db
       .select()
@@ -95,7 +109,10 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const conditions = [];
   if (search) {
     conditions.push(
-      or(like(journalEntries.number, `%${search}%`), like(journalEntries.description, `%${search}%`)),
+      or(
+        like(journalEntries.number, `%${search}%`),
+        like(journalEntries.description, `%${search}%`),
+      ),
     );
   }
   if (status) conditions.push(eq(journalEntries.status, status));
@@ -146,50 +163,66 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     const body = await event.request.json().catch(() => ({}));
     if (body && typeof body === "object" && "action" in body) {
       const { id, action } = actionSchema.parse(body);
-      const entry = (await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1))[0];
+      const entry = (
+        await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1)
+      )[0];
       if (!entry) return err("القيد غير موجود", 404, "NOT_FOUND");
 
       if (action === "post") {
-        if (entry.status !== JournalStatus.DRAFT && entry.status !== JournalStatus.PENDING)
-          return err("يمكن ترحيل المسودات فقط", 400, "BAD_STATE");
-        const result = await db.transaction(async (tx) => {
-          const lines = await tx.select().from(journalLines).where(eq(journalLines.journalEntryId, id));
-          const debit = lines.reduce((s, l) => s + Number(l.debit || 0), 0);
-          const credit = lines.reduce((s, l) => s + Number(l.credit || 0), 0);
-          if (Math.abs(debit - credit) > 0.005) throw new AppError("القيد غير متوازن");
-          // account validity + period lock
-          for (const l of lines) {
-            const acc = (await tx.select().from(accounts).where(eq(accounts.id, l.accountId)).limit(1))[0];
-            if (!acc || !acc.postable || acc.status !== "active")
-              throw new AppError("أحد الحسابات غير صالح للترحيل");
-          }
-          const ts = now();
-          await tx
-            .update(journalEntries)
-            .set({ status: JournalStatus.POSTED, postedBy: ctx.user.id, postedAt: ts, updatedAt: ts })
-            .where(eq(journalEntries.id, id));
-          return true;
+        // Single controlled path: balanced + accounts valid + OPEN period.
+        // postDraftEntry enforces the closed-period lock on the entry's date.
+        await db.transaction((tx) => postDraftEntry(tx as any, id, ctx.user.id));
+        await addAudit({
+          action: "post",
+          entityType: "journal_entry",
+          entityId: id,
+          description: `ترحيل القيد ${entry.number}`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          ip: ctx.ip,
         });
-        if (result) {
-          await addAudit({ action: "post", entityType: "journal_entry", entityId: id, description: `ترحيل القيد ${entry.number}`, userId: ctx.user.id, userName: ctx.user.name, ip: ctx.ip });
-        }
-        const updated = (await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1))[0];
+        const updated = (
+          await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1)
+        )[0];
         return Response.json({ item: updated });
       }
 
       if (action === "reverse") {
         const reversingId = await db.transaction((tx) => reverseEntry(tx as any, id, ctx.user.id));
-        await addAudit({ action: "reverse", entityType: "journal_entry", entityId: id, description: `عكس القيد ${entry.number}`, userId: ctx.user.id, userName: ctx.user.name, ip: ctx.ip });
-        const updated = (await db.select().from(journalEntries).where(eq(journalEntries.id, reversingId)).limit(1))[0];
+        await addAudit({
+          action: "reverse",
+          entityType: "journal_entry",
+          entityId: id,
+          description: `عكس القيد ${entry.number}`,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          ip: ctx.ip,
+        });
+        const updated = (
+          await db.select().from(journalEntries).where(eq(journalEntries.id, reversingId)).limit(1)
+        )[0];
         return Response.json({ item: updated });
       }
 
       // cancel
       if (entry.status === JournalStatus.POSTED || entry.status === JournalStatus.REVERSED)
         return err("لا يمكن إلغاء قيد مرحّل أو معكوس", 400, "BAD_STATE");
-      await db.update(journalEntries).set({ status: JournalStatus.CANCELLED, updatedAt: now() }).where(eq(journalEntries.id, id));
-      await addAudit({ action: "cancel", entityType: "journal_entry", entityId: id, description: `إلغاء القيد ${entry.number}`, userId: ctx.user.id, userName: ctx.user.name, ip: ctx.ip });
-      const cancelled = (await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1))[0];
+      await db
+        .update(journalEntries)
+        .set({ status: JournalStatus.CANCELLED, updatedAt: now() })
+        .where(eq(journalEntries.id, id));
+      await addAudit({
+        action: "cancel",
+        entityType: "journal_entry",
+        entityId: id,
+        description: `إلغاء القيد ${entry.number}`,
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        ip: ctx.ip,
+      });
+      const cancelled = (
+        await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1)
+      )[0];
       return Response.json({ item: cancelled });
     }
 
@@ -216,8 +249,18 @@ async function POST(event: { request: Request }, ctx: Ctx) {
         status: JournalStatus.DRAFT,
       }),
     );
-    await addAudit({ action: "create", entityType: "journal_entry", entityId: entryId, description: `إنشاء قيد: ${b.description}`, userId: ctx.user.id, userName: ctx.user.name, ip: ctx.ip });
-    const item = (await db.select().from(journalEntries).where(eq(journalEntries.id, entryId)).limit(1))[0];
+    await addAudit({
+      action: "create",
+      entityType: "journal_entry",
+      entityId: entryId,
+      description: `إنشاء قيد: ${b.description}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      ip: ctx.ip,
+    });
+    const item = (
+      await db.select().from(journalEntries).where(eq(journalEntries.id, entryId)).limit(1)
+    )[0];
     return Response.json({ item }, { status: 201 });
   });
 }
@@ -235,7 +278,9 @@ const updateSchema = z.object({
 async function PUT(event: { request: Request }, ctx: Ctx) {
   return guard(async () => {
     const b = await parseBody(event.request, updateSchema);
-    const entry = (await db.select().from(journalEntries).where(eq(journalEntries.id, b.id)).limit(1))[0];
+    const entry = (
+      await db.select().from(journalEntries).where(eq(journalEntries.id, b.id)).limit(1)
+    )[0];
     if (!entry) return err("القيد غير موجود", 404, "NOT_FOUND");
     if (entry.status !== JournalStatus.DRAFT)
       return err("يمكن تعديل المسودات فقط", 400, "BAD_STATE");
@@ -279,8 +324,19 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
         .where(eq(journalEntries.id, b.id));
     });
 
-    await addAudit({ action: "update", entityType: "journal_entry", entityId: b.id, description: `تعديل القيد ${entry.number}`, userId: ctx.user.id, userName: ctx.user.name, before, ip: ctx.ip });
-    const item = (await db.select().from(journalEntries).where(eq(journalEntries.id, b.id)).limit(1))[0];
+    await addAudit({
+      action: "update",
+      entityType: "journal_entry",
+      entityId: b.id,
+      description: `تعديل القيد ${entry.number}`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      before,
+      ip: ctx.ip,
+    });
+    const item = (
+      await db.select().from(journalEntries).where(eq(journalEntries.id, b.id)).limit(1)
+    )[0];
     return Response.json({ item });
   });
 }
@@ -288,11 +344,21 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
 async function DELETE({ request }: { request: Request }, ctx: Ctx) {
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return err("معرف القيد مطلوب", 400, "BAD_REQUEST");
-  const entry = (await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1))[0];
+  const entry = (
+    await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1)
+  )[0];
   if (!entry) return err("القيد غير موجود", 404, "NOT_FOUND");
   if (entry.status !== JournalStatus.DRAFT) return err("يمكن حذف المسودات فقط", 400, "BAD_STATE");
   await db.delete(journalEntries).where(eq(journalEntries.id, id)); // lines cascade
-  await addAudit({ action: "delete", entityType: "journal_entry", entityId: id, description: `حذف القيد ${entry.number}`, userId: ctx.user.id, userName: ctx.user.name, ip: ctx.ip });
+  await addAudit({
+    action: "delete",
+    entityType: "journal_entry",
+    entityId: id,
+    description: `حذف القيد ${entry.number}`,
+    userId: ctx.user.id,
+    userName: ctx.user.name,
+    ip: ctx.ip,
+  });
   return Response.json({ success: true });
 }
 

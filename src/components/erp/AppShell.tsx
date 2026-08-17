@@ -9,6 +9,7 @@ import {
   CheckSquare,
   Wallet,
   ArrowDownUp,
+  Scale,
   BookOpen,
   FileSpreadsheet,
   PiggyBank,
@@ -80,6 +81,7 @@ const NAV: NavGroup[] = [
     label: "المالية",
     items: [
       { to: "/finance/accounts", label: "دليل الحسابات", icon: BookOpen },
+      { to: "/finance/opening-balance", label: "الأرصدة الافتتاحية", icon: Scale },
       { to: "/finance/journal", label: "قيود اليومية", icon: FileSpreadsheet },
       { to: "/finance/ledger", label: "دفتر الأستاذ", icon: Wallet },
       { to: "/finance/budgets", label: "الموازنات", icon: Calculator },

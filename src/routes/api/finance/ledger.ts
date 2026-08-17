@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { db } from "@/server/db/index";
 import { journalEntries, journalLines, accounts, costCenters, projects } from "@/server/db/schema";
-import { and, eq, gte, lte, like, or, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, like, or, sql } from "drizzle-orm";
 import { authHandler, type Ctx } from "@/server/db/api-utils";
 import { JournalStatus, AccountStatus, CostCenterStatus } from "@/lib/enums";
 
@@ -15,12 +15,11 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const dateTo = url.searchParams.get("dateTo") || "";
   const search = url.searchParams.get("search") || "";
 
-  // Build conditions for journal entries that are posted (excludes draft/pending/reversed).
-  // Posted = status = POSTED AND reversedAt IS NULL.
-  const entryConditions = [
-    eq(journalEntries.status, JournalStatus.POSTED),
-    sql`${journalEntries.reversedAt} IS NULL`,
-  ];
+  // General Ledger states: posted + reversed (reversed originals are offset by
+  // posted mirrors, so both are counted and net to zero). Draft/pending/
+  // cancelled never affect the ledger.
+  const glStates = [JournalStatus.POSTED, JournalStatus.REVERSED];
+  const entryConditions = [inArray(journalEntries.status, glStates)];
   if (dateFrom) entryConditions.push(gte(journalEntries.date, dateFrom));
   if (dateTo) entryConditions.push(lte(journalEntries.date, dateTo));
   if (projectId) entryConditions.push(eq(journalEntries.projectId, projectId));
@@ -136,11 +135,7 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
       .select()
       .from(journalEntries)
       .where(
-        and(
-          eq(journalEntries.status, JournalStatus.POSTED),
-          sql`${journalEntries.reversedAt} IS NULL`,
-          sql`${journalEntries.date} < ${dateFrom}`,
-        ),
+        and(inArray(journalEntries.status, glStates), sql`${journalEntries.date} < ${dateFrom}`),
       );
     const openingEntryIds = openingEntries.map((e) => e.id);
     if (openingEntryIds.length > 0) {

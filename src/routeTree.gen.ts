@@ -60,6 +60,7 @@ import { Route as HrNewRouteImport } from './routes/hr_.new'
 import { Route as HrPayrollRouteImport } from './routes/hr.payroll'
 import { Route as GrantsNewRouteImport } from './routes/grants_.new'
 import { Route as FinanceStatementsRouteImport } from './routes/finance.statements'
+import { Route as FinanceOpeningBalanceRouteImport } from './routes/finance.opening-balance'
 import { Route as FinanceLedgerRouteImport } from './routes/finance.ledger'
 import { Route as FinanceJournalRouteImport } from './routes/finance.journal'
 import { Route as FinanceCostCentersRouteImport } from './routes/finance.cost-centers'
@@ -153,6 +154,7 @@ import { Route as ApiInventoryItemsRouteImport } from './routes/api/inventory/it
 import { Route as ApiHrPayrollRouteImport } from './routes/api/hr/payroll'
 import { Route as ApiFinanceStatementsRouteImport } from './routes/api/finance/statements'
 import { Route as ApiFinancePeriodsRouteImport } from './routes/api/finance/periods'
+import { Route as ApiFinanceOpeningBalanceRouteImport } from './routes/api/finance/opening-balance'
 import { Route as ApiFinanceLedgerRouteImport } from './routes/api/finance/ledger'
 import { Route as ApiFinanceJournalRouteImport } from './routes/api/finance/journal'
 import { Route as ApiFinanceCostCentersRouteImport } from './routes/api/finance/cost-centers'
@@ -431,6 +433,11 @@ const GrantsNewRoute = GrantsNewRouteImport.update({
 const FinanceStatementsRoute = FinanceStatementsRouteImport.update({
   id: '/finance/statements',
   path: '/finance/statements',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FinanceOpeningBalanceRoute = FinanceOpeningBalanceRouteImport.update({
+  id: '/finance/opening-balance',
+  path: '/finance/opening-balance',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FinanceLedgerRoute = FinanceLedgerRouteImport.update({
@@ -898,6 +905,12 @@ const ApiFinancePeriodsRoute = ApiFinancePeriodsRouteImport.update({
   path: '/api/finance/periods',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFinanceOpeningBalanceRoute =
+  ApiFinanceOpeningBalanceRouteImport.update({
+    id: '/api/finance/opening-balance',
+    path: '/api/finance/opening-balance',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiFinanceLedgerRoute = ApiFinanceLedgerRouteImport.update({
   id: '/api/finance/ledger',
   path: '/api/finance/ledger',
@@ -1094,6 +1107,7 @@ export interface FileRoutesByFullPath {
   '/finance/cost-centers': typeof FinanceCostCentersRoute
   '/finance/journal': typeof FinanceJournalRoute
   '/finance/ledger': typeof FinanceLedgerRoute
+  '/finance/opening-balance': typeof FinanceOpeningBalanceRoute
   '/finance/statements': typeof FinanceStatementsRoute
   '/grants/new': typeof GrantsNewRoute
   '/hr/payroll': typeof HrPayrollRoute
@@ -1127,6 +1141,7 @@ export interface FileRoutesByFullPath {
   '/api/finance/cost-centers': typeof ApiFinanceCostCentersRoute
   '/api/finance/journal': typeof ApiFinanceJournalRoute
   '/api/finance/ledger': typeof ApiFinanceLedgerRoute
+  '/api/finance/opening-balance': typeof ApiFinanceOpeningBalanceRoute
   '/api/finance/periods': typeof ApiFinancePeriodsRoute
   '/api/finance/statements': typeof ApiFinanceStatementsRoute
   '/api/hr/payroll': typeof ApiHrPayrollRoute
@@ -1264,6 +1279,7 @@ export interface FileRoutesByTo {
   '/finance/cost-centers': typeof FinanceCostCentersRoute
   '/finance/journal': typeof FinanceJournalRoute
   '/finance/ledger': typeof FinanceLedgerRoute
+  '/finance/opening-balance': typeof FinanceOpeningBalanceRoute
   '/finance/statements': typeof FinanceStatementsRoute
   '/grants/new': typeof GrantsNewRoute
   '/hr/payroll': typeof HrPayrollRoute
@@ -1297,6 +1313,7 @@ export interface FileRoutesByTo {
   '/api/finance/cost-centers': typeof ApiFinanceCostCentersRoute
   '/api/finance/journal': typeof ApiFinanceJournalRoute
   '/api/finance/ledger': typeof ApiFinanceLedgerRoute
+  '/api/finance/opening-balance': typeof ApiFinanceOpeningBalanceRoute
   '/api/finance/periods': typeof ApiFinancePeriodsRoute
   '/api/finance/statements': typeof ApiFinanceStatementsRoute
   '/api/hr/payroll': typeof ApiHrPayrollRoute
@@ -1435,6 +1452,7 @@ export interface FileRoutesById {
   '/finance/cost-centers': typeof FinanceCostCentersRoute
   '/finance/journal': typeof FinanceJournalRoute
   '/finance/ledger': typeof FinanceLedgerRoute
+  '/finance/opening-balance': typeof FinanceOpeningBalanceRoute
   '/finance/statements': typeof FinanceStatementsRoute
   '/grants_/new': typeof GrantsNewRoute
   '/hr/payroll': typeof HrPayrollRoute
@@ -1468,6 +1486,7 @@ export interface FileRoutesById {
   '/api/finance/cost-centers': typeof ApiFinanceCostCentersRoute
   '/api/finance/journal': typeof ApiFinanceJournalRoute
   '/api/finance/ledger': typeof ApiFinanceLedgerRoute
+  '/api/finance/opening-balance': typeof ApiFinanceOpeningBalanceRoute
   '/api/finance/periods': typeof ApiFinancePeriodsRoute
   '/api/finance/statements': typeof ApiFinanceStatementsRoute
   '/api/hr/payroll': typeof ApiHrPayrollRoute
@@ -1607,6 +1626,7 @@ export interface FileRouteTypes {
     | '/finance/cost-centers'
     | '/finance/journal'
     | '/finance/ledger'
+    | '/finance/opening-balance'
     | '/finance/statements'
     | '/grants/new'
     | '/hr/payroll'
@@ -1640,6 +1660,7 @@ export interface FileRouteTypes {
     | '/api/finance/cost-centers'
     | '/api/finance/journal'
     | '/api/finance/ledger'
+    | '/api/finance/opening-balance'
     | '/api/finance/periods'
     | '/api/finance/statements'
     | '/api/hr/payroll'
@@ -1777,6 +1798,7 @@ export interface FileRouteTypes {
     | '/finance/cost-centers'
     | '/finance/journal'
     | '/finance/ledger'
+    | '/finance/opening-balance'
     | '/finance/statements'
     | '/grants/new'
     | '/hr/payroll'
@@ -1810,6 +1832,7 @@ export interface FileRouteTypes {
     | '/api/finance/cost-centers'
     | '/api/finance/journal'
     | '/api/finance/ledger'
+    | '/api/finance/opening-balance'
     | '/api/finance/periods'
     | '/api/finance/statements'
     | '/api/hr/payroll'
@@ -1947,6 +1970,7 @@ export interface FileRouteTypes {
     | '/finance/cost-centers'
     | '/finance/journal'
     | '/finance/ledger'
+    | '/finance/opening-balance'
     | '/finance/statements'
     | '/grants_/new'
     | '/hr/payroll'
@@ -1980,6 +2004,7 @@ export interface FileRouteTypes {
     | '/api/finance/cost-centers'
     | '/api/finance/journal'
     | '/api/finance/ledger'
+    | '/api/finance/opening-balance'
     | '/api/finance/periods'
     | '/api/finance/statements'
     | '/api/hr/payroll'
@@ -2118,6 +2143,7 @@ export interface RootRouteChildren {
   FinanceCostCentersRoute: typeof FinanceCostCentersRoute
   FinanceJournalRoute: typeof FinanceJournalRoute
   FinanceLedgerRoute: typeof FinanceLedgerRoute
+  FinanceOpeningBalanceRoute: typeof FinanceOpeningBalanceRoute
   FinanceStatementsRoute: typeof FinanceStatementsRoute
   GrantsNewRoute: typeof GrantsNewRoute
   HrNewRoute: typeof HrNewRoute
@@ -2150,6 +2176,7 @@ export interface RootRouteChildren {
   ApiFinanceCostCentersRoute: typeof ApiFinanceCostCentersRoute
   ApiFinanceJournalRoute: typeof ApiFinanceJournalRoute
   ApiFinanceLedgerRoute: typeof ApiFinanceLedgerRoute
+  ApiFinanceOpeningBalanceRoute: typeof ApiFinanceOpeningBalanceRoute
   ApiFinancePeriodsRoute: typeof ApiFinancePeriodsRoute
   ApiFinanceStatementsRoute: typeof ApiFinanceStatementsRoute
   ApiInventoryItemsRoute: typeof ApiInventoryItemsRoute
@@ -2573,6 +2600,13 @@ declare module '@tanstack/react-router' {
       path: '/finance/statements'
       fullPath: '/finance/statements'
       preLoaderRoute: typeof FinanceStatementsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/finance/opening-balance': {
+      id: '/finance/opening-balance'
+      path: '/finance/opening-balance'
+      fullPath: '/finance/opening-balance'
+      preLoaderRoute: typeof FinanceOpeningBalanceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/finance/ledger': {
@@ -3226,6 +3260,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFinancePeriodsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/finance/opening-balance': {
+      id: '/api/finance/opening-balance'
+      path: '/api/finance/opening-balance'
+      fullPath: '/api/finance/opening-balance'
+      preLoaderRoute: typeof ApiFinanceOpeningBalanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/finance/ledger': {
       id: '/api/finance/ledger'
       path: '/api/finance/ledger'
@@ -3490,6 +3531,7 @@ const rootRouteChildren: RootRouteChildren = {
   FinanceCostCentersRoute: FinanceCostCentersRoute,
   FinanceJournalRoute: FinanceJournalRoute,
   FinanceLedgerRoute: FinanceLedgerRoute,
+  FinanceOpeningBalanceRoute: FinanceOpeningBalanceRoute,
   FinanceStatementsRoute: FinanceStatementsRoute,
   GrantsNewRoute: GrantsNewRoute,
   HrNewRoute: HrNewRoute,
@@ -3522,6 +3564,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFinanceCostCentersRoute: ApiFinanceCostCentersRoute,
   ApiFinanceJournalRoute: ApiFinanceJournalRoute,
   ApiFinanceLedgerRoute: ApiFinanceLedgerRoute,
+  ApiFinanceOpeningBalanceRoute: ApiFinanceOpeningBalanceRoute,
   ApiFinancePeriodsRoute: ApiFinancePeriodsRoute,
   ApiFinanceStatementsRoute: ApiFinanceStatementsRoute,
   ApiInventoryItemsRoute: ApiInventoryItemsRoute,

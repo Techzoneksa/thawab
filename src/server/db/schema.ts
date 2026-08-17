@@ -430,6 +430,28 @@ export const fiscalPeriods = pgTable("fiscal_periods", {
   updatedAt: text("updated_at").notNull().default(""),
 });
 
+// ============ IMPORT BATCHES ============
+// Traceable identity for every Excel import; enables file-hash de-duplication
+// and links imported journals back to their batch (source_id = batch id).
+export const importBatches = pgTable(
+  "import_batches",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull().default("journal"), // journal | budget
+    fileName: text("file_name").notNull().default(""),
+    fileHash: text("file_hash").notNull().default(""),
+    rowCount: integer("row_count").notNull().default(0),
+    journalCount: integer("journal_count").notNull().default(0),
+    status: text("status").notNull().default("processing"), // processing | success | failed
+    errorSummary: text("error_summary").default(""),
+    importedBy: text("imported_by").references(() => users.id),
+    importedAt: text("imported_at").notNull().default(""),
+  },
+  (t) => ({
+    hashIdx: index("import_batches_hash_idx").on(t.fileHash),
+  }),
+);
+
 // ============ APPROVALS ============
 
 export const approvals = pgTable("approvals", {

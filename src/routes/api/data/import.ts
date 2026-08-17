@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { and, desc, eq } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
-import { accounts, costCenters, budgets, budgetLines } from "@/server/db/schema";
+import { accounts, costCenters, budgets, budgetLines, importBatches } from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
 import { postBalancedEntry } from "@/server/db/gl";
 import { JournalStatus, Fund, BudgetStatus } from "@/lib/enums";
@@ -36,7 +37,12 @@ const budgetSchema = z.object({
 });
 
 const importSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("journal"), entries: z.array(journalEntrySchema).min(1) }),
+  z.object({
+    type: z.literal("journal"),
+    entries: z.array(journalEntrySchema).min(1),
+    fileName: z.string().optional(),
+    fileHash: z.string().optional(),
+  }),
   z.object({ type: z.literal("budget"), budgets: z.array(budgetSchema).min(1) }),
 ]);
 
@@ -54,6 +60,38 @@ async function POST(event: { request: Request }, ctx: Ctx) {
 
     // ---------------- Journal import ----------------
     if (body.type === "journal") {
+      // Duplicate-file detection: an identical file already imported
+      // successfully is rejected (checksum, not filename).
+      if (body.fileHash) {
+        const prior = (
+          await db
+            .select()
+            .from(importBatches)
+            .where(
+              and(eq(importBatches.fileHash, body.fileHash), eq(importBatches.status, "success")),
+            )
+            .orderBy(desc(importBatches.importedAt))
+            .limit(1)
+        )[0];
+        if (prior) {
+          return Response.json(
+            {
+              ok: false,
+              duplicate: true,
+              created: 0,
+              batch: {
+                id: prior.id,
+                fileName: prior.fileName,
+                importedAt: prior.importedAt,
+                importedBy: prior.importedBy,
+                journalCount: prior.journalCount,
+              },
+            },
+            { status: 409 },
+          );
+        }
+      }
+
       const ccs = await db.select().from(costCenters);
       const ccByKey = new Map<string, string>();
       for (const c of ccs) {
@@ -99,39 +137,90 @@ async function POST(event: { request: Request }, ctx: Ctx) {
         };
       });
 
-      if (errors.length)
+      const rowCount = body.entries.reduce((s, e) => s + e.lines.length, 0);
+      const ts = now();
+      const batchId = genId("IMP");
+
+      // All-or-nothing: any validation error → no journals, batch recorded FAILED.
+      if (errors.length) {
+        await db.insert(importBatches).values({
+          id: batchId,
+          kind: "journal",
+          fileName: body.fileName ?? "",
+          fileHash: body.fileHash ?? "",
+          rowCount,
+          journalCount: 0,
+          status: "failed",
+          errorSummary: errors.slice(0, 20).join(" | "),
+          importedBy: ctx.user.id,
+          importedAt: ts,
+        });
         return Response.json(
-          { ok: false, created: 0, errors: errors.slice(0, 50), errorCount: errors.length },
+          {
+            ok: false,
+            created: 0,
+            errors: errors.slice(0, 50),
+            errorCount: errors.length,
+            batchId,
+          },
           { status: 422 },
         );
+      }
+
+      await db.insert(importBatches).values({
+        id: batchId,
+        kind: "journal",
+        fileName: body.fileName ?? "",
+        fileHash: body.fileHash ?? "",
+        rowCount,
+        journalCount: 0,
+        status: "processing",
+        importedBy: ctx.user.id,
+        importedAt: ts,
+      });
 
       let created = 0;
-      await db.transaction(async (tx) => {
-        for (const e of prepared) {
-          await postBalancedEntry(tx as any, {
-            date: e.date,
-            description: e.description,
-            fund: e.fund,
-            source: "import",
-            sourceType: "import",
-            lines: e.lines,
-            userId: ctx.user.id,
-            status: JournalStatus.DRAFT,
-          });
-          created++;
-        }
-      });
+      try {
+        await db.transaction(async (tx) => {
+          for (const e of prepared) {
+            await postBalancedEntry(tx as any, {
+              date: e.date,
+              description: e.description,
+              fund: e.fund,
+              // Imported journals are traceable back to their batch.
+              source: "journal_import",
+              sourceType: "journal_import",
+              sourceId: batchId,
+              lines: e.lines,
+              userId: ctx.user.id,
+              status: JournalStatus.DRAFT,
+            });
+            created++;
+          }
+        });
+      } catch (e) {
+        await db
+          .update(importBatches)
+          .set({ status: "failed", journalCount: 0, errorSummary: (e as Error).message })
+          .where(eq(importBatches.id, batchId));
+        throw e;
+      }
+
+      await db
+        .update(importBatches)
+        .set({ status: "success", journalCount: created })
+        .where(eq(importBatches.id, batchId));
 
       await addAudit({
         action: "import",
-        entityType: "journal_entry",
-        entityId: "bulk",
-        description: `استيراد ${created} قيد محاسبي (مسودة) من ملف Excel`,
+        entityType: "import_batch",
+        entityId: batchId,
+        description: `استيراد ${created} قيد محاسبي (مسودة) — دفعة ${batchId}`,
         userId: ctx.user.id,
         userName: ctx.user.name,
         ip: ctx.ip,
       });
-      return Response.json({ ok: true, created });
+      return Response.json({ ok: true, created, batchId });
     }
 
     // ---------------- Budget import ----------------

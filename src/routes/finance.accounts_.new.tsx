@@ -3,10 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Save, X, Plus } from "lucide-react";
 import { AppShell } from "@/components/erp/AppShell";
-import {
-  EnterpriseFormLayout,
-  type EnterpriseTab,
-} from "@/components/erp/EnterpriseFormLayout";
+import { EnterpriseFormLayout, type EnterpriseTab } from "@/components/erp/EnterpriseFormLayout";
 import {
   FormField,
   FormInput,
@@ -58,7 +55,6 @@ function NewAccountPage() {
   const [classification, setClassification] = useState<AccountType>(AccountClassification.ASSET);
   const [parentId_, setParentId] = useState<string>(parent?.id || "");
   const [currency, setCurrency] = useState("SAR");
-  const [balance, setBalance] = useState("0");
   const [postable, setPostable] = useState(!parent);
   const [status, setStatus] = useState<AccountStatus>(AccountStatusEnum.ACTIVE);
   const [description, setDescription] = useState("");
@@ -71,8 +67,7 @@ function NewAccountPage() {
     if (!code.trim()) e.code = "رقم الحساب مطلوب";
     else if (allAccounts.some((a) => a.code === code.trim())) e.code = "رقم الحساب مستخدم";
     if (!name.trim()) e.name = "اسم الحساب مطلوب";
-    if (!parentId_ && postable)
-      e.parent = "الحساب الأب مطلوب للحسابات الفرعية";
+    if (!parentId_ && postable) e.parent = "الحساب الأب مطلوب للحسابات الفرعية";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -91,7 +86,6 @@ function NewAccountPage() {
         classification,
         parentId: parentId_ || null,
         currency,
-        balance: parseFloat(balance) || 0,
         postable,
         status,
         description,
@@ -158,7 +152,11 @@ function NewAccountPage() {
             <FormField
               label="الحساب الأب"
               error={errors.parent}
-              hint={!postable ? "الحسابات الرئيسية لا تحتاج أب" : "اختر الحساب الرئيسي الذي يندرج تحته هذا الحساب"}
+              hint={
+                !postable
+                  ? "الحسابات الرئيسية لا تحتاج أب"
+                  : "اختر الحساب الرئيسي الذي يندرج تحته هذا الحساب"
+              }
               htmlFor="acct-parent"
             >
               <FormSelect
@@ -198,7 +196,11 @@ function NewAccountPage() {
           <FormRow>
             <FormField label="المستوى في الشجرة" hint="يحسب تلقائياً من الحساب الأب">
               <FormInput
-                value={parentId_ ? String((allAccounts.find((a) => a.id === parentId_)?.level || 1) + 1) : "1"}
+                value={
+                  parentId_
+                    ? String((allAccounts.find((a) => a.id === parentId_)?.level || 1) + 1)
+                    : "1"
+                }
                 disabled
                 dir="ltr"
                 className="font-mono"
@@ -220,7 +222,8 @@ function NewAccountPage() {
           <FormSection title="الحسابات الفرعية" className="bg-muted/30">
             {allAccounts.filter((a) => a.parentId === "").length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                لم يتم بعد إنشاء حسابات رئيسية. الحسابات الرئيسية عادةً تكون أصول، التزامات، حقوق ملكية، إيرادات، مصروفات.
+                لم يتم بعد إنشاء حسابات رئيسية. الحسابات الرئيسية عادةً تكون أصول، التزامات، حقوق
+                ملكية، إيرادات، مصروفات.
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
@@ -236,7 +239,10 @@ function NewAccountPage() {
       label: "إعدادات الترحيل",
       content: (
         <FormSection title="ضبط سلوك الترحيل">
-          <FormField label="قابل للترحيل" hint="الحسابات غير القابلة للترحيل تستقبل فقط حسابات فرعية">
+          <FormField
+            label="قابل للترحيل"
+            hint="الحسابات غير القابلة للترحيل تستقبل فقط حسابات فرعية"
+          >
             <FormSegmented<"yes" | "no">
               value={postable ? "yes" : "no"}
               onChange={(v) => {
@@ -282,42 +288,16 @@ function NewAccountPage() {
     },
     {
       id: "balance",
-      label: "الأرصدة والاستخدامات",
+      label: "الأرصدة",
       content: (
-        <FormSection title="الرصيد الافتتاحي">
-          <FormRow>
-            <FormField
-              label="رصيد افتتاحي"
-              hint="يُسجَّل فقط عند إنشاء حساب جديد"
-              htmlFor="acct-balance"
-            >
-              <FormInput
-                id="acct-balance"
-                type="number"
-                step="0.01"
-                value={balance}
-                onChange={(e) => setBalance(e.target.value)}
-                placeholder="0.00"
-                dir="ltr"
-                className="font-mono tabular-nums"
-              />
-            </FormField>
-            <FormField label="اتجاه الرصيد">
-              <FormInput
-                value={
-                  parseFloat(balance) > 0
-                    ? "مدين"
-                    : parseFloat(balance) < 0
-                      ? "دائن"
-                      : "صفر"
-                }
-                disabled
-              />
-            </FormField>
-          </FormRow>
-          <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
-            <strong className="text-foreground">ملاحظة:</strong> الأرصدة اللاحقة تُحسب تلقائياً من القيود المرحلة.
-            هذا الرصيد هو نقطة البداية فقط.
+        <FormSection title="الرصيد">
+          <div className="rounded-lg bg-info/10 p-3 text-xs text-muted-foreground leading-6">
+            <strong className="text-foreground">
+              رصيد الحساب يُحسب تلقائياً من القيود المرحّلة
+            </strong>{" "}
+            (دفتر الأستاذ) — لا يُدخل يدوياً هنا. لإدخال رصيد افتتاحي، استخدم صفحة{" "}
+            <strong className="text-foreground">«الأرصدة الافتتاحية»</strong> التي تُنشئ قيد افتتاحي
+            متوازناً يظهر في دفتر الأستاذ وميزان المراجعة والقوائم المالية.
           </div>
         </FormSection>
       ),
@@ -349,7 +329,9 @@ function NewAccountPage() {
           { label: "حساب جديد" },
         ]}
         title={parent ? `حساب فرعي تحت ${parent.code}` : "إنشاء حساب جديد"}
-        subtitle={parent ? `يندرج تحت: ${parent.name}` : "املأ البيانات لإنشاء حساب جديد في دليل الحسابات"}
+        subtitle={
+          parent ? `يندرج تحت: ${parent.name}` : "املأ البيانات لإنشاء حساب جديد في دليل الحسابات"
+        }
         draftNumber={code ? `مسودة · ${code}` : "مسودة جديدة"}
         status={{ label: "جديد", tone: "info" }}
         tabs={tabs}

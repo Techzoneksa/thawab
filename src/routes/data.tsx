@@ -80,9 +80,19 @@ function JournalCard() {
     setBusy(true);
     setErrors([]);
     try {
-      const res = await runImport({ type: "journal", entries: preview.entries });
-      if (res.ok) {
-        showToast(`تم استيراد ${res.created} قيد كمسودة`, "success");
+      const res = await runImport({
+        type: "journal",
+        entries: preview.entries,
+        fileName: preview.fileName,
+        fileHash: preview.fileHash,
+      });
+      if (res.duplicate) {
+        setErrors([
+          `تم استيراد هذا الملف مسبقاً — دفعة ${res.batch?.id} بتاريخ ${res.batch?.importedAt?.slice(0, 10)} (${res.batch?.journalCount} قيد). لم تُنشأ قيود مكرّرة.`,
+        ]);
+        showToast("ملف مكرّر — تم رفض الاستيراد", "error");
+      } else if (res.ok) {
+        showToast(`تم استيراد ${res.created} قيد كمسودة (دفعة ${res.batchId})`, "success");
         setPreview(null);
         queryClient.invalidateQueries({ queryKey: ["journal"] });
       } else {

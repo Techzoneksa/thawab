@@ -59,6 +59,14 @@ function cellNum(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** SHA-256 of the raw file bytes, hex — stable identity for duplicate detection. */
+async function sha256Hex(buf: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 async function writeSheet(
   columns: { header: string; type?: "number" }[],
   rows: Record<string, unknown>[],
@@ -222,9 +230,12 @@ export interface JournalPreview {
   totalDebit: number;
   totalCredit: number;
   warnings: string[];
+  fileName: string;
+  fileHash: string;
 }
 
 export async function parseJournalFile(file: File): Promise<JournalPreview> {
+  const fileHash = await sha256Hex(await file.arrayBuffer());
   const rows = await parseRows(file, "journal");
   const groups = new Map<string, JournalPreview["entries"][number]>();
   const warnings: string[] = [];
@@ -276,7 +287,16 @@ export async function parseJournalFile(file: File): Promise<JournalPreview> {
       warnings.push(`قيد ${e.number}: غير متوازن (مدين ${d.toFixed(2)} ≠ دائن ${c.toFixed(2)})`);
     if (!e.description) warnings.push(`قيد ${e.number}: بدون وصف`);
   }
-  return { entries, entryCount: entries.length, lineCount, totalDebit, totalCredit, warnings };
+  return {
+    entries,
+    entryCount: entries.length,
+    lineCount,
+    totalDebit,
+    totalCredit,
+    warnings,
+    fileName: file.name,
+    fileHash,
+  };
 }
 
 export interface BudgetPreview {
@@ -333,11 +353,25 @@ export interface ImportResult {
   created: number;
   errors?: string[];
   errorCount?: number;
+  batchId?: string;
+  duplicate?: boolean;
+  batch?: {
+    id: string;
+    fileName: string;
+    importedAt: string;
+    importedBy: string | null;
+    journalCount: number;
+  };
 }
 
 export async function runImport(
   payload:
-    | { type: "journal"; entries: JournalPreview["entries"] }
+    | {
+        type: "journal";
+        entries: JournalPreview["entries"];
+        fileName?: string;
+        fileHash?: string;
+      }
     | { type: "budget"; budgets: BudgetPreview["budgets"] },
 ): Promise<ImportResult> {
   const res = await fetch("/api/data/import", {
@@ -346,7 +380,9 @@ export async function runImport(
     body: JSON.stringify(payload),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok && res.status !== 422) {
+  // 422 = validation errors, 409 = duplicate file — both return a structured
+  // ImportResult the UI renders; other non-OK statuses are hard failures.
+  if (!res.ok && res.status !== 422 && res.status !== 409) {
     throw new Error(data.message || data.error || "فشل الاستيراد");
   }
   return data as ImportResult;

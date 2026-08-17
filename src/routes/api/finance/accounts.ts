@@ -5,6 +5,7 @@ import { accounts, journalLines } from "@/server/db/schema";
 import { eq, like, or, and, sql } from "drizzle-orm";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
 import { AccountClassification, AccountStatus } from "@/lib/enums";
+import { getAllAccountBalances, getAccountBalance } from "@/server/db/balances";
 
 // GET /api/finance/accounts - list with search/filter
 // GET /api/finance/accounts?id=xxx - single account with usage info
@@ -18,20 +19,28 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
 
     // Count lines that use this account
     const lineCount =
-      (await db
-        .select({ count: sql<number>`count(*)` })
-        .from(journalLines)
-        .where(eq(journalLines.accountId, id)))[0]?.count || 0;
+      (
+        await db
+          .select({ count: sql<number>`count(*)` })
+          .from(journalLines)
+          .where(eq(journalLines.accountId, id))
+      )[0]?.count || 0;
 
     // Count child accounts
     const childCount =
-      (await db
-        .select({ count: sql<number>`count(*)` })
-        .from(accounts)
-        .where(eq(accounts.parentId, id)))[0]?.count || 0;
+      (
+        await db
+          .select({ count: sql<number>`count(*)` })
+          .from(accounts)
+          .where(eq(accounts.parentId, id))
+      )[0]?.count || 0;
 
+    // Balance is ALWAYS derived from the General Ledger (posted, non-reversed
+    // lines), never the stored accounts.balance field.
+    const gl = await getAccountBalance(db, id);
     return Response.json({
-      item: account,
+      item: { ...account, balance: gl.closing },
+      glBalance: gl,
       lineCount: Number(lineCount),
       childCount: Number(childCount),
       hasTransactions: Number(lineCount) > 0,
@@ -52,9 +61,13 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const items = await db.select().from(accounts).where(whereClause).orderBy(accounts.code);
-  const total = items.length;
 
-  return Response.json({ items, total });
+  // Overlay the real GL balance on every account (single source of truth).
+  const balances = await getAllAccountBalances(db);
+  const withBalances = items.map((a) => ({ ...a, balance: balances.get(a.id)?.balance ?? 0 }));
+  const total = withBalances.length;
+
+  return Response.json({ items: withBalances, total });
 }
 
 const createSchema = z.object({
@@ -76,11 +89,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
   return guard(async () => {
     const b = await parseBody(event.request, createSchema);
 
-    const existing = (await db
-      .select()
-      .from(accounts)
-      .where(eq(accounts.code, b.code))
-      .limit(1))[0];
+    const existing = (
+      await db.select().from(accounts).where(eq(accounts.code, b.code)).limit(1)
+    )[0];
     if (existing) return err("رقم الحساب مستخدم بالفعل", 400, "DUPLICATE_CODE");
 
     const accId = genId("ACC");
@@ -89,11 +100,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     // Derive level from parent
     let level = 1;
     if (b.parentId) {
-      const parent = (await db
-        .select()
-        .from(accounts)
-        .where(eq(accounts.id, b.parentId))
-        .limit(1))[0];
+      const parent = (
+        await db.select().from(accounts).where(eq(accounts.id, b.parentId)).limit(1)
+      )[0];
       if (parent) level = (parent.level || 1) + 1;
     }
 
@@ -106,7 +115,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
       parentId: b.parentId || null,
       systemKey: b.systemKey || null,
       currency: b.currency || "SAR",
-      balance: b.balance ?? 0,
+      // Legacy column kept at 0 — real balance comes from the GL. Opening
+      // balances must be entered via the opening-balance journal, not here.
+      balance: 0,
       postable: b.postable ?? true,
       status: b.status ?? AccountStatus.ACTIVE,
       description: b.description ?? "",
@@ -162,7 +173,8 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
         parentId: b.parentId === undefined ? existing.parentId : b.parentId || null,
         systemKey: b.systemKey === undefined ? existing.systemKey : b.systemKey || null,
         currency: b.currency ?? existing.currency,
-        balance: b.balance ?? existing.balance,
+        // accounts.balance is no longer an accounting source of truth — never
+        // written from user input; GL is authoritative.
         postable: b.postable ?? existing.postable,
         status: b.status ?? existing.status,
         description: b.description ?? existing.description,
@@ -197,13 +209,14 @@ async function DELETE({ request }: { request: Request }, ctx: Ctx) {
   if (!existing) return err("الحساب غير موجود", 404, "NOT_FOUND");
 
   // Check children
-  const children =
-    Number(
-      (await db
+  const children = Number(
+    (
+      await db
         .select({ count: sql<number>`count(*)` })
         .from(accounts)
-        .where(eq(accounts.parentId, id)))[0]?.count || 0,
-    );
+        .where(eq(accounts.parentId, id))
+    )[0]?.count || 0,
+  );
   if (children > 0) {
     return err(
       `لا يمكن حذف حساب له ${children} حساب فرعي. احذف الفروع أولاً أو أوقف الحساب.`,
@@ -213,13 +226,14 @@ async function DELETE({ request }: { request: Request }, ctx: Ctx) {
   }
 
   // Check usage in journal lines
-  const usage =
-    Number(
-      (await db
+  const usage = Number(
+    (
+      await db
         .select({ count: sql<number>`count(*)` })
         .from(journalLines)
-        .where(eq(journalLines.accountId, id)))[0]?.count || 0,
-    );
+        .where(eq(journalLines.accountId, id))
+    )[0]?.count || 0,
+  );
   if (usage > 0) {
     return err(
       `لا يمكن حذف حساب مستخدم في ${usage} سطر قيد. أوقف الحساب بدلاً من ذلك.`,

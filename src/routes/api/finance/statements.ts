@@ -32,10 +32,11 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
   return err("نوع التقرير غير معروف", 400, "UNKNOWN_REPORT");
 }
 
-// Posted, non-reversed entries only.
+// General Ledger states: posted entries plus reversed originals (each reversed
+// original is offset by a posted mirror, so counting both nets to zero — the
+// correct GL result). Draft/pending/cancelled never affect the ledger.
 const postedFilter = () => [
-  eq(journalEntries.status, JournalStatus.POSTED),
-  sql`${journalEntries.reversedAt} IS NULL`,
+  inArray(journalEntries.status, [JournalStatus.POSTED, JournalStatus.REVERSED]),
 ];
 
 // ============ TRIAL BALANCE ============
@@ -280,10 +281,7 @@ async function getBudgetVsActual(filters: {
   //    (an un-awaited .map(async …) serializes to {} and reduces to NaN).
   const enriched = await Promise.all(
     targetBudgets.map(async (budget) => {
-      const lines = await db
-        .select()
-        .from(budgetLines)
-        .where(eq(budgetLines.budgetId, budget.id));
+      const lines = await db.select().from(budgetLines).where(eq(budgetLines.budgetId, budget.id));
 
       const enrichedLines = await Promise.all(
         lines.map(async (line) => {
@@ -326,11 +324,13 @@ async function getBudgetVsActual(filters: {
 
           // Choose revenue vs expense actual based on the line's account classification.
           const acc = line.accountId
-            ? (await db
-                .select({ classification: accounts.classification })
-                .from(accounts)
-                .where(eq(accounts.id, line.accountId))
-                .limit(1))[0]
+            ? (
+                await db
+                  .select({ classification: accounts.classification })
+                  .from(accounts)
+                  .where(eq(accounts.id, line.accountId))
+                  .limit(1)
+              )[0]
             : null;
           const actualAmount =
             acc?.classification === AccountClassification.REVENUE ? revenueActual : expenseActual;
