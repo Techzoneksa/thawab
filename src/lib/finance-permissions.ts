@@ -50,6 +50,7 @@ export const FINANCE_PERMISSIONS = {
   bankCreate: "finance.bank.create",
   bankUpdate: "finance.bank.update",
   bankDeactivate: "finance.bank.deactivate",
+  bankSensitiveView: "finance.bank.sensitive.view",
 
   cashBankLedgerView: "finance.cash_bank.ledger.view",
   cashBankAuditView: "finance.cash_bank.audit.view",
@@ -184,6 +185,11 @@ export const FINANCE_PERM_GROUPS: FinancePermGroup[] = [
       { key: FINANCE_PERMISSIONS.bankCreate, label: "إضافة حساب بنكي" },
       { key: FINANCE_PERMISSIONS.bankUpdate, label: "تعديل حساب بنكي" },
       { key: FINANCE_PERMISSIONS.bankDeactivate, label: "تعطيل حساب بنكي" },
+      {
+        key: FINANCE_PERMISSIONS.bankSensitiveView,
+        label: "عرض بيانات بنكية حسّاسة (IBAN كامل)",
+        desc: "صلاحية عالية — إظهار رقم الآيبان/الحساب الكامل بدل المُقنّع",
+      },
     ],
   },
   {

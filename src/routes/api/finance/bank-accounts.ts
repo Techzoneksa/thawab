@@ -10,17 +10,27 @@ import {
   validateLinkedAccount,
   assertMappingAvailable,
   assertMappingChangeAllowed,
+  acquireMappingLock,
   accountHasPostedHistory,
   linkedAccountBalance,
+  accountLedger,
 } from "@/server/db/cash-bank";
 import { AccountStatus } from "@/lib/enums";
 import { FINANCE_PERMISSIONS as P } from "@/lib/finance-permissions";
+import { AppError } from "@/server/db/errors";
 import { normalizeIban, isValidSaudiIban, maskIban } from "@/lib/iban";
 
 async function require(ctx: Ctx, perm: string): Promise<Response | null> {
   return (await hasPermission(ctx.user.role, perm))
     ? null
     : err("لا تملك صلاحية لهذا الإجراء", 403, "FORBIDDEN");
+}
+async function canViewLedger(ctx: Ctx): Promise<boolean> {
+  return (
+    (await hasPermission(ctx.user.role, P.cashBankLedgerView)) ||
+    (await hasPermission(ctx.user.role, "finance.view")) ||
+    (await hasPermission(ctx.user.role, P.reportsView))
+  );
 }
 async function acctInfo(id: string) {
   const a = (await db.select().from(accounts).where(eq(accounts.id, id)).limit(1))[0];
@@ -43,16 +53,33 @@ async function GET({ request }: { request: Request }, ctx: Ctx) {
   if (id) {
     const item = (await db.select().from(bankAccounts).where(eq(bankAccounts.id, id)).limit(1))[0];
     if (!item) return err("الحساب البنكي غير موجود", 404, "NOT_FOUND");
+    // Ledger drill-down — gated by the dedicated cash/bank ledger permission.
+    if (url.searchParams.get("ledger") === "1") {
+      if (!(await canViewLedger(ctx)))
+        return err("لا تملك صلاحية عرض حركة النقد والبنوك", 403, "FORBIDDEN");
+      const ledger = await accountLedger(db, item.linkedAccountId, {
+        dateFrom: url.searchParams.get("dateFrom") || undefined,
+        dateTo: url.searchParams.get("dateTo") || undefined,
+      });
+      return Response.json({
+        item: { id: item.id, code: item.code, linkedAccountId: item.linkedAccountId },
+        ...ledger,
+      });
+    }
     const balance = await linkedAccountBalance(db, item.linkedAccountId, {
       dateFrom: url.searchParams.get("dateFrom") || undefined,
       dateTo: url.searchParams.get("dateTo") || undefined,
       asOf: url.searchParams.get("asOf") || undefined,
     });
-    // Full IBAN is returned only to bank-view holders (the route gate) AND only
-    // when explicitly requested; lists/logs stay masked.
-    const wantFull = url.searchParams.get("full") === "1";
-    const projected = maskedRow(item);
-    if (wantFull) (projected as any).iban = item.iban;
+    // Sensitive full identifiers (full IBAN / account number) require the
+    // DEDICATED sensitive permission — bank.view alone always gets masked.
+    const projected: any = maskedRow(item);
+    if (url.searchParams.get("full") === "1") {
+      if (!(await hasPermission(ctx.user.role, P.bankSensitiveView)))
+        return err("لا تملك صلاحية عرض البيانات البنكية الحسّاسة", 403, "FORBIDDEN");
+      projected.iban = item.iban;
+      projected.accountNumber = item.accountNumber;
+    }
     return Response.json({
       item: projected,
       linkedAccount: await acctInfo(item.linkedAccountId),
@@ -91,7 +118,6 @@ const createSchema = z.object({
   currency: z.string().trim().optional(),
   linkedAccountId: z.string().min(1, "الحساب المرتبط مطلوب"),
   branchId: z.string().nullish(),
-  isDefault: z.boolean().optional(),
   notes: z.string().optional(),
 });
 
@@ -136,17 +162,13 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     const denied = await require(ctx, P.bankCreate);
     if (denied) return denied;
     const b = createSchema.parse(body);
-    const acc = await validateLinkedAccount(db, b.linkedAccountId);
-    await assertMappingAvailable(db, b.linkedAccountId);
     const ibanRes = resolveIban(b.iban);
     if (ibanRes instanceof Response) return ibanRes;
-    const currency = (b.currency || acc.currency || "SAR").toUpperCase();
-    if (acc.currency && currency !== acc.currency)
-      return err("عملة الحساب البنكي يجب أن تطابق عملة الحساب المرتبط", 400, "CURRENCY_MISMATCH");
 
     const id = genId("BA");
     const ts = now();
-    const rec = {
+    let currency = "SAR";
+    const rec: any = {
       id,
       code: b.code,
       bankName: b.bankName,
@@ -158,15 +180,28 @@ async function POST(event: { request: Request }, ctx: Ctx) {
       linkedAccountId: b.linkedAccountId,
       status: AccountStatus.ACTIVE,
       branchId: b.branchId ?? null,
-      isDefault: b.isDefault ?? false,
       notes: b.notes ?? "",
       createdBy: ctx.user.id,
       createdAt: ts,
       updatedAt: ts,
     };
     try {
-      await db.insert(bankAccounts).values(rec);
-    } catch (e) {
+      await db.transaction(async (tx) => {
+        await acquireMappingLock(tx, b.linkedAccountId);
+        const acc = await validateLinkedAccount(tx as any, b.linkedAccountId);
+        await assertMappingAvailable(tx as any, b.linkedAccountId);
+        currency = (b.currency || acc.currency || "SAR").toUpperCase();
+        if (acc.currency && currency !== acc.currency)
+          throw new AppError(
+            "عملة الحساب البنكي يجب أن تطابق عملة الحساب المرتبط",
+            400,
+            "CURRENCY_MISMATCH",
+          );
+        rec.currency = currency;
+        await tx.insert(bankAccounts).values(rec);
+      });
+    } catch (e: any) {
+      if (e?.code && e?.status) return err(e.message, e.status, e.code);
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("bank_accounts_code"))
         return err("رمز الحساب البنكي مستخدم بالفعل", 409, "DUPLICATE_CODE");
@@ -200,7 +235,6 @@ const updateSchema = z.object({
   currency: z.string().trim().optional(),
   linkedAccountId: z.string().min(1).optional(),
   branchId: z.string().nullish(),
-  isDefault: z.boolean().optional(),
   notes: z.string().optional(),
 });
 
@@ -217,7 +251,6 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
     if (b.accountName !== undefined) set.accountName = b.accountName;
     if (b.accountNumber !== undefined) set.accountNumber = b.accountNumber;
     if (b.branchId !== undefined) set.branchId = b.branchId;
-    if (b.isDefault !== undefined) set.isDefault = b.isDefault;
     if (b.notes !== undefined) set.notes = b.notes;
     if (b.iban !== undefined) {
       const ibanRes = resolveIban(b.iban);
@@ -225,22 +258,30 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
       set.iban = ibanRes.iban;
       set.ibanNormalized = ibanRes.ibanNormalized;
     }
-    if (b.linkedAccountId && b.linkedAccountId !== ba.linkedAccountId) {
-      await assertMappingChangeAllowed(db, ba.linkedAccountId);
-      const acc = await validateLinkedAccount(db, b.linkedAccountId);
-      await assertMappingAvailable(db, b.linkedAccountId, { bankId: ba.id });
-      const currency = (b.currency || ba.currency).toUpperCase();
-      if (acc.currency && currency !== acc.currency)
-        return err("عملة الحساب البنكي يجب أن تطابق عملة الحساب المرتبط", 400, "CURRENCY_MISMATCH");
-      set.linkedAccountId = b.linkedAccountId;
-      set.currency = currency;
-    } else if (b.currency !== undefined) {
-      set.currency = b.currency.toUpperCase();
-    }
+    const changingMap = !!b.linkedAccountId && b.linkedAccountId !== ba.linkedAccountId;
+    if (!changingMap && b.currency !== undefined) set.currency = b.currency.toUpperCase();
 
     try {
-      await db.update(bankAccounts).set(set).where(eq(bankAccounts.id, b.id));
-    } catch (e) {
+      await db.transaction(async (tx) => {
+        if (changingMap) {
+          await acquireMappingLock(tx, b.linkedAccountId!);
+          await assertMappingChangeAllowed(tx as any, ba.linkedAccountId);
+          const acc = await validateLinkedAccount(tx as any, b.linkedAccountId!);
+          await assertMappingAvailable(tx as any, b.linkedAccountId!, { bankId: ba.id });
+          const currency = (b.currency || ba.currency).toUpperCase();
+          if (acc.currency && currency !== acc.currency)
+            throw new AppError(
+              "عملة الحساب البنكي يجب أن تطابق عملة الحساب المرتبط",
+              400,
+              "CURRENCY_MISMATCH",
+            );
+          set.linkedAccountId = b.linkedAccountId;
+          set.currency = currency;
+        }
+        await tx.update(bankAccounts).set(set).where(eq(bankAccounts.id, b.id));
+      });
+    } catch (e: any) {
+      if (e?.code && e?.status) return err(e.message, e.status, e.code);
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("bank_accounts_code"))
         return err("رمز الحساب البنكي مستخدم بالفعل", 409, "DUPLICATE_CODE");

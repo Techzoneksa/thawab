@@ -8,7 +8,6 @@ export interface Cashbox {
   currency: string;
   status: string;
   branchId: string | null;
-  isDefault: boolean;
   notes: string;
   createdAt: string;
   glBalance?: number;
@@ -25,7 +24,6 @@ export interface BankAccount {
   linkedAccountId: string;
   status: string;
   branchId: string | null;
-  isDefault: boolean;
   notes: string;
   createdAt: string;
   glBalance?: number;
@@ -96,6 +94,30 @@ export async function setBankActive(id: string, active: boolean) {
     await post("/api/finance/bank-accounts", { id, action: active ? "reactivate" : "deactivate" }),
     "تعذّر تغيير حالة الحساب البنكي",
   );
+}
+
+export interface LedgerMovement {
+  lineId: string;
+  entryId: string;
+  number: string;
+  date: string;
+  description: string;
+  source: string;
+  reference: string;
+  debit: number;
+  credit: number;
+  runningBalance: number;
+}
+/** Gated cash/bank ledger drill-down (finance.cash_bank.ledger.view). */
+export async function getCashboxLedger(
+  id: string,
+): Promise<{ opening: number; movements: LedgerMovement[]; closing: number }> {
+  return j(await fetch(`/api/finance/cashboxes?id=${id}&ledger=1`), "تعذّر جلب الحركة");
+}
+export async function getBankLedger(
+  id: string,
+): Promise<{ opening: number; movements: LedgerMovement[]; closing: number }> {
+  return j(await fetch(`/api/finance/bank-accounts?id=${id}&ledger=1`), "تعذّر جلب الحركة");
 }
 
 function post(url: string, body: any) {

@@ -17,6 +17,21 @@ type Db = { select: (...a: any[]) => any };
 
 export type CashBankKind = "cashbox" | "bank";
 
+// Advisory-lock namespace for cash/bank GL-mapping decisions (arbitrary, stable).
+const CASH_BANK_LOCK_NS = 42;
+
+/**
+ * Serialize all mapping decisions for one GL account across BOTH tables. Held
+ * for the current transaction, so two concurrent create/update flows targeting
+ * the same linked_account_id run one-after-another — closing the cross-table
+ * race that per-table unique indexes alone cannot (a cashbox and a bank on the
+ * same account live in different tables). Must be called INSIDE a db.transaction
+ * before the availability check + insert/update.
+ */
+export async function acquireMappingLock(tx: any, accountId: string): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(${CASH_BANK_LOCK_NS}, hashtext(${accountId}))`);
+}
+
 /**
  * Validate a GL account is eligible to back a Cashbox/Bank Account:
  * exists · active · postable (leaf) · Asset classification. Never identified by
@@ -121,4 +136,61 @@ export async function linkedAccountBalance(
     closingBalance: b.closing,
     asOf: opts.asOf ?? opts.dateTo ?? null,
   };
+}
+
+/**
+ * GL ledger movements for the linked account — the Cash/Bank drill-down. Reuses
+ * the certified GL states (posted+reversed) and preserves source_type/source_id
+ * traceability + journal navigation. Running balance is computed over the
+ * (optional) opening balance before dateFrom.
+ */
+export async function accountLedger(
+  dbh: Db,
+  accountId: string,
+  opts: { dateFrom?: string; dateTo?: string } = {},
+) {
+  const opening = opts.dateFrom
+    ? (await getAccountBalance(dbh, accountId, { dateTo: undefined, dateFrom: opts.dateFrom }))
+        .opening
+    : 0;
+  const conds = [
+    eq(journalLines.accountId, accountId),
+    sql`${journalEntries.status} IN (${JournalStatus.POSTED}, ${JournalStatus.REVERSED})`,
+  ];
+  if (opts.dateFrom) conds.push(sql`${journalEntries.date} >= ${opts.dateFrom}`);
+  if (opts.dateTo) conds.push(sql`${journalEntries.date} <= ${opts.dateTo}`);
+  const rows = await (dbh as any)
+    .select({
+      lineId: journalLines.id,
+      entryId: journalEntries.id,
+      number: journalEntries.number,
+      date: journalEntries.date,
+      description: journalEntries.description,
+      sourceType: journalEntries.sourceType,
+      sourceId: journalEntries.sourceId,
+      debit: journalLines.debit,
+      credit: journalLines.credit,
+    })
+    .from(journalLines)
+    .innerJoin(journalEntries, eq(journalLines.journalEntryId, journalEntries.id))
+    .where(and(...conds))
+    .orderBy(journalEntries.date, journalEntries.number, journalLines.lineNumber);
+
+  let running = Number(opening);
+  const movements = rows.map((r: any) => {
+    running += Number(r.debit) - Number(r.credit);
+    return {
+      lineId: r.lineId,
+      entryId: r.entryId,
+      number: r.number,
+      date: r.date,
+      description: r.description,
+      source: r.sourceType || "manual",
+      reference: r.sourceId || "",
+      debit: Number(r.debit),
+      credit: Number(r.credit),
+      runningBalance: running,
+    };
+  });
+  return { opening: Number(opening), movements, closing: running };
 }

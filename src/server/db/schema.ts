@@ -531,7 +531,6 @@ export const cashboxes = pgTable(
     currency: text("currency").notNull().default("SAR"),
     status: text("status").notNull().default("active"), // active | inactive
     branchId: text("branch_id").references(() => branches.id),
-    isDefault: boolean("is_default").notNull().default(false),
     notes: text("notes").default(""),
     createdBy: text("created_by").references(() => users.id),
     createdAt: text("created_at").notNull().default(""),
@@ -560,7 +559,6 @@ export const bankAccounts = pgTable(
       .references(() => accounts.id),
     status: text("status").notNull().default("active"),
     branchId: text("branch_id").references(() => branches.id),
-    isDefault: boolean("is_default").notNull().default(false),
     notes: text("notes").default(""),
     createdBy: text("created_by").references(() => users.id),
     createdAt: text("created_at").notNull().default(""),

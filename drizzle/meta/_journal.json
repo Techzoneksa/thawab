@@ -120,6 +120,13 @@
       "when": 1786980000000,
       "tag": "0016_cash_bank",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786990000000,
+      "tag": "0017_cash_bank_drop_is_default",
+      "breakpoints": true
     }
   ]
 }

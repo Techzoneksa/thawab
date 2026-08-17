@@ -18,6 +18,8 @@ import {
   setBankActive,
   getCashbox,
   getBankAccount,
+  getCashboxLedger,
+  getBankLedger,
   type Cashbox,
   type BankAccount,
 } from "@/lib/api/cash-bank";
@@ -557,12 +559,70 @@ function DetailDrawer({
             </div>
           ) : null}
 
-          <Btn variant="outline" onClick={() => onOpenLedger(d.item.linkedAccountId)}>
-            <BookOpen size={15} /> فتح دفتر الأستاذ للحساب المرتبط
-          </Btn>
+          <LedgerPanel
+            kind={kind}
+            id={id}
+            onOpenFull={() => onOpenLedger(d.item.linkedAccountId)}
+          />
         </div>
       )}
     </EntityFormDrawer>
+  );
+}
+
+function LedgerPanel({ kind, id, onOpenFull }: { kind: Tab; id: string; onOpenFull: () => void }) {
+  const q = useQuery({
+    queryKey: [kind, id, "ledger"],
+    queryFn: () => (kind === "cash" ? getCashboxLedger(id) : getBankLedger(id)),
+    retry: false,
+  });
+  return (
+    <Card className="p-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs font-bold">الحركة من دفتر الأستاذ</div>
+        <Btn variant="ghost" onClick={onOpenFull} title="فتح دفتر الأستاذ الكامل">
+          <BookOpen size={14} />
+        </Btn>
+      </div>
+      {q.isLoading ? (
+        <div className="text-xs text-muted-foreground">جارٍ التحميل…</div>
+      ) : q.error ? (
+        <div className="text-xs text-destructive">
+          {(q.error as Error).message || "لا تملك صلاحية عرض الحركة"}
+        </div>
+      ) : (q.data?.movements.length ?? 0) === 0 ? (
+        <div className="text-xs text-muted-foreground">لا توجد حركات مُرحّلة.</div>
+      ) : (
+        <div className="overflow-x-auto max-h-64">
+          <table className="w-full text-[11px]">
+            <thead className="text-muted-foreground text-right">
+              <tr>
+                <th className="py-1 pe-2">التاريخ</th>
+                <th className="py-1 pe-2">القيد</th>
+                <th className="py-1 pe-2">المصدر</th>
+                <th className="py-1 pe-2">مدين</th>
+                <th className="py-1 pe-2">دائن</th>
+                <th className="py-1 pe-2">الرصيد</th>
+              </tr>
+            </thead>
+            <tbody>
+              {q.data!.movements.map((m) => (
+                <tr key={m.lineId} className="border-t">
+                  <td className="py-1 pe-2 tabular-nums">{m.date}</td>
+                  <td className="py-1 pe-2 font-mono">{m.number}</td>
+                  <td className="py-1 pe-2">{m.source}</td>
+                  <td className="py-1 pe-2 tabular-nums">{m.debit ? fmtSAR(m.debit) : "—"}</td>
+                  <td className="py-1 pe-2 tabular-nums">{m.credit ? fmtSAR(m.credit) : "—"}</td>
+                  <td className="py-1 pe-2 tabular-nums font-semibold">
+                    {fmtSAR(m.runningBalance)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
   );
 }
 
