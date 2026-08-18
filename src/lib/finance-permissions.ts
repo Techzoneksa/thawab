@@ -79,6 +79,18 @@ export const FINANCE_PERMISSIONS = {
   paymentReverse: "finance.payment.reverse",
   paymentAuditView: "finance.payment.audit.view",
 
+  // Phase 3A — Suppliers & Accounts Payable. Granular so master view/create/
+  // update/deactivate, subledger ledger view, audit, sensitive banking view and
+  // AP reconciliation are separate; none imply another.
+  supplierView: "finance.supplier.view",
+  supplierCreate: "finance.supplier.create",
+  supplierUpdate: "finance.supplier.update",
+  supplierDeactivate: "finance.supplier.deactivate",
+  supplierLedgerView: "finance.supplier.ledger.view",
+  supplierAuditView: "finance.supplier.audit.view",
+  supplierSensitiveView: "finance.supplier.sensitive.view",
+  apReconciliationView: "finance.ap.reconciliation.view",
+
   reportsView: "finance.reports.view",
 
   budgetView: "finance.budget.view",
@@ -284,6 +296,28 @@ export const FINANCE_PERM_GROUPS: FinancePermGroup[] = [
         desc: "عكس سند صرف مُرحَّل",
       },
       { key: FINANCE_PERMISSIONS.paymentAuditView, label: "عرض سجل تدقيق سندات الصرف" },
+    ],
+  },
+  {
+    key: "finance-suppliers",
+    label: "المالية — الموردون والذمم الدائنة",
+    perms: [
+      { key: FINANCE_PERMISSIONS.supplierView, label: "عرض الموردين" },
+      { key: FINANCE_PERMISSIONS.supplierCreate, label: "إنشاء مورد" },
+      { key: FINANCE_PERMISSIONS.supplierUpdate, label: "تعديل مورد" },
+      { key: FINANCE_PERMISSIONS.supplierDeactivate, label: "تعطيل مورد" },
+      { key: FINANCE_PERMISSIONS.supplierLedgerView, label: "عرض كشف حساب المورد" },
+      {
+        key: FINANCE_PERMISSIONS.supplierSensitiveView,
+        label: "عرض بيانات بنكية حسّاسة للمورد (IBAN كامل)",
+        desc: "صلاحية عالية — إظهار آيبان المورد الكامل بدل المُقنّع",
+      },
+      { key: FINANCE_PERMISSIONS.supplierAuditView, label: "عرض سجل تدقيق الموردين" },
+      {
+        key: FINANCE_PERMISSIONS.apReconciliationView,
+        label: "عرض مطابقة الذمم الدائنة",
+        desc: "مطابقة رصيد أستاذ الموردين مع حساب الذمم الدائنة في الأستاذ العام",
+      },
     ],
   },
   {

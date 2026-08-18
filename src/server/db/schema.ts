@@ -750,13 +750,50 @@ export const suppliers = pgTable("suppliers", {
   postalCode: text("postal_code").default(""),
   additionalNo: text("additional_no").default(""),
   rating: doublePrecision("rating").notNull().default(0),
+  // LEGACY, non-authoritative (Phase 3A). Accounting payable is derived from the
+  // GL via the supplier AP subledger (supplier_journal_links → journal_lines).
+  // Kept only for pre-3A procurement compatibility; never shown as accounting truth.
   balance: doublePrecision("balance").notNull().default(0),
   notes: text("notes").default(""),
   status: text("status").notNull().default("active"),
+  // Phase 3A — supplier financial identity (all non-destructive, optional).
+  supplierCode: text("supplier_code"), // unique when present (SUP-000001)
+  legalName: text("legal_name").default(""),
+  commercialRegistration: text("commercial_registration"),
+  currency: text("currency").notNull().default("SAR"),
+  paymentTermsDays: integer("payment_terms_days"),
+  bankName: text("bank_name"),
+  iban: text("iban"), // sensitive — masked by default in responses
+  ibanNormalized: text("iban_normalized"),
   createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
   updatedAt: text("updated_at").notNull().default(""),
 });
+
+// Phase 3A — Supplier AP subledger link. Maps a supplier to a SINGLE posted AP
+// control-account journal line (the monetary amount lives ONLY in journal_lines).
+// Supplier payable is derived by joining links → journal_lines → journal_entries
+// (credit − debit, posted+reversed). journal_line_id is UNIQUE so one AP line can
+// never belong to two suppliers. No independent debit/credit/balance is stored.
+export const supplierJournalLinks = pgTable(
+  "supplier_journal_links",
+  {
+    id: text("id").primaryKey(),
+    supplierId: text("supplier_id")
+      .notNull()
+      .references(() => suppliers.id),
+    journalLineId: text("journal_line_id")
+      .notNull()
+      .references(() => journalLines.id),
+    sourceType: text("source_type"), // optional provenance (supplier_payment, supplier_invoice…)
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+  },
+  (t) => ({
+    lineIdx: uniqueIndex("supplier_journal_links_line_idx").on(t.journalLineId),
+    supplierIdx: index("supplier_journal_links_supplier_idx").on(t.supplierId),
+  }),
+);
 
 // ============ PURCHASES ============
 

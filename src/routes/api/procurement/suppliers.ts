@@ -10,6 +10,7 @@ import {
   cashOrBankAccountId,
   SYS,
 } from "@/server/db/gl";
+import { linkSupplierPaymentApLine } from "@/server/db/supplier";
 import { SupplierStatus, JournalSource } from "@/lib/enums";
 
 // GET /api/procurement/suppliers?id=xxx — single with usage info; else list.
@@ -134,7 +135,7 @@ async function POST(event: { request: Request }, ctx: Ctx) {
           tx as any,
           b.method === "cash" ? "cash" : "bank",
         );
-        await postBalancedEntry(tx as any, {
+        const entryId = await postBalancedEntry(tx as any, {
           date: ts.slice(0, 10),
           description: `سداد للمورد ${supplier.name}${b.note ? ` — ${b.note}` : ""}`,
           source: JournalSource.PURCHASE,
@@ -146,6 +147,14 @@ async function POST(event: { request: Request }, ctx: Ctx) {
           ],
           userId: ctx.user.id,
         });
+        // Phase 3A — attach the AP debit line to the supplier's AP subledger so
+        // the payable derives from the GL. No new journal, no money duplication.
+        await linkSupplierPaymentApLine(tx as any, {
+          supplierId: b.id,
+          entryId,
+          userId: ctx.user.id,
+        });
+        // Legacy denormalized cache (non-authoritative; kept for pre-3A procurement).
         await tx
           .update(suppliers)
           .set({ balance: sql`${suppliers.balance} - ${b.amount}`, updatedAt: ts })
