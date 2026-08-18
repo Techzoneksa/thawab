@@ -167,6 +167,9 @@ export async function paySupplier(options: {
   amount: number;
   method?: "cash" | "bank";
   note?: string;
+  /** Stable payment-intent key — required by the server; reuse across retries. */
+  paymentId: string;
+  reference?: string;
 }): Promise<Supplier> {
   const res = await fetch(API_BASE, {
     method: "POST",

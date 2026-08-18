@@ -107,8 +107,15 @@ const paySchema = z.object({
   amount: z.coerce.number().positive("قيمة السداد يجب أن تكون رقماً موجباً"),
   method: z.enum(["cash", "bank"]).optional(),
   note: z.string().optional(),
-  // Stable idempotency key for the payment event (retry-safe). Optional.
-  paymentId: z.string().optional(),
+  // Stable payment-intent key (retry-safe). Required for this interactive flow;
+  // bounded/validated so it cannot inject arbitrary source identity.
+  paymentId: z
+    .string()
+    .trim()
+    .min(8)
+    .max(128)
+    .regex(/^[A-Za-z0-9:_-]+$/, "معرّف نية الدفع غير صالح")
+    .optional(),
   reference: z.string().optional(),
 });
 
@@ -123,6 +130,10 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     // one payment → one journal; retries are idempotent). The AP debit line is
     // attributed to the supplier's subledger. No inline posting here.
     if ("action" in b && b.action === "pay") {
+      // Interactive flow MUST carry a stable intent key — never silently mint one
+      // per request (that would let double-clicks/retries become two payments).
+      if (!b.paymentId)
+        return err("معرّف نية الدفع مطلوب لسداد المورد", 400, "PAYMENT_ID_REQUIRED");
       await paySupplier(ctx, {
         supplierId: b.id,
         amount: b.amount,

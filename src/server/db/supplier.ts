@@ -232,6 +232,24 @@ export async function paySupplier(ctx: Ctx, input: PaySupplierInput): Promise<Pa
         .limit(1)
     )[0];
 
+    // Idempotency-key integrity: the SAME key must represent the SAME business
+    // intent. If the locked event's payload differs from this request, reject —
+    // a reused key must not silently repurpose an existing payment (whether it is
+    // already journaled or still pending). On the first call the row equals the
+    // incoming values, so this never trips legitimately.
+    const mismatch =
+      pay.supplierId !== input.supplierId ||
+      Math.abs(Number(pay.amount) - amount) > 0.005 ||
+      pay.paymentMethod !== method ||
+      (pay.paymentDate || "") !== date ||
+      (pay.reference || "") !== (input.reference ?? "");
+    if (mismatch)
+      throw new AppError(
+        "مفتاح الدفعة مستخدم بالفعل لدفعة أخرى مختلفة (مورد/مبلغ/طريقة/تاريخ/مرجع)",
+        409,
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+      );
+
     // Already posted (a prior attempt / concurrent winner) → idempotent reuse.
     if (pay.journalEntryId) return { payment: pay, entryId: pay.journalEntryId, reused: true };
     const already = await existingSourceEntryId(tx as any, "supplier_payment", paymentId);

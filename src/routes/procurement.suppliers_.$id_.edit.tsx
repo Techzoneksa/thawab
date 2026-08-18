@@ -76,6 +76,9 @@ function EditSupplierPage() {
   const [payOpen, setPayOpen] = useState(false);
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState<"cash" | "bank">("bank");
+  // Stable payment-intent id — generated ONCE per pay dialog, reused for every
+  // submit/retry so a double-click/network-retry cannot create two payments.
+  const [payIntentId, setPayIntentId] = useState("");
 
   if (item && !hydrated) {
     setName(item.name);
@@ -371,7 +374,13 @@ function EditSupplierPage() {
   });
 
   const payMut = useMutation({
-    mutationFn: () => paySupplier({ id, amount: Number(payAmount) || 0, method: payMethod }),
+    mutationFn: () =>
+      paySupplier({
+        id,
+        amount: Number(payAmount) || 0,
+        method: payMethod,
+        paymentId: payIntentId,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["supplierDetail", id] });
@@ -379,6 +388,7 @@ function EditSupplierPage() {
       showToast("تم تسجيل السداد وترحيله للدفتر", "success");
       setPayOpen(false);
       setPayAmount("");
+      setPayIntentId(""); // completed intent — the next payment gets a fresh id
     },
     onError: (err: Error) => showToast(err.message, "error"),
   });
@@ -435,6 +445,7 @@ function EditSupplierPage() {
               type="button"
               onClick={() => {
                 setPayAmount(item.balance > 0 ? String(item.balance) : "");
+                setPayIntentId(crypto.randomUUID()); // one stable intent per dialog
                 setPayOpen(true);
               }}
               className="inline-flex items-center gap-1.5 rounded-lg border bg-background px-3 py-2 text-sm font-medium hover:bg-muted transition-colors min-h-[40px]"
@@ -485,6 +496,7 @@ function EditSupplierPage() {
           payMut.mutate();
         }}
         saveText="تسجيل السداد"
+        loading={payMut.isPending}
       >
         <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
           الرصيد المستحق للمورد حالياً:{" "}
