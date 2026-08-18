@@ -25,6 +25,9 @@ export const SYS = {
   AID_EXPENSE: "aid_expense",
   INKIND_AID: "inkind_aid",
   ACCOUNTS_PAYABLE: "accounts_payable",
+  // Recoverable input VAT (ضريبة القيمة المضافة — مدخلات) — an ASSET receivable
+  // from ZATCA. Resolved by systemKey, never by a hardcoded account number.
+  INPUT_VAT: "input_vat",
   INVENTORY: "inventory",
   INVENTORY_ADJUSTMENT: "inventory_adjustment",
   FIXED_ASSETS: "fixed_assets",

@@ -825,6 +825,91 @@ export const supplierPayments = pgTable(
   }),
 );
 
+// Phase 3B — Supplier Invoice (فاتورة مورد). A controlled financial DOCUMENT: its
+// header/lines are NOT accounting truth. Only when POSTED does it create the
+// certified accrual journal (Dr expense/asset + Dr input VAT / Cr accounts
+// payable) and link the AP CREDIT line to the supplier subledger
+// (supplier_journal_links). suppliers.balance is never read or written here.
+export const supplierInvoices = pgTable(
+  "supplier_invoices",
+  {
+    id: text("id").primaryKey(),
+    // Internal system number (SI-2026-000001) — always unique, allocated on create.
+    invoiceNumber: text("invoice_number").notNull().unique(),
+    // Supplier's own invoice number as printed on their document.
+    supplierInvoiceNumber: text("supplier_invoice_number").default(""),
+    // Normalized (upper/trim) form used to detect duplicates per supplier.
+    supplierInvoiceNumberNormalized: text("supplier_invoice_number_normalized").default(""),
+    supplierId: text("supplier_id")
+      .notNull()
+      .references(() => suppliers.id),
+    invoiceDate: text("invoice_date").notNull().default(""), // accounting date
+    dueDate: text("due_date"),
+    status: text("status").notNull().default("draft"),
+    currency: text("currency").notNull().default("SAR"),
+    subtotal: doublePrecision("subtotal").notNull().default(0),
+    taxAmount: doublePrecision("tax_amount").notNull().default(0),
+    totalAmount: doublePrecision("total_amount").notNull().default(0),
+    externalReference: text("external_reference"),
+    description: text("description").default(""),
+    notes: text("notes").default(""),
+    journalEntryId: text("journal_entry_id").references(() => journalEntries.id),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+    submittedBy: text("submitted_by").references(() => users.id),
+    submittedAt: text("submitted_at"),
+    approvedBy: text("approved_by").references(() => users.id),
+    approvedAt: text("approved_at"),
+    postedBy: text("posted_by").references(() => users.id),
+    postedAt: text("posted_at"),
+    reversedBy: text("reversed_by").references(() => users.id),
+    reversedAt: text("reversed_at"),
+  },
+  (t) => ({
+    numberIdx: uniqueIndex("supplier_invoices_number_idx").on(t.invoiceNumber),
+    journalIdx: uniqueIndex("supplier_invoices_journal_entry_idx").on(t.journalEntryId),
+    // One supplier cannot have two invoices with the same (normalized) supplier
+    // invoice number — duplicate-entry protection at the storage layer.
+    supplierDocIdx: uniqueIndex("supplier_invoices_supplier_doc_idx").on(
+      t.supplierId,
+      t.supplierInvoiceNumberNormalized,
+    ),
+    supplierIdx: index("supplier_invoices_supplier_idx").on(t.supplierId),
+    statusIdx: index("supplier_invoices_status_idx").on(t.status),
+    dateIdx: index("supplier_invoices_date_idx").on(t.invoiceDate),
+    dueIdx: index("supplier_invoices_due_idx").on(t.dueDate),
+  }),
+);
+
+export const supplierInvoiceLines = pgTable(
+  "supplier_invoice_lines",
+  {
+    id: text("id").primaryKey(),
+    supplierInvoiceId: text("supplier_invoice_id")
+      .notNull()
+      .references(() => supplierInvoices.id, { onDelete: "cascade" }),
+    lineNumber: integer("line_number").notNull().default(1),
+    description: text("description").default(""),
+    // Debit target: the expense/asset account this line hits (never AP/cash/bank).
+    accountId: text("account_id")
+      .notNull()
+      .references(() => accounts.id),
+    quantity: doublePrecision("quantity").notNull().default(1),
+    unitPrice: doublePrecision("unit_price").notNull().default(0),
+    lineSubtotal: doublePrecision("line_subtotal").notNull().default(0),
+    taxRate: doublePrecision("tax_rate").notNull().default(0), // percent, e.g. 15
+    taxAmount: doublePrecision("tax_amount").notNull().default(0),
+    lineTotal: doublePrecision("line_total").notNull().default(0),
+    costCenterId: text("cost_center_id").references(() => costCenters.id),
+    createdAt: text("created_at").notNull().default(""),
+  },
+  (t) => ({
+    invoiceIdx: index("supplier_invoice_lines_invoice_idx").on(t.supplierInvoiceId),
+    accountIdx: index("supplier_invoice_lines_account_idx").on(t.accountId),
+  }),
+);
+
 // ============ PURCHASES ============
 
 export const purchaseRequests = pgTable("purchase_requests", {

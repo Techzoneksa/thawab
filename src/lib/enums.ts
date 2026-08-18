@@ -221,6 +221,24 @@ export const PaymentVoucherStatus = {
 } as const;
 export type PaymentVoucherStatus = (typeof PaymentVoucherStatus)[keyof typeof PaymentVoucherStatus];
 
+/**
+ * Phase 3B — Supplier Invoice (فاتورة مورد) lifecycle. A DRAFT/SUBMITTED/APPROVED
+ * invoice has NO General Ledger effect; only POSTED creates the accrual journal
+ * (Dr expense/asset + Dr input VAT / Cr accounts payable) and links the AP credit
+ * line to the supplier subledger. REVERSED nets it via the certified reversal
+ * engine. Shared status strings drive the same governance engine as journals.
+ */
+export const SupplierInvoiceStatus = {
+  DRAFT: "draft",
+  SUBMITTED: "submitted",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+  POSTED: "posted",
+  REVERSED: "reversed",
+} as const;
+export type SupplierInvoiceStatus =
+  (typeof SupplierInvoiceStatus)[keyof typeof SupplierInvoiceStatus];
+
 /** Net-asset fund classes — essential for charity restricted-funds tracking. */
 export const Fund = {
   UNRESTRICTED: "unrestricted",

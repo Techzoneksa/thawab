@@ -91,6 +91,19 @@ export const FINANCE_PERMISSIONS = {
   supplierSensitiveView: "finance.supplier.sensitive.view",
   apReconciliationView: "finance.ap.reconciliation.view",
 
+  // Phase 3B — Supplier Invoices (فواتير الموردين). Granular so create ≠ submit ≠
+  // approve ≠ post ≠ reverse; none imply supplier-master mutation, payment, or a
+  // raw journal action. Posting accrues Dr expense/asset + Dr input VAT / Cr AP.
+  supplierInvoiceView: "finance.supplier_invoice.view",
+  supplierInvoiceCreate: "finance.supplier_invoice.create",
+  supplierInvoiceUpdateDraft: "finance.supplier_invoice.update_draft",
+  supplierInvoiceSubmit: "finance.supplier_invoice.submit",
+  supplierInvoiceApprove: "finance.supplier_invoice.approve",
+  supplierInvoiceReject: "finance.supplier_invoice.reject",
+  supplierInvoicePost: "finance.supplier_invoice.post",
+  supplierInvoiceReverse: "finance.supplier_invoice.reverse",
+  supplierInvoiceAuditView: "finance.supplier_invoice.audit.view",
+
   reportsView: "finance.reports.view",
 
   budgetView: "finance.budget.view",
@@ -321,6 +334,37 @@ export const FINANCE_PERM_GROUPS: FinancePermGroup[] = [
     ],
   },
   {
+    key: "finance-supplier-invoices",
+    label: "المالية — فواتير الموردين",
+    perms: [
+      { key: FINANCE_PERMISSIONS.supplierInvoiceView, label: "عرض فواتير الموردين" },
+      { key: FINANCE_PERMISSIONS.supplierInvoiceCreate, label: "إنشاء فاتورة مورد" },
+      { key: FINANCE_PERMISSIONS.supplierInvoiceUpdateDraft, label: "تعديل مسودة فاتورة مورد" },
+      { key: FINANCE_PERMISSIONS.supplierInvoiceSubmit, label: "إرسال فاتورة مورد للاعتماد" },
+      {
+        key: FINANCE_PERMISSIONS.supplierInvoiceApprove,
+        label: "اعتماد فاتورة مورد",
+        desc: "مراجعة واعتماد فواتير الموردين المُرسَلة",
+      },
+      {
+        key: FINANCE_PERMISSIONS.supplierInvoiceReject,
+        label: "إعادة / رفض فاتورة مورد",
+        desc: "إعادة الفاتورة للمسودة أو رفضها بسبب",
+      },
+      {
+        key: FINANCE_PERMISSIONS.supplierInvoicePost,
+        label: "ترحيل فاتورة مورد",
+        desc: "ترحيل الفاتورة المعتمدة (استحقاق الذمم الدائنة) إلى الأستاذ",
+      },
+      {
+        key: FINANCE_PERMISSIONS.supplierInvoiceReverse,
+        label: "عكس فاتورة مورد",
+        desc: "عكس فاتورة مورد مُرحَّلة",
+      },
+      { key: FINANCE_PERMISSIONS.supplierInvoiceAuditView, label: "عرض سجل تدقيق فواتير الموردين" },
+    ],
+  },
+  {
     key: "finance-reports",
     label: "المالية — التقارير",
     perms: [{ key: FINANCE_PERMISSIONS.reportsView, label: "عرض التقارير المالية" }],
@@ -512,6 +556,55 @@ export const PAYMENT_TRANSITIONS: Transition[] = [
     action: "reverse",
     to: JournalStatus.REVERSED,
     permission: FINANCE_PERMISSIONS.paymentReverse,
+    reasonRequired: true,
+  },
+];
+
+/**
+ * Phase 3B — Supplier Invoice (فاتورة مورد) state matrix. Same governance engine
+ * and JournalAction verbs, its own transitions and its own granular supplier-
+ * invoice permissions. DRAFT→POSTED and SUBMITTED→POSTED are absent by
+ * construction; approval (maker-checker-blocked) and posting are separate.
+ */
+export const SUPPLIER_INVOICE_TRANSITIONS: Transition[] = [
+  {
+    from: JournalStatus.DRAFT,
+    action: "submit",
+    to: JournalStatus.SUBMITTED,
+    permission: FINANCE_PERMISSIONS.supplierInvoiceSubmit,
+  },
+  {
+    from: JournalStatus.SUBMITTED,
+    action: "approve",
+    to: JournalStatus.APPROVED,
+    permission: FINANCE_PERMISSIONS.supplierInvoiceApprove,
+    makerCheckerBlocked: true,
+  },
+  {
+    from: JournalStatus.SUBMITTED,
+    action: "return",
+    to: JournalStatus.DRAFT,
+    permission: FINANCE_PERMISSIONS.supplierInvoiceReject,
+    reasonRequired: true,
+  },
+  {
+    from: JournalStatus.SUBMITTED,
+    action: "reject",
+    to: JournalStatus.REJECTED,
+    permission: FINANCE_PERMISSIONS.supplierInvoiceReject,
+    reasonRequired: true,
+  },
+  {
+    from: JournalStatus.APPROVED,
+    action: "post",
+    to: JournalStatus.POSTED,
+    permission: FINANCE_PERMISSIONS.supplierInvoicePost,
+  },
+  {
+    from: JournalStatus.POSTED,
+    action: "reverse",
+    to: JournalStatus.REVERSED,
+    permission: FINANCE_PERMISSIONS.supplierInvoiceReverse,
     reasonRequired: true,
   },
 ];
