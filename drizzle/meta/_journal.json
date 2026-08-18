@@ -127,6 +127,13 @@
       "when": 1786990000000,
       "tag": "0017_cash_bank_drop_is_default",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1787000000000,
+      "tag": "0018_receipt_vouchers",
+      "breakpoints": true
     }
   ]
 }

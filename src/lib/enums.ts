@@ -189,6 +189,22 @@ export const JournalStatus = {
 } as const;
 export type JournalStatus = (typeof JournalStatus)[keyof typeof JournalStatus];
 
+/**
+ * Phase 2B — Receipt Voucher (سند قبض) lifecycle. A DRAFT/SUBMITTED/APPROVED
+ * voucher has NO General Ledger effect; only POSTED creates the journal, and
+ * REVERSED nets it via the certified reversal engine. Values are shared with the
+ * journal status strings so the same governance engine drives both.
+ */
+export const ReceiptVoucherStatus = {
+  DRAFT: "draft",
+  SUBMITTED: "submitted",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+  POSTED: "posted",
+  REVERSED: "reversed",
+} as const;
+export type ReceiptVoucherStatus = (typeof ReceiptVoucherStatus)[keyof typeof ReceiptVoucherStatus];
+
 /** Net-asset fund classes — essential for charity restricted-funds tracking. */
 export const Fund = {
   UNRESTRICTED: "unrestricted",

@@ -85,6 +85,43 @@ export async function assertMappingAvailable(
     throw new AppError("هذا الحساب مرتبط بحساب بنكي آخر بالفعل", 409, "ACCOUNT_ALREADY_MAPPED");
 }
 
+/**
+ * Returns the kind ("cashbox"|"bank") if a GL account is the linked account of
+ * an ACTIVE cashbox or bank, else null. Used by Receipt Vouchers (Phase 2B) to
+ * reject a credit line that would disguise an internal Cash/Bank transfer — a
+ * live money destination must never also be a receipt counterparty. Inactive
+ * masters (history only) do not block.
+ */
+export async function accountMappedToActiveCashBank(
+  dbh: Db,
+  accountId: string,
+): Promise<CashBankKind | null> {
+  const cb = (
+    await dbh
+      .select({ id: cashboxes.id })
+      .from(cashboxes)
+      .where(
+        and(eq(cashboxes.linkedAccountId, accountId), eq(cashboxes.status, AccountStatus.ACTIVE)),
+      )
+      .limit(1)
+  )[0];
+  if (cb) return "cashbox";
+  const ba = (
+    await dbh
+      .select({ id: bankAccounts.id })
+      .from(bankAccounts)
+      .where(
+        and(
+          eq(bankAccounts.linkedAccountId, accountId),
+          eq(bankAccounts.status, AccountStatus.ACTIVE),
+        ),
+      )
+      .limit(1)
+  )[0];
+  if (ba) return "bank";
+  return null;
+}
+
 /** True if the account has any posted/reversed journal history (immutability gate). */
 export async function accountHasPostedHistory(dbh: any, accountId: string): Promise<boolean> {
   const r = (

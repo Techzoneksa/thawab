@@ -60,6 +60,7 @@ import { Route as HrNewRouteImport } from './routes/hr_.new'
 import { Route as HrPayrollRouteImport } from './routes/hr.payroll'
 import { Route as GrantsNewRouteImport } from './routes/grants_.new'
 import { Route as FinanceStatementsRouteImport } from './routes/finance.statements'
+import { Route as FinanceReceiptVouchersRouteImport } from './routes/finance.receipt-vouchers'
 import { Route as FinanceOpeningBalanceRouteImport } from './routes/finance.opening-balance'
 import { Route as FinanceLedgerRouteImport } from './routes/finance.ledger'
 import { Route as FinanceJournalRouteImport } from './routes/finance.journal'
@@ -154,6 +155,7 @@ import { Route as ApiInventoryStocktakeRouteImport } from './routes/api/inventor
 import { Route as ApiInventoryItemsRouteImport } from './routes/api/inventory/items'
 import { Route as ApiHrPayrollRouteImport } from './routes/api/hr/payroll'
 import { Route as ApiFinanceStatementsRouteImport } from './routes/api/finance/statements'
+import { Route as ApiFinanceReceiptVouchersRouteImport } from './routes/api/finance/receipt-vouchers'
 import { Route as ApiFinancePeriodsRouteImport } from './routes/api/finance/periods'
 import { Route as ApiFinanceOpeningBalanceRouteImport } from './routes/api/finance/opening-balance'
 import { Route as ApiFinanceLedgerRouteImport } from './routes/api/finance/ledger'
@@ -178,6 +180,7 @@ import { Route as InventoryWarehousesIdEditRouteImport } from './routes/inventor
 import { Route as InventoryStocktakeIdEditRouteImport } from './routes/inventory.stocktake_.$id_.edit'
 import { Route as InventoryItemsIdEditRouteImport } from './routes/inventory.items_.$id_.edit'
 import { Route as HrPayrollIdEditRouteImport } from './routes/hr.payroll_.$id_.edit'
+import { Route as FinanceReceiptVouchersIdPrintRouteImport } from './routes/finance.receipt-vouchers_.$id.print'
 import { Route as FinanceJournalIdEditRouteImport } from './routes/finance.journal_.$id_.edit'
 import { Route as FinanceCostCentersIdEditRouteImport } from './routes/finance.cost-centers_.$id_.edit'
 import { Route as FinanceClosingIdEditRouteImport } from './routes/finance.closing_.$id_.edit'
@@ -438,6 +441,11 @@ const GrantsNewRoute = GrantsNewRouteImport.update({
 const FinanceStatementsRoute = FinanceStatementsRouteImport.update({
   id: '/finance/statements',
   path: '/finance/statements',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FinanceReceiptVouchersRoute = FinanceReceiptVouchersRouteImport.update({
+  id: '/finance/receipt-vouchers',
+  path: '/finance/receipt-vouchers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FinanceOpeningBalanceRoute = FinanceOpeningBalanceRouteImport.update({
@@ -910,6 +918,12 @@ const ApiFinanceStatementsRoute = ApiFinanceStatementsRouteImport.update({
   path: '/api/finance/statements',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFinanceReceiptVouchersRoute =
+  ApiFinanceReceiptVouchersRouteImport.update({
+    id: '/api/finance/receipt-vouchers',
+    path: '/api/finance/receipt-vouchers',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiFinancePeriodsRoute = ApiFinancePeriodsRouteImport.update({
   id: '/api/finance/periods',
   path: '/api/finance/periods',
@@ -1037,6 +1051,12 @@ const HrPayrollIdEditRoute = HrPayrollIdEditRouteImport.update({
   path: '/payroll/$id/edit',
   getParentRoute: () => HrRoute,
 } as any)
+const FinanceReceiptVouchersIdPrintRoute =
+  FinanceReceiptVouchersIdPrintRouteImport.update({
+    id: '/finance/receipt-vouchers_/$id/print',
+    path: '/finance/receipt-vouchers/$id/print',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const FinanceJournalIdEditRoute = FinanceJournalIdEditRouteImport.update({
   id: '/finance/journal_/$id_/edit',
   path: '/finance/journal/$id/edit',
@@ -1141,6 +1161,7 @@ export interface FileRoutesByFullPath {
   '/finance/journal': typeof FinanceJournalRoute
   '/finance/ledger': typeof FinanceLedgerRoute
   '/finance/opening-balance': typeof FinanceOpeningBalanceRoute
+  '/finance/receipt-vouchers': typeof FinanceReceiptVouchersRoute
   '/finance/statements': typeof FinanceStatementsRoute
   '/grants/new': typeof GrantsNewRoute
   '/hr/payroll': typeof HrPayrollRoute
@@ -1179,6 +1200,7 @@ export interface FileRoutesByFullPath {
   '/api/finance/ledger': typeof ApiFinanceLedgerRoute
   '/api/finance/opening-balance': typeof ApiFinanceOpeningBalanceRoute
   '/api/finance/periods': typeof ApiFinancePeriodsRoute
+  '/api/finance/receipt-vouchers': typeof ApiFinanceReceiptVouchersRoute
   '/api/finance/statements': typeof ApiFinanceStatementsRoute
   '/api/hr/payroll': typeof ApiHrPayrollRoute
   '/api/inventory/items': typeof ApiInventoryItemsRoute
@@ -1235,6 +1257,7 @@ export interface FileRoutesByFullPath {
   '/finance/closing/$id/edit': typeof FinanceClosingIdEditRoute
   '/finance/cost-centers/$id/edit': typeof FinanceCostCentersIdEditRoute
   '/finance/journal/$id/edit': typeof FinanceJournalIdEditRoute
+  '/finance/receipt-vouchers/$id/print': typeof FinanceReceiptVouchersIdPrintRoute
   '/hr/payroll/$id/edit': typeof HrPayrollIdEditRoute
   '/inventory/items/$id/edit': typeof InventoryItemsIdEditRoute
   '/inventory/stocktake/$id/edit': typeof InventoryStocktakeIdEditRoute
@@ -1318,6 +1341,7 @@ export interface FileRoutesByTo {
   '/finance/journal': typeof FinanceJournalRoute
   '/finance/ledger': typeof FinanceLedgerRoute
   '/finance/opening-balance': typeof FinanceOpeningBalanceRoute
+  '/finance/receipt-vouchers': typeof FinanceReceiptVouchersRoute
   '/finance/statements': typeof FinanceStatementsRoute
   '/grants/new': typeof GrantsNewRoute
   '/hr/payroll': typeof HrPayrollRoute
@@ -1356,6 +1380,7 @@ export interface FileRoutesByTo {
   '/api/finance/ledger': typeof ApiFinanceLedgerRoute
   '/api/finance/opening-balance': typeof ApiFinanceOpeningBalanceRoute
   '/api/finance/periods': typeof ApiFinancePeriodsRoute
+  '/api/finance/receipt-vouchers': typeof ApiFinanceReceiptVouchersRoute
   '/api/finance/statements': typeof ApiFinanceStatementsRoute
   '/api/hr/payroll': typeof ApiHrPayrollRoute
   '/api/inventory/items': typeof ApiInventoryItemsRoute
@@ -1412,6 +1437,7 @@ export interface FileRoutesByTo {
   '/finance/closing/$id/edit': typeof FinanceClosingIdEditRoute
   '/finance/cost-centers/$id/edit': typeof FinanceCostCentersIdEditRoute
   '/finance/journal/$id/edit': typeof FinanceJournalIdEditRoute
+  '/finance/receipt-vouchers/$id/print': typeof FinanceReceiptVouchersIdPrintRoute
   '/hr/payroll/$id/edit': typeof HrPayrollIdEditRoute
   '/inventory/items/$id/edit': typeof InventoryItemsIdEditRoute
   '/inventory/stocktake/$id/edit': typeof InventoryStocktakeIdEditRoute
@@ -1496,6 +1522,7 @@ export interface FileRoutesById {
   '/finance/journal': typeof FinanceJournalRoute
   '/finance/ledger': typeof FinanceLedgerRoute
   '/finance/opening-balance': typeof FinanceOpeningBalanceRoute
+  '/finance/receipt-vouchers': typeof FinanceReceiptVouchersRoute
   '/finance/statements': typeof FinanceStatementsRoute
   '/grants_/new': typeof GrantsNewRoute
   '/hr/payroll': typeof HrPayrollRoute
@@ -1534,6 +1561,7 @@ export interface FileRoutesById {
   '/api/finance/ledger': typeof ApiFinanceLedgerRoute
   '/api/finance/opening-balance': typeof ApiFinanceOpeningBalanceRoute
   '/api/finance/periods': typeof ApiFinancePeriodsRoute
+  '/api/finance/receipt-vouchers': typeof ApiFinanceReceiptVouchersRoute
   '/api/finance/statements': typeof ApiFinanceStatementsRoute
   '/api/hr/payroll': typeof ApiHrPayrollRoute
   '/api/inventory/items': typeof ApiInventoryItemsRoute
@@ -1590,6 +1618,7 @@ export interface FileRoutesById {
   '/finance/closing_/$id_/edit': typeof FinanceClosingIdEditRoute
   '/finance/cost-centers_/$id_/edit': typeof FinanceCostCentersIdEditRoute
   '/finance/journal_/$id_/edit': typeof FinanceJournalIdEditRoute
+  '/finance/receipt-vouchers_/$id/print': typeof FinanceReceiptVouchersIdPrintRoute
   '/hr/payroll_/$id_/edit': typeof HrPayrollIdEditRoute
   '/inventory/items_/$id_/edit': typeof InventoryItemsIdEditRoute
   '/inventory/stocktake_/$id_/edit': typeof InventoryStocktakeIdEditRoute
@@ -1675,6 +1704,7 @@ export interface FileRouteTypes {
     | '/finance/journal'
     | '/finance/ledger'
     | '/finance/opening-balance'
+    | '/finance/receipt-vouchers'
     | '/finance/statements'
     | '/grants/new'
     | '/hr/payroll'
@@ -1713,6 +1743,7 @@ export interface FileRouteTypes {
     | '/api/finance/ledger'
     | '/api/finance/opening-balance'
     | '/api/finance/periods'
+    | '/api/finance/receipt-vouchers'
     | '/api/finance/statements'
     | '/api/hr/payroll'
     | '/api/inventory/items'
@@ -1769,6 +1800,7 @@ export interface FileRouteTypes {
     | '/finance/closing/$id/edit'
     | '/finance/cost-centers/$id/edit'
     | '/finance/journal/$id/edit'
+    | '/finance/receipt-vouchers/$id/print'
     | '/hr/payroll/$id/edit'
     | '/inventory/items/$id/edit'
     | '/inventory/stocktake/$id/edit'
@@ -1852,6 +1884,7 @@ export interface FileRouteTypes {
     | '/finance/journal'
     | '/finance/ledger'
     | '/finance/opening-balance'
+    | '/finance/receipt-vouchers'
     | '/finance/statements'
     | '/grants/new'
     | '/hr/payroll'
@@ -1890,6 +1923,7 @@ export interface FileRouteTypes {
     | '/api/finance/ledger'
     | '/api/finance/opening-balance'
     | '/api/finance/periods'
+    | '/api/finance/receipt-vouchers'
     | '/api/finance/statements'
     | '/api/hr/payroll'
     | '/api/inventory/items'
@@ -1946,6 +1980,7 @@ export interface FileRouteTypes {
     | '/finance/closing/$id/edit'
     | '/finance/cost-centers/$id/edit'
     | '/finance/journal/$id/edit'
+    | '/finance/receipt-vouchers/$id/print'
     | '/hr/payroll/$id/edit'
     | '/inventory/items/$id/edit'
     | '/inventory/stocktake/$id/edit'
@@ -2029,6 +2064,7 @@ export interface FileRouteTypes {
     | '/finance/journal'
     | '/finance/ledger'
     | '/finance/opening-balance'
+    | '/finance/receipt-vouchers'
     | '/finance/statements'
     | '/grants_/new'
     | '/hr/payroll'
@@ -2067,6 +2103,7 @@ export interface FileRouteTypes {
     | '/api/finance/ledger'
     | '/api/finance/opening-balance'
     | '/api/finance/periods'
+    | '/api/finance/receipt-vouchers'
     | '/api/finance/statements'
     | '/api/hr/payroll'
     | '/api/inventory/items'
@@ -2123,6 +2160,7 @@ export interface FileRouteTypes {
     | '/finance/closing_/$id_/edit'
     | '/finance/cost-centers_/$id_/edit'
     | '/finance/journal_/$id_/edit'
+    | '/finance/receipt-vouchers_/$id/print'
     | '/hr/payroll_/$id_/edit'
     | '/inventory/items_/$id_/edit'
     | '/inventory/stocktake_/$id_/edit'
@@ -2207,6 +2245,7 @@ export interface RootRouteChildren {
   FinanceJournalRoute: typeof FinanceJournalRoute
   FinanceLedgerRoute: typeof FinanceLedgerRoute
   FinanceOpeningBalanceRoute: typeof FinanceOpeningBalanceRoute
+  FinanceReceiptVouchersRoute: typeof FinanceReceiptVouchersRoute
   FinanceStatementsRoute: typeof FinanceStatementsRoute
   GrantsNewRoute: typeof GrantsNewRoute
   HrNewRoute: typeof HrNewRoute
@@ -2244,6 +2283,7 @@ export interface RootRouteChildren {
   ApiFinanceLedgerRoute: typeof ApiFinanceLedgerRoute
   ApiFinanceOpeningBalanceRoute: typeof ApiFinanceOpeningBalanceRoute
   ApiFinancePeriodsRoute: typeof ApiFinancePeriodsRoute
+  ApiFinanceReceiptVouchersRoute: typeof ApiFinanceReceiptVouchersRoute
   ApiFinanceStatementsRoute: typeof ApiFinanceStatementsRoute
   ApiInventoryItemsRoute: typeof ApiInventoryItemsRoute
   ApiInventoryStocktakeRoute: typeof ApiInventoryStocktakeRoute
@@ -2298,6 +2338,7 @@ export interface RootRouteChildren {
   FinanceClosingIdEditRoute: typeof FinanceClosingIdEditRoute
   FinanceCostCentersIdEditRoute: typeof FinanceCostCentersIdEditRoute
   FinanceJournalIdEditRoute: typeof FinanceJournalIdEditRoute
+  FinanceReceiptVouchersIdPrintRoute: typeof FinanceReceiptVouchersIdPrintRoute
   InventoryItemsIdEditRoute: typeof InventoryItemsIdEditRoute
   InventoryStocktakeIdEditRoute: typeof InventoryStocktakeIdEditRoute
   InventoryWarehousesIdEditRoute: typeof InventoryWarehousesIdEditRoute
@@ -2667,6 +2708,13 @@ declare module '@tanstack/react-router' {
       path: '/finance/statements'
       fullPath: '/finance/statements'
       preLoaderRoute: typeof FinanceStatementsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/finance/receipt-vouchers': {
+      id: '/finance/receipt-vouchers'
+      path: '/finance/receipt-vouchers'
+      fullPath: '/finance/receipt-vouchers'
+      preLoaderRoute: typeof FinanceReceiptVouchersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/finance/opening-balance': {
@@ -3327,6 +3375,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFinanceStatementsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/finance/receipt-vouchers': {
+      id: '/api/finance/receipt-vouchers'
+      path: '/api/finance/receipt-vouchers'
+      fullPath: '/api/finance/receipt-vouchers'
+      preLoaderRoute: typeof ApiFinanceReceiptVouchersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/finance/periods': {
       id: '/api/finance/periods'
       path: '/api/finance/periods'
@@ -3495,6 +3550,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HrPayrollIdEditRouteImport
       parentRoute: typeof HrRoute
     }
+    '/finance/receipt-vouchers_/$id/print': {
+      id: '/finance/receipt-vouchers_/$id/print'
+      path: '/finance/receipt-vouchers/$id/print'
+      fullPath: '/finance/receipt-vouchers/$id/print'
+      preLoaderRoute: typeof FinanceReceiptVouchersIdPrintRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/finance/journal_/$id_/edit': {
       id: '/finance/journal_/$id_/edit'
       path: '/finance/journal/$id/edit'
@@ -3635,6 +3697,7 @@ const rootRouteChildren: RootRouteChildren = {
   FinanceJournalRoute: FinanceJournalRoute,
   FinanceLedgerRoute: FinanceLedgerRoute,
   FinanceOpeningBalanceRoute: FinanceOpeningBalanceRoute,
+  FinanceReceiptVouchersRoute: FinanceReceiptVouchersRoute,
   FinanceStatementsRoute: FinanceStatementsRoute,
   GrantsNewRoute: GrantsNewRoute,
   HrNewRoute: HrNewRoute,
@@ -3672,6 +3735,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFinanceLedgerRoute: ApiFinanceLedgerRoute,
   ApiFinanceOpeningBalanceRoute: ApiFinanceOpeningBalanceRoute,
   ApiFinancePeriodsRoute: ApiFinancePeriodsRoute,
+  ApiFinanceReceiptVouchersRoute: ApiFinanceReceiptVouchersRoute,
   ApiFinanceStatementsRoute: ApiFinanceStatementsRoute,
   ApiInventoryItemsRoute: ApiInventoryItemsRoute,
   ApiInventoryStocktakeRoute: ApiInventoryStocktakeRoute,
@@ -3726,6 +3790,7 @@ const rootRouteChildren: RootRouteChildren = {
   FinanceClosingIdEditRoute: FinanceClosingIdEditRoute,
   FinanceCostCentersIdEditRoute: FinanceCostCentersIdEditRoute,
   FinanceJournalIdEditRoute: FinanceJournalIdEditRoute,
+  FinanceReceiptVouchersIdPrintRoute: FinanceReceiptVouchersIdPrintRoute,
   InventoryItemsIdEditRoute: InventoryItemsIdEditRoute,
   InventoryStocktakeIdEditRoute: InventoryStocktakeIdEditRoute,
   InventoryWarehousesIdEditRoute: InventoryWarehousesIdEditRoute,

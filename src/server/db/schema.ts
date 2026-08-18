@@ -571,6 +571,80 @@ export const bankAccounts = pgTable(
   }),
 );
 
+// ============ RECEIPT VOUCHERS (سندات القبض) — Phase 2B ============
+//
+// An operational money-in document. Debit = the selected Cashbox/Bank's linked
+// GL account; credits = the voucher lines. NO stored accounting balance: every
+// balance stays GL-derived (Phase 2A/1A). Exactly ONE of cashbox_id /
+// bank_account_id is set (DB CHECK in migration 0018). journal_entry_id is set
+// only on POST and is unique (one voucher → one journal).
+export const receiptVouchers = pgTable(
+  "receipt_vouchers",
+  {
+    id: text("id").primaryKey(),
+    voucherNumber: text("voucher_number").notNull().unique(),
+    voucherDate: text("voucher_date").notNull().default(""), // accounting date
+    status: text("status").notNull().default("draft"),
+    // Destination master — exactly one is set (enforced server-side + DB CHECK).
+    cashboxId: text("cashbox_id").references(() => cashboxes.id),
+    bankAccountId: text("bank_account_id").references(() => bankAccounts.id),
+    // Counterparty — free-text payer always valid; optional typed reference to an
+    // existing entity (donor/beneficiary/…) without requiring those modules.
+    payerName: text("payer_name").notNull().default(""),
+    payerReferenceType: text("payer_reference_type"),
+    payerReferenceId: text("payer_reference_id"),
+    externalReference: text("external_reference"),
+    description: text("description").default(""),
+    notes: text("notes").default(""),
+    currency: text("currency").notNull().default("SAR"),
+    totalAmount: doublePrecision("total_amount").notNull().default(0),
+    // Set only on POST; unique so a voucher can never own two journals.
+    journalEntryId: text("journal_entry_id").references(() => journalEntries.id),
+    // Latest-actor convenience columns; full history in finance_workflow_events.
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+    submittedBy: text("submitted_by").references(() => users.id),
+    submittedAt: text("submitted_at"),
+    approvedBy: text("approved_by").references(() => users.id),
+    approvedAt: text("approved_at"),
+    postedBy: text("posted_by").references(() => users.id),
+    postedAt: text("posted_at"),
+    reversedBy: text("reversed_by").references(() => users.id),
+    reversedAt: text("reversed_at"),
+  },
+  (t) => ({
+    numberIdx: uniqueIndex("receipt_vouchers_number_idx").on(t.voucherNumber),
+    journalIdx: uniqueIndex("receipt_vouchers_journal_entry_idx").on(t.journalEntryId),
+    statusIdx: index("receipt_vouchers_status_idx").on(t.status),
+    dateIdx: index("receipt_vouchers_date_idx").on(t.voucherDate),
+    cashboxIdx: index("receipt_vouchers_cashbox_idx").on(t.cashboxId),
+    bankIdx: index("receipt_vouchers_bank_idx").on(t.bankAccountId),
+  }),
+);
+
+export const receiptVoucherLines = pgTable(
+  "receipt_voucher_lines",
+  {
+    id: text("id").primaryKey(),
+    receiptVoucherId: text("receipt_voucher_id")
+      .notNull()
+      .references(() => receiptVouchers.id, { onDelete: "cascade" }),
+    lineNumber: integer("line_number").notNull().default(1),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => accounts.id),
+    amount: doublePrecision("amount").notNull().default(0),
+    description: text("description").default(""),
+    costCenterId: text("cost_center_id").references(() => costCenters.id),
+    createdAt: text("created_at").notNull().default(""),
+  },
+  (t) => ({
+    voucherIdx: index("receipt_voucher_lines_voucher_idx").on(t.receiptVoucherId),
+    accountIdx: index("receipt_voucher_lines_account_idx").on(t.accountId),
+  }),
+);
+
 // ============ APPROVALS ============
 
 export const approvals = pgTable("approvals", {

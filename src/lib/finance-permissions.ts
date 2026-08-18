@@ -55,6 +55,18 @@ export const FINANCE_PERMISSIONS = {
   cashBankLedgerView: "finance.cash_bank.ledger.view",
   cashBankAuditView: "finance.cash_bank.audit.view",
 
+  // Phase 2B — Receipt Vouchers (سندات القبض). Granular so submit ≠ approve ≠
+  // post ≠ reverse, and none imply Cash/Bank master mutation or journal actions.
+  receiptView: "finance.receipt.view",
+  receiptCreate: "finance.receipt.create",
+  receiptUpdateDraft: "finance.receipt.update_draft",
+  receiptSubmit: "finance.receipt.submit",
+  receiptApprove: "finance.receipt.approve",
+  receiptReject: "finance.receipt.reject",
+  receiptPost: "finance.receipt.post",
+  receiptReverse: "finance.receipt.reverse",
+  receiptAuditView: "finance.receipt.audit.view",
+
   reportsView: "finance.reports.view",
 
   budgetView: "finance.budget.view",
@@ -201,6 +213,37 @@ export const FINANCE_PERM_GROUPS: FinancePermGroup[] = [
     ],
   },
   {
+    key: "finance-receipt-vouchers",
+    label: "المالية — سندات القبض",
+    perms: [
+      { key: FINANCE_PERMISSIONS.receiptView, label: "عرض سندات القبض" },
+      { key: FINANCE_PERMISSIONS.receiptCreate, label: "إنشاء سند قبض" },
+      { key: FINANCE_PERMISSIONS.receiptUpdateDraft, label: "تعديل مسودة سند قبض" },
+      { key: FINANCE_PERMISSIONS.receiptSubmit, label: "إرسال سند قبض للاعتماد" },
+      {
+        key: FINANCE_PERMISSIONS.receiptApprove,
+        label: "اعتماد سند قبض",
+        desc: "مراجعة واعتماد سندات القبض المُرسَلة",
+      },
+      {
+        key: FINANCE_PERMISSIONS.receiptReject,
+        label: "إعادة / رفض سند قبض",
+        desc: "إعادة السند للمسودة أو رفضه بسبب",
+      },
+      {
+        key: FINANCE_PERMISSIONS.receiptPost,
+        label: "ترحيل سند قبض",
+        desc: "ترحيل سند القبض المعتمد إلى الأستاذ",
+      },
+      {
+        key: FINANCE_PERMISSIONS.receiptReverse,
+        label: "عكس سند قبض",
+        desc: "عكس سند قبض مُرحَّل",
+      },
+      { key: FINANCE_PERMISSIONS.receiptAuditView, label: "عرض سجل تدقيق سندات القبض" },
+    ],
+  },
+  {
     key: "finance-reports",
     label: "المالية — التقارير",
     perms: [{ key: FINANCE_PERMISSIONS.reportsView, label: "عرض التقارير المالية" }],
@@ -238,7 +281,7 @@ export type JournalAction =
   | "cancel";
 
 /** Allowed (fromStatus → action → toStatus). The ONLY source of truth. */
-interface Transition {
+export interface Transition {
   from: string;
   action: JournalAction;
   to: string;
@@ -297,9 +340,68 @@ export const JOURNAL_TRANSITIONS: Transition[] = [
   },
 ];
 
-/** Look up the single transition for (status, action), or null if illegal. */
-export function findTransition(from: string, action: JournalAction): Transition | null {
-  return JOURNAL_TRANSITIONS.find((t) => t.from === from && t.action === action) ?? null;
+/**
+ * Phase 2B — Receipt Voucher (سند قبض) state matrix. Same governance engine and
+ * the same JournalAction verbs as journals, but its own transitions and its own
+ * granular receipt permissions. DRAFT→POSTED and SUBMITTED→POSTED are absent by
+ * construction, so direct posting is impossible; approval (maker-checker-blocked)
+ * and posting are separate actions with separate permissions.
+ */
+export const RECEIPT_TRANSITIONS: Transition[] = [
+  {
+    from: JournalStatus.DRAFT,
+    action: "submit",
+    to: JournalStatus.SUBMITTED,
+    permission: FINANCE_PERMISSIONS.receiptSubmit,
+  },
+  {
+    from: JournalStatus.SUBMITTED,
+    action: "approve",
+    to: JournalStatus.APPROVED,
+    permission: FINANCE_PERMISSIONS.receiptApprove,
+    makerCheckerBlocked: true,
+  },
+  {
+    from: JournalStatus.SUBMITTED,
+    action: "return",
+    to: JournalStatus.DRAFT,
+    permission: FINANCE_PERMISSIONS.receiptReject,
+    reasonRequired: true,
+  },
+  {
+    from: JournalStatus.SUBMITTED,
+    action: "reject",
+    to: JournalStatus.REJECTED,
+    permission: FINANCE_PERMISSIONS.receiptReject,
+    reasonRequired: true,
+  },
+  {
+    from: JournalStatus.APPROVED,
+    action: "post",
+    to: JournalStatus.POSTED,
+    permission: FINANCE_PERMISSIONS.receiptPost,
+  },
+  {
+    from: JournalStatus.POSTED,
+    action: "reverse",
+    to: JournalStatus.REVERSED,
+    permission: FINANCE_PERMISSIONS.receiptReverse,
+    reasonRequired: true,
+  },
+];
+
+/**
+ * Look up the single transition for (status, action), or null if illegal.
+ * The transitions table defaults to the journal matrix; other governed entities
+ * (e.g. receipt vouchers) pass their own matrix so the SAME evaluation engine —
+ * state → permission → maker≠checker → reason — is reused, never duplicated.
+ */
+export function findTransition(
+  from: string,
+  action: JournalAction,
+  transitions: Transition[] = JOURNAL_TRANSITIONS,
+): Transition | null {
+  return transitions.find((t) => t.from === from && t.action === action) ?? null;
 }
 
 /**
@@ -347,8 +449,11 @@ export function evaluateTransition(input: {
   currentUserId: string;
   reason?: string;
   sourceType?: string | null;
+  /** Optional state matrix (defaults to the journal one) so other governed
+   *  entities reuse this exact decision engine with their own transitions. */
+  transitions?: Transition[];
 }): TransitionDecision {
-  const t = findTransition(input.fromStatus, input.action);
+  const t = findTransition(input.fromStatus, input.action, input.transitions);
   if (!t)
     return {
       ok: false,
@@ -398,6 +503,9 @@ export function decisionHttpStatus(code: TransitionDecision["code"]): number {
 }
 
 /** Actions structurally available from a status (before permission checks). */
-export function actionsFor(from: string): JournalAction[] {
-  return JOURNAL_TRANSITIONS.filter((t) => t.from === from).map((t) => t.action);
+export function actionsFor(
+  from: string,
+  transitions: Transition[] = JOURNAL_TRANSITIONS,
+): JournalAction[] {
+  return transitions.filter((t) => t.from === from).map((t) => t.action);
 }

@@ -84,6 +84,7 @@ const NAV: NavGroup[] = [
       { to: "/finance/opening-balance", label: "الأرصدة الافتتاحية", icon: Scale },
       { to: "/finance/journal", label: "قيود اليومية", icon: FileSpreadsheet },
       { to: "/finance/cash-bank", label: "النقد والبنوك", icon: Landmark },
+      { to: "/finance/receipt-vouchers", label: "سندات القبض", icon: BadgeDollarSign },
       { to: "/finance/ledger", label: "دفتر الأستاذ", icon: Wallet },
       { to: "/finance/budgets", label: "الموازنات", icon: Calculator },
       { to: "/finance/cost-centers", label: "مراكز التكلفة", icon: PiggyBank },
