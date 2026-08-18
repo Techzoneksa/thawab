@@ -46,6 +46,68 @@ export async function acquireCashPostingLock(tx: any, accountId: string): Promis
   );
 }
 
+/** Money precision tolerance shared with the GL engine (half a fils). */
+const CASH_TOLERANCE = 0.005;
+
+/**
+ * Phase 2C.1 — Backdated cash-payment safety for a Cashbox linked GL account.
+ *
+ * The as-of-voucher-date balance is necessary but NOT sufficient: a payment
+ * dated D lowers the cash balance at EVERY accounting point from D through the
+ * end of the ledger, so it can drive a later (already lower) balance negative.
+ *
+ * Correct invariant: amount ≤ the MINIMUM daily book-cash balance over the
+ * window [voucher_date, latest posted date]. That minimum is evaluated over the
+ * carried balance as-of D (covering the gap before the first later movement)
+ * PLUS the closing balance at every posted date after D. Derived purely from
+ * posted/reversed GL journal lines (Asset nature: debit − credit); no stored
+ * balance, no snapshot, no change to balances.ts / the accounting engine.
+ *
+ * Must run INSIDE the posting transaction, AFTER acquireCashPostingLock, so
+ * concurrent same-cashbox payments each see the prior committed effect.
+ * Returns the minimum window balance (for diagnostics).
+ */
+export async function assertCashPaymentSafe(
+  tx: { execute: (q: any) => Promise<any> },
+  accountId: string,
+  voucherDate: string,
+  amount: number,
+): Promise<number> {
+  const day = voucherDate.slice(0, 10);
+  // daily = per-date net (debit − credit) for the account over the GL states.
+  // points = { voucher_date } ∪ { posted dates ≥ voucher_date }.
+  // For each point p, closing(p) = Σ net over dates ≤ p. Take the minimum.
+  const res: any = await tx.execute(sql`
+    WITH daily AS (
+      SELECT ${journalEntries.date} AS d,
+             SUM(${journalLines.debit} - ${journalLines.credit}) AS net
+      FROM ${journalLines}
+      JOIN ${journalEntries} ON ${journalLines.journalEntryId} = ${journalEntries.id}
+      WHERE ${journalLines.accountId} = ${accountId}
+        AND ${journalEntries.status} IN (${JournalStatus.POSTED}, ${JournalStatus.REVERSED})
+      GROUP BY ${journalEntries.date}
+    ),
+    points AS (
+      SELECT d FROM daily WHERE d >= ${day}
+      UNION
+      SELECT ${day} AS d
+    )
+    SELECT COALESCE(MIN(
+      (SELECT COALESCE(SUM(net), 0) FROM daily WHERE daily.d <= points.d)
+    ), 0) AS min_closing
+    FROM points
+  `);
+  const rows = res?.rows ?? res ?? [];
+  const minClosing = Number(rows[0]?.min_closing ?? 0);
+  if (minClosing + CASH_TOLERANCE < Number(amount))
+    throw new AppError(
+      `رصيد الصندوق غير كافٍ للصرف — أدنى رصيد نقدي متاح من تاريخ السند حتى نهاية الحركة ${minClosing} والمطلوب ${Number(amount)}`,
+      400,
+      "INSUFFICIENT_CASH",
+    );
+  return minClosing;
+}
+
 /**
  * Validate a GL account is eligible to back a Cashbox/Bank Account:
  * exists · active · postable (leaf) · Asset classification. Never identified by

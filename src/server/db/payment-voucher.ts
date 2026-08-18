@@ -12,8 +12,9 @@
  *   - posting / reversal    → the certified Phase 1A engine (gl.ts)
  *   - period guard          → free via postBalancedEntry → resolvePostingPeriod
  *   - numbering             → nextCode (advisory-locked, concurrency-safe)
- *   - cash sufficiency      → getAccountBalance (as-of voucher date) under an
- *                             advisory posting lock (acquireCashPostingLock)
+ *   - cash sufficiency      → assertCashPaymentSafe (min daily balance over the
+ *                             window [voucher_date, end]) under an advisory
+ *                             posting lock (acquireCashPostingLock)
  *
  * Money source is resolved server-side from the selected master
  * (cashbox_id / bank_account_id → linked_account_id → GL credit). The legacy
@@ -39,8 +40,8 @@ import {
   validateLinkedAccount,
   accountMappedToAnyCashBank,
   acquireCashPostingLock,
+  assertCashPaymentSafe,
 } from "./cash-bank";
-import { getAccountBalance } from "./balances";
 import { recordWorkflowEvent } from "./finance-workflow";
 import {
   findTransition,
@@ -457,19 +458,19 @@ export async function transitionPaymentVoucher(
         lines: lines.map((l: any) => ({ accountId: l.accountId, amount: Number(l.amount) })),
       });
 
-      // Cashbox: serialize on the linked account and enforce as-of cash
-      // sufficiency so concurrent cash payments can never overdraw the box.
+      // Cashbox: serialize on the linked account, then enforce backdated cash
+      // safety — the payment must not drive ANY daily book-cash balance from the
+      // voucher date through the end of the ledger negative (not merely the
+      // as-of-voucher-date balance). Runs under the advisory lock so concurrent
+      // same-cashbox payments each see the prior committed effect.
       if (src.kind === "cashbox") {
         await acquireCashPostingLock(tx as any, src.linkedAccountId);
-        const bal = await getAccountBalance(tx as any, src.linkedAccountId, {
-          dateTo: locked.voucherDate,
-        });
-        if (Number(bal.closing) + AMOUNT_TOLERANCE < Number(locked.totalAmount))
-          throw new AppError(
-            `رصيد الصندوق غير كافٍ للصرف — المتاح ${Number(bal.closing)} والمطلوب ${Number(locked.totalAmount)}`,
-            400,
-            "INSUFFICIENT_CASH",
-          );
+        await assertCashPaymentSafe(
+          tx as any,
+          src.linkedAccountId,
+          locked.voucherDate,
+          Number(locked.totalAmount),
+        );
       }
       // Bank: no generic negative-balance block (overdraft/credit facilities).
 

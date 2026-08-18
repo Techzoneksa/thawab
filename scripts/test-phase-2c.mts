@@ -9,8 +9,9 @@
  * is mirrored here in the SAME order the service uses, and additionally locked
  * down by source assertions on the service/route files.
  *
- * Covers PV-A..H, WF-A..H, POST-A..H, CASH-PAY-A..D, CASH-RACE-A..C, BANK-PAY-A,
- * IDEM-A..D, REV-A..E, PERM-A..F, AUD-A..D.
+ * Covers PV-A..H, WF-A..H, POST-A..H, CASH-PAY-A..D, CASH-HIST-A..H (Phase 2C.1
+ * backdated safety), CASH-RACE-A..D, BANK-PAY-A, IDEM-A..D, REV-A..E, PERM-A..F,
+ * AUD-A..D.
  * Run: node_modules/.bin/tsx scripts/test-phase-2c.mts
  */
 import { PGlite } from "@electric-sql/pglite";
@@ -20,7 +21,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { paymentVouchers, paymentVoucherLines } from "@/server/db/schema";
 import { validateVoucher } from "@/server/db/payment-voucher";
-import { accountMappedToAnyCashBank, acquireCashPostingLock } from "@/server/db/cash-bank";
+import {
+  accountMappedToAnyCashBank,
+  acquireCashPostingLock,
+  assertCashPaymentSafe,
+} from "@/server/db/cash-bank";
 import { postBalancedEntry, reverseEntry, existingSourceEntryId } from "@/server/db/gl";
 import { getAccountBalance } from "@/server/db/balances";
 import { now } from "@/server/db/index";
@@ -182,6 +187,39 @@ async function fund(db: any, acct: string, amount: number, date: string) {
     }),
   );
 }
+/** Post Dr expense / Cr <acct> — reduces book cash by amount on the given date. */
+async function spend(db: any, acct: string, amount: number, date: string) {
+  return db.transaction((tx: any) =>
+    postBalancedEntry(tx, {
+      date,
+      description: "spend",
+      source: "manual",
+      lines: [
+        { accountId: "a-exp", debit: amount },
+        { accountId: acct, credit: amount },
+      ],
+      userId: "u0",
+      status: "posted",
+    }),
+  );
+}
+/** Insert a posted journal directly (bypasses period control) — seeds arbitrary-
+ *  dated existing ledger data such as a future-dated posted cash movement. */
+async function rawPosted(
+  client: any,
+  id: string,
+  date: string,
+  drAcct: string,
+  crAcct: string,
+  amount: number,
+) {
+  await client.exec(
+    `INSERT INTO journal_entries (id,number,date,source,source_type,status) VALUES ('${id}','${id}','${date}','manual','manual','posted')`,
+  );
+  await client.exec(
+    `INSERT INTO journal_lines (id,journal_entry_id,line_number,account_id,debit,credit) VALUES ('${id}-1','${id}',1,'${drAcct}',${amount},0),('${id}-2','${id}',2,'${crAcct}',0,${amount})`,
+  );
+}
 
 async function seedVoucher(
   db: any,
@@ -254,9 +292,13 @@ async function approveAndPost(db: any, id: string, userId: string) {
     });
     if (src.kind === "cashbox") {
       await acquireCashPostingLock(tx, src.linkedAccountId);
-      const bal = await getAccountBalance(tx, src.linkedAccountId, { dateTo: locked.voucherDate });
-      if (Number(bal.closing) + 0.005 < Number(locked.totalAmount))
-        throw new AppError("insufficient", 400, "INSUFFICIENT_CASH");
+      // REAL backdated-safe check (min daily balance over [voucher_date, end]).
+      await assertCashPaymentSafe(
+        tx,
+        src.linkedAccountId,
+        locked.voucherDate,
+        Number(locked.totalAmount),
+      );
     }
     const jLines = [
       ...lines.map((l: any) => ({ accountId: l.accountId, debit: Number(l.amount) })),
@@ -799,6 +841,207 @@ async function main() {
       "CASH-RACE-C: two concurrent posts of SAME voucher → one effect",
       okC === 1 && Number(cntC) === 1,
     );
+
+    // CASH-RACE-D: two concurrent BACKDATED payments, each safe alone (min=1000),
+    // together would breach; the future 5000 receipt must not let both through.
+    const { db: db4 } = await freshDb();
+    await fund(db4, "a-cash", 1000, "2026-08-01");
+    await fund(db4, "a-cash", 5000, "2026-08-20"); // later receipt → current 6000
+    await seedVoucher(db4, {
+      id: "rD1",
+      number: "PV-2026-000001",
+      cashboxId: "cb1",
+      total: 600,
+      date: "2026-08-01",
+      lines: [{ acc: "a-exp", amt: 600 }],
+    });
+    await seedVoucher(db4, {
+      id: "rD2",
+      number: "PV-2026-000002",
+      cashboxId: "cb1",
+      total: 600,
+      date: "2026-08-01",
+      lines: [{ acc: "a-exp", amt: 600 }],
+    });
+    const rD = await Promise.allSettled([
+      approveAndPost(db4, "rD1", "u2"),
+      approveAndPost(db4, "rD2", "u2"),
+    ]);
+    const okD = rD.filter((r) => r.status === "fulfilled").length;
+    const minAug01 = (await getAccountBalance(db4, "a-cash", { dateTo: "2026-08-01" })).closing;
+    ok(
+      "CASH-RACE-D: concurrent backdated payments serialized → exactly one posts",
+      okD === 1,
+      JSON.stringify(rD.map((r) => r.status)),
+    );
+    ok(
+      "CASH-RACE-D: historical Aug-01 cash never negative (= 400)",
+      minAug01 >= -0.005 && Math.abs(minAug01 - 400) < 0.005,
+    );
+  }
+
+  // ===================== CASH-HIST-A..H — backdated cash safety =====================
+  console.log("\nCASH-HIST-A..H — backdated cash payment protection");
+  {
+    // A: as-of Aug-01 is 10000 but Aug-10 closing is 500 → 2000 must REJECT.
+    {
+      const { db } = await freshDb();
+      await fund(db, "a-cash", 10000, "2026-08-01");
+      await spend(db, "a-cash", 9500, "2026-08-10"); // Aug-10 closing = 500
+      await seedVoucher(db, {
+        id: "hA",
+        number: "PV-2026-000001",
+        cashboxId: "cb1",
+        total: 2000,
+        date: "2026-08-01",
+        lines: [{ acc: "a-exp", amt: 2000 }],
+      });
+      const rej = await throwsCode(() => approveAndPost(db, "hA", "u2"), "INSUFFICIENT_CASH");
+      const cnt = (
+        await (db as any).execute(
+          `SELECT count(*)::int c FROM journal_entries WHERE source_id='hA'`,
+        )
+      ).rows[0].c;
+      ok("CASH-HIST-A: backdated 2000 rejected (later balance 500)", rej && Number(cnt) === 0);
+    }
+    // B: 01→1000, 05→100, 10→2100; backdated Aug-01 500 rejected (Aug-05 would be −400).
+    {
+      const { db } = await freshDb();
+      await fund(db, "a-cash", 1000, "2026-08-01");
+      await spend(db, "a-cash", 900, "2026-08-05"); // 100
+      await fund(db, "a-cash", 2000, "2026-08-10"); // 2100
+      await seedVoucher(db, {
+        id: "hB",
+        number: "PV-2026-000001",
+        cashboxId: "cb1",
+        total: 500,
+        date: "2026-08-01",
+        lines: [{ acc: "a-exp", amt: 500 }],
+      });
+      ok(
+        "CASH-HIST-B: intermediate-negative protection rejects 500",
+        await throwsCode(() => approveAndPost(db, "hB", "u2"), "INSUFFICIENT_CASH"),
+      );
+    }
+    // C: min later balance 800, payment 500 → SUCCESS, all later balances ≥ 0.
+    {
+      const { db } = await freshDb();
+      await fund(db, "a-cash", 1000, "2026-08-01");
+      await spend(db, "a-cash", 200, "2026-08-05"); // 800 (the window minimum)
+      await seedVoucher(db, {
+        id: "hC",
+        number: "PV-2026-000001",
+        cashboxId: "cb1",
+        total: 500,
+        date: "2026-08-01",
+        lines: [{ acc: "a-exp", amt: 500 }],
+      });
+      await approveAndPost(db, "hC", "u2");
+      const minAfter = (await getAccountBalance(db, "a-cash", { dateTo: "2026-08-05" })).closing;
+      ok(
+        "CASH-HIST-C: valid backdated 500 posts, min later balance ≥ 0 (=300)",
+        Math.abs(minAfter - 300) < 0.005,
+      );
+    }
+    // D: exact minimum — min later 500, payment 500 → SUCCESS, min becomes 0.
+    {
+      const { db } = await freshDb();
+      await fund(db, "a-cash", 1000, "2026-08-01");
+      await spend(db, "a-cash", 500, "2026-08-05"); // 500
+      await seedVoucher(db, {
+        id: "hD",
+        number: "PV-2026-000001",
+        cashboxId: "cb1",
+        total: 500,
+        date: "2026-08-01",
+        lines: [{ acc: "a-exp", amt: 500 }],
+      });
+      await approveAndPost(db, "hD", "u2");
+      ok(
+        "CASH-HIST-D: exact-minimum 500 posts, resulting min = 0",
+        Math.abs((await getAccountBalance(db, "a-cash", { dateTo: "2026-08-05" })).closing) < 0.005,
+      );
+    }
+    // E: one unit above minimum → REJECT.
+    {
+      const { db } = await freshDb();
+      await fund(db, "a-cash", 1000, "2026-08-01");
+      await spend(db, "a-cash", 500, "2026-08-05"); // min later 500
+      await seedVoucher(db, {
+        id: "hE",
+        number: "PV-2026-000001",
+        cashboxId: "cb1",
+        total: 500.01,
+        date: "2026-08-01",
+        lines: [{ acc: "a-exp", amt: 500.01 }],
+      });
+      ok(
+        "CASH-HIST-E: 500.01 over minimum 500 rejected",
+        await throwsCode(() => approveAndPost(db, "hE", "u2"), "INSUFFICIENT_CASH"),
+      );
+    }
+    // F: future receipt must not hide an intermediate shortage.
+    {
+      const { db } = await freshDb();
+      await fund(db, "a-cash", 1000, "2026-08-01");
+      await spend(db, "a-cash", 800, "2026-08-05"); // 200 (intermediate low)
+      await fund(db, "a-cash", 4800, "2026-08-20"); // 5000 later
+      await seedVoucher(db, {
+        id: "hF",
+        number: "PV-2026-000001",
+        cashboxId: "cb1",
+        total: 500,
+        date: "2026-08-01",
+        lines: [{ acc: "a-exp", amt: 500 }],
+      });
+      ok(
+        "CASH-HIST-F: future receipt cannot rescue intermediate shortage (200) → reject 500",
+        await throwsCode(() => approveAndPost(db, "hF", "u2"), "INSUFFICIENT_CASH"),
+      );
+    }
+    // G: a future-dated POSTED cash reduction participates in the window.
+    {
+      const { db, client } = await freshDb();
+      await fund(db, "a-cash", 1000, "2026-08-01");
+      await rawPosted(client, "fut", "2099-01-01", "a-exp", "a-cash", 900); // future closing = 100
+      await seedVoucher(db, {
+        id: "hG",
+        number: "PV-2026-000001",
+        cashboxId: "cb1",
+        total: 500,
+        date: "2026-08-01",
+        lines: [{ acc: "a-exp", amt: 500 }],
+      });
+      const safe = await assertCashPaymentSafe(db, "a-cash", "2026-08-01", 0).catch(() => -1);
+      ok("CASH-HIST-G: future-dated posted movement lowers window min to 100", safe === 100);
+      ok(
+        "CASH-HIST-G: payment 500 rejected (future-dated reduction counted)",
+        await throwsCode(() => approveAndPost(db, "hG", "u2"), "INSUFFICIENT_CASH"),
+      );
+    }
+    // H: Bank control — same shape, NO cashbox sufficiency rejection.
+    {
+      const { db } = await freshDb();
+      await fund(db, "a-bank", 1000, "2026-08-01");
+      await spend(db, "a-bank", 900, "2026-08-10"); // bank later balance 100
+      await seedVoucher(db, {
+        id: "hH",
+        number: "PV-2026-000001",
+        bankAccountId: "ba1",
+        total: 2000,
+        date: "2026-08-01",
+        lines: [{ acc: "a-exp", amt: 2000 }],
+      });
+      await approveAndPost(db, "hH", "u2");
+      ok(
+        "CASH-HIST-H: bank backdated payment posts (no cash timeline rule)",
+        !!(
+          await (db as any).execute(
+            `SELECT count(*)::int c FROM journal_entries WHERE source_id='hH'`,
+          )
+        ).rows[0].c,
+      );
+    }
   }
 
   // ===================== BANK-PAY-A — bank overdraft allowed =====================
@@ -891,19 +1134,17 @@ async function main() {
           prefix: "PV-",
           year: true,
         });
-        await tx
-          .insert(paymentVouchers)
-          .values({
-            id,
-            voucherNumber: num,
-            voucherDate: "2026-03-01",
-            status: "draft",
-            cashboxId: "cb1",
-            totalAmount: 1,
-            createdBy: "u1",
-            createdAt: now(),
-            updatedAt: now(),
-          });
+        await tx.insert(paymentVouchers).values({
+          id,
+          voucherNumber: num,
+          voucherDate: "2026-03-01",
+          status: "draft",
+          cashboxId: "cb1",
+          totalAmount: 1,
+          createdBy: "u1",
+          createdAt: now(),
+          updatedAt: now(),
+        });
         return num;
       });
     const nums = await Promise.all([mk("v1"), mk("v2"), mk("v3")]);
