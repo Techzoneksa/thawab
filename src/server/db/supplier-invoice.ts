@@ -466,6 +466,7 @@ const AUDIT_ACTION: Record<JournalAction, string> = {
   reject: "SUPPLIER_INVOICE_REJECTED",
   post: "SUPPLIER_INVOICE_POSTED",
   reverse: "SUPPLIER_INVOICE_REVERSED",
+  issue: "SUPPLIER_INVOICE_ISSUE",
   cancel: "SUPPLIER_INVOICE_CANCELLED",
 };
 

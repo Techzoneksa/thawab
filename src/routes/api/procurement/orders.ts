@@ -17,6 +17,7 @@ import {
   PurchaseRequestStatus,
   StockMovementType,
   JournalSource,
+  PurchaseOrderGovernance,
 } from "@/lib/enums";
 
 // NOTE: enums.ts PurchaseOrderStatus has no CLOSED key. The "close" workflow still
@@ -123,6 +124,18 @@ async function POST(event: { request: Request }, ctx: Ctx) {
         await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, b.id)).limit(1)
       )[0];
       if (!order) return err("أمر الشراء غير موجود", 404, "NOT_FOUND");
+
+      // Phase 3C CRITICAL GUARD: a governed Purchase Order must NEVER run through
+      // this legacy flow — its "receive" action posts Dr Inventory / Cr Accounts
+      // Payable and increments suppliers.balance, which would double the liability
+      // that the Supplier Invoice already recognises. Governed POs are managed by
+      // /api/procurement/purchase-orders; governed receiving is a future phase.
+      if ((order as any).governanceMode === PurchaseOrderGovernance.GOVERNED)
+        return err(
+          "أمر شراء محكوم — استخدم مسار الاستلام المحكوم (لا يجوز الاستلام عبر المسار القديم)",
+          409,
+          "USE_GOVERNED_GRN",
+        );
 
       const before = JSON.stringify(order);
 
@@ -450,6 +463,8 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
       await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, b.id)).limit(1)
     )[0];
     if (!existing) return err("أمر الشراء غير موجود", 404, "NOT_FOUND");
+    if ((existing as any).governanceMode === PurchaseOrderGovernance.GOVERNED)
+      return err("أمر شراء محكوم — يُدار عبر مسار أوامر الشراء المحكومة", 409, "USE_GOVERNED_GRN");
     if (existing.status !== PurchaseOrderStatus.DRAFT) {
       return err("لا يمكن تعديل أمر شراء في حالته الحالية", 400, "INVALID_STATE");
     }
@@ -493,6 +508,8 @@ async function DELETE({ request }: { request: Request }, ctx: Ctx) {
     await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id)).limit(1)
   )[0];
   if (!existing) return err("أمر الشراء غير موجود", 404, "NOT_FOUND");
+  if ((existing as any).governanceMode === PurchaseOrderGovernance.GOVERNED)
+    return err("أمر شراء محكوم — يُدار عبر مسار أوامر الشراء المحكومة", 409, "USE_GOVERNED_GRN");
   if (existing.status !== PurchaseOrderStatus.DRAFT) {
     return err("لا يمكن حذف أمر شراء غير مسودة. ألغِه بدلاً من ذلك.", 400, "INVALID_STATE");
   }

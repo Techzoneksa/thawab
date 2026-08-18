@@ -965,6 +965,25 @@ export const purchaseOrders = pgTable("purchase_orders", {
   createdBy: text("created_by").references(() => users.id),
   createdAt: text("created_at").notNull().default(""),
   updatedAt: text("updated_at").notNull().default(""),
+  // Phase 3C — governed Purchase Order fields (all additive; legacy rows keep
+  // governance_mode='legacy' and NULL/zero here). A governed PO is a purchasing
+  // COMMITMENT document with NO GL/AP/inventory effect; it never runs through the
+  // legacy AP-posting receive flow. No journal_entry_id is used for governed POs.
+  governanceMode: text("governance_mode").notNull().default("legacy"), // legacy | governed
+  poNumber: text("po_number"), // PO-2026-000001 (governed only; unique when present)
+  currency: text("currency").notNull().default("SAR"),
+  supplierReference: text("supplier_reference"),
+  subtotal: doublePrecision("subtotal").notNull().default(0),
+  taxAmount: doublePrecision("tax_amount").notNull().default(0),
+  totalAmount: doublePrecision("total_amount").notNull().default(0),
+  submittedBy: text("submitted_by").references(() => users.id),
+  submittedAt: text("submitted_at"),
+  approvedBy: text("approved_by").references(() => users.id),
+  approvedAt: text("approved_at"),
+  issuedBy: text("issued_by").references(() => users.id),
+  issuedAt: text("issued_at"),
+  cancelledBy: text("cancelled_by").references(() => users.id),
+  cancelledAt: text("cancelled_at"),
 });
 
 export const purchaseOrderLines = pgTable("purchase_order_lines", {
@@ -981,6 +1000,14 @@ export const purchaseOrderLines = pgTable("purchase_order_lines", {
   unit: text("unit").default(""),
   notes: text("notes").default(""),
   createdAt: text("created_at").notNull().default(""),
+  // Phase 3C — governed line fields (additive; commitment value only, no GL).
+  lineType: text("line_type").notNull().default("ITEM"), // ITEM|SERVICE|ASSET|EXPENSE|OTHER
+  accountId: text("account_id").references(() => accounts.id), // optional target (future receiving)
+  costCenterId: text("cost_center_id").references(() => costCenters.id),
+  lineSubtotal: doublePrecision("line_subtotal").notNull().default(0),
+  taxRate: doublePrecision("tax_rate").notNull().default(0),
+  taxAmount: doublePrecision("tax_amount").notNull().default(0),
+  lineTotal: doublePrecision("line_total").notNull().default(0),
 });
 
 export const quotes = pgTable("quotes", {

@@ -415,6 +415,7 @@ export type JournalAction =
   | "reject"
   | "post"
   | "reverse"
+  | "issue" // Phase 3C — release an approved Purchase Order (no accounting effect)
   | "cancel";
 
 /** Allowed (fromStatus → action → toStatus). The ONLY source of truth. */

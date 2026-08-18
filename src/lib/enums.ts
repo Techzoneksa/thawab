@@ -331,6 +331,43 @@ export const PurchaseOrderStatus = {
 } as const;
 export type PurchaseOrderStatus = (typeof PurchaseOrderStatus)[keyof typeof PurchaseOrderStatus];
 
+/**
+ * Phase 3C — governed Purchase Order lifecycle (أوامر الشراء). A Purchase Order
+ * is a purchasing COMMITMENT/authorization document, NOT an accounting journal:
+ * no state here has any General Ledger, supplier-payable, or inventory effect.
+ * DRAFT→SUBMITTED→APPROVED→ISSUED, plus return/reject and controlled cancel.
+ */
+export const PurchaseOrderGovernedStatus = {
+  DRAFT: "draft",
+  SUBMITTED: "submitted",
+  APPROVED: "approved",
+  ISSUED: "issued",
+  REJECTED: "rejected",
+  CANCELLED: "cancelled",
+} as const;
+export type PurchaseOrderGovernedStatus =
+  (typeof PurchaseOrderGovernedStatus)[keyof typeof PurchaseOrderGovernedStatus];
+
+/** Distinguishes legacy purchase orders from Phase 3C governed ones so a governed
+ * PO can never run through the unsafe legacy AP-posting receive flow. */
+export const PurchaseOrderGovernance = {
+  LEGACY: "legacy",
+  GOVERNED: "governed",
+} as const;
+export type PurchaseOrderGovernance =
+  (typeof PurchaseOrderGovernance)[keyof typeof PurchaseOrderGovernance];
+
+/** Procurement line purpose — does not force inventory accounting on any line. */
+export const PurchaseOrderLineType = {
+  ITEM: "ITEM",
+  SERVICE: "SERVICE",
+  ASSET: "ASSET",
+  EXPENSE: "EXPENSE",
+  OTHER: "OTHER",
+} as const;
+export type PurchaseOrderLineType =
+  (typeof PurchaseOrderLineType)[keyof typeof PurchaseOrderLineType];
+
 export const QuoteStatus = {
   PENDING: "pending",
   ACCEPTED: "accepted",

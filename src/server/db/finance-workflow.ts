@@ -35,6 +35,7 @@ const AUDIT_ACTION: Record<JournalAction, string> = {
   reject: "JOURNAL_REJECTED",
   post: "JOURNAL_POSTED",
   reverse: "JOURNAL_REVERSED",
+  issue: "JOURNAL_ISSUE",
   cancel: "JOURNAL_CANCELLED",
 };
 

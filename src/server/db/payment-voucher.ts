@@ -371,6 +371,7 @@ const AUDIT_ACTION: Record<JournalAction, string> = {
   reject: "PAYMENT_VOUCHER_REJECTED",
   post: "PAYMENT_VOUCHER_POSTED",
   reverse: "PAYMENT_VOUCHER_REVERSED",
+  issue: "PAYMENT_VOUCHER_ISSUE",
   cancel: "PAYMENT_VOUCHER_CANCELLED",
 };
 
