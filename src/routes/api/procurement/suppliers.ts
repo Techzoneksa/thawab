@@ -1,17 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { and, count, desc, eq, like, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, like, or } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { suppliers, purchaseOrders, stockMovements, fixedAssets } from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
-import {
-  postBalancedEntry,
-  resolveSystemAccountId,
-  cashOrBankAccountId,
-  SYS,
-} from "@/server/db/gl";
-import { linkSupplierPaymentApLine } from "@/server/db/supplier";
-import { SupplierStatus, JournalSource } from "@/lib/enums";
+import { paySupplier } from "@/server/db/supplier";
+import { SupplierStatus } from "@/lib/enums";
 
 // GET /api/procurement/suppliers?id=xxx — single with usage info; else list.
 async function GET({ request }: { request: Request }, _ctx: Ctx) {
@@ -113,6 +107,9 @@ const paySchema = z.object({
   amount: z.coerce.number().positive("قيمة السداد يجب أن تكون رقماً موجباً"),
   method: z.enum(["cash", "bank"]).optional(),
   note: z.string().optional(),
+  // Stable idempotency key for the payment event (retry-safe). Optional.
+  paymentId: z.string().optional(),
+  reference: z.string().optional(),
 });
 
 // POST /api/procurement/suppliers — create, activate/deactivate, or pay.
@@ -121,55 +118,18 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     const b = await parseBody(event.request, z.union([paySchema, actionSchema, createSchema]));
 
     // Settle part/all of what we owe a supplier: Dr Accounts Payable / Cr Cash|Bank.
+    // Phase 3A.1 — routed through the idempotent paySupplier service: a stable
+    // per-payment event id becomes the GL source_id (one supplier → many payments,
+    // one payment → one journal; retries are idempotent). The AP debit line is
+    // attributed to the supplier's subledger. No inline posting here.
     if ("action" in b && b.action === "pay") {
-      const supplier = (
-        await db.select().from(suppliers).where(eq(suppliers.id, b.id)).limit(1)
-      )[0];
-      if (!supplier) return err("المورد غير موجود", 404, "NOT_FOUND");
-      const ts = now();
-      const before = JSON.stringify(supplier);
-
-      await db.transaction(async (tx) => {
-        const payable = await resolveSystemAccountId(tx as any, SYS.ACCOUNTS_PAYABLE);
-        const cashBank = await cashOrBankAccountId(
-          tx as any,
-          b.method === "cash" ? "cash" : "bank",
-        );
-        const entryId = await postBalancedEntry(tx as any, {
-          date: ts.slice(0, 10),
-          description: `سداد للمورد ${supplier.name}${b.note ? ` — ${b.note}` : ""}`,
-          source: JournalSource.PURCHASE,
-          sourceType: "supplier_payment",
-          sourceId: b.id,
-          lines: [
-            { accountId: payable, debit: b.amount },
-            { accountId: cashBank, credit: b.amount },
-          ],
-          userId: ctx.user.id,
-        });
-        // Phase 3A — attach the AP debit line to the supplier's AP subledger so
-        // the payable derives from the GL. No new journal, no money duplication.
-        await linkSupplierPaymentApLine(tx as any, {
-          supplierId: b.id,
-          entryId,
-          userId: ctx.user.id,
-        });
-        // Legacy denormalized cache (non-authoritative; kept for pre-3A procurement).
-        await tx
-          .update(suppliers)
-          .set({ balance: sql`${suppliers.balance} - ${b.amount}`, updatedAt: ts })
-          .where(eq(suppliers.id, b.id));
-      });
-
-      await addAudit({
-        action: "pay",
-        entityType: "supplier",
-        entityId: b.id,
-        description: `سداد ${b.amount} للمورد: ${supplier.name}`,
-        userId: ctx.user.id,
-        userName: ctx.user.name,
-        before,
-        ip: ctx.ip,
+      await paySupplier(ctx, {
+        supplierId: b.id,
+        amount: b.amount,
+        method: b.method,
+        idempotencyKey: b.paymentId,
+        reference: b.reference,
+        note: b.note,
       });
 
       const updated = (await db.select().from(suppliers).where(eq(suppliers.id, b.id)).limit(1))[0];

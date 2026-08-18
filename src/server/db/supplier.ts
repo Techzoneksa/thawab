@@ -12,12 +12,25 @@
  */
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, now, genId, addAudit } from "./index";
-import { suppliers, supplierJournalLinks, journalLines, journalEntries, accounts } from "./schema";
-import { resolveSystemAccountId, SYS } from "./gl";
+import {
+  suppliers,
+  supplierJournalLinks,
+  supplierPayments,
+  journalLines,
+  journalEntries,
+  accounts,
+} from "./schema";
+import {
+  resolveSystemAccountId,
+  cashOrBankAccountId,
+  postBalancedEntry,
+  existingSourceEntryId,
+  SYS,
+} from "./gl";
 import { getAccountBalance } from "./balances";
 import { nextCode } from "./numbering";
 import { AppError } from "./errors";
-import { JournalStatus, SupplierStatus, AccountClassification } from "@/lib/enums";
+import { JournalStatus, JournalSource, SupplierStatus, AccountClassification } from "@/lib/enums";
 import { normalizeIban, isValidSaudiIban, maskIban } from "@/lib/iban";
 import type { Ctx } from "./api-utils";
 
@@ -134,6 +147,205 @@ export async function linkSupplierPaymentApLine(
   input: { supplierId: string; entryId: string; userId?: string | null },
 ) {
   return linkEntryApLine(tx, { ...input, sourceType: "supplier_payment" });
+}
+
+// ------------------------------- Supplier payment (idempotent) ----------
+
+export interface PaySupplierInput {
+  supplierId: string;
+  amount: number;
+  method?: "cash" | "bank";
+  /** Stable idempotency key for the payment EVENT; a retry with the same key
+   *  reuses the existing journal (no second accounting effect). Omit to mint a
+   *  fresh payment event (a legitimately new payment). */
+  idempotencyKey?: string | null;
+  reference?: string | null;
+  date?: string | null;
+  note?: string | null;
+}
+export interface PaySupplierResult {
+  payment: any;
+  entryId: string;
+  reused: boolean;
+}
+
+/** Normalize a caller key / mint a fresh id — always prefixed SPY- so the source
+ *  identity is distinct from the legacy source_id = supplierId rows. */
+function paymentEventId(key?: string | null): string {
+  const k = (key ?? "").trim();
+  if (!k) return genId("SPY");
+  return k.startsWith("SPY-") ? k : `SPY-${k}`;
+}
+
+/**
+ * Post a supplier payment (Dr AP / Cr Cash|Bank) with a STABLE per-payment
+ * identity, idempotent under retries and concurrency.
+ *
+ * BEGIN → upsert the payment event (ON CONFLICT DO NOTHING) → lock it FOR UPDATE
+ * → if already journaled: reuse (no second journal) → else post through the
+ * certified engine with source_type=supplier_payment, source_id=payment id
+ * (existingSourceEntryId + the 0011 unique index are the DB backstops) → link the
+ * AP debit line to the supplier (exactly one) → set journal_entry_id → (first
+ * post only) decrement the legacy non-authoritative balance → COMMIT.
+ *
+ * One supplier → many payments (distinct ids); one payment → exactly one journal.
+ */
+export async function paySupplier(ctx: Ctx, input: PaySupplierInput): Promise<PaySupplierResult> {
+  const amount = Number(input.amount);
+  if (!(amount > 0))
+    throw new AppError("قيمة السداد يجب أن تكون أكبر من صفر", 400, "AMOUNT_INVALID");
+  const method = input.method === "cash" ? "cash" : "bank";
+  const paymentId = paymentEventId(input.idempotencyKey);
+  const date = (input.date || now().slice(0, 10)).slice(0, 10);
+  const ts = now();
+
+  const result = await db.transaction(async (tx) => {
+    const sup = (
+      await tx.select().from(suppliers).where(eq(suppliers.id, input.supplierId)).limit(1)
+    )[0];
+    if (!sup) throw new AppError("المورد غير موجود", 404, "SUPPLIER_NOT_FOUND");
+
+    // Stable event anchor — created once; a retry hits the existing row.
+    await tx
+      .insert(supplierPayments)
+      .values({
+        id: paymentId,
+        supplierId: input.supplierId,
+        amount,
+        paymentMethod: method,
+        reference: input.reference ?? null,
+        paymentDate: date,
+        note: input.note ?? "",
+        status: "pending",
+        createdBy: ctx.user.id,
+        createdAt: ts,
+        updatedAt: ts,
+      })
+      .onConflictDoNothing();
+
+    const pay = (
+      await tx
+        .select()
+        .from(supplierPayments)
+        .where(eq(supplierPayments.id, paymentId))
+        .for("update")
+        .limit(1)
+    )[0];
+
+    // Already posted (a prior attempt / concurrent winner) → idempotent reuse.
+    if (pay.journalEntryId) return { payment: pay, entryId: pay.journalEntryId, reused: true };
+    const already = await existingSourceEntryId(tx as any, "supplier_payment", paymentId);
+    if (already) {
+      await tx
+        .update(supplierPayments)
+        .set({ journalEntryId: already, status: "posted", updatedAt: now() })
+        .where(eq(supplierPayments.id, paymentId));
+      return { payment: { ...pay, journalEntryId: already }, entryId: already, reused: true };
+    }
+
+    const payable = await resolveSystemAccountId(tx as any, SYS.ACCOUNTS_PAYABLE);
+    const cashBank = await cashOrBankAccountId(tx as any, method);
+    const entryId = await postBalancedEntry(tx as any, {
+      date,
+      description: `سداد للمورد ${sup.name}${input.note ? ` — ${input.note}` : ""}`,
+      source: JournalSource.PURCHASE,
+      sourceType: "supplier_payment",
+      sourceId: paymentId, // ← the stable payment event id, NOT the supplier id
+      lines: [
+        { accountId: payable, debit: amount },
+        { accountId: cashBank, credit: amount },
+      ],
+      userId: ctx.user.id,
+      status: JournalStatus.POSTED,
+    });
+    await linkSupplierPaymentApLine(tx as any, {
+      supplierId: input.supplierId,
+      entryId,
+      userId: ctx.user.id,
+    });
+    await tx
+      .update(supplierPayments)
+      .set({ journalEntryId: entryId, status: "posted", updatedAt: now() })
+      .where(eq(supplierPayments.id, paymentId));
+    // Legacy non-authoritative cache (pre-3A procurement) — first post only.
+    await tx
+      .update(suppliers)
+      .set({ balance: sql`${suppliers.balance} - ${amount}`, updatedAt: now() })
+      .where(eq(suppliers.id, input.supplierId));
+    return {
+      payment: { ...pay, journalEntryId: entryId, status: "posted" },
+      entryId,
+      reused: false,
+    };
+  });
+
+  if (!result.reused) {
+    await addAudit({
+      action: "SUPPLIER_PAYMENT_POSTED",
+      entityType: "supplier",
+      entityId: input.supplierId,
+      description: `سداد ${amount} للمورد (سند دفع ${paymentId})`,
+      userId: ctx.user.id,
+      userName: ctx.user.name,
+      ip: ctx.ip,
+    });
+  }
+  return result;
+}
+
+/**
+ * Read-only diagnostic for the supplier_payment source identity: total journals,
+ * distinct source ids, and how many follow the legacy (source_id = supplier id)
+ * vs the new (SPY-…) pattern. Never rewrites history.
+ */
+export async function supplierPaymentPreflight(dbh: Db) {
+  const agg = (
+    await (dbh as any)
+      .select({
+        total: sql<number>`COUNT(*)`,
+        distinctSource: sql<number>`COUNT(DISTINCT ${journalEntries.sourceId})`,
+      })
+      .from(journalEntries)
+      .where(
+        and(
+          eq(journalEntries.sourceType, "supplier_payment"),
+          inArray(journalEntries.status, GL_STATES),
+        ),
+      )
+  )[0] as any;
+  const legacy = (
+    await (dbh as any)
+      .select({ c: sql<number>`COUNT(*)` })
+      .from(journalEntries)
+      .where(
+        and(
+          eq(journalEntries.sourceType, "supplier_payment"),
+          inArray(journalEntries.status, GL_STATES),
+          sql`EXISTS (SELECT 1 FROM ${suppliers} s WHERE s.id = ${journalEntries.sourceId})`,
+        ),
+      )
+  )[0] as any;
+  const newer = (
+    await (dbh as any)
+      .select({ c: sql<number>`COUNT(*)` })
+      .from(journalEntries)
+      .where(
+        and(
+          eq(journalEntries.sourceType, "supplier_payment"),
+          inArray(journalEntries.status, GL_STATES),
+          sql`${journalEntries.sourceId} LIKE 'SPY-%'`,
+        ),
+      )
+  )[0] as any;
+  const total = Number(agg?.total || 0);
+  const distinct = Number(agg?.distinctSource || 0);
+  return {
+    supplierPaymentJournalCount: total,
+    distinctSourceIdCount: distinct,
+    duplicateSourceIdentities: total - distinct, // 0 expected under the 0011 index
+    legacySupplierIdPatternCount: Number(legacy?.c || 0),
+    newPaymentEventPatternCount: Number(newer?.c || 0),
+  };
 }
 
 // ------------------------------- Balance / ledger -----------------------

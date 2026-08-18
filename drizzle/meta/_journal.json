@@ -148,6 +148,13 @@
       "when": 1787020000000,
       "tag": "0020_supplier_ap_subledger",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1787030000000,
+      "tag": "0021_supplier_payment_identity",
+      "breakpoints": true
     }
   ]
 }

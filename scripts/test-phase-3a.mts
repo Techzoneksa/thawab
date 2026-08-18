@@ -198,9 +198,12 @@ async function main() {
       await client.query(`SELECT count(*)::int c FROM suppliers WHERE status='active'`)
     ).rows[0].c;
     ok("SUP-D: inactive supplier excluded from active/selectable set", Number(selectable) === 1);
+    // Supplier MASTER create/update/deactivate never post to the GL (paySupplier,
+    // a payment flow — not master data — legitimately posts and lives above this).
+    const masterSection = svc.slice(svc.indexOf("export async function createSupplier(ctx"));
     ok(
-      "SUP-E: supplier master service creates NO GL entries",
-      !/postBalancedEntry|reverseEntry/.test(svc),
+      "SUP-E: supplier master (create/update/deactivate) creates NO GL entries",
+      masterSection.length > 0 && !/postBalancedEntry|reverseEntry/.test(masterSection),
     );
     ok(
       "SUP-F: accounting display derives from links, not legacy balance",

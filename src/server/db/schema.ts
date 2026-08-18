@@ -795,6 +795,36 @@ export const supplierJournalLinks = pgTable(
   }),
 );
 
+// Phase 3A.1 — Supplier payment event. Gives each supplier payment a STABLE
+// business identity so the GL source_id is the payment id (not the supplier id):
+// one supplier → many payments, one payment → exactly one journal. `id` (SPY-…)
+// is the idempotency anchor; a retry with the same id reuses the existing result.
+// journal_entry_id is UNIQUE (one payment → one journal). The money stays in the
+// GL; this table holds no accounting balance.
+export const supplierPayments = pgTable(
+  "supplier_payments",
+  {
+    id: text("id").primaryKey(), // stable payment-event id (SPY-…)
+    supplierId: text("supplier_id")
+      .notNull()
+      .references(() => suppliers.id),
+    amount: doublePrecision("amount").notNull().default(0),
+    paymentMethod: text("payment_method").notNull().default("bank"), // cash | bank (legacy)
+    reference: text("reference"),
+    paymentDate: text("payment_date").notNull().default(""),
+    note: text("note").default(""),
+    journalEntryId: text("journal_entry_id").references(() => journalEntries.id),
+    status: text("status").notNull().default("pending"), // pending | posted
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+  },
+  (t) => ({
+    journalIdx: uniqueIndex("supplier_payments_journal_entry_idx").on(t.journalEntryId),
+    supplierIdx: index("supplier_payments_supplier_idx").on(t.supplierId),
+  }),
+);
+
 // ============ PURCHASES ============
 
 export const purchaseRequests = pgTable("purchase_requests", {
