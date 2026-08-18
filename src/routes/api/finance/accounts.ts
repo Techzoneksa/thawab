@@ -6,6 +6,12 @@ import { eq, like, or, and, sql } from "drizzle-orm";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
 import { AccountClassification, AccountStatus } from "@/lib/enums";
 import { getAllAccountBalances, getAccountBalance } from "@/server/db/balances";
+import { SYS } from "@/server/db/gl";
+
+// System-purpose mappings (e.g. Input VAT) must be assigned only through the
+// validated, atomic Finance account-mapping action — never freely stamped via the
+// generic account create/update editor. This closes the unvalidated-mapping hole.
+const RESERVED_MAPPING_KEYS = new Set<string>([SYS.INPUT_VAT]);
 
 // GET /api/finance/accounts - list with search/filter
 // GET /api/finance/accounts?id=xxx - single account with usage info
@@ -89,6 +95,13 @@ async function POST(event: { request: Request }, ctx: Ctx) {
   return guard(async () => {
     const b = await parseBody(event.request, createSchema);
 
+    if (b.systemKey && RESERVED_MAPPING_KEYS.has(b.systemKey))
+      return err(
+        "لتعيين حساب ضريبة المدخلات استخدم صفحة ربط الحسابات النظامية (تحقق وربط آمن)",
+        400,
+        "USE_ACCOUNT_MAPPING",
+      );
+
     const existing = (
       await db.select().from(accounts).where(eq(accounts.code, b.code)).limit(1)
     )[0];
@@ -160,6 +173,13 @@ const updateSchema = z.object({
 async function PUT(event: { request: Request }, ctx: Ctx) {
   return guard(async () => {
     const b = await parseBody(event.request, updateSchema);
+
+    if (b.systemKey && RESERVED_MAPPING_KEYS.has(b.systemKey))
+      return err(
+        "لتعيين حساب ضريبة المدخلات استخدم صفحة ربط الحسابات النظامية (تحقق وربط آمن)",
+        400,
+        "USE_ACCOUNT_MAPPING",
+      );
 
     const existing = (await db.select().from(accounts).where(eq(accounts.id, b.id)).limit(1))[0];
     if (!existing) return err("الحساب غير موجود", 404, "NOT_FOUND");

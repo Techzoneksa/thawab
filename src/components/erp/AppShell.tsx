@@ -88,6 +88,7 @@ const NAV: NavGroup[] = [
       { to: "/finance/payment-vouchers", label: "سندات الصرف", icon: Send },
       { to: "/finance/suppliers", label: "الموردون والذمم الدائنة", icon: Truck },
       { to: "/finance/supplier-invoices", label: "فواتير الموردين", icon: FileText },
+      { to: "/finance/account-mappings", label: "ربط الحسابات النظامية", icon: SlidersHorizontal },
       { to: "/finance/ledger", label: "دفتر الأستاذ", icon: Wallet },
       { to: "/finance/budgets", label: "الموازنات", icon: Calculator },
       { to: "/finance/cost-centers", label: "مراكز التكلفة", icon: PiggyBank },

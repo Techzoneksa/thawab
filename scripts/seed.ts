@@ -111,7 +111,12 @@ const COA: Row[] = [
   ["110303", "مصروفات مدفوعة مقدماً", "asset", true],
   ["110304", "إيرادات مستحقة القبض", "asset", true],
   ["110305", "مستحق من المشاريع", "asset", true],
-  ["110306", "ضريبة القيمة المضافة — مدخلات قابلة للاسترداد", "asset", true, "input_vat"],
+  // Candidate recoverable Input VAT account. Deliberately NOT given the
+  // `input_vat` system_key here: the seed must not silently declare the
+  // organization's authoritative Input VAT account. A Finance administrator maps
+  // it explicitly (finance.account_mapping.update). Taxable posting resolves the
+  // account by the configured system_key, never by this code.
+  ["110306", "ضريبة القيمة المضافة — مدخلات قابلة للاسترداد", "asset", true],
   ["1104", "الاستثمارات قصيرة الأجل", "asset", false],
   ["110401", "ودائع قصيرة الأجل", "asset", true],
   ["110402", "استثمارات متداولة", "asset", true],

@@ -104,6 +104,11 @@ export const FINANCE_PERMISSIONS = {
   supplierInvoiceReverse: "finance.supplier_invoice.reverse",
   supplierInvoiceAuditView: "finance.supplier_invoice.audit.view",
 
+  // Phase 3B.1 — configuring system-purpose GL account mappings (e.g. the
+  // recoverable Input VAT control account). High-authority Finance/CoA admin
+  // action — never granted to ordinary document creators.
+  accountMappingUpdate: "finance.account_mapping.update",
+
   reportsView: "finance.reports.view",
 
   budgetView: "finance.budget.view",
@@ -362,6 +367,17 @@ export const FINANCE_PERM_GROUPS: FinancePermGroup[] = [
         desc: "عكس فاتورة مورد مُرحَّلة",
       },
       { key: FINANCE_PERMISSIONS.supplierInvoiceAuditView, label: "عرض سجل تدقيق فواتير الموردين" },
+    ],
+  },
+  {
+    key: "finance-account-mapping",
+    label: "المالية — ربط الحسابات النظامية",
+    perms: [
+      {
+        key: FINANCE_PERMISSIONS.accountMappingUpdate,
+        label: "تهيئة ربط الحسابات النظامية (ضريبة المدخلات)",
+        desc: "صلاحية إدارية عالية — تحديد/تغيير حساب ضريبة القيمة المضافة (المدخلات) وغيره",
+      },
     ],
   },
   {

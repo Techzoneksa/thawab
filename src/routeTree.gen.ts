@@ -72,6 +72,7 @@ import { Route as FinanceClosingRouteImport } from './routes/finance.closing'
 import { Route as FinanceCashBankRouteImport } from './routes/finance.cash-bank'
 import { Route as FinanceBudgetsRouteImport } from './routes/finance.budgets'
 import { Route as FinanceAccountsRouteImport } from './routes/finance.accounts'
+import { Route as FinanceAccountMappingsRouteImport } from './routes/finance.account-mappings'
 import { Route as EndowmentsNewRouteImport } from './routes/endowments_.new'
 import { Route as EndowmentReturnsNewRouteImport } from './routes/endowment-returns_.new'
 import { Route as DonorsNewRouteImport } from './routes/donors_.new'
@@ -171,6 +172,7 @@ import { Route as ApiFinanceCashboxesRouteImport } from './routes/api/finance/ca
 import { Route as ApiFinanceBudgetsRouteImport } from './routes/api/finance/budgets'
 import { Route as ApiFinanceBankAccountsRouteImport } from './routes/api/finance/bank-accounts'
 import { Route as ApiFinanceAccountsRouteImport } from './routes/api/finance/accounts'
+import { Route as ApiFinanceAccountMappingsRouteImport } from './routes/api/finance/account-mappings'
 import { Route as ApiDataImportRouteImport } from './routes/api/data/import'
 import { Route as ApiDataExportRouteImport } from './routes/api/data/export'
 import { Route as AidIdEditRouteImport } from './routes/aid_.$id_.edit'
@@ -509,6 +511,11 @@ const FinanceBudgetsRoute = FinanceBudgetsRouteImport.update({
 const FinanceAccountsRoute = FinanceAccountsRouteImport.update({
   id: '/finance/accounts',
   path: '/finance/accounts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FinanceAccountMappingsRoute = FinanceAccountMappingsRouteImport.update({
+  id: '/finance/account-mappings',
+  path: '/finance/account-mappings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EndowmentsNewRoute = EndowmentsNewRouteImport.update({
@@ -1010,6 +1017,12 @@ const ApiFinanceAccountsRoute = ApiFinanceAccountsRouteImport.update({
   path: '/api/finance/accounts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFinanceAccountMappingsRoute =
+  ApiFinanceAccountMappingsRouteImport.update({
+    id: '/api/finance/account-mappings',
+    path: '/api/finance/account-mappings',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiDataImportRoute = ApiDataImportRouteImport.update({
   id: '/api/data/import',
   path: '/api/data/import',
@@ -1205,6 +1218,7 @@ export interface FileRoutesByFullPath {
   '/donors/new': typeof DonorsNewRoute
   '/endowment-returns/new': typeof EndowmentReturnsNewRoute
   '/endowments/new': typeof EndowmentsNewRoute
+  '/finance/account-mappings': typeof FinanceAccountMappingsRoute
   '/finance/accounts': typeof FinanceAccountsRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
   '/finance/cash-bank': typeof FinanceCashBankRoute
@@ -1246,6 +1260,7 @@ export interface FileRoutesByFullPath {
   '/aid/$id/edit': typeof AidIdEditRoute
   '/api/data/export': typeof ApiDataExportRoute
   '/api/data/import': typeof ApiDataImportRoute
+  '/api/finance/account-mappings': typeof ApiFinanceAccountMappingsRoute
   '/api/finance/accounts': typeof ApiFinanceAccountsRoute
   '/api/finance/bank-accounts': typeof ApiFinanceBankAccountsRoute
   '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
@@ -1393,6 +1408,7 @@ export interface FileRoutesByTo {
   '/donors/new': typeof DonorsNewRoute
   '/endowment-returns/new': typeof EndowmentReturnsNewRoute
   '/endowments/new': typeof EndowmentsNewRoute
+  '/finance/account-mappings': typeof FinanceAccountMappingsRoute
   '/finance/accounts': typeof FinanceAccountsRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
   '/finance/cash-bank': typeof FinanceCashBankRoute
@@ -1434,6 +1450,7 @@ export interface FileRoutesByTo {
   '/aid/$id/edit': typeof AidIdEditRoute
   '/api/data/export': typeof ApiDataExportRoute
   '/api/data/import': typeof ApiDataImportRoute
+  '/api/finance/account-mappings': typeof ApiFinanceAccountMappingsRoute
   '/api/finance/accounts': typeof ApiFinanceAccountsRoute
   '/api/finance/bank-accounts': typeof ApiFinanceBankAccountsRoute
   '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
@@ -1582,6 +1599,7 @@ export interface FileRoutesById {
   '/donors_/new': typeof DonorsNewRoute
   '/endowment-returns_/new': typeof EndowmentReturnsNewRoute
   '/endowments_/new': typeof EndowmentsNewRoute
+  '/finance/account-mappings': typeof FinanceAccountMappingsRoute
   '/finance/accounts': typeof FinanceAccountsRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
   '/finance/cash-bank': typeof FinanceCashBankRoute
@@ -1623,6 +1641,7 @@ export interface FileRoutesById {
   '/aid_/$id_/edit': typeof AidIdEditRoute
   '/api/data/export': typeof ApiDataExportRoute
   '/api/data/import': typeof ApiDataImportRoute
+  '/api/finance/account-mappings': typeof ApiFinanceAccountMappingsRoute
   '/api/finance/accounts': typeof ApiFinanceAccountsRoute
   '/api/finance/bank-accounts': typeof ApiFinanceBankAccountsRoute
   '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
@@ -1772,6 +1791,7 @@ export interface FileRouteTypes {
     | '/donors/new'
     | '/endowment-returns/new'
     | '/endowments/new'
+    | '/finance/account-mappings'
     | '/finance/accounts'
     | '/finance/budgets'
     | '/finance/cash-bank'
@@ -1813,6 +1833,7 @@ export interface FileRouteTypes {
     | '/aid/$id/edit'
     | '/api/data/export'
     | '/api/data/import'
+    | '/api/finance/account-mappings'
     | '/api/finance/accounts'
     | '/api/finance/bank-accounts'
     | '/api/finance/budgets'
@@ -1960,6 +1981,7 @@ export interface FileRouteTypes {
     | '/donors/new'
     | '/endowment-returns/new'
     | '/endowments/new'
+    | '/finance/account-mappings'
     | '/finance/accounts'
     | '/finance/budgets'
     | '/finance/cash-bank'
@@ -2001,6 +2023,7 @@ export interface FileRouteTypes {
     | '/aid/$id/edit'
     | '/api/data/export'
     | '/api/data/import'
+    | '/api/finance/account-mappings'
     | '/api/finance/accounts'
     | '/api/finance/bank-accounts'
     | '/api/finance/budgets'
@@ -2148,6 +2171,7 @@ export interface FileRouteTypes {
     | '/donors_/new'
     | '/endowment-returns_/new'
     | '/endowments_/new'
+    | '/finance/account-mappings'
     | '/finance/accounts'
     | '/finance/budgets'
     | '/finance/cash-bank'
@@ -2189,6 +2213,7 @@ export interface FileRouteTypes {
     | '/aid_/$id_/edit'
     | '/api/data/export'
     | '/api/data/import'
+    | '/api/finance/account-mappings'
     | '/api/finance/accounts'
     | '/api/finance/bank-accounts'
     | '/api/finance/budgets'
@@ -2337,6 +2362,7 @@ export interface RootRouteChildren {
   DonorsNewRoute: typeof DonorsNewRoute
   EndowmentReturnsNewRoute: typeof EndowmentReturnsNewRoute
   EndowmentsNewRoute: typeof EndowmentsNewRoute
+  FinanceAccountMappingsRoute: typeof FinanceAccountMappingsRoute
   FinanceAccountsRoute: typeof FinanceAccountsRoute
   FinanceBudgetsRoute: typeof FinanceBudgetsRoute
   FinanceCashBankRoute: typeof FinanceCashBankRoute
@@ -2377,6 +2403,7 @@ export interface RootRouteChildren {
   AidIdEditRoute: typeof AidIdEditRoute
   ApiDataExportRoute: typeof ApiDataExportRoute
   ApiDataImportRoute: typeof ApiDataImportRoute
+  ApiFinanceAccountMappingsRoute: typeof ApiFinanceAccountMappingsRoute
   ApiFinanceAccountsRoute: typeof ApiFinanceAccountsRoute
   ApiFinanceBankAccountsRoute: typeof ApiFinanceBankAccountsRoute
   ApiFinanceBudgetsRoute: typeof ApiFinanceBudgetsRoute
@@ -2900,6 +2927,13 @@ declare module '@tanstack/react-router' {
       path: '/finance/accounts'
       fullPath: '/finance/accounts'
       preLoaderRoute: typeof FinanceAccountsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/finance/account-mappings': {
+      id: '/finance/account-mappings'
+      path: '/finance/account-mappings'
+      fullPath: '/finance/account-mappings'
+      preLoaderRoute: typeof FinanceAccountMappingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/endowments_/new': {
@@ -3595,6 +3629,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFinanceAccountsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/finance/account-mappings': {
+      id: '/api/finance/account-mappings'
+      path: '/api/finance/account-mappings'
+      fullPath: '/api/finance/account-mappings'
+      preLoaderRoute: typeof ApiFinanceAccountMappingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/data/import': {
       id: '/api/data/import'
       path: '/api/data/import'
@@ -3853,6 +3894,7 @@ const rootRouteChildren: RootRouteChildren = {
   DonorsNewRoute: DonorsNewRoute,
   EndowmentReturnsNewRoute: EndowmentReturnsNewRoute,
   EndowmentsNewRoute: EndowmentsNewRoute,
+  FinanceAccountMappingsRoute: FinanceAccountMappingsRoute,
   FinanceAccountsRoute: FinanceAccountsRoute,
   FinanceBudgetsRoute: FinanceBudgetsRoute,
   FinanceCashBankRoute: FinanceCashBankRoute,
@@ -3893,6 +3935,7 @@ const rootRouteChildren: RootRouteChildren = {
   AidIdEditRoute: AidIdEditRoute,
   ApiDataExportRoute: ApiDataExportRoute,
   ApiDataImportRoute: ApiDataImportRoute,
+  ApiFinanceAccountMappingsRoute: ApiFinanceAccountMappingsRoute,
   ApiFinanceAccountsRoute: ApiFinanceAccountsRoute,
   ApiFinanceBankAccountsRoute: ApiFinanceBankAccountsRoute,
   ApiFinanceBudgetsRoute: ApiFinanceBudgetsRoute,

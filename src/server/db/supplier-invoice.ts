@@ -52,13 +52,7 @@ import {
   SUPPLIER_INVOICE_TRANSITIONS,
   type JournalAction,
 } from "@/lib/finance-permissions";
-import {
-  SupplierInvoiceStatus,
-  AccountStatus,
-  AccountClassification,
-  SupplierStatus,
-  JournalStatus,
-} from "@/lib/enums";
+import { SupplierInvoiceStatus, AccountStatus, SupplierStatus, JournalStatus } from "@/lib/enums";
 import type { Ctx } from "./api-utils";
 
 const AMOUNT_TOLERANCE = 0.005;
@@ -145,9 +139,11 @@ function computeTotals(lines: SupplierInvoiceLineInput[]): Computed {
 /**
  * Full server-side validation shared by create, update, submit and post. Never
  * trusts client numbers. Enforces: supplier exists+active · supplier document
- * number present · ≥1 line · each debit account exists/active/postable and is an
- * expense/asset that is NOT the AP control, NOT the input-VAT control, and NOT
- * mapped to any cashbox/bank · positive totals. Returns the recomputed totals.
+ * number present · ≥1 line · each debit account exists/active/postable/non-parent
+ * and is NOT the AP control, NOT the configured input-VAT control, and NOT mapped
+ * to any cashbox/bank (classification is otherwise unrestricted — expense, asset,
+ * or a normal liability are all valid allocations) · positive totals. Returns the
+ * recomputed totals.
  */
 export async function validateInvoice(dbh: Db, input: SupplierInvoiceInput): Promise<Computed> {
   const sup = (
@@ -209,17 +205,11 @@ export async function validateInvoice(dbh: Db, input: SupplierInvoiceInput): Pro
         400,
         "DEBIT_IS_INPUT_VAT",
       );
-    if (
-      acc.classification !== AccountClassification.EXPENSE &&
-      acc.classification !== AccountClassification.ASSET
-    )
-      throw new AppError(
-        `الحساب ${acc.name} يجب أن يكون مصروفاً أو أصلاً`,
-        400,
-        "DEBIT_CLASS_INVALID",
-      );
-    // A debit account mapped to any cashbox/bank would make this a disguised
-    // cash movement, not a payable accrual.
+    // A supplier-invoice allocation may debit ANY valid posting account (expense,
+    // asset, or a normal liability such as an accrued-liability being cleared) —
+    // classification is deliberately NOT restricted. Only the control accounts
+    // below are prohibited. A debit account mapped to any cashbox/bank would make
+    // this a disguised cash movement, not a payable accrual.
     const mapped = await accountMappedToAnyCashBank(dbh, l.accountId);
     if (mapped)
       throw new AppError(

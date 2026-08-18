@@ -11,7 +11,8 @@
  * assertions on the service/route files.
  *
  * Covers SI-A..I, TAX-A..E, WF-A..H, POST-A..H, IDEM-A..E, REV-A..H, PERM-A..F,
- * AUD-A..E.
+ * AUD-A..E, and (Phase 3B.1) VAT-MAP-A..I (explicit Input VAT mapping) +
+ * DEBIT-A..H (allocation-account eligibility).
  * Run: node_modules/.bin/tsx scripts/test-phase-3b.mts
  */
 import { PGlite } from "@electric-sql/pglite";
@@ -19,6 +20,12 @@ import { drizzle } from "drizzle-orm/pglite";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { validateInvoice } from "@/server/db/supplier-invoice";
+import {
+  validateInputVatMappingAccount,
+  assignInputVatAccount,
+  getInputVatMapping,
+  inputVatPreflight,
+} from "@/server/db/account-mapping";
 import {
   linkEntryApLine,
   createSupplierApLink,
@@ -170,6 +177,11 @@ async function freshDb(opts: { withVat?: boolean } = {}) {
     ["a-parent", "53", "Admin expenses (header)", "expense", false, null],
     ["a-inactive", "5399", "Old expense", "expense", true, null],
     ["a-cashmapped", "110109", "Petty cash link", "asset", true, null],
+    ["a-bankmapped", "110209", "Bank link", "asset", true, null],
+    // A NORMAL liability that is NOT the AP control account (e.g. accrued liability).
+    ["a-accrued", "210102", "Accrued liabilities", "liability", true, null],
+    // A spare asset account used as an Input VAT mapping candidate.
+    ["a-vatcand", "110307", "VAT candidate", "asset", true, null],
   ];
   if (withVat) accs.push(["a-vat", "110306", "Input VAT", "asset", true, "input_vat"]);
   for (const [id, code, name, cls, postable, sk] of accs) {
@@ -178,9 +190,13 @@ async function freshDb(opts: { withVat?: boolean } = {}) {
       `INSERT INTO accounts (id,code,name,classification,postable,status,currency,system_key) VALUES ('${id}','${code}','${name}','${cls}',${postable},'${status}','SAR',${sk ? `'${sk}'` : "NULL"})`,
     );
   }
-  // A cashbox mapping a-cashmapped so it reads as cash/bank-mapped.
+  // A cashbox mapping a-cashmapped, and a bank account mapping a-bankmapped, so
+  // both read as cash/bank-mapped.
   await client.exec(
     `INSERT INTO cashboxes (id,code,name,linked_account_id,currency,status) VALUES ('cb1','CB1','Petty','a-cashmapped','SAR','active')`,
+  );
+  await client.exec(
+    `INSERT INTO bank_accounts (id,code,bank_name,linked_account_id,currency,status) VALUES ('ba1','BA1','Bank','a-bankmapped','SAR','active')`,
   );
   await client.exec(
     `INSERT INTO fiscal_periods (id,name,start_date,end_date,status) VALUES ('p','FY2026','2026-01-01','2026-12-31','open')`,
@@ -260,6 +276,12 @@ const route = readFileSync(
   "utf8",
 );
 const mig = readFileSync(resolve(process.cwd(), "drizzle/0022_supplier_invoices.sql"), "utf8");
+const mig23 = readFileSync(
+  resolve(process.cwd(), "drizzle/0023_input_vat_mapping_safety.sql"),
+  "utf8",
+);
+const mapSvc = readFileSync(resolve(process.cwd(), "src/server/db/account-mapping.ts"), "utf8");
+const seedSrc = readFileSync(resolve(process.cwd(), "scripts/seed.ts"), "utf8");
 
 async function main() {
   // ===================== SI-A..I — validation =====================
@@ -346,14 +368,15 @@ async function main() {
       ),
     );
     ok(
-      "SI-H: revenue/liability/equity account rejected (must be expense/asset)",
-      await throwsCode(
-        () =>
-          validateInvoice(
+      "SI-H: a normal non-AP liability account is accepted (accrual clearing allowed)",
+      near(
+        (
+          await validateInvoice(
             db,
-            inv({ lines: [{ accountId: "a-counter", quantity: 1, unitPrice: 50 }] }),
-          ),
-        "DEBIT_CLASS_INVALID",
+            inv({ lines: [{ accountId: "a-accrued", quantity: 1, unitPrice: 300, taxRate: 0 }] }),
+          )
+        ).totalAmount,
+        300,
       ),
     );
     ok(
@@ -844,6 +867,217 @@ async function main() {
         /source_type' = 'supplier_invoice'|source_type" = 'supplier_invoice'/.test(mig) &&
         /system_key' = 'input_vat'|'input_vat'/.test(mig) &&
         /IF NOT EXISTS \(SELECT 1 FROM "accounts" WHERE "system_key" = 'input_vat'\)/.test(mig),
+    );
+  }
+
+  // ===================== VAT-MAP-A..I — Input VAT mapping (3B.1) =====================
+  console.log("\nVAT-MAP-A..I — explicit Input VAT account mapping");
+  {
+    // A: no mapping + zero-tax invoice → allowed.
+    {
+      const { db, client } = await freshDb({ withVat: false });
+      await mkSupplier(client, "sup1", "S-1");
+      ok(
+        "VAT-MAP-A: no Input VAT mapping + zero-tax invoice → POST-eligible (validates)",
+        near(
+          (
+            await validateInvoice(
+              db,
+              inv({ lines: [{ accountId: "a-exp", quantity: 1, unitPrice: 100, taxRate: 0 }] }),
+            )
+          ).totalAmount,
+          100,
+        ),
+      );
+      // B: no mapping + taxable invoice → INPUT_VAT_ACCOUNT_MISSING, no journal.
+      ok(
+        "VAT-MAP-B: no Input VAT mapping + taxable invoice → INPUT_VAT_ACCOUNT_MISSING",
+        await throwsCode(
+          () =>
+            validateInvoice(
+              db,
+              inv({ lines: [{ accountId: "a-exp", quantity: 1, unitPrice: 100, taxRate: 15 }] }),
+            ),
+          "INPUT_VAT_ACCOUNT_MISSING",
+        ),
+      );
+    }
+    // C: map a valid asset account, then taxable invoice posts with VAT on that exact account.
+    {
+      const { db, client } = await freshDb({ withVat: false });
+      await mkSupplier(client, "sup1", "S-1");
+      await db.transaction((tx: any) => assignInputVatAccount(tx, { accountId: "a-vatcand" }));
+      const mapping = await getInputVatMapping(db);
+      const c = await validateInvoice(
+        db,
+        inv({ lines: [{ accountId: "a-exp", quantity: 1, unitPrice: 1000, taxRate: 15 }] }),
+      );
+      const e = await postInvoiceEntry(db, c, { supplierId: "sup1", sourceId: "SINV-VAT" });
+      const vatLine = await lineId(client, e, "a-vatcand", "debit");
+      ok(
+        "VAT-MAP-C: mapped asset account → taxable posts, VAT debit uses exactly the mapped account id",
+        mapping?.id === "a-vatcand" && !!vatLine && near(c.taxAmount, 150),
+      );
+    }
+    // D: expense account rejected as Input VAT mapping.
+    {
+      const { db, client } = await freshDb({ withVat: false });
+      await mkSupplier(client, "sup1", "S-1");
+      ok(
+        "VAT-MAP-D: mapping an Expense account rejected (must be asset)",
+        await throwsCode(
+          () => validateInputVatMappingAccount(db, "a-exp"),
+          "MAPPING_CLASS_INVALID",
+        ),
+      );
+      // E: liability account rejected.
+      ok(
+        "VAT-MAP-E: mapping a Liability account rejected (must be asset)",
+        await throwsCode(
+          () => validateInputVatMappingAccount(db, "a-accrued"),
+          "MAPPING_CLASS_INVALID",
+        ),
+      );
+      // F: parent/non-postable account rejected.
+      ok(
+        "VAT-MAP-F: mapping a parent/non-postable account rejected",
+        await throwsCode(
+          () => validateInputVatMappingAccount(db, "a-parent"),
+          "ACCOUNT_NOT_POSTABLE",
+        ),
+      );
+      // G: cashbox/bank-linked account rejected.
+      ok(
+        "VAT-MAP-G: mapping a Cashbox-linked account rejected",
+        await throwsCode(
+          () => validateInputVatMappingAccount(db, "a-cashmapped"),
+          "MAPPING_IS_CASH_BANK",
+        ),
+      );
+      ok(
+        "VAT-MAP-G: mapping a Bank-linked account rejected",
+        await throwsCode(
+          () => validateInputVatMappingAccount(db, "a-bankmapped"),
+          "MAPPING_IS_CASH_BANK",
+        ),
+      );
+      ok(
+        "VAT-MAP-G: mapping the AP control account rejected",
+        await throwsCode(() => validateInputVatMappingAccount(db, "a-ap"), "MAPPING_IS_AP"),
+      );
+    }
+    // H: changing the mapping is atomic — exactly one Input VAT mapping remains.
+    {
+      const { db, client } = await freshDb({ withVat: true }); // a-vat pre-mapped
+      await mkSupplier(client, "sup1", "S-1");
+      await db.transaction((tx: any) => assignInputVatAccount(tx, { accountId: "a-vatcand" }));
+      const holders = (await client.query(`SELECT id FROM accounts WHERE system_key='input_vat'`))
+        .rows;
+      const mapping = await getInputVatMapping(db);
+      ok(
+        "VAT-MAP-H: reassigning is atomic — old cleared, exactly one mapping (a-vatcand)",
+        holders.length === 1 && holders[0].id === "a-vatcand" && mapping?.id === "a-vatcand",
+      );
+      const pf = await inputVatPreflight(db);
+      ok(
+        "VAT-MAP-H: preflight reports single mapping + configured account",
+        pf.duplicateMappingCount === 1 && pf.configured?.accountId === "a-vatcand",
+      );
+    }
+    // I: posting service + seed carry no hardcoded VAT account code; 0023 clears the auto-map.
+    ok(
+      "VAT-MAP-I: supplier-invoice posting service contains no hardcoded 110306",
+      !/110306/.test(svc),
+    );
+    ok(
+      "VAT-MAP-I: mapping service resolves/sets by system_key (SYS.INPUT_VAT), never inserts a 110306 account",
+      /SYS\.INPUT_VAT/.test(mapSvc) &&
+        /systemKey/.test(mapSvc) &&
+        !/INSERT INTO|\.insert\(/i.test(mapSvc),
+    );
+    ok(
+      "VAT-MAP-I: seed no longer auto-assigns input_vat to a CoA code",
+      !/"input_vat"/.test(seedSrc),
+    );
+    ok(
+      "VAT-MAP-I: forward migration 0023 clears the 0022 auto-map (non-destructive)",
+      /UPDATE "accounts"/.test(mig23) &&
+        /"system_key" = NULL/.test(mig23) &&
+        /"code" = '110306'/.test(mig23) &&
+        /"system_key" = 'input_vat'/.test(mig23) &&
+        !/DELETE|DROP/.test(mig23),
+    );
+  }
+
+  // ===================== DEBIT-A..H — allocation account eligibility (3B.1) =====================
+  console.log("\nDEBIT-A..H — supplier-invoice allocation account eligibility");
+  {
+    const { db, client } = await freshDb({ withVat: true });
+    await mkSupplier(client, "sup1", "S-1");
+    const allowed = async (acc: string) =>
+      near(
+        (
+          await validateInvoice(
+            db,
+            inv({ lines: [{ accountId: acc, quantity: 1, unitPrice: 100, taxRate: 0 }] }),
+          )
+        ).totalAmount,
+        100,
+      );
+    ok("DEBIT-A: active/postable Expense account allowed", await allowed("a-exp"));
+    ok("DEBIT-B: active/postable Asset account allowed", await allowed("a-asset"));
+    ok("DEBIT-C: normal (non-AP) Liability account allowed", await allowed("a-accrued"));
+    ok(
+      "DEBIT-D: AP control account rejected",
+      await throwsCode(
+        () =>
+          validateInvoice(db, inv({ lines: [{ accountId: "a-ap", quantity: 1, unitPrice: 100 }] })),
+        "DEBIT_IS_AP",
+      ),
+    );
+    ok(
+      "DEBIT-E: configured Input VAT account rejected as an allocation line",
+      await throwsCode(
+        () =>
+          validateInvoice(
+            db,
+            inv({ lines: [{ accountId: "a-vat", quantity: 1, unitPrice: 100 }] }),
+          ),
+        "DEBIT_IS_INPUT_VAT",
+      ),
+    );
+    ok(
+      "DEBIT-F: Cashbox-linked account rejected",
+      await throwsCode(
+        () =>
+          validateInvoice(
+            db,
+            inv({ lines: [{ accountId: "a-cashmapped", quantity: 1, unitPrice: 100 }] }),
+          ),
+        "DEBIT_IS_CASH_BANK",
+      ),
+    );
+    ok(
+      "DEBIT-G: Bank-linked account rejected",
+      await throwsCode(
+        () =>
+          validateInvoice(
+            db,
+            inv({ lines: [{ accountId: "a-bankmapped", quantity: 1, unitPrice: 100 }] }),
+          ),
+        "DEBIT_IS_CASH_BANK",
+      ),
+    );
+    ok(
+      "DEBIT-H: parent/non-postable account rejected",
+      await throwsCode(
+        () =>
+          validateInvoice(
+            db,
+            inv({ lines: [{ accountId: "a-parent", quantity: 1, unitPrice: 100 }] }),
+          ),
+        "DEBIT_ACCOUNT_NOT_POSTABLE",
+      ),
     );
   }
 
