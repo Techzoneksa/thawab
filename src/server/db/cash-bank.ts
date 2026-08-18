@@ -11,14 +11,12 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import { accounts, cashboxes, bankAccounts, journalEntries, journalLines } from "./schema";
 import { getAccountBalance } from "./balances";
 import { AppError } from "./errors";
+import { LOCK_NS } from "./lock-namespaces";
 import { AccountClassification, AccountStatus, JournalStatus } from "@/lib/enums";
 
 type Db = { select: (...a: any[]) => any };
 
 export type CashBankKind = "cashbox" | "bank";
-
-// Advisory-lock namespace for cash/bank GL-mapping decisions (arbitrary, stable).
-const CASH_BANK_LOCK_NS = 42;
 
 /**
  * Serialize all mapping decisions for one GL account across BOTH tables. Held
@@ -29,7 +27,23 @@ const CASH_BANK_LOCK_NS = 42;
  * before the availability check + insert/update.
  */
 export async function acquireMappingLock(tx: any, accountId: string): Promise<void> {
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(${CASH_BANK_LOCK_NS}, hashtext(${accountId}))`);
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(${LOCK_NS.CASH_BANK_MAPPING}, hashtext(${accountId}))`,
+  );
+}
+
+/**
+ * Serialize cash-payment posting for one Cashbox linked GL account (Phase 2C).
+ * Held for the current transaction, so two concurrent cash payments on the same
+ * cashbox run one-after-another: each reads the committed balance of the prior
+ * one, making a negative-cash race impossible. Distinct namespace from mapping
+ * so it never blocks (or is blocked by) a mapping change. Must be called INSIDE
+ * the posting db.transaction, before the sufficiency check + journal.
+ */
+export async function acquireCashPostingLock(tx: any, accountId: string): Promise<void> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(${LOCK_NS.CASH_PAYMENT_POSTING}, hashtext(${accountId}))`,
+  );
 }
 
 /**
@@ -116,6 +130,36 @@ export async function accountMappedToActiveCashBank(
           eq(bankAccounts.status, AccountStatus.ACTIVE),
         ),
       )
+      .limit(1)
+  )[0];
+  if (ba) return "bank";
+  return null;
+}
+
+/**
+ * Returns the kind ("cashbox"|"bank") if a GL account is the linked account of
+ * ANY cashbox or bank — active OR inactive. Payment Vouchers (Phase 2C) reject a
+ * debit line mapped to a cash/bank master regardless of status: its operational
+ * identity is still Cash/Bank, so a payment against it would be a disguised
+ * internal transfer (handled by a dedicated workflow later), not a payment.
+ */
+export async function accountMappedToAnyCashBank(
+  dbh: Db,
+  accountId: string,
+): Promise<CashBankKind | null> {
+  const cb = (
+    await dbh
+      .select({ id: cashboxes.id })
+      .from(cashboxes)
+      .where(eq(cashboxes.linkedAccountId, accountId))
+      .limit(1)
+  )[0];
+  if (cb) return "cashbox";
+  const ba = (
+    await dbh
+      .select({ id: bankAccounts.id })
+      .from(bankAccounts)
+      .where(eq(bankAccounts.linkedAccountId, accountId))
       .limit(1)
   )[0];
   if (ba) return "bank";

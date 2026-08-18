@@ -205,6 +205,22 @@ export const ReceiptVoucherStatus = {
 } as const;
 export type ReceiptVoucherStatus = (typeof ReceiptVoucherStatus)[keyof typeof ReceiptVoucherStatus];
 
+/**
+ * Phase 2C — Payment Voucher (سند صرف) lifecycle. Mirrors the receipt voucher:
+ * DRAFT/SUBMITTED/APPROVED/REJECTED have NO GL effect; only POSTED creates the
+ * journal (Dr allocations / Cr cash/bank), REVERSED nets it via the certified
+ * reversal engine. Shared status strings drive the same governance engine.
+ */
+export const PaymentVoucherStatus = {
+  DRAFT: "draft",
+  SUBMITTED: "submitted",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+  POSTED: "posted",
+  REVERSED: "reversed",
+} as const;
+export type PaymentVoucherStatus = (typeof PaymentVoucherStatus)[keyof typeof PaymentVoucherStatus];
+
 /** Net-asset fund classes — essential for charity restricted-funds tracking. */
 export const Fund = {
   UNRESTRICTED: "unrestricted",

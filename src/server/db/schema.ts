@@ -645,6 +645,76 @@ export const receiptVoucherLines = pgTable(
   }),
 );
 
+// ============ PAYMENT VOUCHERS (سندات الصرف) — Phase 2C ============
+//
+// An operational money-out document. Debit = the payment allocation lines;
+// credit = the selected Cashbox/Bank's linked GL account. NO stored accounting
+// balance. Exactly ONE of cashbox_id / bank_account_id (DB CHECK in migration
+// 0019). journal_entry_id is set only on POST and is unique. Cashbox payments
+// additionally require sufficient book cash (checked under an advisory lock at
+// posting) — see payment-voucher.ts.
+export const paymentVouchers = pgTable(
+  "payment_vouchers",
+  {
+    id: text("id").primaryKey(),
+    voucherNumber: text("voucher_number").notNull().unique(),
+    voucherDate: text("voucher_date").notNull().default(""), // accounting date
+    status: text("status").notNull().default("draft"),
+    cashboxId: text("cashbox_id").references(() => cashboxes.id),
+    bankAccountId: text("bank_account_id").references(() => bankAccounts.id),
+    payeeName: text("payee_name").notNull().default(""),
+    payeeReferenceType: text("payee_reference_type"),
+    payeeReferenceId: text("payee_reference_id"),
+    externalReference: text("external_reference"),
+    description: text("description").default(""),
+    notes: text("notes").default(""),
+    currency: text("currency").notNull().default("SAR"),
+    totalAmount: doublePrecision("total_amount").notNull().default(0),
+    journalEntryId: text("journal_entry_id").references(() => journalEntries.id),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+    submittedBy: text("submitted_by").references(() => users.id),
+    submittedAt: text("submitted_at"),
+    approvedBy: text("approved_by").references(() => users.id),
+    approvedAt: text("approved_at"),
+    postedBy: text("posted_by").references(() => users.id),
+    postedAt: text("posted_at"),
+    reversedBy: text("reversed_by").references(() => users.id),
+    reversedAt: text("reversed_at"),
+  },
+  (t) => ({
+    numberIdx: uniqueIndex("payment_vouchers_number_idx").on(t.voucherNumber),
+    journalIdx: uniqueIndex("payment_vouchers_journal_entry_idx").on(t.journalEntryId),
+    statusIdx: index("payment_vouchers_status_idx").on(t.status),
+    dateIdx: index("payment_vouchers_date_idx").on(t.voucherDate),
+    cashboxIdx: index("payment_vouchers_cashbox_idx").on(t.cashboxId),
+    bankIdx: index("payment_vouchers_bank_idx").on(t.bankAccountId),
+  }),
+);
+
+export const paymentVoucherLines = pgTable(
+  "payment_voucher_lines",
+  {
+    id: text("id").primaryKey(),
+    paymentVoucherId: text("payment_voucher_id")
+      .notNull()
+      .references(() => paymentVouchers.id, { onDelete: "cascade" }),
+    lineNumber: integer("line_number").notNull().default(1),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => accounts.id),
+    amount: doublePrecision("amount").notNull().default(0),
+    description: text("description").default(""),
+    costCenterId: text("cost_center_id").references(() => costCenters.id),
+    createdAt: text("created_at").notNull().default(""),
+  },
+  (t) => ({
+    voucherIdx: index("payment_voucher_lines_voucher_idx").on(t.paymentVoucherId),
+    accountIdx: index("payment_voucher_lines_account_idx").on(t.accountId),
+  }),
+);
+
 // ============ APPROVALS ============
 
 export const approvals = pgTable("approvals", {

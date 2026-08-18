@@ -134,6 +134,13 @@
       "when": 1787000000000,
       "tag": "0018_receipt_vouchers",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787010000000,
+      "tag": "0019_payment_vouchers",
+      "breakpoints": true
     }
   ]
 }

@@ -67,6 +67,18 @@ export const FINANCE_PERMISSIONS = {
   receiptReverse: "finance.receipt.reverse",
   receiptAuditView: "finance.receipt.audit.view",
 
+  // Phase 2C — Payment Vouchers (سندات الصرف). Granular so submit ≠ approve ≠
+  // post ≠ reverse, and none imply Cash/Bank master mutation or journal actions.
+  paymentView: "finance.payment.view",
+  paymentCreate: "finance.payment.create",
+  paymentUpdateDraft: "finance.payment.update_draft",
+  paymentSubmit: "finance.payment.submit",
+  paymentApprove: "finance.payment.approve",
+  paymentReject: "finance.payment.reject",
+  paymentPost: "finance.payment.post",
+  paymentReverse: "finance.payment.reverse",
+  paymentAuditView: "finance.payment.audit.view",
+
   reportsView: "finance.reports.view",
 
   budgetView: "finance.budget.view",
@@ -244,6 +256,37 @@ export const FINANCE_PERM_GROUPS: FinancePermGroup[] = [
     ],
   },
   {
+    key: "finance-payment-vouchers",
+    label: "المالية — سندات الصرف",
+    perms: [
+      { key: FINANCE_PERMISSIONS.paymentView, label: "عرض سندات الصرف" },
+      { key: FINANCE_PERMISSIONS.paymentCreate, label: "إنشاء سند صرف" },
+      { key: FINANCE_PERMISSIONS.paymentUpdateDraft, label: "تعديل مسودة سند صرف" },
+      { key: FINANCE_PERMISSIONS.paymentSubmit, label: "إرسال سند صرف للاعتماد" },
+      {
+        key: FINANCE_PERMISSIONS.paymentApprove,
+        label: "اعتماد سند صرف",
+        desc: "مراجعة واعتماد سندات الصرف المُرسَلة",
+      },
+      {
+        key: FINANCE_PERMISSIONS.paymentReject,
+        label: "إعادة / رفض سند صرف",
+        desc: "إعادة السند للمسودة أو رفضه بسبب",
+      },
+      {
+        key: FINANCE_PERMISSIONS.paymentPost,
+        label: "ترحيل سند صرف",
+        desc: "ترحيل سند الصرف المعتمد إلى الأستاذ",
+      },
+      {
+        key: FINANCE_PERMISSIONS.paymentReverse,
+        label: "عكس سند صرف",
+        desc: "عكس سند صرف مُرحَّل",
+      },
+      { key: FINANCE_PERMISSIONS.paymentAuditView, label: "عرض سجل تدقيق سندات الصرف" },
+    ],
+  },
+  {
     key: "finance-reports",
     label: "المالية — التقارير",
     perms: [{ key: FINANCE_PERMISSIONS.reportsView, label: "عرض التقارير المالية" }],
@@ -386,6 +429,55 @@ export const RECEIPT_TRANSITIONS: Transition[] = [
     action: "reverse",
     to: JournalStatus.REVERSED,
     permission: FINANCE_PERMISSIONS.receiptReverse,
+    reasonRequired: true,
+  },
+];
+
+/**
+ * Phase 2C — Payment Voucher (سند صرف) state matrix. Same governance engine and
+ * JournalAction verbs as journals/receipts, its own transitions and its own
+ * granular payment permissions. DRAFT→POSTED and SUBMITTED→POSTED are absent by
+ * construction; approval (maker-checker-blocked) and posting are separate.
+ */
+export const PAYMENT_TRANSITIONS: Transition[] = [
+  {
+    from: JournalStatus.DRAFT,
+    action: "submit",
+    to: JournalStatus.SUBMITTED,
+    permission: FINANCE_PERMISSIONS.paymentSubmit,
+  },
+  {
+    from: JournalStatus.SUBMITTED,
+    action: "approve",
+    to: JournalStatus.APPROVED,
+    permission: FINANCE_PERMISSIONS.paymentApprove,
+    makerCheckerBlocked: true,
+  },
+  {
+    from: JournalStatus.SUBMITTED,
+    action: "return",
+    to: JournalStatus.DRAFT,
+    permission: FINANCE_PERMISSIONS.paymentReject,
+    reasonRequired: true,
+  },
+  {
+    from: JournalStatus.SUBMITTED,
+    action: "reject",
+    to: JournalStatus.REJECTED,
+    permission: FINANCE_PERMISSIONS.paymentReject,
+    reasonRequired: true,
+  },
+  {
+    from: JournalStatus.APPROVED,
+    action: "post",
+    to: JournalStatus.POSTED,
+    permission: FINANCE_PERMISSIONS.paymentPost,
+  },
+  {
+    from: JournalStatus.POSTED,
+    action: "reverse",
+    to: JournalStatus.REVERSED,
+    permission: FINANCE_PERMISSIONS.paymentReverse,
     reasonRequired: true,
   },
 ];
