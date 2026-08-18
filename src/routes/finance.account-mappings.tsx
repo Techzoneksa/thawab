@@ -5,12 +5,24 @@ import { AppShell, Card, Btn, Badge } from "@/components/erp/AppShell";
 import { showToast, EmptyState } from "@/components/erp/actions";
 import { useAuth, userCan } from "@/lib/api/auth";
 import { getAccounts, type Account } from "@/lib/api/accounts";
-import { getAccountMappings, setInputVatAccount } from "@/lib/api/account-mappings";
+import {
+  getAccountMappings,
+  setInputVatAccount,
+  type MappingStatus,
+} from "@/lib/api/account-mappings";
 
 export const Route = createFileRoute("/finance/account-mappings")({
   head: () => ({ meta: [{ title: "ربط الحسابات النظامية — ثواب" }] }),
   component: Page,
 });
+
+const STATUS_META: Record<MappingStatus, { label: string; tone: any }> = {
+  MISSING: { label: "غير محدد", tone: "warning" },
+  UNCONFIRMED: { label: "غير مؤكد", tone: "destructive" },
+  MISMATCH: { label: "عدم تطابق", tone: "destructive" },
+  INVALID: { label: "غير صالح", tone: "destructive" },
+  READY: { label: "جاهز", tone: "success" },
+};
 
 function Page() {
   const { user } = useAuth();
@@ -25,7 +37,7 @@ function Page() {
   const mut = useMutation({
     mutationFn: () => setInputVatAccount(accountId),
     onSuccess: () => {
-      showToast("تم تعيين حساب ضريبة المدخلات", "success");
+      showToast("تم تعيين وتأكيد حساب ضريبة المدخلات", "success");
       setAccountId("");
       qc.invalidateQueries({ queryKey: ["account-mappings"] });
     },
@@ -44,7 +56,11 @@ function Page() {
   }
 
   const pf = mapQ.data?.inputVat.preflight;
-  const configured = pf?.configured || null;
+  const status = (pf?.status || "MISSING") as MappingStatus;
+  const sMeta = STATUS_META[status];
+  const mapping = pf?.mapping || null;
+  const confirmation = pf?.confirmation || null;
+  const isChange = status === "READY";
 
   // Candidate accounts for Input VAT: active, postable (non-parent), asset.
   const candidates = (acctQ.data?.items || []).filter(
@@ -60,41 +76,66 @@ function Page() {
         <Card className="p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="font-bold">حساب ضريبة القيمة المضافة — المدخلات (Input VAT)</div>
-            {configured ? (
-              <Badge tone="success">مُهيّأ</Badge>
-            ) : (
-              <Badge tone="warning">غير مُهيّأ</Badge>
-            )}
+            <Badge tone={sMeta.tone}>{sMeta.label}</Badge>
           </div>
 
           <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
             عند ترحيل فاتورة مورد خاضعة للضريبة، يُقيَّد مبلغ الضريبة على هذا الحساب (طرف مدين). لا
-            يختار النظام الحساب تلقائياً — يجب أن يحدده مسؤول مالي صراحةً. الفواتير غير الخاضعة
-            للضريبة لا تتطلب هذا الربط.
+            يختار النظام الحساب تلقائياً، ولا يُعتمد أي ربط قائم إلا بعد تأكيد صريح من مسؤول مالي.
+            الفواتير غير الخاضعة للضريبة لا تتطلب هذا الربط.
           </p>
 
-          {configured ? (
-            <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm mb-3">
-              <div className="font-mono font-semibold">
-                {configured.code} — {configured.name}
+          <div className="grid grid-cols-1 gap-2 mb-3 sm:grid-cols-2">
+            <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+              <div className="text-[10px] text-muted-foreground">
+                الحساب المرتبط حالياً (system_key)
               </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">
-                التصنيف: {configured.classification} · {configured.active ? "نشط" : "غير نشط"} ·{" "}
-                {configured.postable ? "قابل للترحيل" : "غير قابل للترحيل"}
-              </div>
+              {mapping ? (
+                <>
+                  <div className="font-mono font-semibold">
+                    {mapping.code} — {mapping.name}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    {mapping.classification} · {mapping.active ? "نشط" : "غير نشط"} ·{" "}
+                    {mapping.postable ? "قابل للترحيل" : "غير قابل للترحيل"}
+                  </div>
+                </>
+              ) : (
+                <div className="text-muted-foreground">— لا يوجد —</div>
+              )}
             </div>
-          ) : (
+            <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+              <div className="text-[10px] text-muted-foreground">التأكيد الصريح</div>
+              {confirmation ? (
+                <>
+                  <div className="text-[12px]">
+                    الحساب المؤكَّد: <span className="font-mono">{confirmation.accountId}</span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    بواسطة: {confirmation.confirmedBy || "—"} ·{" "}
+                    {String(confirmation.confirmedAt || "")
+                      .slice(0, 16)
+                      .replace("T", " ")}
+                  </div>
+                </>
+              ) : (
+                <div className="text-muted-foreground">— غير مؤكَّد —</div>
+              )}
+            </div>
+          </div>
+
+          {status !== "READY" ? (
             <div className="rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs mb-3">
-              لا يوجد حساب ضريبة مدخلات مُهيّأ. لن يمكن ترحيل فواتير الموردين الخاضعة للضريبة حتى
-              يتم تعيين الحساب.
+              الإعداد ليس جاهزاً ({sMeta.label}). لن يمكن ترحيل فواتير الموردين الخاضعة للضريبة حتى
+              يتم تعيين حساب صالح وتأكيده صراحةً.
             </div>
-          )}
+          ) : null}
 
           {canEdit ? (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
               <label className="flex-1 block">
                 <div className="text-xs font-semibold text-muted-foreground mb-1">
-                  {configured ? "تغيير الحساب المرتبط" : "تعيين الحساب"} (أصل قابل للترحيل)
+                  {isChange ? "تغيير الحساب المؤكَّد" : "اختر الحساب (أصل قابل للترحيل)"}
                 </div>
                 <select
                   className="inp"
@@ -112,9 +153,13 @@ function Page() {
               <Btn
                 variant="primary"
                 disabled={!accountId || mut.isPending}
-                onClick={() => mut.mutate()}
+                onClick={() => {
+                  if (isChange && !window.confirm("تغيير حساب ضريبة المدخلات المؤكَّد. متابعة؟"))
+                    return;
+                  mut.mutate();
+                }}
               >
-                حفظ الربط
+                تعيين وتأكيد حساب ضريبة المدخلات
               </Btn>
             </div>
           ) : (
@@ -126,8 +171,19 @@ function Page() {
 
         {pf ? (
           <Card className="p-4">
-            <div className="text-xs font-bold mb-2">تشخيص الربط (قراءة فقط)</div>
+            <div className="text-xs font-bold mb-2">تشخيص الإعداد (قراءة فقط)</div>
             <div className="grid grid-cols-2 gap-2 text-xs">
+              <Diag label="حالة الإعداد" value={sMeta.label} warn={status !== "READY"} />
+              <Diag
+                label="تطابق الربط والتأكيد"
+                value={pf.mappingMatchesConfirmation ? "نعم" : "لا"}
+                warn={!pf.mappingMatchesConfirmation}
+              />
+              <Diag
+                label="الحساب المرتبط صالح"
+                value={pf.mappingValid ? "نعم" : "لا"}
+                warn={!pf.mappingValid}
+              />
               <Diag
                 label="عدد مرات الربط (يجب ≤ 1)"
                 value={pf.duplicateMappingCount}
@@ -136,7 +192,7 @@ function Page() {
               <Diag label="فواتير خاضعة للضريبة" value={pf.taxableInvoiceCount} />
               <Diag label="فواتير خاضعة مُرحَّلة" value={pf.postedTaxableInvoiceCount} />
               <Diag
-                label="فواتير خاضعة معلّقة بسبب غياب الربط"
+                label="فواتير خاضعة معلّقة (الإعداد غير جاهز)"
                 value={pf.taxableInvoicesBlockedByMissingMapping}
                 warn={pf.taxableInvoicesBlockedByMissingMapping > 0}
               />

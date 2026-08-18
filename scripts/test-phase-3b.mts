@@ -24,6 +24,9 @@ import {
   validateInputVatMappingAccount,
   assignInputVatAccount,
   getInputVatMapping,
+  getInputVatConfirmation,
+  getInputVatConfiguration,
+  resolveConfirmedInputVatAccount,
   inputVatPreflight,
 } from "@/server/db/account-mapping";
 import {
@@ -157,10 +160,20 @@ CREATE TABLE supplier_invoice_lines (id text PRIMARY KEY, supplier_invoice_id te
   line_subtotal double precision NOT NULL DEFAULT 0, tax_rate double precision NOT NULL DEFAULT 0,
   tax_amount double precision NOT NULL DEFAULT 0, line_total double precision NOT NULL DEFAULT 0,
   cost_center_id text, created_at text NOT NULL DEFAULT '');
+CREATE TABLE finance_account_mapping_confirmations (id text PRIMARY KEY, purpose text NOT NULL UNIQUE,
+  account_id text NOT NULL, confirmed_by text, confirmed_at text NOT NULL DEFAULT '',
+  updated_at text NOT NULL DEFAULT '');
 `;
 
-async function freshDb(opts: { withVat?: boolean } = {}) {
-  const withVat = opts.withVat !== false; // default: VAT account seeded
+/**
+ * Fresh DB. Defaults to a fully-configured Input VAT (account a-vat mapped AND
+ * explicitly confirmed → READY), matching a correctly set-up environment. Use
+ * { withVat:false } for no mapping, or { confirm:false } for a mapping that has
+ * NOT been confirmed by an administrator.
+ */
+async function freshDb(opts: { withVat?: boolean; confirm?: boolean } = {}) {
+  const withVat = opts.withVat !== false; // default: VAT account seeded (system_key)
+  const confirm = opts.confirm !== false && withVat; // default: also confirmed
   const client = new PGlite();
   const db = drizzle(client) as any;
   for (const s of DDL.split(";")
@@ -201,6 +214,11 @@ async function freshDb(opts: { withVat?: boolean } = {}) {
   await client.exec(
     `INSERT INTO fiscal_periods (id,name,start_date,end_date,status) VALUES ('p','FY2026','2026-01-01','2026-12-31','open')`,
   );
+  // Explicit Input VAT confirmation for the default (READY) environment.
+  if (confirm)
+    await client.exec(
+      `INSERT INTO finance_account_mapping_confirmations (id,purpose,account_id,confirmed_by,confirmed_at,updated_at) VALUES ('fmap1','INPUT_VAT','a-vat','u1','${now()}','${now()}')`,
+    );
   return { db, client };
 }
 async function mkSupplier(client: any, id: string, code: string | null, status = "active") {
@@ -282,6 +300,53 @@ const mig23 = readFileSync(
 );
 const mapSvc = readFileSync(resolve(process.cwd(), "src/server/db/account-mapping.ts"), "utf8");
 const seedSrc = readFileSync(resolve(process.cwd(), "scripts/seed.ts"), "utf8");
+const mapRoute = readFileSync(
+  resolve(process.cwd(), "src/routes/api/finance/account-mappings.ts"),
+  "utf8",
+);
+const mig24 = readFileSync(
+  resolve(process.cwd(), "drizzle/0024_input_vat_mapping_confirmation.sql"),
+  "utf8",
+);
+
+/**
+ * Faithful mirror of the SERVICE post sequence: validateInvoice (throws for
+ * unconfigured/unconfirmed taxable) → build Dr lines → Dr input VAT via the
+ * CONFIRMED resolver → Cr AP → post → attribute AP credit. If any gate throws,
+ * NO journal is created (the transaction never opens).
+ */
+async function postInvoiceConfirmed(
+  db: any,
+  input: any,
+  opts: { supplierId: string; sourceId: string; date?: string },
+) {
+  const c = await validateInvoice(db, input); // gate BEFORE any journal
+  return db.transaction(async (tx: any) => {
+    const jLines: any[] = c.lines.map((l) => ({ accountId: l.accountId, debit: l.lineSubtotal }));
+    if (c.taxAmount > 0.005) {
+      const vatId = await resolveConfirmedInputVatAccount(tx);
+      jLines.push({ accountId: vatId, debit: c.taxAmount });
+    }
+    const apId = await resolveSystemAccountId(tx, SYS.ACCOUNTS_PAYABLE);
+    jLines.push({ accountId: apId, credit: c.totalAmount });
+    const entryId = await postBalancedEntry(tx, {
+      date: opts.date ?? input.invoiceDate,
+      description: "supplier invoice",
+      source: "supplier_invoice",
+      sourceType: "supplier_invoice",
+      sourceId: opts.sourceId,
+      lines: jLines,
+      userId: "u1",
+      status: "posted",
+    });
+    await linkEntryApLine(tx, {
+      supplierId: opts.supplierId,
+      entryId,
+      sourceType: "supplier_invoice",
+    });
+    return entryId;
+  });
+}
 
 async function main() {
   // ===================== SI-A..I — validation =====================
@@ -990,10 +1055,11 @@ async function main() {
       !/110306/.test(svc),
     );
     ok(
-      "VAT-MAP-I: mapping service resolves/sets by system_key (SYS.INPUT_VAT), never inserts a 110306 account",
+      "VAT-MAP-I: mapping service resolves/sets by system_key (SYS.INPUT_VAT), never creates an accounts row",
       /SYS\.INPUT_VAT/.test(mapSvc) &&
         /systemKey/.test(mapSvc) &&
-        !/INSERT INTO|\.insert\(/i.test(mapSvc),
+        !/\.insert\(accounts\)/.test(mapSvc) &&
+        !/INSERT INTO "?accounts/i.test(mapSvc),
     );
     ok(
       "VAT-MAP-I: seed no longer auto-assigns input_vat to a CoA code",
@@ -1079,6 +1145,266 @@ async function main() {
         "DEBIT_ACCOUNT_NOT_POSTABLE",
       ),
     );
+  }
+
+  // ===================== MIG-A..D — mapping provenance (3B.2) =====================
+  console.log("\nMIG-A..D — mapping provenance is never assumed confirmed");
+  {
+    ok(
+      "MIG: migration 0024 creates the confirmation table but auto-confirms NOTHING",
+      /CREATE TABLE IF NOT EXISTS "finance_account_mapping_confirmations"/.test(mig24) &&
+        !/INSERT INTO "finance_account_mapping_confirmations"/i.test(mig24),
+    );
+    // A: a legitimate pre-existing mapping (some account already had input_vat) is
+    // NOT assumed auto-seeded and NOT auto-confirmed.
+    {
+      const { db, client } = await freshDb({ withVat: false });
+      await mkSupplier(client, "sup1", "S-1");
+      await client.exec(`UPDATE accounts SET system_key='input_vat' WHERE id='a-vatcand'`);
+      const cfg = await getInputVatConfiguration(db);
+      ok(
+        "MIG-A: pre-existing mapping stays UNCONFIRMED (not auto-trusted), account not deleted",
+        cfg.status === "UNCONFIRMED" &&
+          (await getInputVatConfirmation(db)) === null &&
+          !!(await getInputVatMapping(db)),
+      );
+    }
+    // B: a mapping on a DIFFERENT code (119999) is preserved as candidate, unconfirmed.
+    {
+      const { db, client } = await freshDb({ withVat: false });
+      await client.exec(
+        `INSERT INTO accounts (id,code,name,classification,postable,status,currency,system_key) VALUES ('a-vat9','119999','Other VAT','asset',true,'active','SAR','input_vat')`,
+      );
+      const map = await getInputVatMapping(db);
+      const cfg = await getInputVatConfiguration(db);
+      ok(
+        "MIG-B: different-code mapping preserved, status UNCONFIRMED",
+        map?.code === "119999" && cfg.status === "UNCONFIRMED",
+      );
+    }
+    // C: the 0022 auto-created 110306/input_vat is never confirmed merely by code.
+    {
+      const { db, client } = await freshDb({ withVat: true, confirm: false }); // a-vat is code 110306
+      await mkSupplier(client, "sup1", "S-1");
+      const cfg = await getInputVatConfiguration(db);
+      ok(
+        "MIG-C: 110306/input_vat is NOT auto-confirmed by code/system_key (UNCONFIRMED)",
+        cfg.mapping?.code === "110306" && cfg.status === "UNCONFIRMED",
+      );
+    }
+    // D: no mapping at all → MISSING; zero-tax works, taxable blocked.
+    {
+      const { db, client } = await freshDb({ withVat: false });
+      await mkSupplier(client, "sup1", "S-1");
+      const cfg = await getInputVatConfiguration(db);
+      ok("MIG-D: no mapping → status MISSING", cfg.status === "MISSING");
+      ok(
+        "MIG-D: zero-tax invoice still validates without any mapping",
+        near(
+          (
+            await validateInvoice(
+              db,
+              inv({ lines: [{ accountId: "a-exp", quantity: 1, unitPrice: 100, taxRate: 0 }] }),
+            )
+          ).totalAmount,
+          100,
+        ),
+      );
+      ok(
+        "MIG-D: taxable invoice blocked (INPUT_VAT_ACCOUNT_MISSING)",
+        await throwsCode(
+          () =>
+            validateInvoice(
+              db,
+              inv({ lines: [{ accountId: "a-exp", quantity: 1, unitPrice: 100, taxRate: 15 }] }),
+            ),
+          "INPUT_VAT_ACCOUNT_MISSING",
+        ),
+      );
+    }
+  }
+
+  // ===================== CONF-A..G — explicit confirmation (3B.2) =====================
+  console.log("\nCONF-A..G — explicit administrator confirmation");
+  {
+    // A: valid mapping, no confirmation → taxable rejected UNCONFIRMED.
+    {
+      const { db, client } = await freshDb({ withVat: true, confirm: false });
+      await mkSupplier(client, "sup1", "S-1");
+      ok(
+        "CONF-A: valid mapping but unconfirmed → taxable rejected INPUT_VAT_MAPPING_UNCONFIRMED",
+        await throwsCode(() => validateInvoice(db, inv()), "INPUT_VAT_MAPPING_UNCONFIRMED"),
+      );
+    }
+    // B: admin confirms the same mapped account → READY, taxable posts.
+    {
+      const { db, client } = await freshDb({ withVat: true, confirm: false });
+      await mkSupplier(client, "sup1", "S-1");
+      await db.transaction((tx: any) =>
+        assignInputVatAccount(tx, { accountId: "a-vat", userId: "u2" }),
+      );
+      const cfg = await getInputVatConfiguration(db);
+      const e = await postInvoiceConfirmed(db, inv(), { supplierId: "sup1", sourceId: "SINV-CB" });
+      ok(
+        "CONF-B: confirming the mapped account → READY and taxable posts",
+        cfg.status === "READY" && !!e,
+      );
+    }
+    // C: confirmation points at a different account than system_key → MISMATCH.
+    {
+      const { db, client } = await freshDb({ withVat: true, confirm: false }); // a-vat mapped
+      await mkSupplier(client, "sup1", "S-1");
+      await client.exec(
+        `INSERT INTO finance_account_mapping_confirmations (id,purpose,account_id,confirmed_by,confirmed_at,updated_at) VALUES ('fmapX','INPUT_VAT','a-vatcand','u2','${now()}','${now()}')`,
+      );
+      const cfg = await getInputVatConfiguration(db);
+      ok(
+        "CONF-C: confirmation ≠ current mapping → MISMATCH; taxable rejected",
+        cfg.status === "MISMATCH" &&
+          (await throwsCode(() => validateInvoice(db, inv()), "INPUT_VAT_MAPPING_UNCONFIRMED")),
+      );
+    }
+    // D: change mapping A→B atomically (system_key + confirmation move together).
+    {
+      const { db, client } = await freshDb({ withVat: false });
+      await mkSupplier(client, "sup1", "S-1");
+      await db.transaction((tx: any) =>
+        assignInputVatAccount(tx, { accountId: "a-vatcand", userId: "u2" }),
+      );
+      await db.transaction((tx: any) =>
+        assignInputVatAccount(tx, { accountId: "a-asset", userId: "u2" }),
+      );
+      const holders = (await client.query(`SELECT id FROM accounts WHERE system_key='input_vat'`))
+        .rows;
+      const confs = (
+        await client.query(
+          `SELECT account_id FROM finance_account_mapping_confirmations WHERE purpose='INPUT_VAT'`,
+        )
+      ).rows;
+      ok(
+        "CONF-D: A→B atomic — a-vatcand cleared, a-asset mapped, one mapping & one matching confirmation",
+        holders.length === 1 &&
+          holders[0].id === "a-asset" &&
+          confs.length === 1 &&
+          confs[0].account_id === "a-asset",
+      );
+    }
+    // E: two sequential (serialized) confirmations of different accounts → single final state.
+    {
+      const { db, client } = await freshDb({ withVat: false });
+      await db.transaction((tx: any) =>
+        assignInputVatAccount(tx, { accountId: "a-vatcand", userId: "uA" }),
+      );
+      await db.transaction((tx: any) =>
+        assignInputVatAccount(tx, { accountId: "a-asset", userId: "uB" }),
+      );
+      const holders = (await client.query(`SELECT id FROM accounts WHERE system_key='input_vat'`))
+        .rows;
+      const confs = (
+        await client.query(`SELECT account_id FROM finance_account_mapping_confirmations`)
+      ).rows;
+      const cfg = await getInputVatConfiguration(db);
+      ok(
+        "CONF-E: serialized reassignment leaves exactly one mapping and one matching confirmation",
+        holders.length === 1 && confs.length === 1 && cfg.status === "READY" && cfg.matches,
+      );
+    }
+    // F: invalid accounts cannot be confirmed.
+    {
+      const { db, client } = await freshDb({ withVat: false });
+      await mkSupplier(client, "sup1", "S-1");
+      const reject = (acc: string, code: string) =>
+        throwsCode(
+          () => db.transaction((tx: any) => assignInputVatAccount(tx, { accountId: acc })),
+          code,
+        );
+      ok(
+        "CONF-F: expense/liability/parent/cash/bank accounts cannot be confirmed",
+        (await reject("a-exp", "MAPPING_CLASS_INVALID")) &&
+          (await reject("a-accrued", "MAPPING_CLASS_INVALID")) &&
+          (await reject("a-parent", "ACCOUNT_NOT_POSTABLE")) &&
+          (await reject("a-cashmapped", "MAPPING_IS_CASH_BANK")) &&
+          (await reject("a-ap", "MAPPING_IS_AP")),
+      );
+    }
+    // G: the confirm endpoint is gated by finance.account_mapping.update (403 otherwise).
+    ok(
+      "CONF-G: mapping route enforces finance.account_mapping.update (403 without it)",
+      /hasPermission\([^)]*accountMappingUpdate\)/.test(mapRoute) && /403/.test(mapRoute),
+    );
+  }
+
+  // ===================== VAT-POST-A..D — confirmed posting (3B.2) =====================
+  console.log("\nVAT-POST-A..D — taxable posting uses the confirmed account only");
+  {
+    // A: tax>0, mapping exists, NO confirmation → NO JOURNAL.
+    {
+      const { db, client } = await freshDb({ withVat: true, confirm: false });
+      await mkSupplier(client, "sup1", "S-1");
+      let threw = false;
+      try {
+        await postInvoiceConfirmed(db, inv(), { supplierId: "sup1", sourceId: "SINV-PA" });
+      } catch {
+        threw = true;
+      }
+      const je = (await client.query(`SELECT count(*)::int n FROM journal_entries`)).rows[0].n;
+      ok(
+        "VAT-POST-A: unconfirmed taxable → rejected, NO journal created",
+        threw && Number(je) === 0,
+      );
+    }
+    // B: confirmed → VAT debit uses the confirmed account id.
+    {
+      const { db, client } = await freshDb(); // READY (a-vat confirmed)
+      await mkSupplier(client, "sup1", "S-1");
+      const e = await postInvoiceConfirmed(
+        db,
+        inv({ lines: [{ accountId: "a-exp", quantity: 1, unitPrice: 1000, taxRate: 15 }] }),
+        { supplierId: "sup1", sourceId: "SINV-PB" },
+      );
+      const vatLine = await lineId(client, e, "a-vat", "debit");
+      ok("VAT-POST-B: taxable posts with VAT debit on the confirmed account (a-vat)", !!vatLine);
+    }
+    // C: change mapping after a historical invoice — history stays, new invoice uses new account.
+    {
+      const { db, client } = await freshDb(); // READY (a-vat confirmed)
+      await mkSupplier(client, "sup1", "S-1");
+      const e1 = await postInvoiceConfirmed(
+        db,
+        inv({ lines: [{ accountId: "a-exp", quantity: 1, unitPrice: 1000, taxRate: 15 }] }),
+        { supplierId: "sup1", sourceId: "SINV-PC1", date: "2026-03-10" },
+      );
+      // Reassign + confirm a-vatcand.
+      await db.transaction((tx: any) =>
+        assignInputVatAccount(tx, { accountId: "a-vatcand", userId: "u2" }),
+      );
+      const e2 = await postInvoiceConfirmed(
+        db,
+        inv({
+          supplierInvoiceNumber: "INV-778",
+          lines: [{ accountId: "a-exp", quantity: 1, unitPrice: 1000, taxRate: 15 }],
+        }),
+        { supplierId: "sup1", sourceId: "SINV-PC2", date: "2026-04-10" },
+      );
+      const oldVat = await lineId(client, e1, "a-vat", "debit");
+      const newVat = await lineId(client, e2, "a-vatcand", "debit");
+      const oldStillOnVat = await lineId(client, e1, "a-vatcand", "debit");
+      ok(
+        "VAT-POST-C: historical invoice keeps a-vat; new invoice uses a-vatcand; no history rewrite",
+        !!oldVat && !!newVat && !oldStillOnVat,
+      );
+    }
+    // D: tax=0, no mapping/confirmation → posting succeeds.
+    {
+      const { db, client } = await freshDb({ withVat: false });
+      await mkSupplier(client, "sup1", "S-1");
+      const e = await postInvoiceConfirmed(
+        db,
+        inv({ lines: [{ accountId: "a-exp", quantity: 1, unitPrice: 300, taxRate: 0 }] }),
+        { supplierId: "sup1", sourceId: "SINV-PD" },
+      );
+      ok("VAT-POST-D: zero-tax invoice posts with no VAT config", !!e);
+    }
   }
 
   console.log(`\n================ RESULT: ${pass} passed, ${fail} failed ================`);

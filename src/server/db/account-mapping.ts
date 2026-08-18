@@ -1,30 +1,40 @@
 /**
- * Phase 3B.1 — Finance system-account mapping (explicit, admin-configured).
+ * Phase 3B.1 / 3B.2 — Finance system-account mapping (explicit, admin-confirmed).
  *
  * The application must NEVER silently decide which General Ledger account plays a
- * system accounting role (e.g. recoverable Input VAT). The mapping mechanism is
+ * system accounting role (e.g. recoverable Input VAT). The mapping itself remains
  * the existing `accounts.system_key` column (a stable semantic key → one
- * accounts.id); this module adds the SAFE way to configure it:
- *   - purpose-specific validation (Input VAT must be an active, postable,
- *     asset-classified, non-parent account that is not the AP control account and
- *     is not mapped to any cashbox/bank), and
- *   - ATOMIC reassignment (clear the key from any prior holder, set it on the new
- *     account) so there is never more than one account per purpose.
+ * accounts.id). But a mapping that merely EXISTS is not trusted: `code +
+ * system_key` cannot prove how it came to exist (it may pre-date 0022, or have
+ * been set through the generic accounts API). So taxable posting additionally
+ * requires an EXPLICIT administrator confirmation
+ * (finance_account_mapping_confirmations) that matches the current mapping.
  *
- * No new configuration framework, no duplicated balances, no account definitions.
- * Posting resolves the account by system_key (resolveSystemAccountId), never by a
- * hardcoded chart-of-accounts code.
+ *   usable Input VAT configuration = system_key mapping
+ *                                    + confirmation whose account_id == mapping
+ *                                    + the account still passes all validations
+ *
+ * Configuration provenance only — the confirmation table holds no amount and is
+ * not a chart of accounts. Posting resolves the account via the confirmed
+ * resolver below, never by a hardcoded chart-of-accounts code.
  */
-import { and, eq, ne } from "drizzle-orm";
-import { db, now, addAudit } from "./index";
-import { accounts, supplierInvoices } from "./schema";
+import { and, eq, ne, sql } from "drizzle-orm";
+import { db, now, genId, addAudit } from "./index";
+import { accounts, supplierInvoices, financeAccountMappingConfirmations } from "./schema";
 import { resolveSystemAccountId, SYS } from "./gl";
 import { accountMappedToAnyCashBank } from "./cash-bank";
+import { LOCK_NS } from "./lock-namespaces";
 import { AppError } from "./errors";
 import { AccountStatus, AccountClassification } from "@/lib/enums";
 import type { Ctx } from "./api-utils";
 
 type Db = { select: (...a: any[]) => any };
+
+/** Confirmation purpose key (distinct from the account system_key value). */
+export const INPUT_VAT_PURPOSE = "INPUT_VAT";
+
+/** Configuration status of a system-purpose mapping. */
+export type MappingStatus = "MISSING" | "UNCONFIRMED" | "MISMATCH" | "INVALID" | "READY";
 
 /**
  * Validate that `accountId` may be mapped as the recoverable Input VAT control
@@ -32,9 +42,8 @@ type Db = { select: (...a: any[]) => any };
  * the account row on success. Pure read — safe to run with `db` or a tx handle.
  */
 export async function validateInputVatMappingAccount(dbh: Db, accountId: string) {
-  const acc = (
-    await dbh.select().from(accounts).where(eq(accounts.id, accountId)).limit(1)
-  )[0] as any;
+  const acc = (await dbh.select().from(accounts).where(eq(accounts.id, accountId)).limit(1))[0] as
+    any | undefined;
   if (!acc) throw new AppError("الحساب غير موجود", 404, "ACCOUNT_NOT_FOUND");
   if (acc.status !== AccountStatus.ACTIVE)
     throw new AppError("الحساب غير نشط", 400, "ACCOUNT_INACTIVE");
@@ -65,19 +74,115 @@ export async function validateInputVatMappingAccount(dbh: Db, accountId: string)
   return acc;
 }
 
+/** The account currently carrying system_key='input_vat' (or null). */
+export async function getInputVatMapping(dbh: Db) {
+  const rows = await dbh.select().from(accounts).where(eq(accounts.systemKey, SYS.INPUT_VAT));
+  return (rows[0] as any) ?? null;
+}
+
+/** The explicit Input VAT confirmation row (or null). */
+export async function getInputVatConfirmation(dbh: Db) {
+  const rows = await dbh
+    .select()
+    .from(financeAccountMappingConfirmations)
+    .where(eq(financeAccountMappingConfirmations.purpose, INPUT_VAT_PURPOSE));
+  return (rows[0] as any) ?? null;
+}
+
 /**
- * Atomically (re)assign the Input VAT system mapping to `accountId` inside the
- * caller's transaction: validate, clear `input_vat` from any prior holder, then
- * set it on the target. Guarantees exactly one Input VAT mapping. Returns the
- * account row.
+ * Full Input VAT configuration snapshot: the current system_key mapping, the
+ * explicit confirmation, and the derived status.
+ *   MISSING     — no system_key mapping at all
+ *   UNCONFIRMED — mapping exists but no explicit confirmation
+ *   MISMATCH    — confirmation exists but points at a different account
+ *   INVALID     — mapping+confirmation agree but the account fails validation
+ *   READY       — agree + valid → usable for taxable posting
+ */
+export async function getInputVatConfiguration(dbh: Db): Promise<{
+  mapping: any | null;
+  confirmation: any | null;
+  status: MappingStatus;
+  matches: boolean;
+  valid: boolean;
+}> {
+  const mapping = await getInputVatMapping(dbh);
+  const confirmation = await getInputVatConfirmation(dbh);
+  const matches = !!mapping && !!confirmation && confirmation.accountId === mapping.id;
+  let valid = false;
+  if (matches) {
+    try {
+      await validateInputVatMappingAccount(dbh, mapping.id);
+      valid = true;
+    } catch {
+      valid = false;
+    }
+  }
+  let status: MappingStatus;
+  if (!mapping) status = "MISSING";
+  else if (!confirmation) status = "UNCONFIRMED";
+  else if (!matches) status = "MISMATCH";
+  else if (!valid) status = "INVALID";
+  else status = "READY";
+  return { mapping, confirmation, status, matches, valid };
+}
+
+/**
+ * The single resolver taxable Supplier Invoice posting MUST use. Requires a
+ * system_key mapping AND a matching explicit confirmation AND a still-valid
+ * account. Returns the confirmed account id, or throws with one clear policy:
+ *   - no mapping                       → INPUT_VAT_ACCOUNT_MISSING
+ *   - mapping present but unconfirmed / mismatched / invalid → INPUT_VAT_MAPPING_UNCONFIRMED
+ * `resolveSystemAccountId(SYS.INPUT_VAT)` alone is NOT sufficient anymore.
+ */
+export async function resolveConfirmedInputVatAccount(dbh: Db): Promise<string> {
+  const mapping = await getInputVatMapping(dbh);
+  if (!mapping)
+    throw new AppError(
+      "لا يوجد حساب ضريبة مدخلات مُهيّأ في الدليل المحاسبي",
+      400,
+      "INPUT_VAT_ACCOUNT_MISSING",
+    );
+  const confirmation = await getInputVatConfirmation(dbh);
+  if (!confirmation || confirmation.accountId !== mapping.id)
+    throw new AppError(
+      "ربط حساب ضريبة المدخلات غير مؤكَّد من مسؤول مالي — يلزم التأكيد قبل ترحيل فاتورة خاضعة للضريبة",
+      400,
+      "INPUT_VAT_MAPPING_UNCONFIRMED",
+    );
+  // Re-validate at resolution time (the account may have been deactivated etc.).
+  try {
+    await validateInputVatMappingAccount(dbh, mapping.id);
+  } catch {
+    throw new AppError(
+      "حساب ضريبة المدخلات المؤكَّد لم يعد صالحاً — أعد تهيئته وتأكيده",
+      400,
+      "INPUT_VAT_MAPPING_UNCONFIRMED",
+    );
+  }
+  return mapping.id as string;
+}
+
+/**
+ * Atomically (re)assign AND confirm the Input VAT mapping inside the caller's
+ * transaction: serialize on an advisory lock, validate, clear `input_vat` from
+ * any prior holder, set it on the target, and upsert the explicit confirmation.
+ * Guarantees exactly one mapping and one matching confirmation. Returns the
+ * account row plus the previously-mapped account (for audit).
  */
 export async function assignInputVatAccount(
   tx: any,
   input: { accountId: string; userId?: string | null },
-) {
+): Promise<{ account: any; previousAccountId: string | null }> {
+  // Serialize mapping reassignment for this purpose (real-Postgres safety; PGlite
+  // serializes transactions anyway).
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(${LOCK_NS.ACCOUNT_MAPPING}, hashtext(${INPUT_VAT_PURPOSE}))`,
+  );
+  const prior = await getInputVatMapping(tx);
+  const previousAccountId = prior?.id ?? null;
   const acc = await validateInputVatMappingAccount(tx, input.accountId);
   const ts = now();
-  // Clear the key from any other account first so the UNIQUE(system_key) is never
+  // Clear the key from any other account first so UNIQUE(system_key) is never
   // transiently violated, then stamp it on the chosen account.
   await tx
     .update(accounts)
@@ -87,20 +192,48 @@ export async function assignInputVatAccount(
     .update(accounts)
     .set({ systemKey: SYS.INPUT_VAT, updatedAt: ts })
     .where(eq(accounts.id, input.accountId));
-  return acc;
+  // Upsert the explicit confirmation (purpose is UNIQUE → exactly one).
+  await tx
+    .insert(financeAccountMappingConfirmations)
+    .values({
+      id: genId("FMAP"),
+      purpose: INPUT_VAT_PURPOSE,
+      accountId: input.accountId,
+      confirmedBy: input.userId ?? null,
+      confirmedAt: ts,
+      updatedAt: ts,
+    })
+    .onConflictDoUpdate({
+      target: financeAccountMappingConfirmations.purpose,
+      set: {
+        accountId: input.accountId,
+        confirmedBy: input.userId ?? null,
+        confirmedAt: ts,
+        updatedAt: ts,
+      },
+    });
+  return { account: acc, previousAccountId };
 }
 
-/** Admin action: set/change the configured Input VAT account (atomic + audited). */
+/** Admin action: set/confirm (or change) the Input VAT account — atomic + audited. */
 export async function setInputVatAccount(ctx: Ctx, accountId: string) {
+  let previousAccountId: string | null = null;
   await db.transaction(async (tx) => {
-    await assignInputVatAccount(tx as any, { accountId, userId: ctx.user.id });
+    const res = await assignInputVatAccount(tx as any, { accountId, userId: ctx.user.id });
+    previousAccountId = res.previousAccountId;
   });
   const acc = (await db.select().from(accounts).where(eq(accounts.id, accountId)).limit(1))[0];
+  const changed = !!previousAccountId && previousAccountId !== accountId;
+  const prev = previousAccountId
+    ? (await db.select().from(accounts).where(eq(accounts.id, previousAccountId)).limit(1))[0]
+    : null;
   await addAudit({
-    action: "FINANCE_INPUT_VAT_MAPPING_SET",
+    action: changed ? "INPUT_VAT_MAPPING_CHANGED" : "INPUT_VAT_MAPPING_CONFIRMED",
     entityType: "account_mapping",
-    entityId: "input_vat",
-    description: `ربط حساب ضريبة المدخلات: ${acc?.code} — ${acc?.name}`,
+    entityId: INPUT_VAT_PURPOSE,
+    description: changed
+      ? `تغيير وتأكيد حساب ضريبة المدخلات من ${prev?.code ?? "—"} إلى ${acc?.code} — ${acc?.name}`
+      : `تأكيد حساب ضريبة المدخلات: ${acc?.code} — ${acc?.name}`,
     userId: ctx.user.id,
     userName: ctx.user.name,
     ip: ctx.ip,
@@ -108,23 +241,18 @@ export async function setInputVatAccount(ctx: Ctx, accountId: string) {
   return acc;
 }
 
-/** The account currently mapped to Input VAT (or null if unconfigured). */
-export async function getInputVatMapping(dbh: Db) {
-  const rows = await dbh.select().from(accounts).where(eq(accounts.systemKey, SYS.INPUT_VAT));
-  return (rows[0] as any) ?? null;
-}
-
 /**
- * Diagnostic ONLY (never mutates, never auto-maps). Surfaces the current Input
- * VAT configuration and any risk signals so an administrator can act. No mapping
- * is ever inferred from an account's name, Arabic label, or code resemblance.
+ * Diagnostic ONLY (never mutates, never auto-maps, never infers from name/label/
+ * code). Surfaces the full Input VAT configuration + status so an administrator
+ * can act.
  */
 export async function inputVatPreflight(dbh: Db) {
-  const mapped = (await dbh
-    .select()
+  const { mapping, confirmation, status, matches, valid } = await getInputVatConfiguration(dbh);
+
+  const dupMapping = (await dbh
+    .select({ id: accounts.id })
     .from(accounts)
     .where(eq(accounts.systemKey, SYS.INPUT_VAT))) as any[];
-  const configured = mapped[0] ?? null;
 
   // What (if anything) currently occupies the legacy 0022 seed code 110306.
   const at110306 = (
@@ -138,31 +266,53 @@ export async function inputVatPreflight(dbh: Db) {
   const taxable = taxableRows.filter((r) => Number(r.tax || 0) > 0.005);
   const taxableCount = taxable.length;
   const postedTaxableCount = taxable.filter((r) => r.status === "posted").length;
-  // Not-yet-posted taxable docs that CANNOT post while no mapping exists.
-  const blockedByMissingMapping = configured
-    ? 0
-    : taxable.filter(
-        (r) => r.status === "draft" || r.status === "submitted" || r.status === "approved",
-      ).length;
+  // Not-yet-posted taxable docs that CANNOT post while configuration is not READY.
+  const blockedByConfig =
+    status === "READY"
+      ? 0
+      : taxable.filter(
+          (r) => r.status === "draft" || r.status === "submitted" || r.status === "approved",
+        ).length;
 
   return {
     purpose: "input_vat",
-    configured: configured
+    status,
+    mappingMatchesConfirmation: matches,
+    mappingValid: valid,
+    mapping: mapping
       ? {
-          accountId: configured.id,
-          code: configured.code,
-          name: configured.name,
-          active: configured.status === AccountStatus.ACTIVE,
-          postable: !!configured.postable,
-          classification: configured.classification,
+          accountId: mapping.id,
+          code: mapping.code,
+          name: mapping.name,
+          active: mapping.status === AccountStatus.ACTIVE,
+          postable: !!mapping.postable,
+          classification: mapping.classification,
         }
       : null,
-    duplicateMappingCount: mapped.length, // must be ≤ 1 by design
+    confirmation: confirmation
+      ? {
+          accountId: confirmation.accountId,
+          confirmedBy: confirmation.confirmedBy,
+          confirmedAt: confirmation.confirmedAt,
+        }
+      : null,
+    // Back-compat field: the "configured" mapping (kept for existing readers).
+    configured: mapping
+      ? {
+          accountId: mapping.id,
+          code: mapping.code,
+          name: mapping.name,
+          active: mapping.status === AccountStatus.ACTIVE,
+          postable: !!mapping.postable,
+          classification: mapping.classification,
+        }
+      : null,
+    duplicateMappingCount: dupMapping.length, // must be ≤ 1 by design
     code110306Exists: !!at110306,
     code110306AccountId: at110306?.id ?? null,
     code110306SystemKey: at110306?.systemKey ?? null,
     taxableInvoiceCount: taxableCount,
     postedTaxableInvoiceCount: postedTaxableCount,
-    taxableInvoicesBlockedByMissingMapping: blockedByMissingMapping,
+    taxableInvoicesBlockedByMissingMapping: blockedByConfig,
   };
 }

@@ -1,15 +1,24 @@
-/** Phase 3B.1 — Finance system-account mappings (Input VAT) client API. */
+/** Phase 3B.1 / 3B.2 — Finance system-account mappings (Input VAT) client API. */
+
+export type MappingStatus = "MISSING" | "UNCONFIRMED" | "MISMATCH" | "INVALID" | "READY";
+
+interface MappingAccount {
+  accountId: string;
+  code: string;
+  name: string;
+  active: boolean;
+  postable: boolean;
+  classification: string;
+}
 
 export interface InputVatPreflight {
   purpose: string;
-  configured: {
-    accountId: string;
-    code: string;
-    name: string;
-    active: boolean;
-    postable: boolean;
-    classification: string;
-  } | null;
+  status: MappingStatus;
+  mappingMatchesConfirmation: boolean;
+  mappingValid: boolean;
+  mapping: MappingAccount | null;
+  confirmation: { accountId: string; confirmedBy: string | null; confirmedAt: string } | null;
+  configured: MappingAccount | null; // back-compat: the current system_key mapping
   duplicateMappingCount: number;
   code110306Exists: boolean;
   code110306AccountId: string | null;

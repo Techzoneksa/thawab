@@ -43,6 +43,7 @@ import {
   SYS,
 } from "./gl";
 import { accountMappedToAnyCashBank } from "./cash-bank";
+import { resolveConfirmedInputVatAccount } from "./account-mapping";
 import { linkEntryApLine } from "./supplier";
 import { recordWorkflowEvent } from "./finance-workflow";
 import {
@@ -164,8 +165,9 @@ export async function validateInvoice(dbh: Db, input: SupplierInvoiceInput): Pro
     throw new AppError("يجب إضافة سطر واحد على الأقل", 400, "NO_LINES");
 
   const apId = await resolveSystemAccountId(dbh as any, SYS.ACCOUNTS_PAYABLE);
-  // Input VAT control account is optional at data-entry time; resolved lazily so
-  // a chart without it can still capture zero-tax invoices.
+  // Current system_key='input_vat' holder (may be UNCONFIRMED) — used ONLY to
+  // prohibit it as a manual allocation line. Availability for taxable posting is
+  // gated separately by the confirmed resolver below.
   let vatId: string | null = null;
   try {
     vatId = await resolveSystemAccountId(dbh as any, SYS.INPUT_VAT);
@@ -223,14 +225,14 @@ export async function validateInvoice(dbh: Db, input: SupplierInvoiceInput): Pro
   if (!(computed.totalAmount > 0))
     throw new AppError("إجمالي الفاتورة يجب أن يكون أكبر من صفر", 400, "AMOUNT_INVALID");
 
-  // If any tax is present, the input-VAT control account MUST be configured —
-  // otherwise the accrual could not be posted with a balanced VAT leg.
-  if (computed.taxAmount > AMOUNT_TOLERANCE && !vatId)
-    throw new AppError(
-      "لا يمكن احتساب ضريبة المدخلات: حساب ضريبة القيمة المضافة (المدخلات) غير مُعرّف في الدليل المحاسبي",
-      400,
-      "INPUT_VAT_ACCOUNT_MISSING",
-    );
+  // Taxable invoices require an EXPLICITLY CONFIRMED, still-valid Input VAT
+  // account. A bare system_key mapping of unproven provenance is not trusted:
+  // this throws INPUT_VAT_ACCOUNT_MISSING (no mapping) or
+  // INPUT_VAT_MAPPING_UNCONFIRMED (unconfirmed / mismatched / invalid). Zero-tax
+  // invoices need no Input VAT configuration at all.
+  if (computed.taxAmount > AMOUNT_TOLERANCE) {
+    await resolveConfirmedInputVatAccount(dbh);
+  }
 
   return computed;
 }
@@ -552,9 +554,9 @@ export async function transitionSupplierInvoice(
         costCenterId: l.costCenterId ?? null,
         description: l.description || desc,
       }));
-      // … Dr recoverable input VAT (single aggregated leg) …
+      // … Dr recoverable input VAT (single aggregated leg) — the CONFIRMED account …
       if (computed.taxAmount > AMOUNT_TOLERANCE) {
-        const vatId = await resolveSystemAccountId(tx as any, SYS.INPUT_VAT);
+        const vatId = await resolveConfirmedInputVatAccount(tx as any);
         jLines.push({
           accountId: vatId,
           debit: computed.taxAmount,

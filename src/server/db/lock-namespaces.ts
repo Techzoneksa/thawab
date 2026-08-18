@@ -16,6 +16,8 @@ export const LOCK_NS = {
   CASH_BANK_MAPPING: 42,
   /** Phase 2C — cash payment posting (sufficiency check + journal) serialization. */
   CASH_PAYMENT_POSTING: 43,
+  /** Phase 3B.2 — system-account mapping reassignment (e.g. Input VAT) serialization. */
+  ACCOUNT_MAPPING: 44,
 } as const;
 
 export type LockNamespace = (typeof LOCK_NS)[keyof typeof LOCK_NS];

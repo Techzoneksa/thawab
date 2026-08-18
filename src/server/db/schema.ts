@@ -301,6 +301,29 @@ export const accounts = pgTable(
   }),
 );
 
+// Phase 3B.2 — explicit provenance for system-purpose GL account mappings. The
+// mapping itself still lives in accounts.system_key; this table records that an
+// authorized Finance administrator EXPLICITLY confirmed which account plays a
+// purpose (e.g. INPUT_VAT), so a mapping of unknown provenance is never trusted
+// for posting. Configuration only — carries NO financial amount, is NOT a chart
+// of accounts. `purpose` is unique (one confirmation per purpose).
+export const financeAccountMappingConfirmations = pgTable(
+  "finance_account_mapping_confirmations",
+  {
+    id: text("id").primaryKey(),
+    purpose: text("purpose").notNull().unique(), // e.g. "INPUT_VAT"
+    accountId: text("account_id")
+      .notNull()
+      .references(() => accounts.id),
+    confirmedBy: text("confirmed_by").references(() => users.id),
+    confirmedAt: text("confirmed_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+  },
+  (t) => ({
+    purposeIdx: uniqueIndex("finance_account_mapping_confirmations_purpose_idx").on(t.purpose),
+  }),
+);
+
 export const journalEntries = pgTable(
   "journal_entries",
   {

@@ -169,6 +169,13 @@
       "when": 1787050000000,
       "tag": "0023_input_vat_mapping_safety",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787060000000,
+      "tag": "0024_input_vat_mapping_confirmation",
+      "breakpoints": true
     }
   ]
 }
