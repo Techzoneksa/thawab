@@ -25,6 +25,7 @@
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db, now, genId, addAudit } from "./index";
 import { resolvePage, paginatedResult, type PageParams } from "./pagination";
+import { failpoint } from "./failpoint";
 import {
   supplierInvoices,
   supplierInvoiceLines,
@@ -794,6 +795,10 @@ export async function transitionSupplierInvoice(
         userId: ctx.user.id,
         status: JournalStatus.POSTED,
       });
+
+      // REL-B failpoint: journal is posted; AP link not yet written. A failure
+      // here must roll the whole transaction back (no orphan journal, no AP link).
+      failpoint("si.before_ap_link");
 
       // Attribute the AP CREDIT line to the supplier subledger (payable rises).
       await linkEntryApLine(tx as any, {

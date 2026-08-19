@@ -51,6 +51,7 @@ import {
   financeWorkflowEvents,
 } from "./schema";
 import { AppError } from "./errors";
+import { failpoint } from "./failpoint";
 import { nextCode } from "./numbering";
 import { hasPermission } from "./auth";
 import {
@@ -702,6 +703,11 @@ async function postApprovedReceipt(tx: any, ctx: Ctx, id: string) {
     });
   }
 
+  // REL-D failpoint: inventory rows + stock movements have already been mutated
+  // in this transaction, but the journal is not yet posted. A failure here must
+  // roll back the inventory quantity increments and the stock movements too.
+  failpoint("grn.during_inventory");
+
   // … single aggregated GRNI credit — NEVER Accounts Payable.
   jLines.push({
     accountId: grniId,
@@ -720,6 +726,11 @@ async function postApprovedReceipt(tx: any, ctx: Ctx, id: string) {
     userId: ctx.user.id,
     status: JournalStatus.POSTED,
   });
+
+  // REL-C failpoint: journal is posted; GRNI subledger link not yet written. A
+  // failure here must roll back the journal too (no posted GRN without its GRNI
+  // link, no GRNI-reconciliation damage).
+  failpoint("grn.before_grni_link");
 
   // Link the GRNI CREDIT line to the receipt in the GRNI subledger.
   await linkEntryGrniLine(tx, {
