@@ -1011,7 +1011,12 @@ export const purchaseOrders = pgTable("purchase_orders", {
   // governance_mode='legacy' and NULL/zero here). A governed PO is a purchasing
   // COMMITMENT document with NO GL/AP/inventory effect; it never runs through the
   // legacy AP-posting receive flow. No journal_entry_id is used for governed POs.
-  governanceMode: text("governance_mode").notNull().default("legacy"), // legacy | governed
+  // Phase 3C.1 cutover: NEW rows default to 'governed' (a DB safety net so a direct
+  // insert that omits the field can never fall back to the frozen legacy path).
+  // Existing historical rows keep 'legacy' (never rewritten). The default is a
+  // safety net, NOT authorization — the governed service remains the only supported
+  // creation path and still enforces all mandatory governed fields/workflow.
+  governanceMode: text("governance_mode").notNull().default("governed"), // legacy | governed
   poNumber: text("po_number"), // PO-2026-000001 (governed only; unique when present)
   currency: text("currency").notNull().default("SAR"),
   supplierReference: text("supplier_reference"),

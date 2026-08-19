@@ -145,8 +145,10 @@ function Page() {
     onError: (err: Error) => showToast(err.message, "error"),
   });
 
+  // Phase 3C.1 cutover: new legacy PO creation is frozen. Direct users to the
+  // governed Purchase Orders module (the only supported path for new orders).
   const openAdd = () => {
-    navigate({ to: "/procurement/orders/new" });
+    navigate({ to: "/procurement/purchase-orders" });
   };
 
   const openReceive = (o: PurchaseOrder) => {
@@ -227,14 +229,14 @@ function Page() {
 
   return (
     <AppShell
-      breadcrumb={["الرئيسية", "المشتريات", "أوامر الشراء"]}
-      title="أوامر الشراء"
+      breadcrumb={["الرئيسية", "المشتريات", "أوامر الشراء (قديمة)"]}
+      title="أوامر الشراء (قديمة)"
       actions={
         <>
           <DocumentActions document={buildDoc} />
           <Btn variant="primary" onClick={openAdd}>
             <Plus size={15} />
-            إنشاء أمر شراء
+            أمر شراء محكوم جديد
           </Btn>
         </>
       }
@@ -310,11 +312,11 @@ function Page() {
         />
       ) : items.length === 0 ? (
         <EmptyState
-          title="لا توجد أوامر شراء"
-          description="ابدأ بإنشاء أول أمر شراء"
+          title="لا توجد أوامر شراء قديمة"
+          description="هذه شاشة تاريخية — أنشئ أوامر الشراء الجديدة من وحدة أوامر الشراء المحكومة"
           action={
             <Btn variant="primary" onClick={openAdd}>
-              إنشاء أمر شراء
+              الانتقال لأوامر الشراء المحكومة
             </Btn>
           }
         />
@@ -341,9 +343,7 @@ function Page() {
               </Td>
               <Td className="tabular-nums font-bold">{fmtSAR(o.total)}</Td>
               <Td>
-                <Badge tone={statusTone(o.status)}>
-                  {label("purchaseOrderStatus", o.status)}
-                </Badge>
+                <Badge tone={statusTone(o.status)}>{label("purchaseOrderStatus", o.status)}</Badge>
               </Td>
               <Td>
                 <ActionMenu
@@ -361,9 +361,7 @@ function Page() {
           mobileCard={(o) => (
             <Card key={o.id} className="p-3">
               <div className="flex items-center justify-between mb-2">
-                <Badge tone={statusTone(o.status)}>
-                  {label("purchaseOrderStatus", o.status)}
-                </Badge>
+                <Badge tone={statusTone(o.status)}>{label("purchaseOrderStatus", o.status)}</Badge>
                 <span className="font-mono text-xs text-muted-foreground">{o.id}</span>
               </div>
               <button

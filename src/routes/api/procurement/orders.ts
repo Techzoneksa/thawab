@@ -365,85 +365,22 @@ async function POST(event: { request: Request }, ctx: Ctx) {
       return Response.json({ item: updated });
     }
 
-    // Create
-    if (b.requestId) {
-      const req = (
-        await db
-          .select()
-          .from(purchaseRequests)
-          .where(eq(purchaseRequests.id, b.requestId))
-          .limit(1)
-      )[0];
-      if (!req) return err("طلب الشراء غير موجود", 404, "NOT_FOUND");
-      if (req.status !== PurchaseRequestStatus.APPROVED) {
-        return err("يجب أن يكون طلب الشراء معتمداً قبل إنشاء أمر شراء", 400, "INVALID_STATE");
-      }
-    }
-
-    const orderId = genId("PO");
-    const ts = now();
-    let total = 0;
-    for (const l of b.lines) {
-      total += (l.quantity || 0) * (l.unitPrice || 0);
-    }
-
-    // Atomic: insert order header + all lines + link the source request.
-    await db.transaction(async (tx) => {
-      await tx.insert(purchaseOrders).values({
-        id: orderId,
-        supplierId: b.supplierId || null,
-        requestId: b.requestId || null,
-        subject: b.subject,
-        date: b.date || ts,
-        deliveryDate: b.deliveryDate ?? "",
-        status: PurchaseOrderStatus.DRAFT,
-        total,
-        receivedAmount: 0,
-        notes: b.notes ?? "",
-        createdBy: ctx.user.id,
-        createdAt: ts,
-        updatedAt: ts,
-      });
-
-      for (let i = 0; i < b.lines.length; i++) {
-        const l = b.lines[i];
-        await tx.insert(purchaseOrderLines).values({
-          id: genId("POL"),
-          orderId,
-          lineNumber: i + 1,
-          itemId: l.itemId || null,
-          description: l.description || "",
-          quantity: l.quantity || 0,
-          unitPrice: l.unitPrice || 0,
-          receivedQuantity: 0,
-          unit: l.unit || "",
-          notes: l.notes || "",
-          createdAt: ts,
-        });
-      }
-
-      if (b.requestId) {
-        await tx
-          .update(purchaseRequests)
-          .set({ status: PurchaseRequestStatus.ORDERED, updatedAt: ts })
-          .where(eq(purchaseRequests.id, b.requestId));
-      }
-    });
-
-    await addAudit({
-      action: "create",
-      entityType: "purchase_order",
-      entityId: orderId,
-      description: `تم إضافة أمر شراء: ${b.subject} (${b.lines.length} سطر، الإجمالي ${total})`,
-      userId: ctx.user.id,
-      userName: ctx.user.name,
-      ip: ctx.ip,
-    });
-
-    const created = (
-      await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, orderId)).limit(1)
-    )[0];
-    return Response.json({ item: created }, { status: 201 });
+    // Phase 3C.1 CUTOVER FREEZE: creating NEW legacy Purchase Orders through this
+    // endpoint is permanently disabled. A legacy PO defaults to
+    // governance_mode='legacy' and would remain eligible for the unsafe legacy
+    // receive path (Dr Inventory / Cr AP + suppliers.balance mutation), bypassing
+    // the entire governed Purchase Order architecture. All NEW purchase orders must
+    // be created through the governed service (POST /api/procurement/purchase-orders,
+    // permission procurement.po.create). Existing legacy POs remain fully readable
+    // and their historical actions (approve/cancel/close/receive/edit) still work
+    // above; only NEW legacy creation is rejected. This also closes the
+    // procurement.create → procurement.po.create permission bypass: this endpoint
+    // no longer inserts any purchase order.
+    return err(
+      "إنشاء أوامر الشراء القديمة مُعطَّل — استخدم أوامر الشراء المحكومة (New governed Purchase Order)",
+      409,
+      "LEGACY_PO_CREATION_DISABLED",
+    );
   });
 }
 

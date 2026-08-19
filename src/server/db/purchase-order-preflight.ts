@@ -61,6 +61,23 @@ export async function purchaseOrderPreflight(dbh: Db) {
       )
   )[0] as any;
 
+  // Phase 3C.1 cutover verification: the newest legacy vs governed PO created_at.
+  // No reliable cutover timestamp/marker exists, so the before/after split is NOT
+  // fabricated. Instead, production can watch `latestLegacyCreatedAt` stop
+  // advancing (no NEW legacy POs) while `latestGovernedCreatedAt` keeps advancing.
+  const latestLegacy = (
+    await dbh
+      .select({ m: sql<string>`MAX(${purchaseOrders.createdAt})` })
+      .from(purchaseOrders)
+      .where(eq(purchaseOrders.governanceMode, "legacy"))
+  )[0] as any;
+  const latestGoverned = (
+    await dbh
+      .select({ m: sql<string>`MAX(${purchaseOrders.createdAt})` })
+      .from(purchaseOrders)
+      .where(eq(purchaseOrders.governanceMode, PurchaseOrderGovernance.GOVERNED))
+  )[0] as any;
+
   return {
     totalPurchaseOrders: rows.length,
     byStatus,
@@ -78,5 +95,8 @@ export async function purchaseOrderPreflight(dbh: Db) {
     supplierBalanceMutationsTracked: false,
     // Invariant guard: governed POs never post — must be 0.
     governedPosWithReceiveJournal: Number(governedWithReceiveJournal?.c || 0),
+    // Cutover watchpoints (no fabricated before/after split — see note above).
+    latestLegacyCreatedAt: latestLegacy?.m ?? null,
+    latestGovernedCreatedAt: latestGoverned?.m ?? null,
   };
 }

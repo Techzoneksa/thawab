@@ -1,0 +1,11 @@
+-- Phase 3C.1 — governed Purchase Order cutover. Additive, non-destructive,
+-- idempotent. Flips the DEFAULT for governance_mode so NEW rows that omit the
+-- field become 'governed' (a DB safety net behind the application freeze of legacy
+-- PO creation). This is a safety net, NOT authorization: the governed service
+-- remains the only supported creation path and enforces all mandatory governed
+-- fields + workflow.
+--
+-- Existing historical rows are NEVER rewritten — they keep whatever
+-- governance_mode they already have (legacy or governed). No journal-history
+-- rewrite, no suppliers.balance write, no inventory mutation.
+ALTER TABLE "purchase_orders" ALTER COLUMN "governance_mode" SET DEFAULT 'governed';
