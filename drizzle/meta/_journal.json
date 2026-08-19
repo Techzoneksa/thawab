@@ -183,6 +183,13 @@
       "when": 1787070000000,
       "tag": "0025_governed_purchase_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1787080000000,
+      "tag": "0026_goods_receipts",
+      "breakpoints": true
     }
   ]
 }

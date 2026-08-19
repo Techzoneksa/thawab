@@ -26,6 +26,14 @@ export const PROCUREMENT_PERMISSIONS = {
   poIssue: "procurement.po.issue",
   poCancel: "procurement.po.cancel",
   poAuditView: "procurement.po.audit.view",
+
+  // Phase 3D — governed Goods Receipts (سندات الاستلام / GRN). Granular so
+  // receiving (which posts Dr receipt / Cr GRNI + inventory) and reversal are
+  // separate authorities; neither implies PO mutation or any AP/payment action.
+  grnView: "procurement.grn.view",
+  grnCreate: "procurement.grn.create",
+  grnReverse: "procurement.grn.reverse",
+  grnAuditView: "procurement.grn.audit.view",
 } as const;
 
 export type ProcurementPermission =
@@ -67,6 +75,24 @@ export const PROCUREMENT_PERM_GROUPS: ProcurementPermGroup[] = [
         desc: "إلغاء أمر شراء صادر ضمن ضوابط وبسبب",
       },
       { key: PROCUREMENT_PERMISSIONS.poAuditView, label: "عرض سجل تدقيق أوامر الشراء" },
+    ],
+  },
+  {
+    key: "procurement-goods-receipts",
+    label: "المشتريات — سندات الاستلام",
+    perms: [
+      { key: PROCUREMENT_PERMISSIONS.grnView, label: "عرض سندات الاستلام" },
+      {
+        key: PROCUREMENT_PERMISSIONS.grnCreate,
+        label: "تسجيل استلام بضاعة",
+        desc: "يُنشئ قيد استلام (مدين المستلَم / دائن بضاعة مستلمة لم تُفوتر) وحركة مخزون — لا يمس الذمم الدائنة",
+      },
+      {
+        key: PROCUREMENT_PERMISSIONS.grnReverse,
+        label: "عكس سند استلام",
+        desc: "يعكس القيد وحركة المخزون معاً",
+      },
+      { key: PROCUREMENT_PERMISSIONS.grnAuditView, label: "عرض سجل تدقيق سندات الاستلام" },
     ],
   },
 ];

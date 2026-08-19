@@ -316,3 +316,225 @@ export async function inputVatPreflight(dbh: Db) {
     taxableInvoicesBlockedByMissingMapping: blockedByConfig,
   };
 }
+
+// ============================================================================
+// Phase 3D — GRNI (Goods Received Not Invoiced) mapping. Same admin-confirmed
+// provenance model as Input VAT: a system_key='grni' mapping is trusted ONLY
+// when a matching explicit confirmation (purpose 'GRNI') exists. GRNI is a
+// LIABILITY accrual and is explicitly NOT the Accounts Payable control account.
+// ============================================================================
+
+export const GRNI_PURPOSE = "GRNI";
+
+/** Validate that `accountId` may be mapped as the GRNI accrual control account. */
+export async function validateGrniMappingAccount(dbh: Db, accountId: string) {
+  const acc = (await dbh.select().from(accounts).where(eq(accounts.id, accountId)).limit(1))[0] as
+    any | undefined;
+  if (!acc) throw new AppError("الحساب غير موجود", 404, "ACCOUNT_NOT_FOUND");
+  if (acc.status !== AccountStatus.ACTIVE)
+    throw new AppError("الحساب غير نشط", 400, "ACCOUNT_INACTIVE");
+  if (!acc.postable)
+    throw new AppError(
+      "الحساب رئيسي/غير قابل للترحيل — اختر حساباً فرعياً",
+      400,
+      "ACCOUNT_NOT_POSTABLE",
+    );
+  const apId = await resolveSystemAccountId(dbh as any, SYS.ACCOUNTS_PAYABLE);
+  if (acc.id === apId)
+    throw new AppError(
+      "لا يمكن استخدام حساب الذمم الدائنة كحساب بضاعة مستلمة لم تُفوتر (GRNI منفصل عن الذمم الدائنة)",
+      400,
+      "MAPPING_IS_AP",
+    );
+  const mapped = await accountMappedToAnyCashBank(dbh, accountId);
+  if (mapped)
+    throw new AppError(
+      "لا يمكن استخدام حساب مرتبط بصندوق/بنك كحساب GRNI",
+      400,
+      "MAPPING_IS_CASH_BANK",
+    );
+  if (acc.classification !== AccountClassification.LIABILITY)
+    throw new AppError(
+      "حساب البضاعة المستلمة لم تُفوتر يجب أن يكون التزاماً (استحقاق)",
+      400,
+      "MAPPING_CLASS_INVALID",
+    );
+  return acc;
+}
+
+/** The account currently carrying system_key='grni' (or null). */
+export async function getGrniMapping(dbh: Db) {
+  const rows = await dbh.select().from(accounts).where(eq(accounts.systemKey, SYS.GRNI));
+  return (rows[0] as any) ?? null;
+}
+
+/** The explicit GRNI confirmation row (or null). */
+export async function getGrniConfirmation(dbh: Db) {
+  const rows = await dbh
+    .select()
+    .from(financeAccountMappingConfirmations)
+    .where(eq(financeAccountMappingConfirmations.purpose, GRNI_PURPOSE));
+  return (rows[0] as any) ?? null;
+}
+
+/** Full GRNI configuration snapshot + derived status (see MappingStatus). */
+export async function getGrniConfiguration(dbh: Db): Promise<{
+  mapping: any | null;
+  confirmation: any | null;
+  status: MappingStatus;
+  matches: boolean;
+  valid: boolean;
+}> {
+  const mapping = await getGrniMapping(dbh);
+  const confirmation = await getGrniConfirmation(dbh);
+  const matches = !!mapping && !!confirmation && confirmation.accountId === mapping.id;
+  let valid = false;
+  if (matches) {
+    try {
+      await validateGrniMappingAccount(dbh, mapping.id);
+      valid = true;
+    } catch {
+      valid = false;
+    }
+  }
+  let status: MappingStatus;
+  if (!mapping) status = "MISSING";
+  else if (!confirmation) status = "UNCONFIRMED";
+  else if (!matches) status = "MISMATCH";
+  else if (!valid) status = "INVALID";
+  else status = "READY";
+  return { mapping, confirmation, status, matches, valid };
+}
+
+/**
+ * The single resolver a governed Goods Receipt MUST use for its GRNI credit.
+ * Requires a system_key mapping + matching confirmation + a still-valid account,
+ * else throws GRNI_ACCOUNT_MISSING / GRNI_MAPPING_UNCONFIRMED. No hardcoded code.
+ */
+export async function resolveConfirmedGrniAccount(dbh: Db): Promise<string> {
+  const mapping = await getGrniMapping(dbh);
+  if (!mapping)
+    throw new AppError(
+      "لا يوجد حساب بضاعة مستلمة لم تُفوتر (GRNI) مُهيّأ في الدليل المحاسبي",
+      400,
+      "GRNI_ACCOUNT_MISSING",
+    );
+  const confirmation = await getGrniConfirmation(dbh);
+  if (!confirmation || confirmation.accountId !== mapping.id)
+    throw new AppError(
+      "ربط حساب GRNI غير مؤكَّد من مسؤول مالي — يلزم التأكيد قبل ترحيل استلام بضاعة",
+      400,
+      "GRNI_MAPPING_UNCONFIRMED",
+    );
+  try {
+    await validateGrniMappingAccount(dbh, mapping.id);
+  } catch {
+    throw new AppError(
+      "حساب GRNI المؤكَّد لم يعد صالحاً — أعد تهيئته وتأكيده",
+      400,
+      "GRNI_MAPPING_UNCONFIRMED",
+    );
+  }
+  return mapping.id as string;
+}
+
+/** Atomically (re)assign AND confirm the GRNI mapping inside the caller's tx. */
+export async function assignGrniAccount(
+  tx: any,
+  input: { accountId: string; userId?: string | null },
+): Promise<{ account: any; previousAccountId: string | null }> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(${LOCK_NS.ACCOUNT_MAPPING}, hashtext(${GRNI_PURPOSE}))`,
+  );
+  const prior = await getGrniMapping(tx);
+  const previousAccountId = prior?.id ?? null;
+  const acc = await validateGrniMappingAccount(tx, input.accountId);
+  const ts = now();
+  await tx
+    .update(accounts)
+    .set({ systemKey: null, updatedAt: ts })
+    .where(and(eq(accounts.systemKey, SYS.GRNI), ne(accounts.id, input.accountId)));
+  await tx
+    .update(accounts)
+    .set({ systemKey: SYS.GRNI, updatedAt: ts })
+    .where(eq(accounts.id, input.accountId));
+  await tx
+    .insert(financeAccountMappingConfirmations)
+    .values({
+      id: genId("FMAP"),
+      purpose: GRNI_PURPOSE,
+      accountId: input.accountId,
+      confirmedBy: input.userId ?? null,
+      confirmedAt: ts,
+      updatedAt: ts,
+    })
+    .onConflictDoUpdate({
+      target: financeAccountMappingConfirmations.purpose,
+      set: {
+        accountId: input.accountId,
+        confirmedBy: input.userId ?? null,
+        confirmedAt: ts,
+        updatedAt: ts,
+      },
+    });
+  return { account: acc, previousAccountId };
+}
+
+/** Admin action: set/confirm (or change) the GRNI account — atomic + audited. */
+export async function setGrniAccount(ctx: Ctx, accountId: string) {
+  let previousAccountId: string | null = null;
+  await db.transaction(async (tx) => {
+    const res = await assignGrniAccount(tx as any, { accountId, userId: ctx.user.id });
+    previousAccountId = res.previousAccountId;
+  });
+  const acc = (await db.select().from(accounts).where(eq(accounts.id, accountId)).limit(1))[0];
+  const changed = !!previousAccountId && previousAccountId !== accountId;
+  const prev = previousAccountId
+    ? (await db.select().from(accounts).where(eq(accounts.id, previousAccountId)).limit(1))[0]
+    : null;
+  await addAudit({
+    action: changed ? "GRNI_MAPPING_CHANGED" : "GRNI_MAPPING_CONFIRMED",
+    entityType: "account_mapping",
+    entityId: GRNI_PURPOSE,
+    description: changed
+      ? `تغيير وتأكيد حساب GRNI من ${prev?.code ?? "—"} إلى ${acc?.code} — ${acc?.name}`
+      : `تأكيد حساب GRNI: ${acc?.code} — ${acc?.name}`,
+    userId: ctx.user.id,
+    userName: ctx.user.name,
+    ip: ctx.ip,
+  });
+  return acc;
+}
+
+/** Diagnostic ONLY for GRNI configuration (never mutates, never auto-maps). */
+export async function grniPreflight(dbh: Db) {
+  const { mapping, confirmation, status, matches, valid } = await getGrniConfiguration(dbh);
+  const dupMapping = (await dbh
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(eq(accounts.systemKey, SYS.GRNI))) as any[];
+  return {
+    purpose: "grni",
+    status,
+    mappingMatchesConfirmation: matches,
+    mappingValid: valid,
+    mapping: mapping
+      ? {
+          accountId: mapping.id,
+          code: mapping.code,
+          name: mapping.name,
+          active: mapping.status === AccountStatus.ACTIVE,
+          postable: !!mapping.postable,
+          classification: mapping.classification,
+        }
+      : null,
+    confirmation: confirmation
+      ? {
+          accountId: confirmation.accountId,
+          confirmedBy: confirmation.confirmedBy,
+          confirmedAt: confirmation.confirmedAt,
+        }
+      : null,
+    duplicateMappingCount: dupMapping.length,
+  };
+}

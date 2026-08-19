@@ -33,6 +33,7 @@ import {
   type JournalAction,
 } from "@/lib/finance-permissions";
 import { PO_TRANSITIONS } from "@/lib/procurement-permissions";
+import { hasPostedGoodsReceipt } from "./goods-receipt";
 import {
   PurchaseOrderGovernedStatus as S,
   PurchaseOrderGovernance,
@@ -410,6 +411,15 @@ export async function transitionPurchaseOrder(
       // Re-validate supplier active + totals intact at submit and issue.
       await validatePurchaseOrder(tx as any, linesToInput(locked, lines));
     }
+
+    // Phase 3D: a PO that has already received goods (a posted GRN exists) must
+    // not be cancelled — cancelling would orphan the GRNI accrual and stock.
+    if (action === "cancel" && (await hasPostedGoodsReceipt(tx as any, id)))
+      throw new AppError(
+        "لا يمكن إلغاء أمر شراء استُلمت بضاعته — اعكس سندات الاستلام أولاً",
+        409,
+        "PO_HAS_RECEIPTS",
+      );
 
     const cols: Record<string, unknown> = { status: t.to, updatedAt: ts };
     if (action === "submit") {

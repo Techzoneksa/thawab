@@ -368,6 +368,19 @@ export const PurchaseOrderLineType = {
 export type PurchaseOrderLineType =
   (typeof PurchaseOrderLineType)[keyof typeof PurchaseOrderLineType];
 
+/**
+ * Phase 3D — governed Goods Receipt (سند استلام / GRN) lifecycle. A GRN is a
+ * receiving event: on POST it atomically books the receipt into the GL
+ * (Dr receipt/inventory/expense/asset / Cr GRNI — never Accounts Payable) and,
+ * for ITEM lines, into inventory. REVERSED safely unwinds both GL and stock. It
+ * never touches supplier payable, supplier_journal_links, or Input VAT.
+ */
+export const GoodsReceiptStatus = {
+  POSTED: "posted",
+  REVERSED: "reversed",
+} as const;
+export type GoodsReceiptStatus = (typeof GoodsReceiptStatus)[keyof typeof GoodsReceiptStatus];
+
 export const QuoteStatus = {
   PENDING: "pending",
   ACCEPTED: "accepted",

@@ -28,8 +28,19 @@ export interface InputVatPreflight {
   taxableInvoicesBlockedByMissingMapping: number;
 }
 
+export interface GrniPreflight {
+  purpose: string;
+  status: MappingStatus;
+  mappingMatchesConfirmation: boolean;
+  mappingValid: boolean;
+  mapping: MappingAccount | null;
+  confirmation: { accountId: string; confirmedBy: string | null; confirmedAt: string } | null;
+  duplicateMappingCount: number;
+}
+
 export interface AccountMappingsState {
   inputVat: { preflight: InputVatPreflight; mapping: any | null };
+  grni: { preflight: GrniPreflight; mapping: any | null };
 }
 
 async function j(res: Response, fallback: string) {
@@ -42,11 +53,19 @@ export async function getAccountMappings(): Promise<AccountMappingsState> {
   return j(await fetch("/api/finance/account-mappings"), "تعذّر جلب ربط الحسابات النظامية");
 }
 
-export async function setInputVatAccount(accountId: string): Promise<any> {
+async function setMapping(purpose: "input_vat" | "grni", accountId: string, fallback: string) {
   const res = await fetch("/api/finance/account-mappings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ purpose: "input_vat", accountId }),
+    body: JSON.stringify({ purpose, accountId }),
   });
-  return (await j(res, "تعذّر تعيين حساب ضريبة المدخلات")).item;
+  return (await j(res, fallback)).item;
+}
+
+export function setInputVatAccount(accountId: string): Promise<any> {
+  return setMapping("input_vat", accountId, "تعذّر تعيين حساب ضريبة المدخلات");
+}
+
+export function setGrniAccount(accountId: string): Promise<any> {
+  return setMapping("grni", accountId, "تعذّر تعيين حساب GRNI");
 }

@@ -17,15 +17,26 @@ import {
   setInputVatAccount,
   inputVatPreflight,
   getInputVatMapping,
+  setGrniAccount,
+  grniPreflight,
+  getGrniMapping,
 } from "@/server/db/account-mapping";
 
 async function GET(_event: { request: Request }, _ctx: Ctx) {
-  const [preflight, mapping] = await Promise.all([inputVatPreflight(db), getInputVatMapping(db)]);
-  return Response.json({ inputVat: { preflight, mapping: mapping ?? null } });
+  const [vatPf, vatMap, grniPf, grniMap] = await Promise.all([
+    inputVatPreflight(db),
+    getInputVatMapping(db),
+    grniPreflight(db),
+    getGrniMapping(db),
+  ]);
+  return Response.json({
+    inputVat: { preflight: vatPf, mapping: vatMap ?? null },
+    grni: { preflight: grniPf, mapping: grniMap ?? null },
+  });
 }
 
 const setSchema = z.object({
-  purpose: z.literal("input_vat"),
+  purpose: z.enum(["input_vat", "grni"]),
   accountId: z.string().min(1, "الحساب مطلوب"),
 });
 
@@ -34,7 +45,10 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     if (!(await hasPermission(ctx.user.role, P.accountMappingUpdate)))
       return err("لا تملك صلاحية تهيئة ربط الحسابات النظامية", 403, "FORBIDDEN");
     const b = await parseBody(event.request, setSchema);
-    const item = await setInputVatAccount(ctx, b.accountId);
+    const item =
+      b.purpose === "grni"
+        ? await setGrniAccount(ctx, b.accountId)
+        : await setInputVatAccount(ctx, b.accountId);
     return Response.json({ item });
   });
 }

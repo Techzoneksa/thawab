@@ -18,6 +18,8 @@ export const LOCK_NS = {
   CASH_PAYMENT_POSTING: 43,
   /** Phase 3B.2 — system-account mapping reassignment (e.g. Input VAT) serialization. */
   ACCOUNT_MAPPING: 44,
+  /** Phase 3D — governed Goods Receipt posting per Purchase Order (over-receive guard). */
+  GRN_POSTING: 45,
 } as const;
 
 export type LockNamespace = (typeof LOCK_NS)[keyof typeof LOCK_NS];

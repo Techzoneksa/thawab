@@ -1010,6 +1010,71 @@ export const purchaseOrderLines = pgTable("purchase_order_lines", {
   lineTotal: doublePrecision("line_total").notNull().default(0),
 });
 
+// Phase 3D — governed Goods Receipt (GRN). A receiving event against an ISSUED
+// governed Purchase Order. On POST it books (atomically) Dr receipt/inventory/
+// expense/asset per line / Cr GRNI accrual — NEVER Accounts Payable, NEVER
+// suppliers.balance, NEVER supplier_journal_links, NEVER Input VAT. Governed
+// received quantity is DERIVED by summing posted GRN lines (no competing truth).
+export const goodsReceipts = pgTable(
+  "goods_receipts",
+  {
+    id: text("id").primaryKey(),
+    grnNumber: text("grn_number").notNull().unique(), // GRN-2026-000001
+    purchaseOrderId: text("purchase_order_id")
+      .notNull()
+      .references(() => purchaseOrders.id),
+    supplierId: text("supplier_id").references(() => suppliers.id),
+    receiptDate: text("receipt_date").notNull().default(""),
+    status: text("status").notNull().default("posted"), // posted | reversed
+    currency: text("currency").notNull().default("SAR"),
+    totalValue: doublePrecision("total_value").notNull().default(0),
+    journalEntryId: text("journal_entry_id").references(() => journalEntries.id),
+    reversalJournalEntryId: text("reversal_journal_entry_id").references(() => journalEntries.id),
+    notes: text("notes").default(""),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+    reversedBy: text("reversed_by").references(() => users.id),
+    reversedAt: text("reversed_at"),
+    reversalReason: text("reversal_reason"),
+  },
+  (t) => ({
+    numberIdx: uniqueIndex("goods_receipts_number_idx").on(t.grnNumber),
+    journalIdx: uniqueIndex("goods_receipts_journal_entry_idx").on(t.journalEntryId),
+    poIdx: index("goods_receipts_po_idx").on(t.purchaseOrderId),
+    statusIdx: index("goods_receipts_status_idx").on(t.status),
+    dateIdx: index("goods_receipts_date_idx").on(t.receiptDate),
+  }),
+);
+
+export const goodsReceiptLines = pgTable(
+  "goods_receipt_lines",
+  {
+    id: text("id").primaryKey(),
+    goodsReceiptId: text("goods_receipt_id")
+      .notNull()
+      .references(() => goodsReceipts.id, { onDelete: "cascade" }),
+    poLineId: text("po_line_id")
+      .notNull()
+      .references(() => purchaseOrderLines.id),
+    lineNumber: integer("line_number").notNull().default(1),
+    lineType: text("line_type").notNull().default("ITEM"),
+    description: text("description").default(""),
+    itemId: text("item_id").references(() => inventoryItems.id),
+    accountId: text("account_id").references(() => accounts.id), // debit target actually posted
+    quantityReceived: doublePrecision("quantity_received").notNull().default(0),
+    unitPrice: doublePrecision("unit_price").notNull().default(0),
+    lineValue: doublePrecision("line_value").notNull().default(0),
+    costCenterId: text("cost_center_id").references(() => costCenters.id),
+    stockMovementId: text("stock_movement_id"), // set for ITEM receipts (one movement)
+    createdAt: text("created_at").notNull().default(""),
+  },
+  (t) => ({
+    grnIdx: index("goods_receipt_lines_grn_idx").on(t.goodsReceiptId),
+    poLineIdx: index("goods_receipt_lines_po_line_idx").on(t.poLineId),
+  }),
+);
+
 export const quotes = pgTable("quotes", {
   id: text("id").primaryKey(),
   requestId: text("request_id").references(() => purchaseRequests.id),

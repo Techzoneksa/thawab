@@ -8,6 +8,7 @@ import { getAccounts, type Account } from "@/lib/api/accounts";
 import {
   getAccountMappings,
   setInputVatAccount,
+  setGrniAccount,
   type MappingStatus,
 } from "@/lib/api/account-mappings";
 
@@ -204,8 +205,124 @@ function Page() {
             </div>
           </Card>
         ) : null}
+
+        <GrniCard
+          pf={mapQ.data?.grni.preflight}
+          accounts={acctQ.data?.items || []}
+          canEdit={canEdit}
+          onSaved={() => qc.invalidateQueries({ queryKey: ["account-mappings"] })}
+        />
       </div>
     </AppShell>
+  );
+}
+
+function GrniCard({
+  pf,
+  accounts,
+  canEdit,
+  onSaved,
+}: {
+  pf: any;
+  accounts: Account[];
+  canEdit: boolean;
+  onSaved: () => void;
+}) {
+  const [accountId, setAccountId] = useState("");
+  const mut = useMutation({
+    mutationFn: () => setGrniAccount(accountId),
+    onSuccess: () => {
+      showToast("تم تعيين وتأكيد حساب GRNI", "success");
+      setAccountId("");
+      onSaved();
+    },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
+  const status = (pf?.status || "MISSING") as MappingStatus;
+  const sMeta = STATUS_META[status];
+  const mapping = pf?.mapping || null;
+  const confirmation = pf?.confirmation || null;
+  const isChange = status === "READY";
+  // Candidate accounts for GRNI: active, postable, LIABILITY.
+  const candidates = accounts.filter(
+    (a) => a.postable && a.status === "active" && a.classification === "liability",
+  );
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="font-bold">حساب بضاعة مستلمة لم تُفوتر (GRNI)</div>
+        <Badge tone={sMeta.tone}>{sMeta.label}</Badge>
+      </div>
+      <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
+        عند ترحيل سند استلام بضاعة، يُقيَّد إجمالي المستلَم دائناً على هذا الحساب (استحقاق منفصل عن
+        الذمم الدائنة). يجب أن يكون حساب التزام، ولا يُعتمد إلا بعد تأكيد صريح من مسؤول مالي.
+      </p>
+      <div className="grid grid-cols-1 gap-2 mb-3 sm:grid-cols-2">
+        <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+          <div className="text-[10px] text-muted-foreground">
+            الحساب المرتبط حالياً (system_key)
+          </div>
+          {mapping ? (
+            <div className="font-mono font-semibold">
+              {mapping.code} — {mapping.name}
+            </div>
+          ) : (
+            <div className="text-muted-foreground">— لا يوجد —</div>
+          )}
+        </div>
+        <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+          <div className="text-[10px] text-muted-foreground">التأكيد الصريح</div>
+          {confirmation ? (
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              بواسطة: {confirmation.confirmedBy || "—"} ·{" "}
+              {String(confirmation.confirmedAt || "")
+                .slice(0, 16)
+                .replace("T", " ")}
+            </div>
+          ) : (
+            <div className="text-muted-foreground">— غير مؤكَّد —</div>
+          )}
+        </div>
+      </div>
+      {status !== "READY" ? (
+        <div className="rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs mb-3">
+          الإعداد ليس جاهزاً ({sMeta.label}). لن يمكن ترحيل سندات الاستلام حتى يتم تعيين حساب التزام
+          صالح وتأكيده صراحةً.
+        </div>
+      ) : null}
+      {canEdit ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="flex-1 block">
+            <div className="text-xs font-semibold text-muted-foreground mb-1">
+              {isChange ? "تغيير الحساب المؤكَّد" : "اختر الحساب (التزام قابل للترحيل)"}
+            </div>
+            <select
+              className="inp"
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+            >
+              <option value="">— اختر حساب التزام —</option>
+              {candidates.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.code} — {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Btn
+            variant="primary"
+            disabled={!accountId || mut.isPending}
+            onClick={() => {
+              if (isChange && !window.confirm("تغيير حساب GRNI المؤكَّد. متابعة؟")) return;
+              mut.mutate();
+            }}
+          >
+            تعيين وتأكيد حساب GRNI
+          </Btn>
+        </div>
+      ) : null}
+    </Card>
   );
 }
 
