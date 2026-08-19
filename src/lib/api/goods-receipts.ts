@@ -94,13 +94,21 @@ export interface GoodsReceiptFilters {
   dateFrom?: string;
   dateTo?: string;
   search?: string;
+  page?: number;
+  pageSize?: number;
 }
 
-export async function listGoodsReceipts(
-  filters: GoodsReceiptFilters = {},
-): Promise<{ items: GoodsReceipt[]; summary: any }> {
+export async function listGoodsReceipts(filters: GoodsReceiptFilters = {}): Promise<{
+  items: GoodsReceipt[];
+  summary: any;
+  total?: number;
+  totalPages?: number;
+  page?: number;
+  pageSize?: number;
+}> {
   const q = new URLSearchParams();
-  for (const [k, v] of Object.entries(filters)) if (v) q.set(k, String(v));
+  const withPage = { pageSize: 200, ...filters };
+  for (const [k, v] of Object.entries(withPage)) if (v != null && v !== "") q.set(k, String(v));
   const qs = q.toString();
   return j(
     await fetch(`/api/procurement/goods-receipts${qs ? `?${qs}` : ""}`),

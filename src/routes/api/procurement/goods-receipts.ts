@@ -75,6 +75,8 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
       dateFrom: url.searchParams.get("dateFrom") || undefined,
       dateTo: url.searchParams.get("dateTo") || undefined,
       search: url.searchParams.get("search") || undefined,
+      page: url.searchParams.get("page"),
+      pageSize: url.searchParams.get("pageSize"),
     }),
   );
 }

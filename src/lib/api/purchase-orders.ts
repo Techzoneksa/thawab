@@ -39,6 +39,8 @@ export interface PurchaseOrderFilters {
   search?: string;
   status?: string;
   supplierId?: string;
+  page?: number;
+  pageSize?: number;
 }
 
 export interface CreatePurchaseOrderLineInput {
@@ -79,11 +81,21 @@ export interface ReceiptLineInput {
 
 export async function getPurchaseOrders(
   filters: PurchaseOrderFilters = {},
-): Promise<{ items: PurchaseOrder[]; total: number }> {
+): Promise<{
+  items: PurchaseOrder[];
+  total: number;
+  totalPages?: number;
+  page?: number;
+  pageSize?: number;
+  summary?: any;
+}> {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
   if (filters.status) params.set("status", filters.status);
   if (filters.supplierId) params.set("supplierId", filters.supplierId);
+  // Server hard-caps at 200; request the max so the list isn't clipped to 25.
+  params.set("pageSize", String(filters.pageSize ?? 200));
+  if (filters.page) params.set("page", String(filters.page));
   const res = await fetch(`${API_BASE}?${params.toString()}`);
   if (!res.ok) throw new Error("فشل في جلب أوامر الشراء");
   return res.json();

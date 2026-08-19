@@ -72,12 +72,24 @@ function put(url: string, body: any) {
 }
 
 export async function listFinanceSuppliers(
-  opts: { search?: string; status?: string; all?: boolean } = {},
-): Promise<{ items: FinanceSupplier[] }> {
+  opts: { search?: string; status?: string; all?: boolean; page?: number; pageSize?: number } = {},
+): Promise<{
+  items: FinanceSupplier[];
+  total?: number;
+  totalPages?: number;
+  page?: number;
+  pageSize?: number;
+}> {
   const q = new URLSearchParams();
   if (opts.search) q.set("search", opts.search);
   if (opts.status) q.set("status", opts.status);
   if (opts.all) q.set("all", "1");
+  else {
+    // Bounded list page (server hard-caps at 200). `all` is the picker path and
+    // deliberately returns the full active set without per-row balances.
+    q.set("pageSize", String(opts.pageSize ?? 200));
+    if (opts.page) q.set("page", String(opts.page));
+  }
   const qs = q.toString();
   return j(await fetch(`/api/finance/suppliers${qs ? `?${qs}` : ""}`), "تعذّر جلب الموردين");
 }
@@ -88,9 +100,7 @@ export async function getFinanceSupplier(
   return j(await fetch(`/api/finance/suppliers?id=${id}`), "تعذّر جلب المورد");
 }
 
-export async function getSupplierLedger(
-  id: string,
-): Promise<{
+export async function getSupplierLedger(id: string): Promise<{
   item: FinanceSupplier;
   opening: number;
   movements: SupplierLedgerMovement[];

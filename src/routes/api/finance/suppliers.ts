@@ -86,6 +86,8 @@ async function GET({ request }: { request: Request }, ctx: Ctx) {
       search: url.searchParams.get("search") || undefined,
       status: url.searchParams.get("status") || undefined,
       all: url.searchParams.get("all") === "1",
+      page: url.searchParams.get("page"),
+      pageSize: url.searchParams.get("pageSize"),
     }),
   );
 }

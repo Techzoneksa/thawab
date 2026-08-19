@@ -36,7 +36,8 @@
  * competing manually-maintained column). Concurrent posting is serialized on an
  * advisory lock per Purchase Order so a line can never be over-received.
  */
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { resolvePage, paginatedResult, type PageParams } from "./pagination";
 import { db, now, genId, addAudit } from "./index";
 import {
   goodsReceipts,
@@ -946,32 +947,59 @@ export interface GoodsReceiptFilters {
   search?: string;
 }
 
-export async function listGoodsReceipts(filters: GoodsReceiptFilters = {}) {
-  const rows = (await db
+/** Shared WHERE for the GRN list + summary — filters in SQL, not JS. */
+function goodsReceiptWhere(filters: GoodsReceiptFilters) {
+  const conds: any[] = [];
+  if (filters.status) conds.push(eq(goodsReceipts.status, filters.status));
+  if (filters.purchaseOrderId)
+    conds.push(eq(goodsReceipts.purchaseOrderId, filters.purchaseOrderId));
+  if (filters.supplierId) conds.push(eq(goodsReceipts.supplierId, filters.supplierId));
+  if (filters.dateFrom) conds.push(gte(goodsReceipts.receiptDate, filters.dateFrom));
+  if (filters.dateTo) conds.push(lte(goodsReceipts.receiptDate, filters.dateTo));
+  const q = (filters.search || "").trim();
+  if (q) conds.push(sql`${goodsReceipts.grnNumber} ILIKE ${`%${q}%`}`);
+  return conds.length ? and(...conds) : undefined;
+}
+
+/**
+ * Phase 4A — bounded, SQL-filtered GRN list. Status counts + posted GRNI value
+ * computed over the full filtered set (SQL FILTER); only the page is
+ * materialized. `{ items, summary }` preserved; page fields added.
+ */
+export async function listGoodsReceipts(filters: GoodsReceiptFilters & PageParams = {}) {
+  const pg = resolvePage(filters);
+  const where = goodsReceiptWhere(filters);
+  const agg = (
+    await (db as any)
+      .select({
+        total: sql<number>`COUNT(*)`,
+        draft: sql<number>`COUNT(*) FILTER (WHERE ${goodsReceipts.status} = ${G.DRAFT})`,
+        submitted: sql<number>`COUNT(*) FILTER (WHERE ${goodsReceipts.status} = ${G.SUBMITTED})`,
+        approved: sql<number>`COUNT(*) FILTER (WHERE ${goodsReceipts.status} = ${G.APPROVED})`,
+        posted: sql<number>`COUNT(*) FILTER (WHERE ${goodsReceipts.status} = ${G.POSTED})`,
+        rejected: sql<number>`COUNT(*) FILTER (WHERE ${goodsReceipts.status} = ${G.REJECTED})`,
+        reversed: sql<number>`COUNT(*) FILTER (WHERE ${goodsReceipts.status} = ${G.REVERSED})`,
+        grniValue: sql<number>`COALESCE(SUM(${goodsReceipts.totalValue}) FILTER (WHERE ${goodsReceipts.status} = ${G.POSTED}), 0)`,
+      })
+      .from(goodsReceipts)
+      .where(where)
+  )[0] as any;
+  const summary = {
+    total: Number(agg?.total || 0),
+    draft: Number(agg?.draft || 0),
+    submitted: Number(agg?.submitted || 0),
+    approved: Number(agg?.approved || 0),
+    posted: Number(agg?.posted || 0),
+    rejected: Number(agg?.rejected || 0),
+    reversed: Number(agg?.reversed || 0),
+    grniValue: Number(agg?.grniValue || 0),
+  };
+  const items = (await (db as any)
     .select()
     .from(goodsReceipts)
-    .orderBy(sql`${goodsReceipts.createdAt} DESC`)) as any[];
-  const q = (filters.search || "").trim().toLowerCase();
-  const items = rows.filter((r) => {
-    if (filters.status && r.status !== filters.status) return false;
-    if (filters.purchaseOrderId && r.purchaseOrderId !== filters.purchaseOrderId) return false;
-    if (filters.supplierId && r.supplierId !== filters.supplierId) return false;
-    if (filters.dateFrom && r.receiptDate < filters.dateFrom) return false;
-    if (filters.dateTo && r.receiptDate > filters.dateTo) return false;
-    if (q && !`${r.grnNumber}`.toLowerCase().includes(q)) return false;
-    return true;
-  });
-  const summary = {
-    total: items.length,
-    draft: items.filter((r) => r.status === G.DRAFT).length,
-    submitted: items.filter((r) => r.status === G.SUBMITTED).length,
-    approved: items.filter((r) => r.status === G.APPROVED).length,
-    posted: items.filter((r) => r.status === G.POSTED).length,
-    rejected: items.filter((r) => r.status === G.REJECTED).length,
-    reversed: items.filter((r) => r.status === G.REVERSED).length,
-    grniValue: items
-      .filter((r) => r.status === G.POSTED)
-      .reduce((s, r) => s + Number(r.totalValue || 0), 0),
-  };
-  return { items, summary };
+    .where(where)
+    .orderBy(desc(goodsReceipts.createdAt))
+    .limit(pg.limit)
+    .offset(pg.offset)) as any[];
+  return { ...paginatedResult(items, summary.total, pg), items, summary };
 }

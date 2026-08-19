@@ -118,13 +118,23 @@ export interface SupplierInvoiceFilters {
   dateFrom?: string;
   dateTo?: string;
   search?: string;
+  page?: number;
+  pageSize?: number;
 }
 
-export async function listSupplierInvoices(
-  filters: SupplierInvoiceFilters = {},
-): Promise<{ items: SupplierInvoice[]; summary: any }> {
+export async function listSupplierInvoices(filters: SupplierInvoiceFilters = {}): Promise<{
+  items: SupplierInvoice[];
+  summary: any;
+  total?: number;
+  totalPages?: number;
+  page?: number;
+  pageSize?: number;
+}> {
   const q = new URLSearchParams();
-  for (const [k, v] of Object.entries(filters)) if (v) q.set(k, String(v));
+  // Server hard-caps page size at 200; request the max so a filtered view is
+  // never silently clipped to the default 25. (Full pager UI is a Round-2 item.)
+  const withPage = { pageSize: 200, ...filters };
+  for (const [k, v] of Object.entries(withPage)) if (v != null && v !== "") q.set(k, String(v));
   const qs = q.toString();
   return j(
     await fetch(`/api/finance/supplier-invoices${qs ? `?${qs}` : ""}`),

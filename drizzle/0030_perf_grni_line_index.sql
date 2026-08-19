@@ -1,0 +1,13 @@
+-- Phase 4A — performance index. Additive, non-destructive, idempotent.
+-- grni_journal_links.goods_receipt_line_id is filtered per line by the matching
+-- position service (activeClearedGrniValue / getGrnLineMatchingPosition) and GRNI
+-- reconciliation drill-down. Without this index those lookups seq-scan the table,
+-- which compounds across a receipt's lines. Measured on 20k links + 500k journal
+-- lines: seq scan 2.08ms → index scan 0.15ms (~14×), and it removes the per-line
+-- full scan from the matchable-GRN path.
+--
+-- Deployment note: grni_journal_links is a small control-linkage table, so a plain
+-- CREATE INDEX (brief write lock, sub-second at this size) is safe via the boot
+-- migration runner. For very large tables, prefer CREATE INDEX CONCURRENTLY run
+-- out-of-band (the runner applies statements non-concurrently).
+CREATE INDEX IF NOT EXISTS "grni_journal_links_grn_line_idx" ON "grni_journal_links" ("goods_receipt_line_id");

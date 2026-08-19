@@ -1156,6 +1156,8 @@ export const grniJournalLinks = pgTable(
   (t) => ({
     lineIdx: uniqueIndex("grni_journal_links_line_idx").on(t.journalLineId),
     grnIdx: index("grni_journal_links_grn_idx").on(t.goodsReceiptId),
+    // Phase 4A perf: the matching-position service filters by goods_receipt_line_id.
+    grnLineIdx: index("grni_journal_links_grn_line_idx").on(t.goodsReceiptLineId),
   }),
 );
 

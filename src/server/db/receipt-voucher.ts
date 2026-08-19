@@ -19,7 +19,8 @@
  * method-based cash/bank default resolver and system_key fallbacks are
  * deliberately NOT used for new vouchers.
  */
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { resolvePage, paginatedResult, type PageParams } from "./pagination";
 import { db, now, genId, addAudit } from "./index";
 import {
   receiptVouchers,
@@ -619,29 +620,62 @@ export interface ReceiptVoucherFilters {
   search?: string;
 }
 
-export async function listReceiptVouchers(filters: ReceiptVoucherFilters = {}) {
-  const rows = await db.select().from(receiptVouchers).orderBy(desc(receiptVouchers.createdAt));
-  const q = (filters.search || "").trim().toLowerCase();
-  const items = rows.filter((r: any) => {
-    if (filters.status && r.status !== filters.status) return false;
-    if (filters.cashboxId && r.cashboxId !== filters.cashboxId) return false;
-    if (filters.bankAccountId && r.bankAccountId !== filters.bankAccountId) return false;
-    if (filters.dateFrom && r.voucherDate < filters.dateFrom) return false;
-    if (filters.dateTo && r.voucherDate > filters.dateTo) return false;
-    if (q) {
-      const hay = `${r.voucherNumber} ${r.payerName} ${r.externalReference || ""}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
+/** Shared WHERE for the receipt-voucher list + summary — filters in SQL. */
+function receiptVoucherWhere(filters: ReceiptVoucherFilters) {
+  const conds: any[] = [];
+  if (filters.status) conds.push(eq(receiptVouchers.status, filters.status));
+  if (filters.cashboxId) conds.push(eq(receiptVouchers.cashboxId, filters.cashboxId));
+  if (filters.bankAccountId) conds.push(eq(receiptVouchers.bankAccountId, filters.bankAccountId));
+  if (filters.dateFrom) conds.push(gte(receiptVouchers.voucherDate, filters.dateFrom));
+  if (filters.dateTo) conds.push(lte(receiptVouchers.voucherDate, filters.dateTo));
+  const q = (filters.search || "").trim();
+  if (q) {
+    const like = `%${q}%`;
+    conds.push(
+      sql`(${receiptVouchers.voucherNumber} ILIKE ${like} OR ${receiptVouchers.payerName} ILIKE ${like} OR ${receiptVouchers.externalReference} ILIKE ${like})`,
+    );
+  }
+  return conds.length ? and(...conds) : undefined;
+}
+
+/**
+ * Phase 4A — bounded, SQL-filtered receipt-voucher list. Status counts computed
+ * over the full filtered set (SQL FILTER); only the page is materialized.
+ * `{ items, summary }` preserved; page fields added.
+ */
+export async function listReceiptVouchers(filters: ReceiptVoucherFilters & PageParams = {}) {
+  const pg = resolvePage(filters);
+  const where = receiptVoucherWhere(filters);
+  const R = ReceiptVoucherStatus;
+  const agg = (
+    await (db as any)
+      .select({
+        total: sql<number>`COUNT(*)`,
+        draft: sql<number>`COUNT(*) FILTER (WHERE ${receiptVouchers.status} = ${R.DRAFT})`,
+        submitted: sql<number>`COUNT(*) FILTER (WHERE ${receiptVouchers.status} = ${R.SUBMITTED})`,
+        approved: sql<number>`COUNT(*) FILTER (WHERE ${receiptVouchers.status} = ${R.APPROVED})`,
+        posted: sql<number>`COUNT(*) FILTER (WHERE ${receiptVouchers.status} = ${R.POSTED})`,
+        rejected: sql<number>`COUNT(*) FILTER (WHERE ${receiptVouchers.status} = ${R.REJECTED})`,
+        reversed: sql<number>`COUNT(*) FILTER (WHERE ${receiptVouchers.status} = ${R.REVERSED})`,
+      })
+      .from(receiptVouchers)
+      .where(where)
+  )[0] as any;
   const summary = {
-    total: items.length,
-    draft: items.filter((r: any) => r.status === ReceiptVoucherStatus.DRAFT).length,
-    submitted: items.filter((r: any) => r.status === ReceiptVoucherStatus.SUBMITTED).length,
-    approved: items.filter((r: any) => r.status === ReceiptVoucherStatus.APPROVED).length,
-    posted: items.filter((r: any) => r.status === ReceiptVoucherStatus.POSTED).length,
-    rejected: items.filter((r: any) => r.status === ReceiptVoucherStatus.REJECTED).length,
-    reversed: items.filter((r: any) => r.status === ReceiptVoucherStatus.REVERSED).length,
+    total: Number(agg?.total || 0),
+    draft: Number(agg?.draft || 0),
+    submitted: Number(agg?.submitted || 0),
+    approved: Number(agg?.approved || 0),
+    posted: Number(agg?.posted || 0),
+    rejected: Number(agg?.rejected || 0),
+    reversed: Number(agg?.reversed || 0),
   };
-  return { items, summary };
+  const items = (await (db as any)
+    .select()
+    .from(receiptVouchers)
+    .where(where)
+    .orderBy(desc(receiptVouchers.createdAt))
+    .limit(pg.limit)
+    .offset(pg.offset)) as any[];
+  return { ...paginatedResult(items, summary.total, pg), items, summary };
 }

@@ -28,6 +28,7 @@ import {
   SYS,
 } from "./gl";
 import { getAccountBalance } from "./balances";
+import { resolvePage, paginatedResult, type PageParams } from "./pagination";
 import { nextCode } from "./numbering";
 import { AppError } from "./errors";
 import { JournalStatus, JournalSource, SupplierStatus, AccountClassification } from "@/lib/enums";
@@ -730,31 +731,99 @@ export async function setSupplierStatus(ctx: Ctx, id: string, active: boolean) {
 
 // ------------------------------- Reads (list/detail) --------------------
 
-export async function listSuppliers(
-  opts: { search?: string; status?: string; all?: boolean } = {},
-) {
-  const rows = await db.select().from(suppliers).orderBy(desc(suppliers.createdAt));
-  const q = (opts.search || "").trim().toLowerCase();
-  const apId = await resolveSystemAccountId(db as any, SYS.ACCOUNTS_PAYABLE).catch(() => null);
-  const filtered = rows.filter((s: any) => {
-    if (opts.status && s.status !== opts.status) return false;
-    if (!opts.all && !opts.status && s.status !== SupplierStatus.ACTIVE) {
-      // default list shows active; keep inactive out unless explicitly requested
-    }
-    if (q) {
-      const hay =
-        `${s.supplierCode || ""} ${s.name} ${s.taxNumber || ""} ${s.phone || ""}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
-  // Derive payable per supplier from the GL subledger (never legacy balance).
-  const items = [];
-  for (const s of filtered) {
-    const bal = apId ? await getSupplierBalance(db, s.id) : { payableBalance: 0 };
-    items.push({ ...maskSupplier(s), payableBalance: bal.payableBalance });
+/**
+ * Batched supplier payable (credit − debit over each supplier's linked AP lines,
+ * posted+reversed) in ONE set-based query — replaces the per-row getSupplierBalance
+ * N+1. Pass `supplierIds` to bound it to a page. Returns Map(supplierId → payable).
+ */
+export async function supplierPayableMap(
+  dbh: Db,
+  supplierIds?: string[],
+): Promise<Map<string, number>> {
+  const conds: any[] = [inArray(journalEntries.status, GL_STATES)];
+  if (supplierIds && supplierIds.length)
+    conds.push(inArray(supplierJournalLinks.supplierId, supplierIds));
+  const rows = (await (dbh as any)
+    .select({
+      sid: supplierJournalLinks.supplierId,
+      payable: sql<number>`COALESCE(SUM(${journalLines.credit}),0) - COALESCE(SUM(${journalLines.debit}),0)`,
+    })
+    .from(supplierJournalLinks)
+    .innerJoin(journalLines, eq(supplierJournalLinks.journalLineId, journalLines.id))
+    .innerJoin(journalEntries, eq(journalLines.journalEntryId, journalEntries.id))
+    .where(and(...conds))
+    .groupBy(supplierJournalLinks.supplierId)) as any[];
+  const m = new Map<string, number>();
+  for (const r of rows) m.set(r.sid, Number(r.payable || 0));
+  return m;
+}
+
+/** WHERE shared by the supplier list page and the picker (`all`) path. */
+function supplierListWhere(opts: { search?: string; status?: string }) {
+  const conds: any[] = [];
+  if (opts.status) conds.push(eq(suppliers.status, opts.status));
+  const q = (opts.search || "").trim();
+  if (q) {
+    const like = `%${q}%`;
+    conds.push(
+      sql`(${suppliers.supplierCode} ILIKE ${like} OR ${suppliers.name} ILIKE ${like} OR ${suppliers.taxNumber} ILIKE ${like} OR ${suppliers.phone} ILIKE ${like})`,
+    );
   }
-  return { items };
+  return conds.length ? and(...conds) : undefined;
+}
+
+/**
+ * Phase 4A — supplier list.
+ *
+ * Two shapes, one N+1-free rule:
+ *  - List page (default): bounded page (default 25, max 200). Filters + ORDER BY
+ *    run in SQL; per-supplier payable is computed for the page's suppliers with a
+ *    SINGLE batched GL aggregate (`supplierPayableMap`), never one query per row.
+ *  - Picker (`all: true`): master-data dropdowns must be able to reach every
+ *    active supplier, so this returns the full filtered set in ONE slim query
+ *    WITHOUT any per-row balance (pickers never show payable). This removes the
+ *    real cost — the previous per-row `getSupplierBalance` fan-out — while keeping
+ *    the picker complete. See Remaining Risks (P3): a typeahead options endpoint
+ *    would let even this path page.
+ */
+export async function listSuppliers(
+  opts: { search?: string; status?: string; all?: boolean } & PageParams = {},
+) {
+  const where = supplierListWhere(opts);
+
+  if (opts.all) {
+    const rows = (await (db as any)
+      .select()
+      .from(suppliers)
+      .where(where)
+      .orderBy(desc(suppliers.createdAt))) as any[];
+    const items = rows.map((s) => ({ ...maskSupplier(s), payableBalance: 0 }));
+    return { items, page: 1, pageSize: items.length, total: items.length, totalPages: 1 };
+  }
+
+  const pg = resolvePage(opts);
+  const totalRow = (
+    await (db as any)
+      .select({ c: sql<number>`COUNT(*)` })
+      .from(suppliers)
+      .where(where)
+  )[0] as any;
+  const total = Number(totalRow?.c || 0);
+
+  const rows = (await (db as any)
+    .select()
+    .from(suppliers)
+    .where(where)
+    .orderBy(desc(suppliers.createdAt))
+    .limit(pg.limit)
+    .offset(pg.offset)) as any[];
+
+  const balances = await supplierPayableMap(
+    db,
+    rows.map((s) => s.id),
+  );
+  const items = rows.map((s) => ({ ...maskSupplier(s), payableBalance: balances.get(s.id) || 0 }));
+  return { ...paginatedResult(items, total, pg), items };
 }
 
 export async function getSupplierDetail(id: string, opts: { full?: boolean } = {}) {

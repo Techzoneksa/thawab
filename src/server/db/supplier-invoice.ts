@@ -22,8 +22,9 @@
  *   - AP subledger link     → linkEntryApLine (Phase 3A) — for both the invoice
  *                             AP credit and the reversal-mirror AP debit
  */
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db, now, genId, addAudit } from "./index";
+import { resolvePage, paginatedResult, type PageParams } from "./pagination";
 import {
   supplierInvoices,
   supplierInvoiceLines,
@@ -1018,32 +1019,65 @@ export interface SupplierInvoiceFilters {
   search?: string;
 }
 
-export async function listSupplierInvoices(filters: SupplierInvoiceFilters = {}) {
-  const rows = await db.select().from(supplierInvoices).orderBy(desc(supplierInvoices.createdAt));
-  const q = (filters.search || "").trim().toLowerCase();
-  const items = rows.filter((r: any) => {
-    if (filters.status && r.status !== filters.status) return false;
-    if (filters.supplierId && r.supplierId !== filters.supplierId) return false;
-    if (filters.dateFrom && r.invoiceDate < filters.dateFrom) return false;
-    if (filters.dateTo && r.invoiceDate > filters.dateTo) return false;
-    if (q) {
-      const hay =
-        `${r.invoiceNumber} ${r.supplierInvoiceNumber || ""} ${r.externalReference || ""}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
+/** Shared WHERE for the invoice list + its summary — filters run in SQL, not JS. */
+function supplierInvoiceWhere(filters: SupplierInvoiceFilters) {
+  const conds: any[] = [];
+  if (filters.status) conds.push(eq(supplierInvoices.status, filters.status));
+  if (filters.supplierId) conds.push(eq(supplierInvoices.supplierId, filters.supplierId));
+  if (filters.dateFrom) conds.push(gte(supplierInvoices.invoiceDate, filters.dateFrom));
+  if (filters.dateTo) conds.push(lte(supplierInvoices.invoiceDate, filters.dateTo));
+  const q = (filters.search || "").trim();
+  if (q) {
+    const like = `%${q}%`;
+    conds.push(
+      sql`(${supplierInvoices.invoiceNumber} ILIKE ${like} OR ${supplierInvoices.supplierInvoiceNumber} ILIKE ${like} OR ${supplierInvoices.externalReference} ILIKE ${like})`,
+    );
+  }
+  return conds.length ? and(...conds) : undefined;
+}
+
+/**
+ * Phase 4A — bounded, SQL-filtered invoice list. Filters + status counts +
+ * outstanding total are computed in a single aggregate over the WHOLE filtered
+ * set (SQL FILTER), independent of the returned page. Only the page's rows are
+ * materialized (LIMIT/OFFSET). The `{ items, summary }` shape is preserved and
+ * `page/pageSize/total/totalPages` are added.
+ */
+export async function listSupplierInvoices(filters: SupplierInvoiceFilters & PageParams = {}) {
+  const pg = resolvePage(filters);
+  const where = supplierInvoiceWhere(filters);
+  const S = SupplierInvoiceStatus;
+  const agg = (
+    await (db as any)
+      .select({
+        total: sql<number>`COUNT(*)`,
+        draft: sql<number>`COUNT(*) FILTER (WHERE ${supplierInvoices.status} = ${S.DRAFT})`,
+        submitted: sql<number>`COUNT(*) FILTER (WHERE ${supplierInvoices.status} = ${S.SUBMITTED})`,
+        approved: sql<number>`COUNT(*) FILTER (WHERE ${supplierInvoices.status} = ${S.APPROVED})`,
+        posted: sql<number>`COUNT(*) FILTER (WHERE ${supplierInvoices.status} = ${S.POSTED})`,
+        rejected: sql<number>`COUNT(*) FILTER (WHERE ${supplierInvoices.status} = ${S.REJECTED})`,
+        reversed: sql<number>`COUNT(*) FILTER (WHERE ${supplierInvoices.status} = ${S.REVERSED})`,
+        outstanding: sql<number>`COALESCE(SUM(${supplierInvoices.totalAmount}) FILTER (WHERE ${supplierInvoices.status} = ${S.POSTED}), 0)`,
+      })
+      .from(supplierInvoices)
+      .where(where)
+  )[0] as any;
   const summary = {
-    total: items.length,
-    draft: items.filter((r: any) => r.status === SupplierInvoiceStatus.DRAFT).length,
-    submitted: items.filter((r: any) => r.status === SupplierInvoiceStatus.SUBMITTED).length,
-    approved: items.filter((r: any) => r.status === SupplierInvoiceStatus.APPROVED).length,
-    posted: items.filter((r: any) => r.status === SupplierInvoiceStatus.POSTED).length,
-    rejected: items.filter((r: any) => r.status === SupplierInvoiceStatus.REJECTED).length,
-    reversed: items.filter((r: any) => r.status === SupplierInvoiceStatus.REVERSED).length,
-    outstanding: items
-      .filter((r: any) => r.status === SupplierInvoiceStatus.POSTED)
-      .reduce((s: number, r: any) => s + Number(r.totalAmount || 0), 0),
+    total: Number(agg?.total || 0),
+    draft: Number(agg?.draft || 0),
+    submitted: Number(agg?.submitted || 0),
+    approved: Number(agg?.approved || 0),
+    posted: Number(agg?.posted || 0),
+    rejected: Number(agg?.rejected || 0),
+    reversed: Number(agg?.reversed || 0),
+    outstanding: Number(agg?.outstanding || 0),
   };
-  return { items, summary };
+  const items = (await (db as any)
+    .select()
+    .from(supplierInvoices)
+    .where(where)
+    .orderBy(desc(supplierInvoices.createdAt))
+    .limit(pg.limit)
+    .offset(pg.offset)) as any[];
+  return { ...paginatedResult(items, summary.total, pg), items, summary };
 }

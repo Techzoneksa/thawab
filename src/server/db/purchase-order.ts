@@ -19,7 +19,8 @@
  *   - workflow history       → recordWorkflowEvent (finance_workflow_events)
  *   - numbering              → nextCode (advisory-locked, concurrency-safe)
  */
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { resolvePage, paginatedResult, type PageParams } from "./pagination";
 import { db, now, genId, addAudit } from "./index";
 import { purchaseOrders, purchaseOrderLines, suppliers, financeWorkflowEvents } from "./schema";
 import { hasPermission } from "./auth";
@@ -504,35 +505,62 @@ export interface PurchaseOrderFilters {
   search?: string;
 }
 
-export async function listPurchaseOrders(filters: PurchaseOrderFilters = {}) {
-  const rows = (await db
+/** Shared WHERE for the governed-PO list + summary — filters in SQL, not JS. */
+function purchaseOrderWhere(filters: PurchaseOrderFilters) {
+  const conds: any[] = [eq(purchaseOrders.governanceMode, GOVERNED)];
+  if (filters.status) conds.push(eq(purchaseOrders.status, filters.status));
+  if (filters.supplierId) conds.push(eq(purchaseOrders.supplierId, filters.supplierId));
+  if (filters.dateFrom) conds.push(gte(purchaseOrders.date, filters.dateFrom));
+  if (filters.dateTo) conds.push(lte(purchaseOrders.date, filters.dateTo));
+  const q = (filters.search || "").trim();
+  if (q) {
+    const like = `%${q}%`;
+    conds.push(
+      sql`(${purchaseOrders.poNumber} ILIKE ${like} OR ${purchaseOrders.subject} ILIKE ${like} OR ${purchaseOrders.supplierReference} ILIKE ${like})`,
+    );
+  }
+  return and(...conds);
+}
+
+/**
+ * Phase 4A — bounded, SQL-filtered governed-PO list. Status counts + committed
+ * value are computed over the full filtered set (SQL FILTER); only the page is
+ * materialized. `{ items, summary }` preserved; page fields added.
+ */
+export async function listPurchaseOrders(filters: PurchaseOrderFilters & PageParams = {}) {
+  const pg = resolvePage(filters);
+  const where = purchaseOrderWhere(filters);
+  const agg = (
+    await (db as any)
+      .select({
+        total: sql<number>`COUNT(*)`,
+        draft: sql<number>`COUNT(*) FILTER (WHERE ${purchaseOrders.status} = ${S.DRAFT})`,
+        submitted: sql<number>`COUNT(*) FILTER (WHERE ${purchaseOrders.status} = ${S.SUBMITTED})`,
+        approved: sql<number>`COUNT(*) FILTER (WHERE ${purchaseOrders.status} = ${S.APPROVED})`,
+        issued: sql<number>`COUNT(*) FILTER (WHERE ${purchaseOrders.status} = ${S.ISSUED})`,
+        rejected: sql<number>`COUNT(*) FILTER (WHERE ${purchaseOrders.status} = ${S.REJECTED})`,
+        cancelled: sql<number>`COUNT(*) FILTER (WHERE ${purchaseOrders.status} = ${S.CANCELLED})`,
+        committedValue: sql<number>`COALESCE(SUM(${purchaseOrders.totalAmount}) FILTER (WHERE ${purchaseOrders.status} IN (${S.APPROVED}, ${S.ISSUED})), 0)`,
+      })
+      .from(purchaseOrders)
+      .where(where)
+  )[0] as any;
+  const summary = {
+    total: Number(agg?.total || 0),
+    draft: Number(agg?.draft || 0),
+    submitted: Number(agg?.submitted || 0),
+    approved: Number(agg?.approved || 0),
+    issued: Number(agg?.issued || 0),
+    rejected: Number(agg?.rejected || 0),
+    cancelled: Number(agg?.cancelled || 0),
+    committedValue: Number(agg?.committedValue || 0),
+  };
+  const items = (await (db as any)
     .select()
     .from(purchaseOrders)
-    .where(eq(purchaseOrders.governanceMode, GOVERNED))
-    .orderBy(desc(purchaseOrders.createdAt))) as any[];
-  const q = (filters.search || "").trim().toLowerCase();
-  const items = rows.filter((r) => {
-    if (filters.status && r.status !== filters.status) return false;
-    if (filters.supplierId && r.supplierId !== filters.supplierId) return false;
-    if (filters.dateFrom && r.date < filters.dateFrom) return false;
-    if (filters.dateTo && r.date > filters.dateTo) return false;
-    if (q) {
-      const hay = `${r.poNumber} ${r.subject} ${r.supplierReference || ""}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
-  const summary = {
-    total: items.length,
-    draft: items.filter((r) => r.status === S.DRAFT).length,
-    submitted: items.filter((r) => r.status === S.SUBMITTED).length,
-    approved: items.filter((r) => r.status === S.APPROVED).length,
-    issued: items.filter((r) => r.status === S.ISSUED).length,
-    rejected: items.filter((r) => r.status === S.REJECTED).length,
-    cancelled: items.filter((r) => r.status === S.CANCELLED).length,
-    committedValue: items
-      .filter((r) => r.status === S.APPROVED || r.status === S.ISSUED)
-      .reduce((s, r) => s + Number(r.totalAmount || 0), 0),
-  };
-  return { items, summary };
+    .where(where)
+    .orderBy(desc(purchaseOrders.createdAt))
+    .limit(pg.limit)
+    .offset(pg.offset)) as any[];
+  return { ...paginatedResult(items, summary.total, pg), items, summary };
 }
