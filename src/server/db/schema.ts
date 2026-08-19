@@ -914,7 +914,13 @@ export const supplierInvoiceLines = pgTable(
       .references(() => supplierInvoices.id, { onDelete: "cascade" }),
     lineNumber: integer("line_number").notNull().default(1),
     description: text("description").default(""),
-    // Debit target: the expense/asset account this line hits (never AP/cash/bank).
+    // Phase 3E — line accounting mode. 'direct' = Phase 3B behavior (user picks a
+    // valid expense/asset/liability debit). 'grn_matched' = clears GRNI for a
+    // posted governed Goods Receipt line; the debit account is server-resolved to
+    // the receipt's ACTUAL GRNI account (never chosen by the client).
+    accountingMode: text("accounting_mode").notNull().default("direct"),
+    // Debit target actually posted: the expense/asset for DIRECT lines, or the
+    // matched receipt's GRNI control account for GRN_MATCHED lines (never AP/cash/bank).
     accountId: text("account_id")
       .notNull()
       .references(() => accounts.id),
@@ -930,6 +936,42 @@ export const supplierInvoiceLines = pgTable(
   (t) => ({
     invoiceIdx: index("supplier_invoice_lines_invoice_idx").on(t.supplierInvoiceId),
     accountIdx: index("supplier_invoice_lines_account_idx").on(t.accountId),
+  }),
+);
+
+// Phase 3E — Supplier Invoice ↔ Goods Receipt line-level matching allocation. A
+// GRN_MATCHED invoice line consumes a quantity from a POSTED governed GRN line;
+// this row records that ownership (the immutable matching evidence). It stores NO
+// accounting balance — the GRNI clearing amount is DERIVED from the receipt's own
+// posted line value under the exact-match rule. Invoiceable quantity per GRN line
+// is GRN received qty − Σ matched_quantity over ACTIVE (POSTED) supplier invoices.
+export const supplierInvoiceGrnAllocations = pgTable(
+  "supplier_invoice_grn_allocations",
+  {
+    id: text("id").primaryKey(),
+    supplierInvoiceId: text("supplier_invoice_id")
+      .notNull()
+      .references(() => supplierInvoices.id, { onDelete: "cascade" }),
+    supplierInvoiceLineId: text("supplier_invoice_line_id")
+      .notNull()
+      .references(() => supplierInvoiceLines.id, { onDelete: "cascade" }),
+    goodsReceiptId: text("goods_receipt_id")
+      .notNull()
+      .references(() => goodsReceipts.id),
+    goodsReceiptLineId: text("goods_receipt_line_id")
+      .notNull()
+      .references(() => goodsReceiptLines.id),
+    purchaseOrderId: text("purchase_order_id").references(() => purchaseOrders.id),
+    purchaseOrderLineId: text("purchase_order_line_id").references(() => purchaseOrderLines.id),
+    matchedQuantity: doublePrecision("matched_quantity").notNull().default(0),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+  },
+  (t) => ({
+    invoiceIdx: index("si_grn_alloc_invoice_idx").on(t.supplierInvoiceId),
+    invoiceLineIdx: index("si_grn_alloc_invoice_line_idx").on(t.supplierInvoiceLineId),
+    grnLineIdx: index("si_grn_alloc_grn_line_idx").on(t.goodsReceiptLineId),
+    grnIdx: index("si_grn_alloc_grn_idx").on(t.goodsReceiptId),
   }),
 );
 

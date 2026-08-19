@@ -62,6 +62,7 @@ import {
 import { resolveConfirmedGrniAccount } from "./account-mapping";
 import { accountMappedToAnyCashBank } from "./cash-bank";
 import { linkEntryGrniLine, receiptGrniLink } from "./grni-link";
+import { grnHasActivePostedInvoice, receiptMatchSummary } from "./invoice-matching";
 import { recordWorkflowEvent } from "./finance-workflow";
 import { LOCK_NS } from "./lock-namespaces";
 import {
@@ -779,6 +780,16 @@ async function reversePostedReceipt(
     throw new AppError("تعذّر العكس — تغيّرت حالة الاستلام", 409, "STATE_CONFLICT");
   if (!locked.journalEntryId) throw new AppError("لا يوجد قيد لعكسه", 409, "NO_JOURNAL");
 
+  // Phase 3E guard: a receipt whose quantity/value is matched to an ACTIVE POSTED
+  // Supplier Invoice must NOT be reversed underneath the payable. The invoice must
+  // be reversed first (which releases the matched quantity), then the GRN.
+  if (await grnHasActivePostedInvoice(tx, id))
+    throw new AppError(
+      "لا يمكن عكس سند الاستلام لوجود فاتورة مورد مُرحَّلة مطابِقة له — اعكس الفاتورة أولاً",
+      409,
+      "GRN_HAS_POSTED_SUPPLIER_INVOICE",
+    );
+
   const grnLines = (await loadGrnLines(tx, id)) as any[];
 
   // Aggregate the quantity to remove per inventory item (a line reverses only if
@@ -919,7 +930,11 @@ export async function getGoodsReceiptDetail(id: string) {
   const supplier = item.supplierId
     ? (await db.select().from(suppliers).where(eq(suppliers.id, item.supplierId)).limit(1))[0]
     : null;
-  return { item, lines, history, po, supplier };
+  // Phase 3E — derived matched/invoiced value (never a stored balance).
+  let matchSummary: any = null;
+  if (item.status === G.POSTED || item.status === G.REVERSED)
+    matchSummary = await receiptMatchSummary(db, id);
+  return { item, lines, history, po, supplier, matchSummary };
 }
 
 export interface GoodsReceiptFilters {

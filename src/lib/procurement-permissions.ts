@@ -41,6 +41,11 @@ export const PROCUREMENT_PERMISSIONS = {
   grnPost: "procurement.grn.post",
   grnReverse: "procurement.grn.reverse",
   grnAuditView: "procurement.grn.audit.view",
+
+  // Phase 3E — visibility of Supplier Invoice ↔ GRN matching (proposals, matchable
+  // receipts, matched values). Minimal, read-only. Actually clearing GRNI still
+  // requires finance.supplier_invoice.post — this never grants posting authority.
+  matchingView: "procurement.matching.view",
 } as const;
 
 export type ProcurementPermission =
@@ -117,6 +122,17 @@ export const PROCUREMENT_PERM_GROUPS: ProcurementPermGroup[] = [
         desc: "يعكس القيد وربط أستاذ GRNI وحركة المخزون معاً (لا يجعل المخزون سالباً)",
       },
       { key: PROCUREMENT_PERMISSIONS.grnAuditView, label: "عرض سجل تدقيق سندات الاستلام" },
+    ],
+  },
+  {
+    key: "procurement-matching",
+    label: "المشتريات — مطابقة الفواتير مع الاستلام",
+    perms: [
+      {
+        key: PROCUREMENT_PERMISSIONS.matchingView,
+        label: "عرض مطابقة فواتير الموردين مع سندات الاستلام",
+        desc: "عرض المطابقات والاستلامات القابلة للفوترة والقيم المطابَقة — لا يمنح صلاحية الترحيل/الإقفال",
+      },
     ],
   },
 ];

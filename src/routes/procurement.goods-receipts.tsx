@@ -356,6 +356,26 @@ function DetailDrawer({
             </table>
           </Card>
 
+          {d.matchSummary ? (
+            <div className="rounded-lg border bg-muted/20 px-3 py-2 text-[11px]">
+              <div className="font-semibold text-muted-foreground mb-1">مطابقة الفوترة (GRNI)</div>
+              <div className="grid grid-cols-3 gap-2 tabular-nums">
+                <div>
+                  <div className="text-[10px] text-muted-foreground">قيمة الاستلام</div>
+                  <div className="font-bold">{fmtSAR(d.matchSummary.receivedValue)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-muted-foreground">مفوتَر/مطابَق</div>
+                  <div className="font-bold">{fmtSAR(d.matchSummary.invoicedValue)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-muted-foreground">GRNI المتبقّي</div>
+                  <div className="font-bold">{fmtSAR(d.matchSummary.remainingValue)}</div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {d.item.status === "reversed" && d.item.reversalReason ? (
             <div className="rounded-lg border bg-warning/5 px-3 py-2 text-xs">
               سبب العكس: {d.item.reversalReason}

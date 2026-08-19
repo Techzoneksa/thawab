@@ -58,12 +58,20 @@ export interface WorkflowEvent {
   createdAt: string;
 }
 
+export interface ReceiptMatchSummary {
+  receivedValue: number;
+  invoicedValue: number;
+  remainingValue: number;
+  fullyInvoiced: boolean;
+}
+
 export interface GoodsReceiptDetail {
   item: GoodsReceipt;
   lines: GoodsReceiptLine[];
   history: WorkflowEvent[];
   po: { id: string; poNumber: string | null; subject: string; currency: string } | null;
   supplier: { id: string; name: string } | null;
+  matchSummary?: ReceiptMatchSummary | null;
 }
 
 async function j(res: Response, fallback: string) {

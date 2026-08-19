@@ -12,6 +12,7 @@ import { listFinanceSuppliers } from "@/lib/api/suppliers-finance";
 import {
   listSupplierInvoices,
   getSupplierInvoice,
+  getMatchableGrnLines,
   createSupplierInvoice,
   updateSupplierInvoice,
   supplierInvoiceAction,
@@ -190,7 +191,9 @@ function SummaryCard({ label, value, money }: { label: string; value: number; mo
 }
 
 type LineForm = {
+  mode: "direct" | "grn_matched";
   accountId: string;
+  goodsReceiptLineId: string;
   description: string;
   quantity: string;
   unitPrice: string;
@@ -198,7 +201,9 @@ type LineForm = {
 };
 
 const emptyLine = (): LineForm => ({
+  mode: "direct",
   accountId: "",
+  goodsReceiptLineId: "",
   description: "",
   quantity: "1",
   unitPrice: "",
@@ -242,16 +247,36 @@ function CreateEditDrawer({
   const [seeded, setSeeded] = useState(false);
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
 
+  // Matchable posted-GRN lines for the chosen supplier (remaining invoiceable > 0).
+  const matchQ = useQuery({
+    queryKey: ["matchable-grn", f.supplierId],
+    queryFn: () => getMatchableGrnLines(f.supplierId),
+    enabled: !!f.supplierId,
+  });
+  const matchLines = matchQ.data?.lines || [];
+  const matchById = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const g of matchLines) m.set(g.goodsReceiptLineId, g);
+    return m;
+  }, [matchLines]);
+
   if (item?.id && detailQ.data && !seeded) {
     setSeeded(true);
+    const allocByLine = new Map<string, any>();
+    for (const a of detailQ.data.allocations || []) allocByLine.set(a.supplierInvoiceLineId, a);
     setLines(
-      detailQ.data.lines.map((l) => ({
-        accountId: l.accountId,
-        description: l.description || "",
-        quantity: String(l.quantity),
-        unitPrice: String(l.unitPrice),
-        taxRate: String(l.taxRate),
-      })),
+      detailQ.data.lines.map((l) => {
+        const matched = l.accountingMode === "grn_matched";
+        return {
+          mode: matched ? "grn_matched" : "direct",
+          accountId: matched ? "" : l.accountId,
+          goodsReceiptLineId: matched ? (allocByLine.get(l.id)?.goodsReceiptLineId ?? "") : "",
+          description: l.description || "",
+          quantity: String(l.quantity),
+          unitPrice: String(l.unitPrice),
+          taxRate: String(l.taxRate),
+        };
+      }),
     );
   }
 
@@ -296,14 +321,31 @@ function CreateEditDrawer({
         externalReference: f.externalReference || null,
         description: f.description,
         lines: lines
-          .filter((l) => l.accountId && Number(l.quantity) > 0 && Number(l.unitPrice) > 0)
-          .map((l) => ({
-            accountId: l.accountId,
-            description: l.description || undefined,
-            quantity: Number(l.quantity),
-            unitPrice: Number(l.unitPrice),
-            taxRate: Number(l.taxRate) || 0,
-          })),
+          .filter(
+            (l) =>
+              (l.mode === "grn_matched" ? l.goodsReceiptLineId : l.accountId) &&
+              Number(l.quantity) > 0 &&
+              Number(l.unitPrice) > 0,
+          )
+          .map((l) =>
+            l.mode === "grn_matched"
+              ? {
+                  accountingMode: "grn_matched" as const,
+                  goodsReceiptLineId: l.goodsReceiptLineId,
+                  description: l.description || undefined,
+                  quantity: Number(l.quantity),
+                  unitPrice: Number(l.unitPrice),
+                  taxRate: Number(l.taxRate) || 0,
+                }
+              : {
+                  accountingMode: "direct" as const,
+                  accountId: l.accountId,
+                  description: l.description || undefined,
+                  quantity: Number(l.quantity),
+                  unitPrice: Number(l.unitPrice),
+                  taxRate: Number(l.taxRate) || 0,
+                },
+          ),
       };
       return item?.id ? updateSupplierInvoice(body) : createSupplierInvoice(body);
     },
@@ -318,6 +360,36 @@ function CreateEditDrawer({
   const rmLine = (i: number) => setLines((p) => p.filter((_, j) => j !== i));
   const setLine = (i: number, k: keyof LineForm, v: string) =>
     setLines((p) => p.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
+  const setLineMode = (i: number, mode: "direct" | "grn_matched") =>
+    setLines((p) =>
+      p.map((l, j) =>
+        j === i
+          ? {
+              ...emptyLine(),
+              mode,
+              description: l.description,
+              taxRate: l.taxRate,
+              quantity: mode === "grn_matched" ? "" : "1",
+            }
+          : l,
+      ),
+    );
+  // Selecting a matched GRN line pins its unit price and defaults the quantity to
+  // the remaining invoiceable quantity (the server re-enforces exact match).
+  const setLineMatch = (i: number, grnLineId: string) =>
+    setLines((p) =>
+      p.map((l, j) => {
+        if (j !== i) return l;
+        const g = matchById.get(grnLineId);
+        return {
+          ...l,
+          goodsReceiptLineId: grnLineId,
+          unitPrice: g ? String(g.unitPrice) : "",
+          quantity: g ? String(g.remainingQuantity) : l.quantity,
+          description: l.description || (g ? g.description : ""),
+        };
+      }),
+    );
 
   return (
     <EntityFormDrawer
@@ -393,68 +465,113 @@ function CreateEditDrawer({
         <div>
           <div className="flex items-center justify-between mb-1">
             <div className="text-xs font-semibold text-muted-foreground">
-              بنود الفاتورة (مدين: مصروف/أصل) *
+              بنود الفاتورة — مباشر (مصروف/أصل) أو مطابقة استلام (إقفال GRNI) *
             </div>
             <Btn variant="ghost" onClick={addLine}>
               <Plus size={13} /> بند
             </Btn>
           </div>
           <div className="space-y-2">
-            {lines.map((l, i) => (
-              <div key={i} className="rounded-lg border p-2 space-y-1.5">
-                <select
-                  className="inp"
-                  value={l.accountId}
-                  onChange={(e) => setLine(i, "accountId", e.target.value)}
-                >
-                  <option value="">— اختر حساب مصروف/أصل —</option>
-                  {debitAccounts.map((a: Account) => (
-                    <option key={a.id} value={a.id}>
-                      {a.code} — {a.name}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className="inp"
-                  placeholder="وصف البند"
-                  value={l.description}
-                  onChange={(e) => setLine(i, "description", e.target.value)}
-                />
-                <div className="grid grid-cols-3 gap-1.5">
-                  <NumIn
-                    placeholder="الكمية"
-                    value={l.quantity}
-                    onChange={(v) => setLine(i, "quantity", v)}
-                  />
-                  <NumIn
-                    placeholder="سعر الوحدة"
-                    value={l.unitPrice}
-                    onChange={(v) => setLine(i, "unitPrice", v)}
-                  />
-                  <NumIn
-                    placeholder="ضريبة %"
-                    value={l.taxRate}
-                    onChange={(v) => setLine(i, "taxRate", v)}
-                  />
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span className="tabular-nums">
-                    صافي {fmtSAR(computed[i]?.sub || 0)} · ضريبة {fmtSAR(computed[i]?.tax || 0)} ·
-                    الإجمالي {fmtSAR(computed[i]?.total || 0)}
-                  </span>
-                  {lines.length > 1 && (
+            {lines.map((l, i) => {
+              const g = l.mode === "grn_matched" ? matchById.get(l.goodsReceiptLineId) : null;
+              return (
+                <div key={i} className="rounded-lg border p-2 space-y-1.5">
+                  <div className="flex gap-1 text-[11px]">
                     <button
                       type="button"
-                      className="p-1 rounded hover:bg-muted text-destructive"
-                      onClick={() => rmLine(i)}
-                      title="حذف"
+                      className={`rounded px-2 py-0.5 border ${l.mode === "direct" ? "bg-primary text-primary-foreground" : ""}`}
+                      onClick={() => setLineMode(i, "direct")}
                     >
-                      <Trash2 size={14} />
+                      مباشر
                     </button>
+                    <button
+                      type="button"
+                      className={`rounded px-2 py-0.5 border ${l.mode === "grn_matched" ? "bg-primary text-primary-foreground" : ""}`}
+                      onClick={() => setLineMode(i, "grn_matched")}
+                    >
+                      مطابقة استلام
+                    </button>
+                  </div>
+
+                  {l.mode === "direct" ? (
+                    <select
+                      className="inp"
+                      value={l.accountId}
+                      onChange={(e) => setLine(i, "accountId", e.target.value)}
+                    >
+                      <option value="">— اختر حساب مصروف/أصل —</option>
+                      {debitAccounts.map((a: Account) => (
+                        <option key={a.id} value={a.id}>
+                          {a.code} — {a.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <select
+                      className="inp"
+                      value={l.goodsReceiptLineId}
+                      onChange={(e) => setLineMatch(i, e.target.value)}
+                    >
+                      <option value="">— اختر سطر استلام مُرحَّل —</option>
+                      {matchLines.map((m) => (
+                        <option key={m.goodsReceiptLineId} value={m.goodsReceiptLineId}>
+                          {m.grnNumber} · {m.description || m.lineType} · متبقٍ{" "}
+                          {m.remainingQuantity} × {fmtSAR(m.unitPrice)}
+                        </option>
+                      ))}
+                    </select>
                   )}
+
+                  <input
+                    className="inp"
+                    placeholder="وصف البند"
+                    value={l.description}
+                    onChange={(e) => setLine(i, "description", e.target.value)}
+                  />
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <NumIn
+                      placeholder="الكمية"
+                      value={l.quantity}
+                      onChange={(v) => setLine(i, "quantity", v)}
+                    />
+                    <NumIn
+                      placeholder="سعر الوحدة"
+                      value={l.unitPrice}
+                      onChange={(v) => setLine(i, "unitPrice", v)}
+                      disabled={l.mode === "grn_matched"}
+                    />
+                    <NumIn
+                      placeholder="ضريبة %"
+                      value={l.taxRate}
+                      onChange={(v) => setLine(i, "taxRate", v)}
+                    />
+                  </div>
+                  {l.mode === "grn_matched" && g ? (
+                    <div className="text-[10px] text-muted-foreground tabular-nums">
+                      يقفل GRNI للاستلام {g.grnNumber} — متبقٍ {g.remainingQuantity} (قيمة{" "}
+                      {fmtSAR(g.remainingGrniValue)}). السعر مثبّت من الاستلام — فروق الأسعار غير
+                      مدعومة.
+                    </div>
+                  ) : null}
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span className="tabular-nums">
+                      صافي {fmtSAR(computed[i]?.sub || 0)} · ضريبة {fmtSAR(computed[i]?.tax || 0)} ·
+                      الإجمالي {fmtSAR(computed[i]?.total || 0)}
+                    </span>
+                    {lines.length > 1 && (
+                      <button
+                        type="button"
+                        className="p-1 rounded hover:bg-muted text-destructive"
+                        onClick={() => rmLine(i)}
+                        title="حذف"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="mt-2 rounded-lg bg-muted/40 px-3 py-2 space-y-1">
@@ -476,10 +593,12 @@ function NumIn({
   placeholder,
   value,
   onChange,
+  disabled,
 }: {
   placeholder: string;
   value: string;
   onChange: (v: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <input
@@ -489,6 +608,7 @@ function NumIn({
       step="0.01"
       placeholder={placeholder}
       value={value}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
     />
   );
@@ -580,20 +700,30 @@ function DetailDrawer({
                 </tr>
               </thead>
               <tbody>
-                {d.lines.map((l) => (
-                  <tr key={l.id} className="border-t">
-                    <td className="py-1 pe-2 font-mono text-[11px]">
-                      {l.accountId}
-                      {l.description ? (
-                        <div className="text-muted-foreground font-sans">{l.description}</div>
-                      ) : null}
-                    </td>
-                    <td className="py-1 pe-2 text-left tabular-nums">{l.quantity}</td>
-                    <td className="py-1 pe-2 text-left tabular-nums">{fmtSAR(l.unitPrice)}</td>
-                    <td className="py-1 pe-2 text-left tabular-nums">{fmtSAR(l.lineSubtotal)}</td>
-                    <td className="py-1 pe-2 text-left tabular-nums">{fmtSAR(l.taxAmount)}</td>
-                  </tr>
-                ))}
+                {d.lines.map((l) => {
+                  const alloc = (d.allocations || []).find((a) => a.supplierInvoiceLineId === l.id);
+                  const matched = l.accountingMode === "grn_matched";
+                  return (
+                    <tr key={l.id} className="border-t">
+                      <td className="py-1 pe-2 font-mono text-[11px]">
+                        {matched ? (
+                          <span className="inline-block rounded bg-primary/10 px-1 text-[10px] font-sans">
+                            مطابقة استلام {alloc?.grnNumber || ""}
+                          </span>
+                        ) : (
+                          l.accountId
+                        )}
+                        {l.description ? (
+                          <div className="text-muted-foreground font-sans">{l.description}</div>
+                        ) : null}
+                      </td>
+                      <td className="py-1 pe-2 text-left tabular-nums">{l.quantity}</td>
+                      <td className="py-1 pe-2 text-left tabular-nums">{fmtSAR(l.unitPrice)}</td>
+                      <td className="py-1 pe-2 text-left tabular-nums">{fmtSAR(l.lineSubtotal)}</td>
+                      <td className="py-1 pe-2 text-left tabular-nums">{fmtSAR(l.taxAmount)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             <div className="mt-2 border-t pt-2 space-y-1">

@@ -33,6 +33,7 @@ export interface SupplierInvoiceLine {
   supplierInvoiceId: string;
   lineNumber: number;
   description: string | null;
+  accountingMode: string;
   accountId: string;
   quantity: number;
   unitPrice: number;
@@ -41,6 +42,33 @@ export interface SupplierInvoiceLine {
   taxAmount: number;
   lineTotal: number;
   costCenterId: string | null;
+}
+
+export interface MatchableGrnLine {
+  goodsReceiptId: string;
+  grnNumber: string;
+  goodsReceiptLineId: string;
+  purchaseOrderId: string;
+  poNumber: string | null;
+  receiptDate: string;
+  lineType: string;
+  description: string;
+  itemId: string | null;
+  unitPrice: number;
+  receivedQuantity: number;
+  invoicedQuantity: number;
+  remainingQuantity: number;
+  remainingGrniValue: number;
+}
+
+export interface InvoiceAllocation {
+  id: string;
+  supplierInvoiceLineId: string;
+  goodsReceiptId: string;
+  goodsReceiptLineId: string;
+  purchaseOrderId: string | null;
+  matchedQuantity: number;
+  grnNumber: string | null;
 }
 
 export interface WorkflowEvent {
@@ -59,6 +87,7 @@ export interface SupplierInvoiceDetail {
   history: WorkflowEvent[];
   journal: { id: string; number: string; status: string; date: string } | null;
   supplier: { id: string; name: string; supplierCode: string | null; currency: string } | null;
+  allocations?: InvoiceAllocation[];
 }
 
 export type SupplierInvoiceAction = "submit" | "approve" | "return" | "reject" | "post" | "reverse";
@@ -105,6 +134,16 @@ export async function listSupplierInvoices(
 
 export async function getSupplierInvoice(id: string): Promise<SupplierInvoiceDetail> {
   return j(await fetch(`/api/finance/supplier-invoices?id=${id}`), "تعذّر جلب فاتورة المورد");
+}
+
+/** Posted governed GRN lines for a supplier with remaining invoiceable quantity. */
+export async function getMatchableGrnLines(
+  supplierId: string,
+): Promise<{ lines: MatchableGrnLine[] }> {
+  return j(
+    await fetch(`/api/finance/supplier-invoices?matchable=${supplierId}`),
+    "تعذّر جلب الاستلامات القابلة للمطابقة",
+  );
 }
 
 export async function createSupplierInvoice(body: any): Promise<SupplierInvoice> {

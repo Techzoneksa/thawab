@@ -20,16 +20,26 @@ import {
   getSupplierInvoiceDetail,
   listSupplierInvoices,
 } from "@/server/db/supplier-invoice";
+import { matchableGrnLinesForSupplier } from "@/server/db/invoice-matching";
+import { db } from "@/server/db/index";
 import type { JournalAction } from "@/lib/finance-permissions";
 
-const lineSchema = z.object({
-  accountId: z.string().min(1, "الحساب مطلوب"),
-  description: z.string().optional(),
-  quantity: z.coerce.number().positive("الكمية يجب أن تكون موجبة"),
-  unitPrice: z.coerce.number().positive("سعر الوحدة يجب أن يكون موجباً"),
-  taxRate: z.coerce.number().min(0).max(100).optional(),
-  costCenterId: z.string().nullish(),
-});
+const lineSchema = z
+  .object({
+    // Phase 3E — 'direct' (choose a debit account) or 'grn_matched' (clears a
+    // posted GRN line's GRNI; the account is server-resolved, never client-chosen).
+    accountingMode: z.enum(["direct", "grn_matched"]).optional(),
+    accountId: z.string().optional(),
+    goodsReceiptLineId: z.string().optional(),
+    description: z.string().optional(),
+    quantity: z.coerce.number().positive("الكمية يجب أن تكون موجبة"),
+    unitPrice: z.coerce.number().positive("سعر الوحدة يجب أن يكون موجباً"),
+    taxRate: z.coerce.number().min(0).max(100).optional(),
+    costCenterId: z.string().nullish(),
+  })
+  .refine((l) => (l.accountingMode === "grn_matched" ? !!l.goodsReceiptLineId : !!l.accountId), {
+    message: "سطر مباشر يتطلب حساباً، وسطر المطابقة يتطلب سطر استلام",
+  });
 
 const createSchema = z.object({
   supplierId: z.string().min(1, "المورد مطلوب"),
@@ -54,6 +64,9 @@ const actionSchema = z.object({
 
 async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
+  // Matchable GRN lines for a supplier (posted governed receipts, remaining > 0).
+  const matchable = url.searchParams.get("matchable");
+  if (matchable) return Response.json({ lines: await matchableGrnLinesForSupplier(db, matchable) });
   const id = url.searchParams.get("id");
   if (id) {
     const detail = await getSupplierInvoiceDetail(id);

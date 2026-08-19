@@ -47,12 +47,21 @@ export async function grniAccountId(dbh: Db): Promise<string> {
  * Link ONE GRNI control-account journal line to a goods receipt. The amount stays
  * in journal_lines; this records ownership only. Validates: line exists · the
  * line's account IS the GRNI control account (never AP / Input VAT / Inventory /
- * Expense) · the journal entry exists AND is either this receipt's own posting
- * (source_type='goods_receipt', source_id=grn) for a 'receipt' link or a reversal
- * of that posting (source_type='reversal', reversed_of=grn.journalEntryId) for a
- * 'reversal' link · the receipt exists · the line is not already linked (UNIQUE
- * journal_line_id). Pass `expectedAccountId` to pin the account (used on reversal
- * so the mirror matches the ORIGINAL GRNI account even if the mapping later changed).
+ * Expense) · the receipt exists · the line is not already linked (UNIQUE
+ * journal_line_id) · and a per-type journal-provenance guard binds the linked
+ * journal to the correct source:
+ *   - 'receipt'          the receipt's OWN posting (source_type='goods_receipt',
+ *                        source_id=grn) — the GRNI credit
+ *   - 'reversal'         a reversal of that receipt posting (source_type='reversal',
+ *                        reversed_of=grn.journalEntryId) — the GRNI debit mirror
+ *   - 'invoice'          a Supplier Invoice posting (source_type='supplier_invoice')
+ *                        that CLEARS this receipt's GRNI — the GRNI debit
+ *   - 'invoice_reversal' a reversal of that invoice posting (source_type='reversal',
+ *                        reversed_of=`expectedReversedOf`) — the GRNI credit mirror
+ * Pass `expectedAccountId` to pin the account (used on every non-receipt link so it
+ * matches the ORIGINAL GRNI account the receipt used, even if the mapping later
+ * changed). `expectedReversedOf` is the original posting whose reversal is being
+ * linked (the invoice's journalEntryId for 'invoice_reversal').
  */
 export async function createGrniLink(
   tx: any,
@@ -60,8 +69,9 @@ export async function createGrniLink(
     goodsReceiptId: string;
     journalLineId: string;
     goodsReceiptLineId?: string | null;
-    linkType?: "receipt" | "reversal";
+    linkType?: "receipt" | "reversal" | "invoice" | "invoice_reversal";
     expectedAccountId?: string | null;
+    expectedReversedOf?: string | null;
     userId?: string | null;
   },
 ): Promise<string> {
@@ -89,14 +99,20 @@ export async function createGrniLink(
   )[0];
   if (!grn) throw new AppError("سند الاستلام غير موجود", 404, "GRN_NOT_FOUND");
 
-  // Journal-provenance guard: the linked journal must be THIS receipt's own
-  // posting (receipt link) or a reversal of it (reversal link) — never unrelated.
+  // Journal-provenance guard: the linked journal must match the link's source.
   if (linkType === "receipt") {
     if (entry.sourceType !== "goods_receipt" || entry.sourceId !== input.goodsReceiptId)
       throw new AppError("قيد الربط لا يخص سند الاستلام هذا", 400, "LINK_ENTRY_MISMATCH");
-  } else {
+  } else if (linkType === "reversal") {
     if (entry.sourceType !== "reversal" || entry.reversedOf !== grn.journalEntryId)
       throw new AppError("قيد العكس لا يخص سند الاستلام هذا", 400, "LINK_ENTRY_MISMATCH");
+  } else if (linkType === "invoice") {
+    if (entry.sourceType !== "supplier_invoice")
+      throw new AppError("قيد الإقفال ليس قيد فاتورة مورد", 400, "LINK_ENTRY_MISMATCH");
+  } else {
+    // invoice_reversal — the mirror of the clearing invoice's posting.
+    if (entry.sourceType !== "reversal" || entry.reversedOf !== (input.expectedReversedOf ?? null))
+      throw new AppError("قيد عكس الفاتورة لا يخص هذا الإقفال", 400, "LINK_ENTRY_MISMATCH");
   }
 
   const existing = (
@@ -192,8 +208,10 @@ export async function receiptGrniLink(dbh: Db, goodsReceiptId: string) {
  * and `difference` is a 0 sanity check. Amounts are credit − debit (GRNI is a
  * credit-natured liability accrual). Certified GL states only (posted + reversed).
  */
-export async function grniReconciliation(dbh: Db) {
-  const grniId = await grniAccountId(dbh);
+export async function grniReconciliation(dbh: Db, accountId?: string) {
+  // Default to the CURRENTLY mapped GRNI account; callers may reconcile a specific
+  // (e.g. historical) GRNI account by passing its id.
+  const grniId = accountId ?? (await grniAccountId(dbh));
   const grniGl = (await getAccountBalance(dbh, grniId, {})).closing;
 
   const total = (

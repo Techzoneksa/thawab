@@ -317,10 +317,14 @@ export async function reverseEntry(tx: Db, entryId: string, userId: string): Pro
   if (!entry) throw new AppError("GL: القيد غير موجود");
   if (entry.status !== JournalStatus.POSTED) throw new AppError("GL: يمكن عكس القيود المرحّلة فقط");
 
+  // Ordered by line number so the reversal mirrors the original line-for-line
+  // (mirror lineNumber i ↔ original lineNumber i) — subledger linkers rely on
+  // this deterministic correspondence to attach each mirror to its source.
   const lines = await tx
     .select()
     .from(journalLines)
-    .where(eq(journalLines.journalEntryId, entryId));
+    .where(eq(journalLines.journalEntryId, entryId))
+    .orderBy(journalLines.lineNumber);
   const mirrored: PostLineInput[] = lines.map((l: any) => ({
     accountId: l.accountId,
     debit: l.credit,
