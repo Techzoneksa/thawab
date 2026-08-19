@@ -94,6 +94,23 @@ export async function listFinanceSuppliers(
   return j(await fetch(`/api/finance/suppliers${qs ? `?${qs}` : ""}`), "تعذّر جلب الموردين");
 }
 
+export interface SupplierLookupItem {
+  id: string;
+  supplierCode: string | null;
+  name: string;
+  currency: string;
+  status: string;
+}
+/** Bounded server-side supplier search for pickers (no balances, no IBAN). */
+export async function supplierLookup(
+  q: string,
+  limit = 20,
+): Promise<{ items: SupplierLookupItem[] }> {
+  const p = new URLSearchParams({ lookup: "1", limit: String(limit) });
+  if (q) p.set("q", q);
+  return j(await fetch(`/api/finance/suppliers?${p.toString()}`), "تعذّر البحث عن الموردين");
+}
+
 export async function getFinanceSupplier(
   id: string,
 ): Promise<{ item: FinanceSupplier; balance: SupplierBalance; ledger: any }> {

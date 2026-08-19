@@ -79,6 +79,24 @@ export async function getAccounts(filters: AccountFilters = {}): Promise<{
   return res.json();
 }
 
+export interface AccountLookupItem {
+  id: string;
+  code: string;
+  name: string;
+  classification: string;
+}
+/** Bounded server-side account search for pickers (postable/active, no balances). */
+export async function accountLookup(
+  q: string,
+  limit = 20,
+): Promise<{ items: AccountLookupItem[] }> {
+  const params = new URLSearchParams({ lookup: "1", limit: String(limit) });
+  if (q) params.set("q", q);
+  const res = await fetch(`${API_BASE}?${params.toString()}`);
+  if (!res.ok) throw new Error("فشل في البحث عن الحسابات");
+  return res.json();
+}
+
 export async function getAccount(id: string): Promise<{
   item: Account;
   lineCount: number;

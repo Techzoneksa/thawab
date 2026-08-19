@@ -13,7 +13,7 @@
  * immutable posted line value (goods_receipt_lines.line_value / unit_price), never
  * recomputed from today's PO price.
  */
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   supplierInvoiceGrnAllocations,
   supplierInvoices,
@@ -239,7 +239,12 @@ export interface MatchableGrnLine {
 export async function matchableGrnLinesForSupplier(
   dbh: Db,
   supplierId: string,
+  opts: { limit?: number } = {},
 ): Promise<MatchableGrnLine[]> {
+  // Phase 4A.1 — bound the matchable-GRN lookup so a supplier with thousands of
+  // posted receipts cannot return an unbounded response into the invoice form.
+  // Most-recent-first, hard-capped; the JS remaining-qty filter runs on this page.
+  const fetchCap = Math.min(1000, Math.max(1, Math.floor(Number(opts.limit) || 500)));
   const rows = (await (dbh as any)
     .select({
       goodsReceiptId: goodsReceipts.id,
@@ -265,7 +270,8 @@ export async function matchableGrnLinesForSupplier(
         eq(goodsReceipts.status, GoodsReceiptStatus.POSTED),
       ),
     )
-    .orderBy(goodsReceipts.receiptDate)) as any[];
+    .orderBy(desc(goodsReceipts.receiptDate))
+    .limit(fetchCap)) as any[];
 
   const matched = await matchedQtyByGrnLine(
     dbh,

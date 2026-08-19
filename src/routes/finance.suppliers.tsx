@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppShell, Card, Btn, Badge, Table, Td } from "@/components/erp/AppShell";
+import { Pager } from "@/components/erp/Pager";
 import { showToast, ConfirmDialog, EntityFormDrawer, EmptyState } from "@/components/erp/actions";
 import { fmtSAR } from "@/data/sample";
 import { Plus, Eye, Pencil, Power, Scale } from "lucide-react";
@@ -27,6 +28,8 @@ function Page() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [search, showAll]);
   const [editing, setEditing] = useState<{ item?: FinanceSupplier } | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [showRecon, setShowRecon] = useState(false);
@@ -42,8 +45,9 @@ function Page() {
   const canRecon = userCan(user, "finance.ap.reconciliation.view");
 
   const listQ = useQuery({
-    queryKey: ["fin-suppliers", search, showAll],
-    queryFn: () => listFinanceSuppliers({ search: search || undefined, all: showAll }),
+    queryKey: ["fin-suppliers", search, showAll, page],
+    queryFn: () =>
+      listFinanceSuppliers({ search: search || undefined, all: showAll, page, pageSize: 25 }),
   });
   const items = listQ.data?.items || [];
   const invalidate = () => qc.invalidateQueries({ queryKey: ["fin-suppliers"] });
@@ -157,6 +161,14 @@ function Page() {
           )}
         />
       )}
+      <Pager
+        page={listQ.data?.page || page}
+        totalPages={listQ.data?.totalPages || 1}
+        total={listQ.data?.total || items.length}
+        pageSize={listQ.data?.pageSize || 25}
+        unit="مورد"
+        onPage={setPage}
+      />
 
       {editing && (
         <EditDrawer

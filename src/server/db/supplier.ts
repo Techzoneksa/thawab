@@ -758,6 +758,39 @@ export async function supplierPayableMap(
   return m;
 }
 
+/**
+ * Phase 4A.1 — bounded, server-side supplier LOOKUP for form pickers.
+ *
+ * Forms must NOT download all 5,000–20,000 suppliers. This returns a SLIM result
+ * (id, code, name, currency, status) capped at a small maximum, searched in SQL
+ * by code/name/VAT number. No payable balance (no GL work), no IBAN/bank fields.
+ * An empty query returns the most recent `limit` active suppliers as a default.
+ */
+export async function supplierLookup(opts: { search?: string; limit?: number } = {}) {
+  const q = (opts.search || "").trim();
+  const limit = Math.min(50, Math.max(1, Math.floor(Number(opts.limit) || 20)));
+  const conds: any[] = [eq(suppliers.status, SupplierStatus.ACTIVE)];
+  if (q) {
+    const like = `%${q}%`;
+    conds.push(
+      sql`(${suppliers.supplierCode} ILIKE ${like} OR ${suppliers.name} ILIKE ${like} OR ${suppliers.taxNumber} ILIKE ${like})`,
+    );
+  }
+  const rows = (await (db as any)
+    .select({
+      id: suppliers.id,
+      supplierCode: suppliers.supplierCode,
+      name: suppliers.name,
+      currency: suppliers.currency,
+      status: suppliers.status,
+    })
+    .from(suppliers)
+    .where(and(...conds))
+    .orderBy(q ? suppliers.name : desc(suppliers.createdAt))
+    .limit(limit)) as any[];
+  return { items: rows };
+}
+
 /** WHERE shared by the supplier list page and the picker (`all`) path. */
 function supplierListWhere(opts: { search?: string; status?: string }) {
   const conds: any[] = [];

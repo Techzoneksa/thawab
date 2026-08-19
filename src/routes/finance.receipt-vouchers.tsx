@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AppShell, Card, Btn, Badge, Table, Td } from "@/components/erp/AppShell";
+import { Pager } from "@/components/erp/Pager";
 import { showToast, EntityFormDrawer, EmptyState } from "@/components/erp/actions";
 import { fmtSAR } from "@/data/sample";
 import {
@@ -61,12 +62,20 @@ function Page() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<{ item?: ReceiptVoucher } | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [queue, search]);
 
   const canCreate = userCan(user, "finance.receipt.create");
 
   const listQ = useQuery({
-    queryKey: ["receipt-vouchers", queue, search],
-    queryFn: () => listReceiptVouchers({ status: queue || undefined, search: search || undefined }),
+    queryKey: ["receipt-vouchers", queue, search, page],
+    queryFn: () =>
+      listReceiptVouchers({
+        status: queue || undefined,
+        search: search || undefined,
+        page,
+        pageSize: 25,
+      }),
   });
   const items = listQ.data?.items || [];
   const summary = listQ.data?.summary;
@@ -159,6 +168,14 @@ function Page() {
           )}
         />
       )}
+      <Pager
+        page={listQ.data?.page || page}
+        totalPages={listQ.data?.totalPages || 1}
+        total={listQ.data?.total || items.length}
+        pageSize={listQ.data?.pageSize || 25}
+        unit="سند"
+        onPage={setPage}
+      />
 
       {editing && (
         <CreateEditDrawer

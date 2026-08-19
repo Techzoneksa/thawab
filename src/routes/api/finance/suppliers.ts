@@ -18,6 +18,7 @@ import {
   updateSupplier,
   setSupplierStatus,
   listSuppliers,
+  supplierLookup,
   getSupplierDetail,
   supplierLedger,
   apReconciliation,
@@ -60,6 +61,15 @@ async function GET({ request }: { request: Request }, ctx: Ctx) {
     if (!(await hasPermission(ctx.user.role, P.apReconciliationView)))
       return err("لا تملك صلاحية عرض تشخيص الذمم الدائنة", 403, "FORBIDDEN");
     return Response.json(await apPreflight(db));
+  }
+
+  if (url.searchParams.get("lookup") === "1") {
+    return Response.json(
+      await supplierLookup({
+        search: url.searchParams.get("q") || undefined,
+        limit: Number(url.searchParams.get("limit")) || undefined,
+      }),
+    );
   }
 
   const id = url.searchParams.get("id");

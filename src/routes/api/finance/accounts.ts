@@ -17,6 +17,29 @@ const RESERVED_MAPPING_KEYS = new Set<string>([SYS.INPUT_VAT]);
 // GET /api/finance/accounts?id=xxx - single account with usage info
 async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
+
+  // Phase 4A.1 — bounded, server-side account LOOKUP for form pickers. Returns a
+  // SLIM set (id, code, name, classification) of postable/active accounts, capped
+  // at ≤50, searched in SQL. NO GL balance work (pickers do not need balances).
+  if (url.searchParams.get("lookup") === "1") {
+    const q = (url.searchParams.get("q") || "").trim();
+    const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit")) || 20));
+    const conds: any[] = [eq(accounts.postable, true), eq(accounts.status, AccountStatus.ACTIVE)];
+    if (q) conds.push(or(like(accounts.code, `%${q}%`), like(accounts.name, `%${q}%`)));
+    const rows = await db
+      .select({
+        id: accounts.id,
+        code: accounts.code,
+        name: accounts.name,
+        classification: accounts.classification,
+      })
+      .from(accounts)
+      .where(and(...conds))
+      .orderBy(accounts.code)
+      .limit(limit);
+    return Response.json({ items: rows });
+  }
+
   const id = url.searchParams.get("id");
 
   if (id) {

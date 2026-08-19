@@ -1,12 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppShell, Card, Btn, Badge, Table, Td } from "@/components/erp/AppShell";
+import { Pager } from "@/components/erp/Pager";
+import { Combobox } from "@/components/erp/Combobox";
 import { showToast, EntityFormDrawer, EmptyState } from "@/components/erp/actions";
 import { fmtSAR } from "@/data/sample";
 import { Plus, Eye, Printer, Send, Check, Undo2, X, Trash2, Ban } from "lucide-react";
 import { useAuth, userCan } from "@/lib/api/auth";
-import { listFinanceSuppliers } from "@/lib/api/suppliers-finance";
+import { supplierLookup } from "@/lib/api/suppliers-finance";
 import {
   listPurchaseOrders,
   getPurchaseOrder,
@@ -50,12 +52,20 @@ function Page() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<{ item?: PurchaseOrder } | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [queue, search]);
 
   const canCreate = userCan(user, "procurement.po.create");
 
   const listQ = useQuery({
-    queryKey: ["purchase-orders", queue, search],
-    queryFn: () => listPurchaseOrders({ status: queue || undefined, search: search || undefined }),
+    queryKey: ["purchase-orders", queue, search, page],
+    queryFn: () =>
+      listPurchaseOrders({
+        status: queue || undefined,
+        search: search || undefined,
+        page,
+        pageSize: 25,
+      }),
   });
   const items = listQ.data?.items || [];
   const summary = listQ.data?.summary;
@@ -152,6 +162,14 @@ function Page() {
           )}
         />
       )}
+      <Pager
+        page={listQ.data?.page || page}
+        totalPages={listQ.data?.totalPages || 1}
+        total={listQ.data?.total || items.length}
+        pageSize={listQ.data?.pageSize || 25}
+        unit="أمر"
+        onPage={setPage}
+      />
 
       {editing && (
         <CreateEditDrawer
@@ -223,10 +241,6 @@ function CreateEditDrawer({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const supQ = useQuery({
-    queryKey: ["finance-suppliers", "active"],
-    queryFn: () => listFinanceSuppliers({ status: "active" }),
-  });
   const detailQ = useQuery({
     queryKey: ["purchase-order", item?.id, "edit"],
     queryFn: () => getPurchaseOrder(item!.id),
@@ -317,19 +331,21 @@ function CreateEditDrawer({
           {NO_ACCOUNTING}
         </div>
         <Field label="المورد *">
-          <select
-            className="inp"
+          <Combobox
             value={f.supplierId}
-            onChange={(e) => set("supplierId", e.target.value)}
-          >
-            <option value="">— اختر مورداً —</option>
-            {(supQ.data?.items || []).map((s: any) => (
-              <option key={s.id} value={s.id}>
-                {s.supplierCode ? `${s.supplierCode} — ` : ""}
-                {s.name} ({s.currency})
-              </option>
-            ))}
-          </select>
+            displayValue={
+              detailQ.data?.supplier
+                ? `${detailQ.data.supplier.supplierCode ? `${detailQ.data.supplier.supplierCode} — ` : ""}${detailQ.data.supplier.name}`
+                : undefined
+            }
+            placeholder="ابحث عن مورد بالاسم أو الرمز…"
+            search={(q) => supplierLookup(q)}
+            getId={(s: any) => s.id}
+            getLabel={(s: any) =>
+              `${s.supplierCode ? `${s.supplierCode} — ` : ""}${s.name} (${s.currency})`
+            }
+            onSelect={(s: any) => set("supplierId", s?.id || "")}
+          />
         </Field>
         <Field label="الموضوع *">
           <input

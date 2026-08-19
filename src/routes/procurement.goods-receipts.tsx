@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppShell, Card, Btn, Badge, Table, Td } from "@/components/erp/AppShell";
+import { Pager } from "@/components/erp/Pager";
 import { showToast, EntityFormDrawer, EmptyState } from "@/components/erp/actions";
 import { fmtSAR } from "@/data/sample";
 import { Plus, Eye, Printer, RotateCcw, Send, Check, X, Undo2, BookCheck } from "lucide-react";
@@ -40,11 +41,13 @@ function Page() {
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [search]);
   const canCreate = userCan(user, "procurement.grn.create");
 
   const listQ = useQuery({
-    queryKey: ["goods-receipts", search],
-    queryFn: () => listGoodsReceipts({ search: search || undefined }),
+    queryKey: ["goods-receipts", search, page],
+    queryFn: () => listGoodsReceipts({ search: search || undefined, page, pageSize: 25 }),
   });
   const items = listQ.data?.items || [];
   const summary = listQ.data?.summary;
@@ -117,6 +120,14 @@ function Page() {
           )}
         />
       )}
+      <Pager
+        page={listQ.data?.page || page}
+        totalPages={listQ.data?.totalPages || 1}
+        total={listQ.data?.total || items.length}
+        pageSize={listQ.data?.pageSize || 25}
+        unit="سند"
+        onPage={setPage}
+      />
 
       {creating && (
         <CreateDrawer
