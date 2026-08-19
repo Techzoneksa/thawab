@@ -1025,7 +1025,10 @@ export const goodsReceipts = pgTable(
       .references(() => purchaseOrders.id),
     supplierId: text("supplier_id").references(() => suppliers.id),
     receiptDate: text("receipt_date").notNull().default(""),
-    status: text("status").notNull().default("posted"), // posted | reversed
+    // draft | submitted | approved | rejected | posted | reversed. Governance
+    // lifecycle (Phase 3D.1): only POSTED/REVERSED touch the GL, GRNI subledger
+    // and inventory; DRAFT/SUBMITTED/APPROVED/REJECTED have zero such effect.
+    status: text("status").notNull().default("draft"),
     currency: text("currency").notNull().default("SAR"),
     totalValue: doublePrecision("total_value").notNull().default(0),
     journalEntryId: text("journal_entry_id").references(() => journalEntries.id),
@@ -1034,6 +1037,12 @@ export const goodsReceipts = pgTable(
     createdBy: text("created_by").references(() => users.id),
     createdAt: text("created_at").notNull().default(""),
     updatedAt: text("updated_at").notNull().default(""),
+    submittedBy: text("submitted_by").references(() => users.id),
+    submittedAt: text("submitted_at"),
+    approvedBy: text("approved_by").references(() => users.id),
+    approvedAt: text("approved_at"),
+    postedBy: text("posted_by").references(() => users.id),
+    postedAt: text("posted_at"),
     reversedBy: text("reversed_by").references(() => users.id),
     reversedAt: text("reversed_at"),
     reversalReason: text("reversal_reason"),
@@ -1072,6 +1081,34 @@ export const goodsReceiptLines = pgTable(
   (t) => ({
     grnIdx: index("goods_receipt_lines_grn_idx").on(t.goodsReceiptId),
     poLineIdx: index("goods_receipt_lines_po_line_idx").on(t.poLineId),
+  }),
+);
+
+// Phase 3D.1 — GRNI subledger link. Maps a goods receipt (and optionally a GRN
+// line) to a SINGLE GRNI control-account journal line — the monetary amount
+// lives ONLY in journal_lines (there is deliberately NO amount column here). The
+// governed GRNI balance is derived by joining links → journal_lines →
+// journal_entries (credit − debit, posted+reversed). journal_line_id is UNIQUE so
+// one GRNI line can never be double-linked. link_type distinguishes the original
+// receipt credit ('receipt') from the reversal debit mirror ('reversal').
+export const grniJournalLinks = pgTable(
+  "grni_journal_links",
+  {
+    id: text("id").primaryKey(),
+    goodsReceiptId: text("goods_receipt_id")
+      .notNull()
+      .references(() => goodsReceipts.id, { onDelete: "cascade" }),
+    goodsReceiptLineId: text("goods_receipt_line_id").references(() => goodsReceiptLines.id),
+    journalLineId: text("journal_line_id")
+      .notNull()
+      .references(() => journalLines.id),
+    linkType: text("link_type").notNull().default("receipt"), // receipt | reversal
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+  },
+  (t) => ({
+    lineIdx: uniqueIndex("grni_journal_links_line_idx").on(t.journalLineId),
+    grnIdx: index("grni_journal_links_grn_idx").on(t.goodsReceiptId),
   }),
 );
 

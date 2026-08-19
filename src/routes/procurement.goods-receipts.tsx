@@ -4,7 +4,7 @@ import { useState } from "react";
 import { AppShell, Card, Btn, Badge, Table, Td } from "@/components/erp/AppShell";
 import { showToast, EntityFormDrawer, EmptyState } from "@/components/erp/actions";
 import { fmtSAR } from "@/data/sample";
-import { Plus, Eye, Printer, RotateCcw } from "lucide-react";
+import { Plus, Eye, Printer, RotateCcw, Send, Check, X, Undo2, BookCheck } from "lucide-react";
 import { useAuth, userCan } from "@/lib/api/auth";
 import { listPurchaseOrders } from "@/lib/api/governed-purchase-orders";
 import {
@@ -12,7 +12,7 @@ import {
   getGoodsReceipt,
   getReceivablePoLines,
   createGoodsReceipt,
-  reverseGoodsReceipt,
+  transitionGoodsReceipt,
   type GoodsReceipt,
   type ReceivablePoLine,
 } from "@/lib/api/goods-receipts";
@@ -23,6 +23,10 @@ export const Route = createFileRoute("/procurement/goods-receipts")({
 });
 
 export const GRN_STATUS: Record<string, { label: string; tone: any }> = {
+  draft: { label: "مسودة", tone: "muted" },
+  submitted: { label: "بانتظار الاعتماد", tone: "info" },
+  approved: { label: "معتمد", tone: "info" },
+  rejected: { label: "مرفوض", tone: "danger" },
   posted: { label: "مُرحَّل", tone: "success" },
   reversed: { label: "معكوس", tone: "warning" },
 };
@@ -53,12 +57,16 @@ function Page() {
       actions={
         canCreate ? (
           <Btn variant="primary" onClick={() => setCreating(true)}>
-            <Plus size={15} /> تسجيل استلام
+            <Plus size={15} /> إنشاء سند استلام
           </Btn>
         ) : null
       }
     >
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <SummaryCard
+          label="مسودة/بانتظار"
+          value={(summary?.draft ?? 0) + (summary?.submitted ?? 0)}
+        />
         <SummaryCard label="مُرحَّلة" value={summary?.posted ?? 0} />
         <SummaryCard label="معكوسة" value={summary?.reversed ?? 0} />
         <SummaryCard label="قيمة GRNI المُرحَّلة" money value={summary?.grniValue ?? 0} />
@@ -165,7 +173,7 @@ function CreateDrawer({ onClose, onSaved }: { onClose: () => void; onSaved: () =
           .filter((l) => l.quantityReceived > 0),
       }),
     onSuccess: () => {
-      showToast("تم تسجيل الاستلام", "success");
+      showToast("تم إنشاء مسودة سند الاستلام", "success");
       onSaved();
     },
     onError: (e: Error) => showToast(e.message, "error"),
@@ -177,9 +185,9 @@ function CreateDrawer({ onClose, onSaved }: { onClose: () => void; onSaved: () =
     <EntityFormDrawer
       open
       onClose={onClose}
-      title="تسجيل استلام بضاعة"
+      title="إنشاء سند استلام (مسودة)"
       onSave={() => mut.mutate()}
-      saveText="ترحيل الاستلام"
+      saveText="حفظ كمسودة"
       loading={mut.isPending}
     >
       <div className="space-y-3">
@@ -270,21 +278,35 @@ function DetailDrawer({
   const { user } = useAuth();
   const nav = useNavigate();
   const qc = useQueryClient();
-  const [reversing, setReversing] = useState(false);
+  const [reasonAction, setReasonAction] = useState<null | "return" | "reject" | "reverse">(null);
   const [reason, setReason] = useState("");
   const q = useQuery({ queryKey: ["goods-receipt", id], queryFn: () => getGoodsReceipt(id) });
   const d = q.data;
+  const status = d?.item.status;
 
-  const revMut = useMutation({
-    mutationFn: () => reverseGoodsReceipt(id, reason),
-    onSuccess: () => {
-      showToast("تم عكس سند الاستلام", "success");
+  const act = useMutation({
+    mutationFn: (vars: {
+      action: "submit" | "approve" | "return" | "reject" | "post" | "reverse";
+      reason?: string;
+    }) => transitionGoodsReceipt(id, vars.action, vars.reason),
+    onSuccess: (_r, vars) => {
+      const msg: Record<string, string> = {
+        submit: "تم الإرسال للاعتماد",
+        approve: "تم اعتماد سند الاستلام",
+        return: "تمت إعادة السند للمسودة",
+        reject: "تم رفض السند",
+        post: "تم ترحيل سند الاستلام",
+        reverse: "تم عكس سند الاستلام",
+      };
+      showToast(msg[vars.action] || "تم", "success");
       qc.invalidateQueries({ queryKey: ["goods-receipt", id] });
       onChanged();
-      setReversing(false);
+      setReasonAction(null);
+      setReason("");
     },
     onError: (e: Error) => showToast(e.message, "error"),
   });
+  const can = (p: string) => userCan(user, p);
 
   return (
     <EntityFormDrawer open onClose={onClose} title="سند استلام" onSave={onClose} saveText="إغلاق">
@@ -343,8 +365,66 @@ function DetailDrawer({
           <Timeline history={d.history} />
 
           <div className="flex flex-wrap gap-1.5 pt-1">
-            {d.item.status === "posted" && userCan(user, "procurement.grn.reverse") && (
-              <Btn variant="outline" onClick={() => setReversing(true)}>
+            {status === "draft" && can("procurement.grn.submit") && (
+              <Btn
+                variant="primary"
+                disabled={act.isPending}
+                onClick={() => act.mutate({ action: "submit" })}
+              >
+                <Send size={14} /> إرسال للاعتماد
+              </Btn>
+            )}
+            {status === "submitted" && can("procurement.grn.approve") && (
+              <Btn
+                variant="primary"
+                disabled={act.isPending}
+                onClick={() => act.mutate({ action: "approve" })}
+              >
+                <Check size={14} /> اعتماد
+              </Btn>
+            )}
+            {status === "submitted" && can("procurement.grn.reject") && (
+              <>
+                <Btn
+                  variant="outline"
+                  disabled={act.isPending}
+                  onClick={() => setReasonAction("return")}
+                >
+                  <Undo2 size={14} /> إعادة للمسودة
+                </Btn>
+                <Btn
+                  variant="outline"
+                  disabled={act.isPending}
+                  onClick={() => setReasonAction("reject")}
+                >
+                  <X size={14} /> رفض
+                </Btn>
+              </>
+            )}
+            {status === "approved" && can("procurement.grn.reject") && (
+              <Btn
+                variant="outline"
+                disabled={act.isPending}
+                onClick={() => setReasonAction("return")}
+              >
+                <Undo2 size={14} /> إعادة للمسودة
+              </Btn>
+            )}
+            {status === "approved" && can("procurement.grn.post") && (
+              <Btn
+                variant="primary"
+                disabled={act.isPending}
+                onClick={() => act.mutate({ action: "post" })}
+              >
+                <BookCheck size={14} /> ترحيل
+              </Btn>
+            )}
+            {status === "posted" && can("procurement.grn.reverse") && (
+              <Btn
+                variant="outline"
+                disabled={act.isPending}
+                onClick={() => setReasonAction("reverse")}
+              >
                 <RotateCcw size={14} /> عكس
               </Btn>
             )}
@@ -360,34 +440,48 @@ function DetailDrawer({
         </div>
       )}
 
-      {reversing && (
+      {reasonAction && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
           dir="rtl"
         >
           <div className="w-full max-w-md rounded-xl bg-background p-4 shadow-xl border">
-            <div className="font-bold mb-2">عكس سند الاستلام</div>
+            <div className="font-bold mb-2">
+              {reasonAction === "reverse"
+                ? "عكس سند الاستلام"
+                : reasonAction === "reject"
+                  ? "رفض سند الاستلام"
+                  : "إعادة السند للمسودة"}
+            </div>
             <div className="text-[11px] text-muted-foreground mb-2">
-              سيتم عكس القيد وحركة المخزون معاً.
+              {reasonAction === "reverse"
+                ? "سيتم عكس القيد وربط أستاذ GRNI وحركة المخزون معاً (لن يصبح المخزون سالباً)."
+                : "يُرجى بيان السبب."}
             </div>
             <textarea
               className="inp"
               rows={3}
-              placeholder="سبب العكس (مطلوب)…"
+              placeholder="السبب (مطلوب)…"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               autoFocus
             />
             <div className="flex justify-end gap-2 mt-3">
-              <Btn variant="ghost" onClick={() => setReversing(false)}>
+              <Btn
+                variant="ghost"
+                onClick={() => {
+                  setReasonAction(null);
+                  setReason("");
+                }}
+              >
                 إلغاء
               </Btn>
               <Btn
                 variant="primary"
-                disabled={!reason.trim() || revMut.isPending}
-                onClick={() => revMut.mutate()}
+                disabled={!reason.trim() || act.isPending}
+                onClick={() => act.mutate({ action: reasonAction, reason })}
               >
-                تأكيد العكس
+                تأكيد
               </Btn>
             </div>
           </div>
@@ -402,7 +496,15 @@ function Timeline({
 }: {
   history: { id: string; action: string; userName: string; reason: string; createdAt: string }[];
 }) {
-  const LABEL: Record<string, string> = { post: "ترحيل الاستلام", reverse: "عكس" };
+  const LABEL: Record<string, string> = {
+    create: "إنشاء مسودة",
+    submit: "إرسال للاعتماد",
+    approve: "اعتماد",
+    return: "إعادة للمسودة",
+    reject: "رفض",
+    post: "ترحيل الاستلام",
+    reverse: "عكس",
+  };
   if (!history?.length) return null;
   return (
     <Card className="p-3">

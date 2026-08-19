@@ -13,7 +13,7 @@
  * and `*.action`). They are deliberately granular so submit ≠ approve ≠ issue ≠
  * cancel, and none imply supplier-master mutation or Supplier Invoice posting.
  */
-import { PurchaseOrderGovernedStatus as S } from "./enums";
+import { PurchaseOrderGovernedStatus as S, GoodsReceiptStatus as G } from "./enums";
 import type { Transition } from "./finance-permissions";
 
 export const PROCUREMENT_PERMISSIONS = {
@@ -27,11 +27,18 @@ export const PROCUREMENT_PERMISSIONS = {
   poCancel: "procurement.po.cancel",
   poAuditView: "procurement.po.audit.view",
 
-  // Phase 3D — governed Goods Receipts (سندات الاستلام / GRN). Granular so
-  // receiving (which posts Dr receipt / Cr GRNI + inventory) and reversal are
-  // separate authorities; neither implies PO mutation or any AP/payment action.
+  // Phase 3D / 3D.1 — governed Goods Receipts (سندات الاستلام / GRN). Granular
+  // full governance lifecycle so create (draft) ≠ submit ≠ approve ≠ reject ≠
+  // post ≠ reverse. Only POST books Dr receipt / Cr GRNI + inventory + GRNI
+  // subledger links; approval has ZERO accounting/inventory effect. None of
+  // these imply PO mutation or any AP/payment/supplier action.
   grnView: "procurement.grn.view",
   grnCreate: "procurement.grn.create",
+  grnUpdateDraft: "procurement.grn.update_draft",
+  grnSubmit: "procurement.grn.submit",
+  grnApprove: "procurement.grn.approve",
+  grnReject: "procurement.grn.reject",
+  grnPost: "procurement.grn.post",
   grnReverse: "procurement.grn.reverse",
   grnAuditView: "procurement.grn.audit.view",
 } as const;
@@ -84,13 +91,30 @@ export const PROCUREMENT_PERM_GROUPS: ProcurementPermGroup[] = [
       { key: PROCUREMENT_PERMISSIONS.grnView, label: "عرض سندات الاستلام" },
       {
         key: PROCUREMENT_PERMISSIONS.grnCreate,
-        label: "تسجيل استلام بضاعة",
-        desc: "يُنشئ قيد استلام (مدين المستلَم / دائن بضاعة مستلمة لم تُفوتر) وحركة مخزون — لا يمس الذمم الدائنة",
+        label: "إنشاء سند استلام (مسودة)",
+        desc: "إنشاء مسودة سند استلام بدون أي أثر محاسبي أو مخزني",
+      },
+      { key: PROCUREMENT_PERMISSIONS.grnUpdateDraft, label: "تعديل مسودة سند استلام" },
+      { key: PROCUREMENT_PERMISSIONS.grnSubmit, label: "إرسال سند استلام للاعتماد" },
+      {
+        key: PROCUREMENT_PERMISSIONS.grnApprove,
+        label: "اعتماد سند استلام",
+        desc: "مراجعة واعتماد سند الاستلام المُرسَل (لا يُنشئ أي قيد أو حركة مخزون)",
+      },
+      {
+        key: PROCUREMENT_PERMISSIONS.grnReject,
+        label: "إعادة / رفض سند استلام",
+        desc: "إعادة السند للمسودة أو رفضه بسبب",
+      },
+      {
+        key: PROCUREMENT_PERMISSIONS.grnPost,
+        label: "ترحيل سند استلام",
+        desc: "ترحيل السند المعتمد: مدين المستلَم / دائن بضاعة مستلمة لم تُفوتر + حركة مخزون وربط أستاذ GRNI — لا يمس الذمم الدائنة",
       },
       {
         key: PROCUREMENT_PERMISSIONS.grnReverse,
         label: "عكس سند استلام",
-        desc: "يعكس القيد وحركة المخزون معاً",
+        desc: "يعكس القيد وربط أستاذ GRNI وحركة المخزون معاً (لا يجعل المخزون سالباً)",
       },
       { key: PROCUREMENT_PERMISSIONS.grnAuditView, label: "عرض سجل تدقيق سندات الاستلام" },
     ],
@@ -154,6 +178,71 @@ export const PO_TRANSITIONS: Transition[] = [
     action: "cancel",
     to: S.CANCELLED,
     permission: PROCUREMENT_PERMISSIONS.poCancel,
+    reasonRequired: true,
+  },
+];
+
+/**
+ * Phase 3D.1 — governed Goods Receipt (سند استلام / GRN) state matrix. Same
+ * certified governance engine and JournalAction verbs as journals/vouchers, its
+ * own transitions and its own granular grn permissions.
+ *
+ *   DRAFT → SUBMITTED → APPROVED → POSTED,  POSTED → REVERSED,
+ *   SUBMITTED → DRAFT (return),  SUBMITTED → REJECTED.
+ *
+ * DRAFT→POSTED and SUBMITTED→POSTED are absent BY CONSTRUCTION, so a receipt can
+ * never be posted without passing approval; approval (maker-checker-blocked) and
+ * posting are separate actions with separate permissions. APPROVED has ZERO
+ * accounting/inventory effect — only the POST transition books the GL, the GRNI
+ * subledger links and inventory, and only REVERSE unwinds them.
+ */
+export const GRN_TRANSITIONS: Transition[] = [
+  {
+    from: G.DRAFT,
+    action: "submit",
+    to: G.SUBMITTED,
+    permission: PROCUREMENT_PERMISSIONS.grnSubmit,
+  },
+  {
+    from: G.SUBMITTED,
+    action: "approve",
+    to: G.APPROVED,
+    permission: PROCUREMENT_PERMISSIONS.grnApprove,
+    makerCheckerBlocked: true,
+  },
+  {
+    from: G.SUBMITTED,
+    action: "return",
+    to: G.DRAFT,
+    permission: PROCUREMENT_PERMISSIONS.grnReject,
+    reasonRequired: true,
+  },
+  {
+    from: G.SUBMITTED,
+    action: "reject",
+    to: G.REJECTED,
+    permission: PROCUREMENT_PERMISSIONS.grnReject,
+    reasonRequired: true,
+  },
+  // Policy: an approved (not-yet-posted) receipt may be returned to draft for edits.
+  {
+    from: G.APPROVED,
+    action: "return",
+    to: G.DRAFT,
+    permission: PROCUREMENT_PERMISSIONS.grnReject,
+    reasonRequired: true,
+  },
+  {
+    from: G.APPROVED,
+    action: "post",
+    to: G.POSTED,
+    permission: PROCUREMENT_PERMISSIONS.grnPost,
+  },
+  {
+    from: G.POSTED,
+    action: "reverse",
+    to: G.REVERSED,
+    permission: PROCUREMENT_PERMISSIONS.grnReverse,
     reasonRequired: true,
   },
 ];

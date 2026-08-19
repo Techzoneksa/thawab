@@ -152,9 +152,10 @@ const COA: Row[] = [
   ["2101", "الذمم الدائنة", "liability", false],
   ["210101", "ذمم دائنة — موردون", "liability", true, "accounts_payable"],
   ["210102", "مصروفات مستحقة الدفع", "liability", true],
-  // Candidate GRNI accrual (Phase 3D). No system_key — the GRNI mapping must be
-  // explicitly confirmed by a Finance administrator, never auto-declared here.
-  ["210105", "بضاعة مستلمة لم تُفوتر (GRNI)", "liability", true],
+  // Phase 3D.1: NO GRNI accrual account is auto-seeded. The GRNI mapping must be
+  // an EXISTING valid liability account explicitly selected and confirmed by a
+  // Finance administrator (finance.account_mapping.update) — never auto-created
+  // or hardcoded here.
   ["210103", "رواتب وأجور مستحقة", "liability", true, "salaries_payable"],
   ["210104", "مستحق للمشاريع", "liability", true],
   ["2102", "الأمانات والتأمينات", "liability", false],

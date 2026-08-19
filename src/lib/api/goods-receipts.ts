@@ -117,15 +117,40 @@ export async function createGoodsReceipt(body: {
   notes?: string;
   lines: { poLineId: string; quantityReceived: number }[];
 }): Promise<GoodsReceipt> {
-  return (await j(await post("/api/procurement/goods-receipts", body), "تعذّر تسجيل الاستلام"))
+  return (await j(await post("/api/procurement/goods-receipts", body), "تعذّر إنشاء سند الاستلام"))
     .item;
 }
 
-export async function reverseGoodsReceipt(id: string, reason: string): Promise<GoodsReceipt> {
+export async function updateGoodsReceipt(
+  id: string,
+  body: {
+    receiptDate?: string;
+    notes?: string;
+    lines: { poLineId: string; quantityReceived: number }[];
+  },
+): Promise<GoodsReceipt> {
   return (
     await j(
-      await post("/api/procurement/goods-receipts", { id, action: "reverse", reason }),
-      "تعذّر عكس سند الاستلام",
+      await post("/api/procurement/goods-receipts", { id, action: "update", ...body }),
+      "تعذّر تعديل مسودة سند الاستلام",
     )
   ).item;
+}
+
+/** Governance transitions: submit | approve | return | reject | post | reverse. */
+export async function transitionGoodsReceipt(
+  id: string,
+  action: "submit" | "approve" | "return" | "reject" | "post" | "reverse",
+  reason?: string,
+): Promise<GoodsReceipt> {
+  return (
+    await j(
+      await post("/api/procurement/goods-receipts", { id, action, reason }),
+      "تعذّر تنفيذ الإجراء على سند الاستلام",
+    )
+  ).item;
+}
+
+export async function reverseGoodsReceipt(id: string, reason: string): Promise<GoodsReceipt> {
+  return transitionGoodsReceipt(id, "reverse", reason);
 }
