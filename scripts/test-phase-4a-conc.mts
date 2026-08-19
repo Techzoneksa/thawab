@@ -13,14 +13,18 @@
  *
  * Suites: CONC-A numbering, CONC-B distinct payments, CONC-C idempotent retry,
  * CONC-D same-source POST, CONC-E supplier-code contention, CONC-F cross-lock
- * (deadlock safety), plus REL-A partial-failure rollback and a final
- * GL-integrity reconciliation (trial balance + AP control = subledger).
+ * (deadlock safety), CONC-G 20 concurrent Payment Voucher POSTs on a shared
+ * cashbox, CONC-H over-committed cashbox (funds guard under contention),
+ * CONC-I 20 concurrent Supplier Invoice POSTs, plus REL-A partial-failure
+ * rollback and a final GL-integrity reconciliation (trial balance + AP =
+ * subledger). CONC-G/H/I drive the real create→submit→approve→post workflow
+ * (with maker/approver segregation of duties) — not mirrors.
  *
  * Run: DATABASE_URL=postgres://.../thawab_conc \
  *      node_modules/.bin/tsx scripts/test-phase-4a-conc.mts
  */
-import { sql } from "drizzle-orm";
-import { db, closeDb, genId } from "@/server/db/index";
+import { sql, eq } from "drizzle-orm";
+import { db, closeDb, genId, now } from "@/server/db/index";
 import {
   createSupplier,
   paySupplier,
@@ -34,7 +38,9 @@ import {
   SYS,
 } from "@/server/db/gl";
 import { getAccountBalance } from "@/server/db/balances";
-
+import { createPaymentVoucher, transitionPaymentVoucher } from "@/server/db/payment-voucher";
+import { createSupplierInvoice, transitionSupplierInvoice } from "@/server/db/supplier-invoice";
+import { accounts, cashboxes } from "@/server/db/schema";
 import { JournalSource, JournalStatus } from "@/lib/enums";
 
 const url = process.env.DATABASE_URL || "";
@@ -56,7 +62,15 @@ function ok(name: string, cond: boolean, extra = "") {
 }
 
 const ctx: any = {
-  user: { id: "u-bench", name: "Bench Runner" },
+  user: { id: "u-bench", name: "Bench Runner", role: "role-admin" },
+  ip: "127.0.0.1",
+  userAgent: "phase4a",
+  request: new Request("http://localhost/"),
+};
+// Distinct approver — segregation of duties forbids approving/posting a document
+// you created yourself (SELF_APPROVAL). Maker = ctx, approver/poster = ctx2.
+const ctx2: any = {
+  user: { id: "u-bench2", name: "Bench Approver", role: "role-admin" },
   ip: "127.0.0.1",
   userAgent: "phase4a",
   request: new Request("http://localhost/"),
@@ -64,7 +78,10 @@ const ctx: any = {
 
 async function ensureUser() {
   await db.execute(
-    sql`INSERT INTO users (id, name, email, password) VALUES ('u-bench','Bench Runner','u-bench@example.com','x') ON CONFLICT (id) DO NOTHING`,
+    sql`INSERT INTO users (id, name, email, password) VALUES
+      ('u-bench','Bench Runner','u-bench@example.com','x'),
+      ('u-bench2','Bench Approver','u-bench2@example.com','x')
+      ON CONFLICT (id) DO NOTHING`,
   );
 }
 
@@ -86,7 +103,10 @@ async function resetTransactional() {
   // of accounts, fiscal periods, roles and users. (Isolated bench DB only.)
   await db.execute(sql`TRUNCATE
     journal_lines, journal_entries, supplier_journal_links, supplier_payments,
-    suppliers, finance_workflow_events, audit_log RESTART IDENTITY CASCADE`);
+    suppliers, finance_workflow_events, audit_log,
+    cashboxes, payment_vouchers, payment_voucher_lines,
+    supplier_invoices, supplier_invoice_lines, supplier_invoice_grn_allocations
+    RESTART IDENTITY CASCADE`);
 }
 
 async function main() {
@@ -392,6 +412,201 @@ async function main() {
       "no journal entry persisted (atomic rollback)",
       Number(jAfter.c) === Number(jBefore.c),
       `${jBefore.c}→${jAfter.c}`,
+    );
+  }
+
+  // ===== Real document POSTs through the actual services (numbering + posting
+  // engine + cash lock/sufficiency + workflow governance) under contention. =====
+  const cashId = await resolveSystemAccountId(db as any, SYS.CASH);
+  const expId = (
+    await (db as any).select().from(accounts).where(eq(accounts.code, "5101")).limit(1)
+  )[0].id as string; // aid_expense — a real posting-eligible expense account
+  const netAssetsId = (
+    await (db as any).select().from(accounts).where(eq(accounts.code, "3101")).limit(1)
+  )[0].id as string;
+
+  // A cashbox is UNIQUE per linked cash account, so each bench cashbox gets its
+  // own fresh ASSET cash account (dedicated fund pool). Returns the account id.
+  async function mkCashAccount(code: string): Promise<string> {
+    const id = genId("ACC");
+    await db.execute(
+      sql`INSERT INTO accounts (id, code, name, classification, level, currency, balance, postable, status, created_at, updated_at)
+          VALUES (${id}, ${code}, ${"Bench cash " + code}, 'asset', 3, 'SAR', 0, true, 'active', ${now()}, ${now()})
+          ON CONFLICT (code) DO NOTHING`,
+    );
+    return (
+      (await (db as any).select().from(accounts).where(eq(accounts.code, code)).limit(1))[0] as any
+    ).id;
+  }
+
+  async function ensureCashbox(id: string, linkedAccountId: string, fund: number) {
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(cashboxes)
+        .values({
+          id,
+          code: id.toUpperCase(),
+          name: `Bench ${id}`,
+          linkedAccountId,
+          currency: "SAR",
+          status: "active",
+          createdBy: ctx.user.id,
+          createdAt: now(),
+          updatedAt: now(),
+        } as any)
+        .onConflictDoNothing();
+      if (fund > 0) {
+        // Fund the cashbox with book cash: Dr <cash> / Cr Net Assets.
+        await postBalancedEntry(tx as any, {
+          date: "2026-05-01",
+          description: `fund ${id}`,
+          source: JournalSource.MANUAL,
+          sourceType: "opening_balance",
+          sourceId: genId("FUND"),
+          lines: [
+            { accountId: linkedAccountId, debit: fund },
+            { accountId: netAssetsId, credit: fund },
+          ],
+          userId: ctx.user.id,
+          status: JournalStatus.POSTED,
+        });
+      }
+    });
+  }
+
+  async function makeApprovedPV(cashboxId: string, amount: number) {
+    const v = await createPaymentVoucher(ctx, {
+      voucherDate: "2026-06-10",
+      cashboxId,
+      payeeName: "Bench Payee",
+      totalAmount: amount,
+      lines: [{ accountId: expId, amount }],
+    });
+    await transitionPaymentVoucher(ctx, (v as any).id, "submit");
+    await transitionPaymentVoucher(ctx2, (v as any).id, "approve");
+    return (v as any).id as string;
+  }
+
+  // ---------------- CONC-G: 20 concurrent Payment Voucher POSTs (real service) --
+  console.log("\nCONC-G — 20 concurrent Payment Voucher POSTs on a well-funded shared cashbox");
+  {
+    const N = 20,
+      amt = 50;
+    const cbpvAcc = await mkCashAccount("110191");
+    await ensureCashbox("cbpv", cbpvAcc, N * amt * 4); // amply funded — all must succeed
+    const ids = [];
+    for (let i = 0; i < N; i++) ids.push(await makeApprovedPV("cbpv", amt));
+    const cashBefore = await acctBal(cbpvAcc);
+    const res = await Promise.allSettled(
+      ids.map((id) => transitionPaymentVoucher(ctx2, id, "post")),
+    );
+    const okCount = res.filter((r) => r.status === "fulfilled").length;
+    const cashAfter = await acctBal(cbpvAcc);
+    const posted = (
+      await db.execute(
+        sql`SELECT count(*)::int AS c, count(DISTINCT voucher_number)::int AS d FROM payment_vouchers WHERE status='posted' AND cashbox_id='cbpv'`,
+      )
+    )[0] as any;
+    ok(`all ${N} vouchers posted`, okCount === N, `posted ${okCount}`);
+    ok(
+      "voucher numbers all distinct",
+      Number(posted.d) === Number(posted.c),
+      `${posted.d}/${posted.c}`,
+    );
+    ok(
+      "cash reduced by exactly N×amt (no double/lost post)",
+      Math.abs(cashBefore - cashAfter - N * amt) < 0.005,
+      `Δ=${cashBefore - cashAfter}`,
+    );
+    ok("cash balance never negative", cashAfter >= -0.005, `cash=${cashAfter}`);
+  }
+
+  // ---------------- CONC-H: cashbox contention beyond available funds -----------
+  console.log("\nCONC-H — over-committed cashbox: more concurrent PV POSTs than funds allow");
+  {
+    const amt = 100;
+    const capacity = 6; // fund only 6 payments' worth
+    const attempts = 15; // but fire 15 concurrently
+    const cbtightAcc = await mkCashAccount("110192");
+    await ensureCashbox("cbtight", cbtightAcc, amt * capacity);
+    const ids = [];
+    for (let i = 0; i < attempts; i++) ids.push(await makeApprovedPV("cbtight", amt));
+    const cashBefore = await acctBal(cbtightAcc);
+    const res = await Promise.allSettled(
+      ids.map((id) => transitionPaymentVoucher(ctx2, id, "post")),
+    );
+    const okCount = res.filter((r) => r.status === "fulfilled").length;
+    const rejected = attempts - okCount;
+    const cashAfter = await acctBal(cbtightAcc);
+    // Successful posts must not exceed available funds; cash must not go negative.
+    ok(
+      "some payments rejected (funds guard held under contention)",
+      rejected > 0,
+      `rejected ${rejected}`,
+    );
+    ok(
+      "successful posts within cashbox capacity",
+      okCount <= capacity,
+      `posted ${okCount} > capacity ${capacity}`,
+    );
+    ok("cash never driven negative by the race", cashAfter >= -0.005, `cash=${cashAfter}`);
+    ok(
+      "cash reduced by exactly (successful × amt)",
+      Math.abs(cashBefore - cashAfter - okCount * amt) < 0.005,
+      `Δ=${cashBefore - cashAfter} vs ${okCount * amt}`,
+    );
+  }
+
+  // ---------------- CONC-I: 20 concurrent Supplier Invoice POSTs (real service) -
+  console.log(
+    "\nCONC-I — 20 concurrent direct Supplier Invoice POSTs → distinct numbers, exact AP",
+  );
+  {
+    const N = 20,
+      unit = 40;
+    const supplierId = await mkSupplier("CONC-I Supplier");
+    const ids = [];
+    for (let i = 0; i < N; i++) {
+      const inv = await createSupplierInvoice(ctx, {
+        supplierId,
+        supplierInvoiceNumber: `EXT-I-${i}`,
+        invoiceDate: "2026-06-12",
+        lines: [
+          { accountingMode: "direct", accountId: expId, quantity: 1, unitPrice: unit, taxRate: 0 },
+        ],
+      });
+      await transitionSupplierInvoice(ctx, (inv as any).id, "submit");
+      await transitionSupplierInvoice(ctx2, (inv as any).id, "approve");
+      ids.push((inv as any).id);
+    }
+    const apBefore = await acctBal(apId);
+    const payableBefore = (await getSupplierBalance(db as any, supplierId)).payableBalance;
+    const res = await Promise.allSettled(
+      ids.map((id) => transitionSupplierInvoice(ctx2, id, "post")),
+    );
+    const okCount = res.filter((r) => r.status === "fulfilled").length;
+    const apAfter = await acctBal(apId);
+    const payableAfter = (await getSupplierBalance(db as any, supplierId)).payableBalance;
+    const posted = (
+      await db.execute(
+        sql`SELECT count(*)::int AS c, count(DISTINCT invoice_number)::int AS d FROM supplier_invoices WHERE status='posted' AND supplier_id=${supplierId}`,
+      )
+    )[0] as any;
+    ok(`all ${N} invoices posted`, okCount === N, `posted ${okCount}`);
+    ok(
+      "invoice numbers all distinct",
+      Number(posted.d) === Number(posted.c),
+      `${posted.d}/${posted.c}`,
+    );
+    ok(
+      "AP credited exactly N×unit",
+      Math.abs(apAfter - apBefore - N * unit) < 0.005,
+      `Δ=${apAfter - apBefore}`,
+    );
+    ok(
+      "supplier payable increased exactly N×unit (all linked)",
+      Math.abs(payableAfter - payableBefore - N * unit) < 0.005,
+      `Δ=${payableAfter - payableBefore}`,
     );
   }
 
