@@ -19,11 +19,18 @@ import {
   supplierInvoices,
   goodsReceipts,
   goodsReceiptLines,
+  grniJournalLinks,
+  journalLines,
+  journalEntries,
   purchaseOrders,
 } from "./schema";
 import { GoodsReceiptStatus, SupplierInvoiceStatus } from "@/lib/enums";
 
 type Db = { select: (...a: any[]) => any };
+
+const QTY_TOLERANCE = 0.0001;
+const MONEY_TOLERANCE = 0.005; // project halala precision (2 dp)
+const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
 /** Supplier-invoice statuses whose allocations actively consume GRN quantity. */
 const ACTIVE_INVOICE_STATES = [SupplierInvoiceStatus.POSTED];
@@ -59,6 +66,133 @@ export async function matchedQtyByGrnLine(
     .where(and(...conds))) as any[];
   for (const r of rows) map.set(r.grnLineId, (map.get(r.grnLineId) || 0) + Number(r.qty || 0));
   return map;
+}
+
+/**
+ * The GRNI monetary value ALREADY CLEARED for a GRN line by ACTIVE (POSTED)
+ * Supplier Invoices — derived from REAL GL lines, never a stored balance: the sum
+ * of the debit amounts of the invoice-clearing GRNI journal lines
+ * (grni_journal_links.link_type='invoice') whose journal entry is a POSTED supplier
+ * invoice. A reversed invoice's original clearing entry becomes status='reversed'
+ * and therefore drops out automatically. `excludeInvoiceId` ignores a given
+ * invoice's own clearing (safety mirror for under-lock revalidation).
+ */
+export async function activeClearedGrniValue(
+  dbh: Db,
+  goodsReceiptLineId: string,
+  opts: { excludeInvoiceId?: string } = {},
+): Promise<number> {
+  const conds = [
+    eq(grniJournalLinks.goodsReceiptLineId, goodsReceiptLineId),
+    eq(grniJournalLinks.linkType, "invoice"),
+    eq(journalEntries.sourceType, "supplier_invoice"),
+    eq(journalEntries.status, SupplierInvoiceStatus.POSTED),
+  ];
+  if (opts.excludeInvoiceId)
+    conds.push(sql`${journalEntries.sourceId} <> ${opts.excludeInvoiceId}`);
+  const r = (
+    await (dbh as any)
+      .select({ v: sql<number>`COALESCE(SUM(${journalLines.debit}),0)` })
+      .from(grniJournalLinks)
+      .innerJoin(journalLines, eq(grniJournalLinks.journalLineId, journalLines.id))
+      .innerJoin(journalEntries, eq(journalLines.journalEntryId, journalEntries.id))
+      .where(and(...conds))
+  )[0] as any;
+  return r2(Number(r?.v || 0));
+}
+
+export interface GrnLineMatchingPosition {
+  goodsReceiptId: string;
+  goodsReceiptLineId: string;
+  receivedQuantity: number;
+  /** The exact immutable GRNI value posted for this line (goods_receipt_lines.line_value). */
+  originalPostedGrniValue: number;
+  activeMatchedQuantity: number;
+  /** GRNI value already cleared by active POSTED invoices — GL-derived. */
+  activeClearedGrniValue: number;
+  remainingQuantity: number;
+  remainingGrniValue: number;
+  status: "UNMATCHED" | "PARTIAL" | "FULL" | "INTEGRITY_MISMATCH";
+}
+
+/**
+ * Authoritative quantity + monetary position of a governed GRN line for matching.
+ * originalPostedGrniValue is the line's immutable posted accounting value
+ * (goods_receipt_lines.line_value — the exact amount that fed the receipt's GRNI
+ * credit); activeClearedGrniValue is GL-derived from the invoice-clearing links.
+ * FULL requires BOTH remaining quantity AND remaining GRNI value ≈ 0; a zero
+ * remaining quantity with a non-zero remaining value surfaces as INTEGRITY_MISMATCH
+ * (must never happen under the Phase 3E.1 cumulative allocation).
+ */
+export async function getGrnLineMatchingPosition(
+  dbh: Db,
+  goodsReceiptLineId: string,
+  opts: { excludeInvoiceId?: string } = {},
+): Promise<GrnLineMatchingPosition> {
+  const gl = (
+    await (dbh as any)
+      .select({
+        id: goodsReceiptLines.id,
+        goodsReceiptId: goodsReceiptLines.goodsReceiptId,
+        received: goodsReceiptLines.quantityReceived,
+        lineValue: goodsReceiptLines.lineValue,
+      })
+      .from(goodsReceiptLines)
+      .where(eq(goodsReceiptLines.id, goodsReceiptLineId))
+      .limit(1)
+  )[0] as any;
+  if (!gl) throw new Error("GRN line not found");
+
+  const qMatched = (await matchedQtyByGrnLine(dbh, [goodsReceiptLineId], opts)).get(
+    goodsReceiptLineId,
+  ) as number | undefined;
+  const activeMatchedQuantity = Number(qMatched || 0);
+  const cleared = await activeClearedGrniValue(dbh, goodsReceiptLineId, opts);
+
+  const receivedQuantity = Number(gl.received || 0);
+  const originalPostedGrniValue = r2(Number(gl.lineValue || 0));
+  const remainingQuantity = r2(receivedQuantity - activeMatchedQuantity);
+  const remainingGrniValue = r2(originalPostedGrniValue - cleared);
+
+  let status: GrnLineMatchingPosition["status"];
+  if (activeMatchedQuantity <= QTY_TOLERANCE && Math.abs(cleared) <= MONEY_TOLERANCE)
+    status = "UNMATCHED";
+  else if (remainingQuantity <= QTY_TOLERANCE)
+    status = Math.abs(remainingGrniValue) <= MONEY_TOLERANCE ? "FULL" : "INTEGRITY_MISMATCH";
+  else status = "PARTIAL";
+
+  return {
+    goodsReceiptId: gl.goodsReceiptId,
+    goodsReceiptLineId,
+    receivedQuantity,
+    originalPostedGrniValue,
+    activeMatchedQuantity,
+    activeClearedGrniValue: cleared,
+    remainingQuantity,
+    remainingGrniValue,
+    status,
+  };
+}
+
+/**
+ * Deterministic cumulative GRNI clearing amount for a new match, so partial matches
+ * telescope to EXACTLY the original posted value with no orphan halala and no
+ * over-clearing:
+ *   Q_after = prevQty + newQty
+ *   final (Q_after == Q_total):  V_total − prevValue        (absorbs the residual)
+ *   non-final:                   round(V_total × Q_after / Q_total) − prevValue
+ */
+export function expectedGrniClearValue(input: {
+  vTotal: number;
+  qTotal: number;
+  prevQty: number;
+  prevValue: number;
+  newQty: number;
+}): number {
+  const qAfter = input.prevQty + input.newQty;
+  if (qAfter >= input.qTotal - QTY_TOLERANCE) return r2(input.vTotal - input.prevValue);
+  const target = r2((input.vTotal * qAfter) / input.qTotal);
+  return r2(target - input.prevValue);
 }
 
 /** True if the GRN has any allocation belonging to an ACTIVE (POSTED) invoice. */
@@ -119,6 +253,7 @@ export async function matchableGrnLinesForSupplier(
       description: goodsReceiptLines.description,
       itemId: goodsReceiptLines.itemId,
       unitPrice: goodsReceiptLines.unitPrice,
+      lineValue: goodsReceiptLines.lineValue,
       qty: goodsReceiptLines.quantityReceived,
     })
     .from(goodsReceipts)
@@ -136,13 +271,15 @@ export async function matchableGrnLinesForSupplier(
     dbh,
     rows.map((r) => r.grnLineId),
   );
-  const r2 = (n: number) => Math.round(n * 100) / 100;
   const out: MatchableGrnLine[] = [];
   for (const r of rows) {
     const received = Number(r.qty || 0);
     const invoiced = matched.get(r.grnLineId) || 0;
     const remaining = r2(received - invoiced);
-    if (remaining <= 0.0001) continue;
+    if (remaining <= QTY_TOLERANCE) continue;
+    // remainingGrniValue is the EXACT posted line value minus the GL-cleared value
+    // (never qty × price), so partial matching against it can never drift.
+    const cleared = await activeClearedGrniValue(dbh, r.grnLineId);
     out.push({
       goodsReceiptId: r.goodsReceiptId,
       grnNumber: r.grnNumber,
@@ -158,7 +295,7 @@ export async function matchableGrnLinesForSupplier(
       receivedQuantity: received,
       invoicedQuantity: invoiced,
       remainingQuantity: remaining,
-      remainingGrniValue: r2(remaining * Number(r.unitPrice || 0)),
+      remainingGrniValue: r2(Number(r.lineValue || 0) - cleared),
     });
   }
   return out;
@@ -173,28 +310,33 @@ export async function receiptMatchSummary(dbh: Db, goodsReceiptId: string) {
   const lines = (await (dbh as any)
     .select({
       grnLineId: goodsReceiptLines.id,
-      unitPrice: goodsReceiptLines.unitPrice,
       lineValue: goodsReceiptLines.lineValue,
       qty: goodsReceiptLines.quantityReceived,
     })
     .from(goodsReceiptLines)
     .where(eq(goodsReceiptLines.goodsReceiptId, goodsReceiptId))) as any[];
-  const matched = await matchedQtyByGrnLine(
-    dbh,
-    lines.map((l) => l.grnLineId),
-  );
-  const r2 = (n: number) => Math.round(n * 100) / 100;
   let receivedValue = 0;
-  let invoicedValue = 0;
+  let invoicedValue = 0; // EXACT cleared value from GL (never qty × price)
+  let receivedQty = 0;
+  let matchedQty = 0;
   for (const l of lines) {
     receivedValue = r2(receivedValue + Number(l.lineValue || 0));
-    invoicedValue = r2(invoicedValue + (matched.get(l.grnLineId) || 0) * Number(l.unitPrice || 0));
+    invoicedValue = r2(invoicedValue + (await activeClearedGrniValue(dbh, l.grnLineId)));
+    receivedQty = r2(receivedQty + Number(l.qty || 0));
+    matchedQty = r2(
+      matchedQty + ((await matchedQtyByGrnLine(dbh, [l.grnLineId])).get(l.grnLineId) || 0),
+    );
   }
+  const remainingValue = r2(receivedValue - invoicedValue);
+  const remainingQty = r2(receivedQty - matchedQty);
+  // FULL requires BOTH zero remaining quantity AND zero remaining GRNI value.
   return {
     receivedValue,
     invoicedValue,
-    remainingValue: r2(receivedValue - invoicedValue),
-    fullyInvoiced: r2(receivedValue - invoicedValue) <= 0.0001,
+    remainingValue,
+    remainingQuantity: remainingQty,
+    fullyInvoiced: remainingQty <= QTY_TOLERANCE && Math.abs(remainingValue) <= MONEY_TOLERANCE,
+    integrityMismatch: remainingQty <= QTY_TOLERANCE && Math.abs(remainingValue) > MONEY_TOLERANCE,
   };
 }
 

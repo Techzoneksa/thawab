@@ -374,17 +374,20 @@ function CreateEditDrawer({
           : l,
       ),
     );
-  // Selecting a matched GRN line pins its unit price and defaults the quantity to
-  // the remaining invoiceable quantity (the server re-enforces exact match).
+  // Selecting a matched GRN line defaults to the FULL remaining quantity and pins
+  // the unit price so the line NET equals the EXACT remaining GRNI value
+  // (remainingGrniValue ÷ remainingQuantity) — this clears the receipt to zero with
+  // no rounding residual. The server re-derives the required clearing under lock.
   const setLineMatch = (i: number, grnLineId: string) =>
     setLines((p) =>
       p.map((l, j) => {
         if (j !== i) return l;
         const g = matchById.get(grnLineId);
+        const unit = g && g.remainingQuantity > 0 ? g.remainingGrniValue / g.remainingQuantity : 0;
         return {
           ...l,
           goodsReceiptLineId: grnLineId,
-          unitPrice: g ? String(g.unitPrice) : "",
+          unitPrice: g ? String(unit) : "",
           quantity: g ? String(g.remainingQuantity) : l.quantity,
           description: l.description || (g ? g.description : ""),
         };

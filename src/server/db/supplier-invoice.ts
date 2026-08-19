@@ -51,7 +51,11 @@ import { accountMappedToAnyCashBank } from "./cash-bank";
 import { resolveConfirmedInputVatAccount } from "./account-mapping";
 import { linkEntryApLine } from "./supplier";
 import { createGrniLink, receiptGrniLink } from "./grni-link";
-import { matchedQtyByGrnLine, invoiceAllocations } from "./invoice-matching";
+import {
+  invoiceAllocations,
+  getGrnLineMatchingPosition,
+  expectedGrniClearValue,
+} from "./invoice-matching";
 import { recordWorkflowEvent } from "./finance-workflow";
 import {
   findTransition,
@@ -195,9 +199,11 @@ export async function validateInvoice(
   }
 
   const computedLines: ComputedLine[] = [];
-  // Accumulate matched quantity per GRN line WITHIN this invoice so two matched
-  // lines targeting the same GRN line cannot jointly over-invoice it.
+  // Accumulate matched quantity + cleared value per GRN line WITHIN this invoice so
+  // two matched lines targeting the same GRN line cannot jointly over-invoice it,
+  // and cumulative rounding stays deterministic within a single invoice.
   const priorInThisInvoice = new Map<string, number>();
+  const priorValueInThisInvoice = new Map<string, number>();
 
   for (const l of input.lines) {
     const quantity = Number(l.quantity || 0);
@@ -292,30 +298,57 @@ export async function validateInvoice(
       if (!link) throw new AppError("لا يوجد ربط GRNI لسند الاستلام", 409, "GRNI_LINK_MISSING");
       const grniAccountId = link.accountId as string;
 
-      // Remaining invoiceable = received − already matched (active posted, excl this
-      // invoice) − other matched lines to the same GRN line in THIS invoice.
-      const matched = await matchedQtyByGrnLine(dbh, [grnLine.id], {
+      // Authoritative quantity + monetary position (GL-derived, excl this invoice).
+      const pos = await getGrnLineMatchingPosition(dbh, grnLine.id, {
         excludeInvoiceId: opts.invoiceId,
       });
-      const already = (matched.get(grnLine.id) || 0) + (priorInThisInvoice.get(grnLine.id) || 0);
-      const received = Number(grnLine.quantityReceived || 0);
-      if (already + quantity > received + QTY_TOLERANCE)
+      const prevQty = pos.activeMatchedQuantity + (priorInThisInvoice.get(grnLine.id) || 0);
+      const prevValue = pos.activeClearedGrniValue + (priorValueInThisInvoice.get(grnLine.id) || 0);
+      const qTotal = pos.receivedQuantity;
+      const vTotal = pos.originalPostedGrniValue;
+
+      if (prevQty + quantity > qTotal + QTY_TOLERANCE)
         throw new AppError(
-          `الكمية المطابَقة تتجاوز المتبقّي القابل للفوترة من الاستلام (المستلم ${received}، المفوتر ${already})`,
+          `الكمية المطابَقة تتجاوز المتبقّي القابل للفوترة من الاستلام (المستلم ${qTotal}، المفوتر ${prevQty})`,
           409,
           "OVER_INVOICED_RECEIPT",
         );
-      priorInThisInvoice.set(grnLine.id, (priorInThisInvoice.get(grnLine.id) || 0) + quantity);
 
-      // Exact-match: the invoice net for the matched quantity must equal the GRNI
-      // value being cleared (matched qty × receipt unit price). No price variance.
-      const clearable = r2(quantity * Number(grnLine.unitPrice || 0));
-      if (Math.abs(lineSubtotal - clearable) > AMOUNT_TOLERANCE)
+      // Cumulative clearing: partial matches telescope to the EXACT original posted
+      // GRNI value (the final match absorbs the rounding residual). Never
+      // quantity × unit_price.
+      const expectedClear = expectedGrniClearValue({
+        vTotal,
+        qTotal,
+        prevQty,
+        prevValue,
+        newQty: quantity,
+      });
+
+      // Never over-clear the original posted GRNI value (defensive — the cumulative
+      // formula cannot exceed it, but guard any future path).
+      if (prevValue + expectedClear > vTotal + AMOUNT_TOLERANCE)
         throw new AppError(
-          `قيمة السطر (${lineSubtotal}) لا تساوي قيمة الاستلام المطابَقة (${clearable}) — فروق الأسعار غير مدعومة في هذه المرحلة`,
+          "قيمة الإقفال تتجاوز قيمة GRNI الأصلية المُرحَّلة",
+          409,
+          "GRNI_OVER_CLEAR",
+        );
+
+      // Exact-match: the invoice NET for this matched quantity must equal the
+      // cumulative expected clearing value; any difference (even one halala) is an
+      // unsupported price variance — no journal, no residual, no auto-adjustment.
+      if (Math.abs(lineSubtotal - expectedClear) > AMOUNT_TOLERANCE)
+        throw new AppError(
+          `قيمة السطر (${lineSubtotal}) لا تساوي قيمة الإقفال المطلوبة (${expectedClear}) — فروق الأسعار غير مدعومة في هذه المرحلة`,
           409,
           "PURCHASE_PRICE_VARIANCE_UNSUPPORTED",
         );
+
+      priorInThisInvoice.set(grnLine.id, (priorInThisInvoice.get(grnLine.id) || 0) + quantity);
+      priorValueInThisInvoice.set(
+        grnLine.id,
+        (priorValueInThisInvoice.get(grnLine.id) || 0) + expectedClear,
+      );
 
       effectiveAccountId = grniAccountId;
       allocation = {
