@@ -61,6 +61,8 @@ import {
   MoreHorizontal,
   ArrowLeft,
   Send,
+  Link2,
+  Hourglass,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -89,6 +91,8 @@ const NAV: NavGroup[] = [
       { to: "/finance/payment-vouchers", label: "سندات الصرف", icon: Send },
       { to: "/finance/suppliers", label: "الموردون والذمم الدائنة", icon: Truck },
       { to: "/finance/supplier-invoices", label: "فواتير الموردين", icon: FileText },
+      { to: "/finance/supplier-payments", label: "دفعات الموردين والتخصيص", icon: Link2 },
+      { to: "/finance/ap-aging", label: "أعمار الذمم الدائنة", icon: Hourglass },
       { to: "/finance/account-mappings", label: "ربط الحسابات النظامية", icon: SlidersHorizontal },
       { to: "/finance/ledger", label: "دفتر الأستاذ", icon: Wallet },
       { to: "/finance/budgets", label: "الموازنات", icon: Calculator },

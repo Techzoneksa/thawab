@@ -11,6 +11,7 @@ import { useAuth, userCan } from "@/lib/api/auth";
 import { getAccounts, type Account } from "@/lib/api/accounts";
 import { listCashboxes, listBankAccounts } from "@/lib/api/cash-bank";
 import { listFinanceSuppliers, supplierLookup } from "@/lib/api/suppliers-finance";
+import { invoiceSettlement } from "@/lib/api/ap-allocation";
 import {
   listSupplierInvoices,
   getSupplierInvoice,
@@ -668,6 +669,13 @@ function DetailDrawer({
   );
   const q = useQuery({ queryKey: ["supplier-invoice", id], queryFn: () => getSupplierInvoice(id) });
   const d = q.data;
+  const canAlloc = userCan(user, "finance.supplier_payment_allocation.view");
+  const settleQ = useQuery({
+    queryKey: ["invoice-settlement", id],
+    queryFn: () => invoiceSettlement(id),
+    enabled: canAlloc && d?.item.status === "posted",
+    retry: false,
+  });
 
   const actionMut = useMutation({
     mutationFn: (p: { action: SupplierInvoiceAction; reason?: string }) =>
@@ -769,6 +777,40 @@ function DetailDrawer({
                 أستاذ الموردين
               </button>
             </div>
+          ) : null}
+
+          {canAlloc && d.item.status === "posted" && settleQ.data ? (
+            <Card className="p-3">
+              <div className="text-xs font-bold mb-2">تسوية الدفعات (تخصيص)</div>
+              <div className="grid grid-cols-3 gap-2">
+                <KV label="الأصل" value={fmtSAR(settleQ.data.originalPayable)} />
+                <KV label="المُخصَّص" value={fmtSAR(settleQ.data.allocated)} />
+                <KV label="المتبقي" value={fmtSAR(settleQ.data.outstanding)} />
+              </div>
+              {(settleQ.data.allocations || []).length > 0 && (
+                <table className="w-full text-[11px] mt-2">
+                  <thead className="text-muted-foreground text-right">
+                    <tr>
+                      <th className="py-1 pe-2">الدفعة</th>
+                      <th className="py-1 pe-2">التاريخ</th>
+                      <th className="py-1 pe-2">المبلغ المُخصَّص</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {settleQ.data.allocations.map((a: any) => (
+                      <tr key={a.id} className="border-t">
+                        <td className="py-1 pe-2 font-mono">{a.supplierPaymentId}</td>
+                        <td className="py-1 pe-2 tabular-nums">{a.paymentDate}</td>
+                        <td className="py-1 pe-2 tabular-nums font-semibold">{fmtSAR(a.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <div className="text-[10px] text-muted-foreground mt-2">
+                التخصيص بيانات تسوية — لا يُنشئ قيداً محاسبياً. المتبقي = الأصل − إجمالي التخصيصات.
+              </div>
+            </Card>
           ) : null}
 
           <Timeline history={d.history} />

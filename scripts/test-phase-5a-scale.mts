@@ -21,6 +21,7 @@ import {
   apAgingBySupplier,
   apAgingReconciliation,
   allocationCandidates,
+  listSupplierInvoices,
 } from "@/server/db/supplier-payment-allocation";
 
 const url = process.env.DATABASE_URL || "";
@@ -159,6 +160,23 @@ async function main() {
       apAgingReconciliation(db as any, { supplierId: heavy }),
     );
     ok("single-supplier reconciliation p95 ≤ 750ms", p95s <= 750, `${p95s}`);
+
+    const p95stmt = await bench("supplier statement (invoices)", () =>
+      listSupplierInvoices(db as any, { supplierId: heavy, limit: 200 }),
+    );
+    ok("supplier statement p95 ≤ 750ms", p95stmt <= 750, `${p95stmt}`);
+    const stmt = await listSupplierInvoices(db as any, { supplierId: heavy, limit: 200 });
+    ok("supplier statement bounded ≤ 200 rows", stmt.items.length <= 200, `${stmt.items.length}`);
+    ok(
+      "statement rows carry original/allocated/outstanding/bucket",
+      stmt.items.every(
+        (r) =>
+          typeof r.originalPayable === "number" &&
+          typeof r.allocated === "number" &&
+          typeof r.outstanding === "number" &&
+          typeof r.bucket === "string",
+      ),
+    );
   }
 
   console.log(`\n${fail === 0 ? "✅" : "❌"} Phase 5A scale: ${pass} passed, ${fail} failed`);

@@ -8,6 +8,10 @@ import { fmtSAR } from "@/data/sample";
 import { Plus, Eye, Pencil, Power, Scale } from "lucide-react";
 import { useAuth, userCan } from "@/lib/api/auth";
 import {
+  listSupplierPaymentsForAlloc,
+  listSupplierInvoicesForStatement,
+} from "@/lib/api/ap-allocation";
+import {
   listFinanceSuppliers,
   getFinanceSupplier,
   getSupplierLedger,
@@ -400,13 +404,26 @@ function EditDrawer({
 
 function DetailDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const { user } = useAuth();
-  const [tab, setTab] = useState<"overview" | "statement">("overview");
+  const [tab, setTab] = useState<"overview" | "statement" | "allocation">("overview");
   const q = useQuery({ queryKey: ["fin-supplier", id], queryFn: () => getFinanceSupplier(id) });
   const canLedger = userCan(user, "finance.supplier.ledger.view");
+  const canAlloc = userCan(user, "finance.supplier_payment_allocation.view");
   const ledgerQ = useQuery({
     queryKey: ["fin-supplier-ledger", id],
     queryFn: () => getSupplierLedger(id),
     enabled: tab === "statement" && canLedger,
+    retry: false,
+  });
+  const invSettleQ = useQuery({
+    queryKey: ["fin-supplier-inv-settle", id],
+    queryFn: () => listSupplierInvoicesForStatement({ supplierId: id, limit: 200 }),
+    enabled: tab === "allocation" && canAlloc,
+    retry: false,
+  });
+  const paySettleQ = useQuery({
+    queryKey: ["fin-supplier-pay-settle", id],
+    queryFn: () => listSupplierPaymentsForAlloc({ supplierId: id, pageSize: 200 }),
+    enabled: tab === "allocation" && canAlloc,
     retry: false,
   });
   const d = q.data;
@@ -434,18 +451,22 @@ function DetailDrawer({ id, onClose }: { id: string; onClose: () => void }) {
           </Card>
 
           <div className="flex gap-1.5">
-            {(["overview", "statement"] as const).map((t) => (
+            {(
+              ["overview", "statement", ...(canAlloc ? (["allocation"] as const) : [])] as const
+            ).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
                 className={`rounded-full border px-3 py-1 text-xs font-medium ${tab === t ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"}`}
               >
-                {t === "overview" ? "نظرة عامة" : "كشف الحساب"}
+                {t === "overview" ? "نظرة عامة" : t === "statement" ? "كشف الحساب" : "التخصيص"}
               </button>
             ))}
           </div>
 
-          {tab === "overview" ? (
+          {tab === "allocation" ? (
+            <SupplierAllocationTab invQ={invSettleQ} payQ={paySettleQ} canAlloc={canAlloc} />
+          ) : tab === "overview" ? (
             <div className="grid grid-cols-2 gap-2">
               <KV label="الرمز" value={d.item.supplierCode || "—"} />
               <KV label="الرقم الضريبي" value={d.item.taxNumber || "—"} />
@@ -500,6 +521,109 @@ function DetailDrawer({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
       )}
     </EntityFormDrawer>
+  );
+}
+
+const ALLOC_BUCKET_LABEL: Record<string, string> = {
+  NOT_DUE: "غير مستحق",
+  D1_30: "1–30",
+  D31_60: "31–60",
+  D61_90: "61–90",
+  D91_PLUS: "91+",
+  NO_DUE_DATE: "بدون استحقاق",
+};
+
+function SupplierAllocationTab({
+  invQ,
+  payQ,
+  canAlloc,
+}: {
+  invQ: { data?: { items: any[] }; isLoading: boolean };
+  payQ: { data?: { items: any[] }; isLoading: boolean };
+  canAlloc: boolean;
+}) {
+  if (!canAlloc) return <div className="text-xs text-destructive">لا تملك صلاحية عرض التخصيص</div>;
+  const invoices = invQ.data?.items ?? [];
+  const payments = payQ.data?.items ?? [];
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="text-xs font-bold mb-1.5">الفواتير المُرحَّلة</div>
+        {invQ.isLoading ? (
+          <div className="text-xs text-muted-foreground">جارٍ التحميل…</div>
+        ) : invoices.length === 0 ? (
+          <div className="text-xs text-muted-foreground">لا توجد فواتير مُرحَّلة.</div>
+        ) : (
+          <div className="overflow-x-auto max-h-56">
+            <table className="w-full text-[11px]">
+              <thead className="text-muted-foreground text-right">
+                <tr>
+                  <th className="py-1 pe-2">الفاتورة</th>
+                  <th className="py-1 pe-2">الاستحقاق</th>
+                  <th className="py-1 pe-2">الأصل</th>
+                  <th className="py-1 pe-2">المُخصَّص</th>
+                  <th className="py-1 pe-2">المتبقي</th>
+                  <th className="py-1 pe-2">العمر</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map((r) => (
+                  <tr key={r.id} className="border-t">
+                    <td className="py-1 pe-2 font-mono">{r.invoiceNumber}</td>
+                    <td className="py-1 pe-2 tabular-nums">{r.dueDate || "—"}</td>
+                    <td className="py-1 pe-2 tabular-nums">{fmtSAR(r.originalPayable)}</td>
+                    <td className="py-1 pe-2 tabular-nums">{fmtSAR(r.allocated)}</td>
+                    <td className="py-1 pe-2 tabular-nums font-semibold">
+                      {fmtSAR(r.outstanding)}
+                    </td>
+                    <td className="py-1 pe-2">
+                      {r.outstanding > 0.005 ? (ALLOC_BUCKET_LABEL[r.bucket] ?? r.bucket) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      <div>
+        <div className="text-xs font-bold mb-1.5">الدفعات المُرحَّلة</div>
+        {payQ.isLoading ? (
+          <div className="text-xs text-muted-foreground">جارٍ التحميل…</div>
+        ) : payments.length === 0 ? (
+          <div className="text-xs text-muted-foreground">لا توجد دفعات مُرحَّلة.</div>
+        ) : (
+          <div className="overflow-x-auto max-h-56">
+            <table className="w-full text-[11px]">
+              <thead className="text-muted-foreground text-right">
+                <tr>
+                  <th className="py-1 pe-2">الدفعة</th>
+                  <th className="py-1 pe-2">التاريخ</th>
+                  <th className="py-1 pe-2">القيمة</th>
+                  <th className="py-1 pe-2">المُخصَّص</th>
+                  <th className="py-1 pe-2">غير المُخصَّص</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((r) => (
+                  <tr key={r.id} className="border-t">
+                    <td className="py-1 pe-2 font-mono">{r.id}</td>
+                    <td className="py-1 pe-2 tabular-nums">{r.paymentDate}</td>
+                    <td className="py-1 pe-2 tabular-nums">{fmtSAR(r.apDebit)}</td>
+                    <td className="py-1 pe-2 tabular-nums">{fmtSAR(r.allocated)}</td>
+                    <td className="py-1 pe-2 tabular-nums font-semibold">{fmtSAR(r.unapplied)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      <div className="text-[10px] text-muted-foreground">
+        التخصيص بيانات تسوية للسداد على الفواتير — لا يُنشئ قيوداً محاسبية؛ المصدر المحاسبي هو
+        الأستاذ العام.
+      </div>
+    </div>
   );
 }
 

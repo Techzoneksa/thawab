@@ -418,6 +418,110 @@ export async function allocationCandidates(
   return { items };
 }
 
+/**
+ * Bounded, set-based list of POSTED supplier payments with GL-derived apDebit,
+ * allocated and unapplied (no per-row round-trip). Search by payment id /
+ * reference / supplier name/code. For the allocation workspace + supplier statement.
+ */
+export async function listSupplierPayments(
+  dbh: Db,
+  opts: {
+    supplierId?: string;
+    search?: string;
+    onlyUnapplied?: boolean;
+    page?: number;
+    pageSize?: number;
+  } = {},
+) {
+  const apId = await apAccountId(dbh);
+  const pageSize = Math.min(200, Math.max(1, Math.floor(Number(opts.pageSize) || 25)));
+  const page = Math.max(1, Math.floor(Number(opts.page) || 1));
+  const offset = (page - 1) * pageSize;
+  const q = (opts.search || "").trim();
+  const like = `%${q}%`;
+  const rows = (await (dbh as any).execute(sql`
+    SELECT sp.id, sp.supplier_id, sp.payment_date, sp.reference, sp.payment_method,
+           s.name AS supplier_name, s.supplier_code,
+           COALESCE(pd.debit,0) AS ap_debit,
+           COALESCE(al.allocated,0) AS allocated,
+           (COALESCE(pd.debit,0) - COALESCE(al.allocated,0)) AS unapplied,
+           COUNT(*) OVER() AS total
+    FROM supplier_payments sp
+    JOIN suppliers s ON s.id = sp.supplier_id
+    JOIN (SELECT journal_entry_id, SUM(debit) AS debit FROM journal_lines WHERE account_id = ${apId} GROUP BY journal_entry_id) pd
+      ON pd.journal_entry_id = sp.journal_entry_id
+    LEFT JOIN (SELECT supplier_payment_id, SUM(amount) AS allocated FROM supplier_payment_allocations GROUP BY supplier_payment_id) al
+      ON al.supplier_payment_id = sp.id
+    WHERE sp.status = 'posted'
+      ${opts.supplierId ? sql`AND sp.supplier_id = ${opts.supplierId}` : sql``}
+      ${q ? sql`AND (sp.id ILIKE ${like} OR sp.reference ILIKE ${like} OR s.name ILIKE ${like} OR s.supplier_code ILIKE ${like})` : sql``}
+      ${opts.onlyUnapplied ? sql`AND (COALESCE(pd.debit,0) - COALESCE(al.allocated,0)) > ${TOL}` : sql``}
+    ORDER BY sp.payment_date DESC, sp.id DESC
+    LIMIT ${pageSize} OFFSET ${offset}
+  `)) as any;
+  const list = (rows.rows ?? rows ?? []) as any[];
+  const total = list.length ? Number(list[0].total) : 0;
+  const items = list.map((r) => ({
+    id: r.id,
+    supplierId: r.supplier_id,
+    supplierName: r.supplier_name,
+    supplierCode: r.supplier_code,
+    paymentDate: r.payment_date,
+    reference: r.reference,
+    paymentMethod: r.payment_method,
+    apDebit: r2(Number(r.ap_debit)),
+    allocated: r2(Number(r.allocated)),
+    unapplied: r2(Number(r.unapplied)),
+  }));
+  return { items, page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+}
+
+/**
+ * Posted supplier invoices for one supplier with settlement columns for the
+ * supplier statement: original AP payable (posted AP credit), allocated,
+ * outstanding, due date and aging bucket at `asOfDate`. Set-based, bounded.
+ */
+export async function listSupplierInvoices(
+  dbh: Db,
+  opts: { supplierId: string; asOfDate?: string; limit?: number; offset?: number },
+) {
+  const asOf = (opts.asOfDate || now().slice(0, 10)).slice(0, 10);
+  const apId = await apAccountId(dbh);
+  const limit = Math.min(500, Math.max(1, Math.floor(Number(opts.limit) || 100)));
+  const offset = Math.max(0, Math.floor(Number(opts.offset) || 0));
+  const rows = (await (dbh as any).execute(sql`
+    SELECT si.id, si.invoice_number, si.invoice_date, si.due_date,
+           jl.credit AS original_payable,
+           COALESCE(a.allocated,0) AS allocated,
+           (jl.credit - COALESCE(a.allocated,0)) AS outstanding,
+           ${bucketExpr(asOf)} AS bucket,
+           COUNT(*) OVER() AS total
+    FROM supplier_invoices si
+    JOIN journal_entries je ON je.id = si.journal_entry_id AND je.status = ${JournalStatus.POSTED}
+    JOIN journal_lines jl ON jl.journal_entry_id = si.journal_entry_id AND jl.account_id = ${apId}
+    LEFT JOIN (
+      SELECT supplier_invoice_id, SUM(amount) AS allocated
+      FROM supplier_payment_allocations GROUP BY supplier_invoice_id
+    ) a ON a.supplier_invoice_id = si.id
+    WHERE si.status = ${SupplierInvoiceStatus.POSTED} AND si.supplier_id = ${opts.supplierId}
+    ORDER BY si.invoice_date DESC, si.id DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `)) as any;
+  const list = (rows.rows ?? rows ?? []) as any[];
+  const total = list.length ? Number(list[0].total) : 0;
+  const items = list.map((r) => ({
+    id: r.id,
+    invoiceNumber: r.invoice_number,
+    invoiceDate: r.invoice_date,
+    dueDate: r.due_date || null,
+    originalPayable: r2(Number(r.original_payable)),
+    allocated: r2(Number(r.allocated)),
+    outstanding: r2(Number(r.outstanding)),
+    bucket: r.bucket as string,
+  }));
+  return { asOf, items, total };
+}
+
 // ------------------------------- AP AGING (set-based) ------------------------
 
 const BUCKETS = ["NOT_DUE", "D1_30", "D31_60", "D61_90", "D91_PLUS", "NO_DUE_DATE"] as const;

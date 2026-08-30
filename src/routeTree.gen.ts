@@ -62,6 +62,7 @@ import { Route as HrNewRouteImport } from './routes/hr_.new'
 import { Route as HrPayrollRouteImport } from './routes/hr.payroll'
 import { Route as GrantsNewRouteImport } from './routes/grants_.new'
 import { Route as FinanceSuppliersRouteImport } from './routes/finance.suppliers'
+import { Route as FinanceSupplierPaymentsRouteImport } from './routes/finance.supplier-payments'
 import { Route as FinanceSupplierInvoicesRouteImport } from './routes/finance.supplier-invoices'
 import { Route as FinanceStatementsRouteImport } from './routes/finance.statements'
 import { Route as FinanceReceiptVouchersRouteImport } from './routes/finance.receipt-vouchers'
@@ -73,6 +74,7 @@ import { Route as FinanceCostCentersRouteImport } from './routes/finance.cost-ce
 import { Route as FinanceClosingRouteImport } from './routes/finance.closing'
 import { Route as FinanceCashBankRouteImport } from './routes/finance.cash-bank'
 import { Route as FinanceBudgetsRouteImport } from './routes/finance.budgets'
+import { Route as FinanceApAgingRouteImport } from './routes/finance.ap-aging'
 import { Route as FinanceAccountsRouteImport } from './routes/finance.accounts'
 import { Route as FinanceAccountMappingsRouteImport } from './routes/finance.account-mappings'
 import { Route as EndowmentsNewRouteImport } from './routes/endowments_.new'
@@ -175,6 +177,8 @@ import { Route as ApiFinanceCostCentersRouteImport } from './routes/api/finance/
 import { Route as ApiFinanceCashboxesRouteImport } from './routes/api/finance/cashboxes'
 import { Route as ApiFinanceBudgetsRouteImport } from './routes/api/finance/budgets'
 import { Route as ApiFinanceBankAccountsRouteImport } from './routes/api/finance/bank-accounts'
+import { Route as ApiFinanceApAllocationRouteImport } from './routes/api/finance/ap-allocation'
+import { Route as ApiFinanceApAgingRouteImport } from './routes/api/finance/ap-aging'
 import { Route as ApiFinanceAccountsRouteImport } from './routes/api/finance/accounts'
 import { Route as ApiFinanceAccountMappingsRouteImport } from './routes/api/finance/account-mappings'
 import { Route as ApiDataImportRouteImport } from './routes/api/data/import'
@@ -471,6 +475,11 @@ const FinanceSuppliersRoute = FinanceSuppliersRouteImport.update({
   path: '/finance/suppliers',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FinanceSupplierPaymentsRoute = FinanceSupplierPaymentsRouteImport.update({
+  id: '/finance/supplier-payments',
+  path: '/finance/supplier-payments',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FinanceSupplierInvoicesRoute = FinanceSupplierInvoicesRouteImport.update({
   id: '/finance/supplier-invoices',
   path: '/finance/supplier-invoices',
@@ -524,6 +533,11 @@ const FinanceCashBankRoute = FinanceCashBankRouteImport.update({
 const FinanceBudgetsRoute = FinanceBudgetsRouteImport.update({
   id: '/finance/budgets',
   path: '/finance/budgets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FinanceApAgingRoute = FinanceApAgingRouteImport.update({
+  id: '/finance/ap-aging',
+  path: '/finance/ap-aging',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FinanceAccountsRoute = FinanceAccountsRouteImport.update({
@@ -1042,6 +1056,16 @@ const ApiFinanceBankAccountsRoute = ApiFinanceBankAccountsRouteImport.update({
   path: '/api/finance/bank-accounts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFinanceApAllocationRoute = ApiFinanceApAllocationRouteImport.update({
+  id: '/api/finance/ap-allocation',
+  path: '/api/finance/ap-allocation',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFinanceApAgingRoute = ApiFinanceApAgingRouteImport.update({
+  id: '/api/finance/ap-aging',
+  path: '/api/finance/ap-aging',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiFinanceAccountsRoute = ApiFinanceAccountsRouteImport.update({
   id: '/api/finance/accounts',
   path: '/api/finance/accounts',
@@ -1262,6 +1286,7 @@ export interface FileRoutesByFullPath {
   '/endowments/new': typeof EndowmentsNewRoute
   '/finance/account-mappings': typeof FinanceAccountMappingsRoute
   '/finance/accounts': typeof FinanceAccountsRoute
+  '/finance/ap-aging': typeof FinanceApAgingRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
   '/finance/cash-bank': typeof FinanceCashBankRoute
   '/finance/closing': typeof FinanceClosingRoute
@@ -1273,6 +1298,7 @@ export interface FileRoutesByFullPath {
   '/finance/receipt-vouchers': typeof FinanceReceiptVouchersRoute
   '/finance/statements': typeof FinanceStatementsRoute
   '/finance/supplier-invoices': typeof FinanceSupplierInvoicesRoute
+  '/finance/supplier-payments': typeof FinanceSupplierPaymentsRoute
   '/finance/suppliers': typeof FinanceSuppliersRoute
   '/grants/new': typeof GrantsNewRoute
   '/hr/payroll': typeof HrPayrollRoute
@@ -1306,6 +1332,8 @@ export interface FileRoutesByFullPath {
   '/api/data/import': typeof ApiDataImportRoute
   '/api/finance/account-mappings': typeof ApiFinanceAccountMappingsRoute
   '/api/finance/accounts': typeof ApiFinanceAccountsRoute
+  '/api/finance/ap-aging': typeof ApiFinanceApAgingRoute
+  '/api/finance/ap-allocation': typeof ApiFinanceApAllocationRoute
   '/api/finance/bank-accounts': typeof ApiFinanceBankAccountsRoute
   '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
   '/api/finance/cashboxes': typeof ApiFinanceCashboxesRoute
@@ -1458,6 +1486,7 @@ export interface FileRoutesByTo {
   '/endowments/new': typeof EndowmentsNewRoute
   '/finance/account-mappings': typeof FinanceAccountMappingsRoute
   '/finance/accounts': typeof FinanceAccountsRoute
+  '/finance/ap-aging': typeof FinanceApAgingRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
   '/finance/cash-bank': typeof FinanceCashBankRoute
   '/finance/closing': typeof FinanceClosingRoute
@@ -1469,6 +1498,7 @@ export interface FileRoutesByTo {
   '/finance/receipt-vouchers': typeof FinanceReceiptVouchersRoute
   '/finance/statements': typeof FinanceStatementsRoute
   '/finance/supplier-invoices': typeof FinanceSupplierInvoicesRoute
+  '/finance/supplier-payments': typeof FinanceSupplierPaymentsRoute
   '/finance/suppliers': typeof FinanceSuppliersRoute
   '/grants/new': typeof GrantsNewRoute
   '/hr/payroll': typeof HrPayrollRoute
@@ -1502,6 +1532,8 @@ export interface FileRoutesByTo {
   '/api/data/import': typeof ApiDataImportRoute
   '/api/finance/account-mappings': typeof ApiFinanceAccountMappingsRoute
   '/api/finance/accounts': typeof ApiFinanceAccountsRoute
+  '/api/finance/ap-aging': typeof ApiFinanceApAgingRoute
+  '/api/finance/ap-allocation': typeof ApiFinanceApAllocationRoute
   '/api/finance/bank-accounts': typeof ApiFinanceBankAccountsRoute
   '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
   '/api/finance/cashboxes': typeof ApiFinanceCashboxesRoute
@@ -1655,6 +1687,7 @@ export interface FileRoutesById {
   '/endowments_/new': typeof EndowmentsNewRoute
   '/finance/account-mappings': typeof FinanceAccountMappingsRoute
   '/finance/accounts': typeof FinanceAccountsRoute
+  '/finance/ap-aging': typeof FinanceApAgingRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
   '/finance/cash-bank': typeof FinanceCashBankRoute
   '/finance/closing': typeof FinanceClosingRoute
@@ -1666,6 +1699,7 @@ export interface FileRoutesById {
   '/finance/receipt-vouchers': typeof FinanceReceiptVouchersRoute
   '/finance/statements': typeof FinanceStatementsRoute
   '/finance/supplier-invoices': typeof FinanceSupplierInvoicesRoute
+  '/finance/supplier-payments': typeof FinanceSupplierPaymentsRoute
   '/finance/suppliers': typeof FinanceSuppliersRoute
   '/grants_/new': typeof GrantsNewRoute
   '/hr/payroll': typeof HrPayrollRoute
@@ -1699,6 +1733,8 @@ export interface FileRoutesById {
   '/api/data/import': typeof ApiDataImportRoute
   '/api/finance/account-mappings': typeof ApiFinanceAccountMappingsRoute
   '/api/finance/accounts': typeof ApiFinanceAccountsRoute
+  '/api/finance/ap-aging': typeof ApiFinanceApAgingRoute
+  '/api/finance/ap-allocation': typeof ApiFinanceApAllocationRoute
   '/api/finance/bank-accounts': typeof ApiFinanceBankAccountsRoute
   '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
   '/api/finance/cashboxes': typeof ApiFinanceCashboxesRoute
@@ -1853,6 +1889,7 @@ export interface FileRouteTypes {
     | '/endowments/new'
     | '/finance/account-mappings'
     | '/finance/accounts'
+    | '/finance/ap-aging'
     | '/finance/budgets'
     | '/finance/cash-bank'
     | '/finance/closing'
@@ -1864,6 +1901,7 @@ export interface FileRouteTypes {
     | '/finance/receipt-vouchers'
     | '/finance/statements'
     | '/finance/supplier-invoices'
+    | '/finance/supplier-payments'
     | '/finance/suppliers'
     | '/grants/new'
     | '/hr/payroll'
@@ -1897,6 +1935,8 @@ export interface FileRouteTypes {
     | '/api/data/import'
     | '/api/finance/account-mappings'
     | '/api/finance/accounts'
+    | '/api/finance/ap-aging'
+    | '/api/finance/ap-allocation'
     | '/api/finance/bank-accounts'
     | '/api/finance/budgets'
     | '/api/finance/cashboxes'
@@ -2049,6 +2089,7 @@ export interface FileRouteTypes {
     | '/endowments/new'
     | '/finance/account-mappings'
     | '/finance/accounts'
+    | '/finance/ap-aging'
     | '/finance/budgets'
     | '/finance/cash-bank'
     | '/finance/closing'
@@ -2060,6 +2101,7 @@ export interface FileRouteTypes {
     | '/finance/receipt-vouchers'
     | '/finance/statements'
     | '/finance/supplier-invoices'
+    | '/finance/supplier-payments'
     | '/finance/suppliers'
     | '/grants/new'
     | '/hr/payroll'
@@ -2093,6 +2135,8 @@ export interface FileRouteTypes {
     | '/api/data/import'
     | '/api/finance/account-mappings'
     | '/api/finance/accounts'
+    | '/api/finance/ap-aging'
+    | '/api/finance/ap-allocation'
     | '/api/finance/bank-accounts'
     | '/api/finance/budgets'
     | '/api/finance/cashboxes'
@@ -2245,6 +2289,7 @@ export interface FileRouteTypes {
     | '/endowments_/new'
     | '/finance/account-mappings'
     | '/finance/accounts'
+    | '/finance/ap-aging'
     | '/finance/budgets'
     | '/finance/cash-bank'
     | '/finance/closing'
@@ -2256,6 +2301,7 @@ export interface FileRouteTypes {
     | '/finance/receipt-vouchers'
     | '/finance/statements'
     | '/finance/supplier-invoices'
+    | '/finance/supplier-payments'
     | '/finance/suppliers'
     | '/grants_/new'
     | '/hr/payroll'
@@ -2289,6 +2335,8 @@ export interface FileRouteTypes {
     | '/api/data/import'
     | '/api/finance/account-mappings'
     | '/api/finance/accounts'
+    | '/api/finance/ap-aging'
+    | '/api/finance/ap-allocation'
     | '/api/finance/bank-accounts'
     | '/api/finance/budgets'
     | '/api/finance/cashboxes'
@@ -2442,6 +2490,7 @@ export interface RootRouteChildren {
   EndowmentsNewRoute: typeof EndowmentsNewRoute
   FinanceAccountMappingsRoute: typeof FinanceAccountMappingsRoute
   FinanceAccountsRoute: typeof FinanceAccountsRoute
+  FinanceApAgingRoute: typeof FinanceApAgingRoute
   FinanceBudgetsRoute: typeof FinanceBudgetsRoute
   FinanceCashBankRoute: typeof FinanceCashBankRoute
   FinanceClosingRoute: typeof FinanceClosingRoute
@@ -2453,6 +2502,7 @@ export interface RootRouteChildren {
   FinanceReceiptVouchersRoute: typeof FinanceReceiptVouchersRoute
   FinanceStatementsRoute: typeof FinanceStatementsRoute
   FinanceSupplierInvoicesRoute: typeof FinanceSupplierInvoicesRoute
+  FinanceSupplierPaymentsRoute: typeof FinanceSupplierPaymentsRoute
   FinanceSuppliersRoute: typeof FinanceSuppliersRoute
   GrantsNewRoute: typeof GrantsNewRoute
   HrNewRoute: typeof HrNewRoute
@@ -2485,6 +2535,8 @@ export interface RootRouteChildren {
   ApiDataImportRoute: typeof ApiDataImportRoute
   ApiFinanceAccountMappingsRoute: typeof ApiFinanceAccountMappingsRoute
   ApiFinanceAccountsRoute: typeof ApiFinanceAccountsRoute
+  ApiFinanceApAgingRoute: typeof ApiFinanceApAgingRoute
+  ApiFinanceApAllocationRoute: typeof ApiFinanceApAllocationRoute
   ApiFinanceBankAccountsRoute: typeof ApiFinanceBankAccountsRoute
   ApiFinanceBudgetsRoute: typeof ApiFinanceBudgetsRoute
   ApiFinanceCashboxesRoute: typeof ApiFinanceCashboxesRoute
@@ -2943,6 +2995,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FinanceSuppliersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/finance/supplier-payments': {
+      id: '/finance/supplier-payments'
+      path: '/finance/supplier-payments'
+      fullPath: '/finance/supplier-payments'
+      preLoaderRoute: typeof FinanceSupplierPaymentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/finance/supplier-invoices': {
       id: '/finance/supplier-invoices'
       path: '/finance/supplier-invoices'
@@ -3018,6 +3077,13 @@ declare module '@tanstack/react-router' {
       path: '/finance/budgets'
       fullPath: '/finance/budgets'
       preLoaderRoute: typeof FinanceBudgetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/finance/ap-aging': {
+      id: '/finance/ap-aging'
+      path: '/finance/ap-aging'
+      fullPath: '/finance/ap-aging'
+      preLoaderRoute: typeof FinanceApAgingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/finance/accounts': {
@@ -3734,6 +3800,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFinanceBankAccountsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/finance/ap-allocation': {
+      id: '/api/finance/ap-allocation'
+      path: '/api/finance/ap-allocation'
+      fullPath: '/api/finance/ap-allocation'
+      preLoaderRoute: typeof ApiFinanceApAllocationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/finance/ap-aging': {
+      id: '/api/finance/ap-aging'
+      path: '/api/finance/ap-aging'
+      fullPath: '/api/finance/ap-aging'
+      preLoaderRoute: typeof ApiFinanceApAgingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/finance/accounts': {
       id: '/api/finance/accounts'
       path: '/api/finance/accounts'
@@ -4022,6 +4102,7 @@ const rootRouteChildren: RootRouteChildren = {
   EndowmentsNewRoute: EndowmentsNewRoute,
   FinanceAccountMappingsRoute: FinanceAccountMappingsRoute,
   FinanceAccountsRoute: FinanceAccountsRoute,
+  FinanceApAgingRoute: FinanceApAgingRoute,
   FinanceBudgetsRoute: FinanceBudgetsRoute,
   FinanceCashBankRoute: FinanceCashBankRoute,
   FinanceClosingRoute: FinanceClosingRoute,
@@ -4033,6 +4114,7 @@ const rootRouteChildren: RootRouteChildren = {
   FinanceReceiptVouchersRoute: FinanceReceiptVouchersRoute,
   FinanceStatementsRoute: FinanceStatementsRoute,
   FinanceSupplierInvoicesRoute: FinanceSupplierInvoicesRoute,
+  FinanceSupplierPaymentsRoute: FinanceSupplierPaymentsRoute,
   FinanceSuppliersRoute: FinanceSuppliersRoute,
   GrantsNewRoute: GrantsNewRoute,
   HrNewRoute: HrNewRoute,
@@ -4065,6 +4147,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDataImportRoute: ApiDataImportRoute,
   ApiFinanceAccountMappingsRoute: ApiFinanceAccountMappingsRoute,
   ApiFinanceAccountsRoute: ApiFinanceAccountsRoute,
+  ApiFinanceApAgingRoute: ApiFinanceApAgingRoute,
+  ApiFinanceApAllocationRoute: ApiFinanceApAllocationRoute,
   ApiFinanceBankAccountsRoute: ApiFinanceBankAccountsRoute,
   ApiFinanceBudgetsRoute: ApiFinanceBudgetsRoute,
   ApiFinanceCashboxesRoute: ApiFinanceCashboxesRoute,
