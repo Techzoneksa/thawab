@@ -391,15 +391,17 @@ function CreateEditDrawer({
   // the unit price so the line NET equals the EXACT remaining GRNI value
   // (remainingGrniValue ÷ remainingQuantity) — this clears the receipt to zero with
   // no rounding residual. The server re-derives the required clearing under lock.
-  const setLineMatch = (i: number, grnLineId: string) =>
+  // Accepts the SELECTED match object directly (from the searchable Combobox) so a
+  // GRN line found by search — even one outside the default recent set — carries
+  // its own remaining qty/value; no dependency on the preloaded matchById map.
+  const setLineMatch = (i: number, g: any | null) =>
     setLines((p) =>
       p.map((l, j) => {
         if (j !== i) return l;
-        const g = matchById.get(grnLineId);
         const unit = g && g.remainingQuantity > 0 ? g.remainingGrniValue / g.remainingQuantity : 0;
         return {
           ...l,
-          goodsReceiptLineId: grnLineId,
+          goodsReceiptLineId: g?.goodsReceiptLineId || "",
           unitPrice: g ? String(unit) : "",
           quantity: g ? String(g.remainingQuantity) : l.quantity,
           description: l.description || (g ? g.description : ""),
@@ -525,19 +527,23 @@ function CreateEditDrawer({
                       ))}
                     </select>
                   ) : (
-                    <select
-                      className="inp"
+                    <Combobox
                       value={l.goodsReceiptLineId}
-                      onChange={(e) => setLineMatch(i, e.target.value)}
-                    >
-                      <option value="">— اختر سطر استلام مُرحَّل —</option>
-                      {matchLines.map((m) => (
-                        <option key={m.goodsReceiptLineId} value={m.goodsReceiptLineId}>
-                          {m.grnNumber} · {m.description || m.lineType} · متبقٍ{" "}
-                          {m.remainingQuantity} × {fmtSAR(m.unitPrice)}
-                        </option>
-                      ))}
-                    </select>
+                      displayValue={
+                        matchById.get(l.goodsReceiptLineId)
+                          ? `${matchById.get(l.goodsReceiptLineId)!.grnNumber} · ${matchById.get(l.goodsReceiptLineId)!.description || matchById.get(l.goodsReceiptLineId)!.lineType}`
+                          : undefined
+                      }
+                      placeholder="ابحث برقم الاستلام أو أمر الشراء…"
+                      search={(q) =>
+                        getMatchableGrnLines(f.supplierId, q).then((r) => ({ items: r.lines }))
+                      }
+                      getId={(m: any) => m.goodsReceiptLineId}
+                      getLabel={(m: any) =>
+                        `${m.grnNumber} · ${m.description || m.lineType} · متبقٍ ${m.remainingQuantity} × ${fmtSAR(m.unitPrice)}`
+                      }
+                      onSelect={(m: any) => setLineMatch(i, m || null)}
+                    />
                   )}
 
                   <input

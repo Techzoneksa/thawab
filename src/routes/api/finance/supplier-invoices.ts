@@ -66,7 +66,13 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
   // Matchable GRN lines for a supplier (posted governed receipts, remaining > 0).
   const matchable = url.searchParams.get("matchable");
-  if (matchable) return Response.json({ lines: await matchableGrnLinesForSupplier(db, matchable) });
+  if (matchable)
+    return Response.json({
+      lines: await matchableGrnLinesForSupplier(db, matchable, {
+        q: url.searchParams.get("q") || undefined,
+        limit: Number(url.searchParams.get("limit")) || undefined,
+      }),
+    });
   const id = url.searchParams.get("id");
   if (id) {
     const detail = await getSupplierInvoiceDetail(id);

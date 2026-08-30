@@ -21,6 +21,7 @@ import {
   transitionPurchaseOrder,
   getPurchaseOrderDetail,
   listPurchaseOrders,
+  purchaseOrderLookup,
 } from "@/server/db/purchase-order";
 import { purchaseOrderPreflight } from "@/server/db/purchase-order-preflight";
 import type { JournalAction } from "@/lib/finance-permissions";
@@ -62,6 +63,16 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
   if (url.searchParams.get("preflight")) {
     return Response.json({ preflight: await purchaseOrderPreflight(db) });
+  }
+  // Bounded + searchable governed-ISSUED PO lookup for the GRN form.
+  if (url.searchParams.get("lookup") === "1") {
+    return Response.json(
+      await purchaseOrderLookup(db, {
+        q: url.searchParams.get("q") || undefined,
+        supplierId: url.searchParams.get("supplierId") || undefined,
+        limit: Number(url.searchParams.get("limit")) || undefined,
+      }),
+    );
   }
   const id = url.searchParams.get("id");
   if (id) {

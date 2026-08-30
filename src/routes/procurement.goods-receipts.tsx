@@ -7,7 +7,8 @@ import { showToast, EntityFormDrawer, EmptyState } from "@/components/erp/action
 import { fmtSAR } from "@/data/sample";
 import { Plus, Eye, Printer, RotateCcw, Send, Check, X, Undo2, BookCheck } from "lucide-react";
 import { useAuth, userCan } from "@/lib/api/auth";
-import { listPurchaseOrders } from "@/lib/api/governed-purchase-orders";
+import { purchaseOrderLookup } from "@/lib/api/governed-purchase-orders";
+import { Combobox } from "@/components/erp/Combobox";
 import {
   listGoodsReceipts,
   getGoodsReceipt,
@@ -162,10 +163,6 @@ function CreateDrawer({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   const [notes, setNotes] = useState("");
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().slice(0, 10));
 
-  const posQ = useQuery({
-    queryKey: ["purchase-orders", "issued-for-grn"],
-    queryFn: () => listPurchaseOrders({ status: "issued" }),
-  });
   const linesQ = useQuery({
     queryKey: ["receivable-po-lines", poId],
     queryFn: () => getReceivablePoLines(poId),
@@ -206,14 +203,14 @@ function CreateDrawer({ onClose, onSaved }: { onClose: () => void; onSaved: () =
           {GRNI_NOTE}
         </div>
         <Field label="أمر الشراء (صادر) *">
-          <select className="inp" value={poId} onChange={(e) => setPoId(e.target.value)}>
-            <option value="">— اختر أمر شراء صادراً —</option>
-            {(posQ.data?.items || []).map((p: any) => (
-              <option key={p.id} value={p.id}>
-                {p.poNumber} — {p.subject}
-              </option>
-            ))}
-          </select>
+          <Combobox
+            value={poId}
+            placeholder="ابحث برقم أمر الشراء أو اسم المورد…"
+            search={(q) => purchaseOrderLookup(q)}
+            getId={(p: any) => p.id}
+            getLabel={(p: any) => `${p.poNumber}${p.supplierName ? ` — ${p.supplierName}` : ""}`}
+            onSelect={(p: any) => setPoId(p?.id || "")}
+          />
         </Field>
         <Field label="تاريخ الاستلام *">
           <input

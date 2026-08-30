@@ -239,12 +239,31 @@ export interface MatchableGrnLine {
 export async function matchableGrnLinesForSupplier(
   dbh: Db,
   supplierId: string,
-  opts: { limit?: number } = {},
+  opts: { limit?: number; q?: string } = {},
 ): Promise<MatchableGrnLine[]> {
-  // Phase 4A.1 — bound the matchable-GRN lookup so a supplier with thousands of
-  // posted receipts cannot return an unbounded response into the invoice form.
-  // Most-recent-first, hard-capped; the JS remaining-qty filter runs on this page.
-  const fetchCap = Math.min(1000, Math.max(1, Math.floor(Number(opts.limit) || 500)));
+  // Phase 4A.2 — bounded AND reachable matchable-GRN lookup. The response is
+  // always small (≤ limit, default 20), but ANY still-invoiceable line is
+  // discoverable by SERVER SEARCH across GRN number / PO number / receipt date /
+  // line description — no silent "newest 1000" cap. The certified accounting
+  // filters (same supplier · POSTED · remaining invoiceable qty > 0) are
+  // enforced here and NEVER weakened by search; POST remains authoritative.
+  const limit = Math.min(50, Math.max(1, Math.floor(Number(opts.limit) || 20)));
+  const q = (opts.q || "").trim();
+  // With a search term the candidate set is already narrow, so we scan a generous
+  // window; with no term we scan the most-recent window for the convenience
+  // default. Either way only `limit` rows are RETURNED (early exit below), which
+  // also bounds the per-line GRNI-clearing lookups.
+  const fetchWindow = q ? 400 : 120;
+  const conds: any[] = [
+    eq(goodsReceipts.supplierId, supplierId),
+    eq(goodsReceipts.status, GoodsReceiptStatus.POSTED),
+  ];
+  if (q) {
+    const like = `%${q}%`;
+    conds.push(
+      sql`(${goodsReceipts.grnNumber} ILIKE ${like} OR ${purchaseOrders.poNumber} ILIKE ${like} OR ${goodsReceipts.receiptDate} ILIKE ${like} OR ${goodsReceiptLines.description} ILIKE ${like})`,
+    );
+  }
   const rows = (await (dbh as any)
     .select({
       goodsReceiptId: goodsReceipts.id,
@@ -264,14 +283,9 @@ export async function matchableGrnLinesForSupplier(
     .from(goodsReceipts)
     .innerJoin(goodsReceiptLines, eq(goodsReceiptLines.goodsReceiptId, goodsReceipts.id))
     .leftJoin(purchaseOrders, eq(goodsReceipts.purchaseOrderId, purchaseOrders.id))
-    .where(
-      and(
-        eq(goodsReceipts.supplierId, supplierId),
-        eq(goodsReceipts.status, GoodsReceiptStatus.POSTED),
-      ),
-    )
+    .where(and(...conds))
     .orderBy(desc(goodsReceipts.receiptDate))
-    .limit(fetchCap)) as any[];
+    .limit(fetchWindow)) as any[];
 
   const matched = await matchedQtyByGrnLine(
     dbh,
@@ -279,6 +293,7 @@ export async function matchableGrnLinesForSupplier(
   );
   const out: MatchableGrnLine[] = [];
   for (const r of rows) {
+    if (out.length >= limit) break; // bound response + per-line GRNI lookups
     const received = Number(r.qty || 0);
     const invoiced = matched.get(r.grnLineId) || 0;
     const remaining = r2(received - invoiced);

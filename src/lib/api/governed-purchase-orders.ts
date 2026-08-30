@@ -123,6 +123,31 @@ export async function getPurchaseOrder(id: string): Promise<PurchaseOrderDetail>
   return j(await fetch(`/api/procurement/purchase-orders?id=${id}`), "تعذّر جلب أمر الشراء");
 }
 
+export interface PurchaseOrderLookupItem {
+  id: string;
+  poNumber: string;
+  supplierId: string | null;
+  supplierName: string | null;
+  supplierCode: string | null;
+  orderDate: string;
+  expectedDeliveryDate: string | null;
+  totalAmount: number;
+  currency: string;
+  status: string;
+}
+/** Bounded, server-searchable governed ISSUED-PO lookup for the GRN form. */
+export async function purchaseOrderLookup(
+  q: string,
+  limit = 20,
+): Promise<{ items: PurchaseOrderLookupItem[] }> {
+  const p = new URLSearchParams({ lookup: "1", limit: String(limit) });
+  if (q) p.set("q", q);
+  return j(
+    await fetch(`/api/procurement/purchase-orders?${p.toString()}`),
+    "تعذّر البحث عن أوامر الشراء",
+  );
+}
+
 export async function createPurchaseOrder(body: any): Promise<PurchaseOrder> {
   return (await j(await post("/api/procurement/purchase-orders", body), "تعذّر إنشاء أمر الشراء"))
     .item;

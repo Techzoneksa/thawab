@@ -564,3 +564,51 @@ export async function listPurchaseOrders(filters: PurchaseOrderFilters & PagePar
     .offset(pg.offset)) as any[];
   return { ...paginatedResult(items, summary.total, pg), items, summary };
 }
+
+/**
+ * Phase 4A.2 — bounded AND reachable governed-PO lookup for the GRN form.
+ *
+ * The GRN creation form must be able to reach ANY governed ISSUED PO, not only
+ * the most-recent 200. Response is always small (≤50, default 20) but SERVER
+ * SEARCH across PO number / subject / supplier reference / supplier name / code
+ * makes an older PO discoverable. Only GOVERNED + ISSUED are ever returned
+ * (legacy and non-issued POs are excluded — they can't receive goods). Slim DTO
+ * (no lines, no workflow/audit history).
+ */
+export async function purchaseOrderLookup(
+  dbh: Db,
+  opts: { q?: string; supplierId?: string; limit?: number } = {},
+) {
+  const limit = Math.min(50, Math.max(1, Math.floor(Number(opts.limit) || 20)));
+  const q = (opts.q || "").trim();
+  const conds: any[] = [
+    eq(purchaseOrders.governanceMode, GOVERNED),
+    eq(purchaseOrders.status, S.ISSUED),
+  ];
+  if (opts.supplierId) conds.push(eq(purchaseOrders.supplierId, opts.supplierId));
+  if (q) {
+    const like = `%${q}%`;
+    conds.push(
+      sql`(${purchaseOrders.poNumber} ILIKE ${like} OR ${purchaseOrders.subject} ILIKE ${like} OR ${purchaseOrders.supplierReference} ILIKE ${like} OR ${suppliers.name} ILIKE ${like} OR ${suppliers.supplierCode} ILIKE ${like})`,
+    );
+  }
+  const rows = (await (dbh as any)
+    .select({
+      id: purchaseOrders.id,
+      poNumber: purchaseOrders.poNumber,
+      supplierId: purchaseOrders.supplierId,
+      supplierName: suppliers.name,
+      supplierCode: suppliers.supplierCode,
+      orderDate: purchaseOrders.date,
+      expectedDeliveryDate: purchaseOrders.deliveryDate,
+      totalAmount: purchaseOrders.totalAmount,
+      currency: purchaseOrders.currency,
+      status: purchaseOrders.status,
+    })
+    .from(purchaseOrders)
+    .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
+    .where(and(...conds))
+    .orderBy(desc(purchaseOrders.createdAt))
+    .limit(limit)) as any[];
+  return { items: rows };
+}

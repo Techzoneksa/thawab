@@ -146,12 +146,17 @@ export async function getSupplierInvoice(id: string): Promise<SupplierInvoiceDet
   return j(await fetch(`/api/finance/supplier-invoices?id=${id}`), "تعذّر جلب فاتورة المورد");
 }
 
-/** Posted governed GRN lines for a supplier with remaining invoiceable quantity. */
+/** Posted governed GRN lines for a supplier with remaining invoiceable quantity.
+ *  Bounded + server-searchable: `q` matches GRN number / PO number / receipt date
+ *  / line description so any still-invoiceable line is reachable (not just recent). */
 export async function getMatchableGrnLines(
   supplierId: string,
+  q?: string,
 ): Promise<{ lines: MatchableGrnLine[] }> {
+  const p = new URLSearchParams({ matchable: supplierId });
+  if (q) p.set("q", q);
   return j(
-    await fetch(`/api/finance/supplier-invoices?matchable=${supplierId}`),
+    await fetch(`/api/finance/supplier-invoices?${p.toString()}`),
     "تعذّر جلب الاستلامات القابلة للمطابقة",
   );
 }
