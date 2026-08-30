@@ -884,6 +884,13 @@ export const supplierPaymentAllocations = pgTable(
       "supplier_payment_allocations_amount_positive",
       drizzleSql`${t.amount} > 0`,
     ),
+    // Phase 5A.1 — 2-decimal money guard (defense-in-depth; the service is the
+    // authoritative check). Rejects sub-cent amounts while tolerating binary
+    // float-noise on genuine 2dp doubles.
+    amount2dp: check(
+      "supplier_payment_allocations_amount_2dp",
+      drizzleSql`abs(${t.amount} - round(${t.amount}::numeric, 2)) < 0.000001`,
+    ),
   }),
 );
 

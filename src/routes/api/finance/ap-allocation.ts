@@ -60,7 +60,7 @@ const allocSchema = z.object({
   action: z.literal("allocate"),
   paymentId: z.string().min(1),
   invoiceId: z.string().min(1),
-  amount: z.number().positive(),
+  amount: z.number().finite().positive(),
 });
 const unallocSchema = z.object({
   action: z.literal("unallocate"),

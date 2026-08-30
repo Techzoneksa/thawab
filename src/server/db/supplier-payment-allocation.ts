@@ -34,6 +34,35 @@ import type { Ctx } from "./api-utils";
 
 const TOL = 0.005;
 const r2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+
+/**
+ * Float-noise epsilon for CAPACITY comparisons between two canonical 2dp values
+ * (over-allocation guards). It absorbs binary residue ONLY (~1e-13) and is far
+ * smaller than one halala, so a tolerance can NEVER authorize an over-allocation
+ * by a fraction of a cent. Distinct from TOL (a half-cent display threshold that
+ * hides sub-cent noise in aging/unapplied filters).
+ */
+const EPS = 1e-6;
+
+/**
+ * Allocation money policy — the accounting currency is 2 decimal places.
+ * A persisted allocation amount MUST be finite, > 0 and exactly a 2dp value
+ * (no fraction smaller than 0.01). Sub-cent input is REJECTED, never silently
+ * rounded, so a hidden fraction of a halala can never enter settlement or slip
+ * past an over-allocation guard. Returns the canonical 2dp number.
+ */
+function assertMoney2dp(n: unknown): number {
+  const v = Number(n);
+  if (!Number.isFinite(v))
+    throw new AppError("قيمة نقدية غير صالحة (غير محدَّدة)", 400, "INVALID_MONEY_PRECISION");
+  if (Math.abs(r2(v) - v) > EPS)
+    throw new AppError(
+      "قيمة التخصيص يجب أن تكون بدقة خانتين عشريتين (لا تُقبل أجزاء الهللة)",
+      400,
+      "INVALID_MONEY_PRECISION",
+    );
+  return r2(v);
+}
 type Db = { select: (...a: any[]) => any; execute: (q: any) => Promise<any> };
 
 /** The AP control account id (system_key accounts_payable). */
@@ -106,6 +135,20 @@ async function lockPair(tx: Db, paymentId: string, invoiceId: string) {
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(${LOCK_NS.PAYMENT_ALLOCATION}, hashtext(${key}))`,
     );
+}
+
+/**
+ * Acquire ONLY the invoice-side allocation resource lock — the identical scheme
+ * lockPair uses for its invoice key. Callers OUTSIDE the allocation service
+ * (Supplier Invoice reversal) take this so their allocation check serializes
+ * with allocate/unallocate on the same invoice: a reversal can never interleave
+ * between an allocation's over-allocation check and its commit. A single shared
+ * resource cannot form a lock-order cycle with lockPair.
+ */
+export async function lockInvoiceAllocationResource(tx: Db, invoiceId: string) {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(${LOCK_NS.PAYMENT_ALLOCATION}, hashtext(${invoiceId}))`,
+  );
 }
 
 // ------------------------------- read-only settlement views ------------------
@@ -210,7 +253,9 @@ export interface AllocateInput {
  * index is the final DB safety net. Creates NO accounting.
  */
 export async function allocate(ctx: Ctx, input: AllocateInput) {
-  const amount = r2(input.amount);
+  // Reject sub-cent / non-finite input BEFORE any capacity math — a hidden
+  // fraction must never be persisted or absorbed by a tolerance.
+  const amount = assertMoney2dp(input.amount);
   if (!(amount > 0))
     throw new AppError("قيمة التخصيص يجب أن تكون أكبر من صفر", 400, "AMOUNT_INVALID");
 
@@ -255,13 +300,15 @@ export async function allocate(ctx: Ctx, input: AllocateInput) {
     const remainingUnappliedExcl = r2(apDebit - allocOtherPayment);
     const invoiceOutstandingExcl = r2(origPayable - allocOtherInvoice);
 
-    if (amount > invoiceOutstandingExcl + TOL)
+    // Capacity guards compare two canonical 2dp values; EPS absorbs binary
+    // residue only — it can never authorize even one halala of over-allocation.
+    if (amount > invoiceOutstandingExcl + EPS)
       throw new AppError(
         `التخصيص يتجاوز المتبقي على الفاتورة (${invoiceOutstandingExcl})`,
         409,
         "INVOICE_OVER_ALLOCATED",
       );
-    if (amount > remainingUnappliedExcl + TOL)
+    if (amount > remainingUnappliedExcl + EPS)
       throw new AppError(
         `التخصيص يتجاوز المتبقي غير المُخصَّص من الدفعة (${remainingUnappliedExcl})`,
         409,

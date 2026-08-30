@@ -26,7 +26,10 @@ import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db, now, genId, addAudit } from "./index";
 import { resolvePage, paginatedResult, type PageParams } from "./pagination";
 import { failpoint } from "./failpoint";
-import { invoiceHasAllocations } from "./supplier-payment-allocation";
+import {
+  invoiceHasAllocations,
+  lockInvoiceAllocationResource,
+} from "./supplier-payment-allocation";
 import {
   supplierInvoices,
   supplierInvoiceLines,
@@ -855,6 +858,20 @@ export async function transitionSupplierInvoice(
       if (changed.length === 0)
         throw new AppError("تعذّر الترحيل — تغيّرت حالة الفاتورة", 409, "STATE_CONFLICT");
     } else if (action === "reverse") {
+      // Phase 5A.1 — serialize with allocate/unallocate on the SAME invoice
+      // allocation resource so a reversal can never interleave between an
+      // allocation's over-allocation check and its commit (which would leave a
+      // REVERSED invoice carrying an active allocation).
+      //
+      // The advisory lock is taken BEFORE the FOR UPDATE row lock, deliberately.
+      // allocate's INSERT into supplier_payment_allocations takes a FOR KEY SHARE
+      // lock on this invoice row (its FK parent); that conflicts with a FOR UPDATE
+      // we would otherwise hold while waiting on the advisory lock, forming a
+      // deadlock cycle (we hold the row, want the advisory; allocate holds the
+      // advisory, wants the row). Acquiring the advisory lock first makes the
+      // shared resource the single gateway: whichever side holds it completes its
+      // entire row-lock phase before the other begins — no cycle, no deadlock.
+      await lockInvoiceAllocationResource(tx as any, id);
       const locked = (
         await tx
           .select()
