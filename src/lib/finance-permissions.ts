@@ -91,6 +91,14 @@ export const FINANCE_PERMISSIONS = {
   supplierSensitiveView: "finance.supplier.sensitive.view",
   apReconciliationView: "finance.ap.reconciliation.view",
 
+  // Phase 5A — Supplier Payment Allocation & AP Aging. Allocation is SETTLEMENT
+  // METADATA (never accounting): view is read-only drill-down; manage is the
+  // authority to create/edit/remove allocation attribution and is deliberately
+  // SEPARATE from payment-posting authority. Aging is a read-only report.
+  supplierPaymentAllocationView: "finance.supplier_payment_allocation.view",
+  supplierPaymentAllocationManage: "finance.supplier_payment_allocation.manage",
+  apAgingView: "finance.ap_aging.view",
+
   // Phase 3B — Supplier Invoices (فواتير الموردين). Granular so create ≠ submit ≠
   // approve ≠ post ≠ reverse; none imply supplier-master mutation, payment, or a
   // raw journal action. Posting accrues Dr expense/asset + Dr input VAT / Cr AP.
@@ -377,6 +385,27 @@ export const FINANCE_PERM_GROUPS: FinancePermGroup[] = [
         key: FINANCE_PERMISSIONS.accountMappingUpdate,
         label: "تهيئة ربط الحسابات النظامية (ضريبة المدخلات)",
         desc: "صلاحية إدارية عالية — تحديد/تغيير حساب ضريبة القيمة المضافة (المدخلات) وغيره",
+      },
+    ],
+  },
+  {
+    key: "finance-ap-allocation",
+    label: "المالية — تخصيص دفعات الموردين وأعمار الذمم",
+    perms: [
+      {
+        key: FINANCE_PERMISSIONS.supplierPaymentAllocationView,
+        label: "عرض تخصيص دفعات الموردين",
+        desc: "عرض توزيع الدفعات على الفواتير والمبالغ المتبقية (بدون أي أثر محاسبي)",
+      },
+      {
+        key: FINANCE_PERMISSIONS.supplierPaymentAllocationManage,
+        label: "إدارة تخصيص دفعات الموردين",
+        desc: "تخصيص/تعديل/إلغاء توزيع الدفعات على الفواتير — لا يُنشئ أي قيد محاسبي",
+      },
+      {
+        key: FINANCE_PERMISSIONS.apAgingView,
+        label: "عرض أعمار الذمم الدائنة",
+        desc: "تقرير أعمار الذمم الدائنة (المتبقي حسب تاريخ الاستحقاق)",
       },
     ],
   },

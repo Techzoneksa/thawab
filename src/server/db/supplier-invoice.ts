@@ -26,6 +26,7 @@ import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db, now, genId, addAudit } from "./index";
 import { resolvePage, paginatedResult, type PageParams } from "./pagination";
 import { failpoint } from "./failpoint";
+import { invoiceHasAllocations } from "./supplier-payment-allocation";
 import {
   supplierInvoices,
   supplierInvoiceLines,
@@ -866,6 +867,14 @@ export async function transitionSupplierInvoice(
         throw new AppError("تعذّر العكس — تغيّرت حالة الفاتورة", 409, "STATE_CONFLICT");
       if (!locked.journalEntryId)
         throw new AppError("لا يوجد قيد مُرحَّل لعكسه", 409, "NO_JOURNAL");
+      // Phase 5A — an invoice with active payment allocations must not be reversed
+      // silently; that would detach settlement history from AP. Unallocate first.
+      if (await invoiceHasAllocations(tx as any, id))
+        throw new AppError(
+          "لا يمكن عكس فاتورة لها تخصيصات دفعات نشطة — ألغِ التخصيص أولاً",
+          409,
+          "SUPPLIER_INVOICE_HAS_PAYMENT_ALLOCATIONS",
+        );
       reversalId = await reverseEntry(tx as any, locked.journalEntryId, ctx.user.id);
       // REV-C: attribute the reversal-mirror AP DEBIT line to the SAME supplier so
       // the subledger nets against the original AP credit (certified GL states

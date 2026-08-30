@@ -20,6 +20,9 @@ export const LOCK_NS = {
   ACCOUNT_MAPPING: 44,
   /** Phase 3D — governed Goods Receipt posting per Purchase Order (over-receive guard). */
   GRN_POSTING: 45,
+  /** Phase 5A — supplier payment↔invoice allocation (per payment AND per invoice
+   *  resource), so concurrent allocations recompute outstanding/unapplied safely. */
+  PAYMENT_ALLOCATION: 46,
 } as const;
 
 export type LockNamespace = (typeof LOCK_NS)[keyof typeof LOCK_NS];

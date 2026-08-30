@@ -14,7 +14,9 @@ import {
   doublePrecision,
   index,
   uniqueIndex,
+  check,
 } from "drizzle-orm/pg-core";
+import { sql as drizzleSql } from "drizzle-orm";
 
 // ============ USERS & AUTH ============
 
@@ -845,6 +847,43 @@ export const supplierPayments = pgTable(
   (t) => ({
     journalIdx: uniqueIndex("supplier_payments_journal_entry_idx").on(t.journalEntryId),
     supplierIdx: index("supplier_payments_supplier_idx").on(t.supplierId),
+  }),
+);
+
+// Phase 5A — Supplier Payment ↔ Invoice ALLOCATION (settlement metadata, NOT
+// accounting). Each row records how much of ONE posted Supplier-Payment AP debit
+// is attributed to ONE posted Supplier-Invoice AP credit. It stores NO balance:
+// invoice outstanding and payment unapplied stay derived from real posted AP
+// journal lines minus Σ active allocations. One effective row per (payment,
+// invoice); amount strictly > 0 (a zero allocation is a removal). Creating/
+// editing/removing a row produces NO journal, NO GL, NO cash/bank movement.
+export const supplierPaymentAllocations = pgTable(
+  "supplier_payment_allocations",
+  {
+    id: text("id").primaryKey(),
+    supplierPaymentId: text("supplier_payment_id")
+      .notNull()
+      .references(() => supplierPayments.id),
+    supplierInvoiceId: text("supplier_invoice_id")
+      .notNull()
+      .references(() => supplierInvoices.id),
+    amount: doublePrecision("amount").notNull(),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedBy: text("updated_by").references(() => users.id),
+    updatedAt: text("updated_at"),
+  },
+  (t) => ({
+    pairIdx: uniqueIndex("supplier_payment_allocations_pair_idx").on(
+      t.supplierPaymentId,
+      t.supplierInvoiceId,
+    ),
+    paymentIdx: index("supplier_payment_allocations_payment_idx").on(t.supplierPaymentId),
+    invoiceIdx: index("supplier_payment_allocations_invoice_idx").on(t.supplierInvoiceId),
+    amountPositive: check(
+      "supplier_payment_allocations_amount_positive",
+      drizzleSql`${t.amount} > 0`,
+    ),
   }),
 );
 

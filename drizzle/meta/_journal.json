@@ -218,6 +218,13 @@
       "when": 1787120000000,
       "tag": "0030_perf_grni_line_index",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787130000000,
+      "tag": "0031_supplier_payment_allocations",
+      "breakpoints": true
     }
   ]
 }
