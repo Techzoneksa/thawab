@@ -65,7 +65,7 @@ export default function LoginPage() {
       queryClient.setQueryData(["currentUser"], data.user);
       showToast(`مرحباً ${data.user.name}!`, "success");
       // Force a password change on first login if required.
-      window.location.href = data.mustChangePassword ? "/settings/users" : "/";
+      window.location.href = data.mustChangePassword ? "/change-password" : "/";
     } catch {
       setError("حدث خطأ في الاتصال بالخادم");
       setIsLoading(false);

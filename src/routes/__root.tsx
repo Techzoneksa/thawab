@@ -13,22 +13,35 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider, useAuth } from "@/lib/api/auth";
 
-const PUBLIC_PATHS = ["/login"];
+// Pages reachable without a session (login + the emailed set-password link).
+const PUBLIC_PATHS = ["/login", "/set-password"];
+// The forced first-login password-change screen (blocks the rest of the app).
+const CHANGE_PW_PATH = "/change-password";
 
-/** Redirects unauthenticated users to /login (client-side guard). */
+/**
+ * Client-side guard:
+ *  - unauthenticated users on a non-public path → /login
+ *  - authenticated users flagged mustChangePassword → /change-password (blocked
+ *    from every other page until they set a new password).
+ */
 function AuthGate({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = router.state.location.pathname;
   const isPublic = PUBLIC_PATHS.includes(pathname);
+  const mustChange = !!user?.mustChangePassword;
 
   useEffect(() => {
-    if (!isLoading && !user && !isPublic) {
+    if (isLoading) return;
+    if (!user && !isPublic) {
       router.navigate({ to: "/login" });
+    } else if (user && mustChange && pathname !== CHANGE_PW_PATH) {
+      router.navigate({ to: CHANGE_PW_PATH });
     }
-  }, [isLoading, user, isPublic, router]);
+  }, [isLoading, user, mustChange, isPublic, pathname, router]);
 
   if (!isLoading && !user && !isPublic) return null;
+  if (!isLoading && user && mustChange && pathname !== CHANGE_PW_PATH) return null;
   return <>{children}</>;
 }
 

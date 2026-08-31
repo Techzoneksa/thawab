@@ -5,6 +5,7 @@ import {
   logout,
   getCurrentUser,
   changePassword,
+  forceChangePassword,
   verifyUserPassword,
 } from "@/server/db/auth";
 import {
@@ -53,6 +54,11 @@ const changePwSchema = z.object({
   newPassword: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
 });
 
+const forceChangePwSchema = z.object({
+  action: z.literal("force_change_password"),
+  newPassword: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
+});
+
 async function POST({ request }: { request: Request }) {
   return guard(async () => {
     // Peek at the action without consuming the stream twice.
@@ -76,6 +82,21 @@ async function POST({ request }: { request: Request }) {
       }
       await changePassword(user.id, parsed.data.newPassword);
       return Response.json({ success: true }, { headers: { "Set-Cookie": clearCookie() } });
+    }
+
+    if (action === "force_change_password") {
+      // Forced first-login change: the session is already authenticated (user
+      // logged in with the temporary password) and must currently be flagged
+      // mustChangePassword. Only a new password is required; the session stays.
+      const token = getSessionToken(request);
+      const user = await getCurrentUser(token);
+      if (!user) return err("يجب تسجيل الدخول", 401, "UNAUTHENTICATED");
+      if (!user.mustChangePassword) return err("لا يلزم تغيير كلمة المرور", 400, "NOT_REQUIRED");
+      const parsed = forceChangePwSchema.safeParse(body);
+      if (!parsed.success)
+        return err(parsed.error.issues[0]?.message || "بيانات غير صالحة", 422, "VALIDATION_ERROR");
+      await forceChangePassword(user.id, parsed.data.newPassword);
+      return Response.json({ success: true });
     }
 
     // Login

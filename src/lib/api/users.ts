@@ -25,7 +25,9 @@ async function handle(res: Response) {
   return data;
 }
 
-export async function getUsers(filters: { search?: string; status?: string; role?: string } = {}): Promise<{
+export async function getUsers(
+  filters: { search?: string; status?: string; role?: string } = {},
+): Promise<{
   items: AppUser[];
   total: number;
   roles: AppRole[];
@@ -44,7 +46,12 @@ export async function createUser(input: {
   phone?: string;
   password?: string;
   mustChangePassword?: boolean;
-}): Promise<{ item: AppUser; tempPassword: string | null }> {
+}): Promise<{
+  item: AppUser;
+  emailSent?: boolean;
+  setupUrl?: string;
+  tempPassword?: string | null;
+}> {
   return handle(
     await fetch(API, {
       method: "POST",

@@ -58,11 +58,22 @@ function NewUserPage() {
         ...(password ? { password, mustChangePassword: mustChange } : {}),
       });
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      if (res.tempPassword) {
-        showToast(
-          `تم إنشاء المستخدم. كلمة المرور المؤقتة: ${res.tempPassword} — شاركها معه`,
-          "success",
-        );
+      if (password) {
+        showToast("تم إنشاء المستخدم بنجاح", "success");
+      } else if (res.emailSent) {
+        showToast("تم إنشاء المستخدم وأُرسلت دعوة تعيين كلمة المرور إلى بريده", "success");
+      } else if (res.setupUrl) {
+        // Email couldn't be sent (SMTP not configured/failed) — hand the admin the
+        // one-time setup link to share manually.
+        try {
+          await navigator.clipboard.writeText(res.setupUrl);
+          showToast(
+            "تم إنشاء المستخدم. تعذّر إرسال البريد — نُسخ رابط تعيين كلمة المرور للحافظة",
+            "error",
+          );
+        } catch {
+          showToast(`تم إنشاء المستخدم. شارك هذا الرابط معه: ${res.setupUrl}`, "error");
+        }
       } else {
         showToast("تم إنشاء المستخدم بنجاح", "success");
       }
@@ -122,7 +133,7 @@ function NewUserPage() {
       content: (
         <FormSection
           title="كلمة المرور"
-          description="اتركها فارغة لإنشاء دعوة بكلمة مرور مؤقتة تُعرض بعد الحفظ"
+          description="اتركها فارغة لإرسال دعوة بريدية للمستخدم يعيّن فيها كلمة مروره بنفسه"
         >
           <FormField label="كلمة المرور">
             <FormInput

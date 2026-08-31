@@ -161,6 +161,20 @@ export async function changePassword(userId: string, newPassword: string) {
   invalidateAuthCache();
 }
 
+/**
+ * Forced first-login password change. The user has already authenticated with
+ * their current (temporary) password, so no re-entry is required. Keeps the
+ * current session valid (does NOT drop sessions) so the user proceeds straight
+ * into the app; clears mustChangePassword and refreshes the auth cache.
+ */
+export async function forceChangePassword(userId: string, newPassword: string) {
+  await db
+    .update(users)
+    .set({ password: hashPassword(newPassword), mustChangePassword: false })
+    .where(eq(users.id, userId));
+  invalidateAuthCache();
+}
+
 // ---------- RBAC ----------
 
 export async function getRolePermissions(roleId: string): Promise<string[]> {

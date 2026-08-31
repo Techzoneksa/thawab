@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkflowsRouteImport } from './routes/workflows'
+import { Route as SetPasswordRouteImport } from './routes/set-password'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as RecurringRouteImport } from './routes/recurring'
 import { Route as ReceiptsRouteImport } from './routes/receipts'
@@ -28,6 +29,7 @@ import { Route as DonorOrgsRouteImport } from './routes/donor-orgs'
 import { Route as DonationsRouteImport } from './routes/donations'
 import { Route as DistributionRouteImport } from './routes/distribution'
 import { Route as DataRouteImport } from './routes/data'
+import { Route as ChangePasswordRouteImport } from './routes/change-password'
 import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as BeneficiariesRouteImport } from './routes/beneficiaries'
 import { Route as AuditRouteImport } from './routes/audit'
@@ -107,6 +109,7 @@ import { Route as ApiDonationsRouteImport } from './routes/api/donations'
 import { Route as ApiDiagnoseRouteImport } from './routes/api/diagnose'
 import { Route as ApiCampaignsRouteImport } from './routes/api/campaigns'
 import { Route as ApiBeneficiariesRouteImport } from './routes/api/beneficiaries'
+import { Route as ApiAuthSetupRouteImport } from './routes/api/auth-setup'
 import { Route as ApiAuthRouteImport } from './routes/api/auth'
 import { Route as ApiAuditRouteImport } from './routes/api/audit'
 import { Route as ApiAssetsRouteImport } from './routes/api/assets'
@@ -213,6 +216,11 @@ const WorkflowsRoute = WorkflowsRouteImport.update({
   path: '/workflows',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SetPasswordRoute = SetPasswordRouteImport.update({
+  id: '/set-password',
+  path: '/set-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
@@ -301,6 +309,11 @@ const DistributionRoute = DistributionRouteImport.update({
 const DataRoute = DataRouteImport.update({
   id: '/data',
   path: '/data',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChangePasswordRoute = ChangePasswordRouteImport.update({
+  id: '/change-password',
+  path: '/change-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CampaignsRoute = CampaignsRouteImport.update({
@@ -698,6 +711,11 @@ const ApiCampaignsRoute = ApiCampaignsRouteImport.update({
 const ApiBeneficiariesRoute = ApiBeneficiariesRouteImport.update({
   id: '/api/beneficiaries',
   path: '/api/beneficiaries',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSetupRoute = ApiAuthSetupRouteImport.update({
+  id: '/api/auth-setup',
+  path: '/api/auth-setup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthRoute = ApiAuthRouteImport.update({
@@ -1229,6 +1247,7 @@ export interface FileRoutesByFullPath {
   '/audit': typeof AuditRoute
   '/beneficiaries': typeof BeneficiariesRoute
   '/campaigns': typeof CampaignsRoute
+  '/change-password': typeof ChangePasswordRoute
   '/data': typeof DataRoute
   '/distribution': typeof DistributionRoute
   '/donations': typeof DonationsRoute
@@ -1247,6 +1266,7 @@ export interface FileRoutesByFullPath {
   '/receipts': typeof ReceiptsRoute
   '/recurring': typeof RecurringRoute
   '/reports': typeof ReportsRoute
+  '/set-password': typeof SetPasswordRoute
   '/workflows': typeof WorkflowsRoute
   '/aid/new': typeof AidNewRoute
   '/api/aid': typeof ApiAidRoute
@@ -1254,6 +1274,7 @@ export interface FileRoutesByFullPath {
   '/api/assets': typeof ApiAssetsRoute
   '/api/audit': typeof ApiAuditRoute
   '/api/auth': typeof ApiAuthRoute
+  '/api/auth-setup': typeof ApiAuthSetupRoute
   '/api/beneficiaries': typeof ApiBeneficiariesRoute
   '/api/campaigns': typeof ApiCampaignsRoute
   '/api/diagnose': typeof ApiDiagnoseRoute
@@ -1429,6 +1450,7 @@ export interface FileRoutesByTo {
   '/audit': typeof AuditRoute
   '/beneficiaries': typeof BeneficiariesRoute
   '/campaigns': typeof CampaignsRoute
+  '/change-password': typeof ChangePasswordRoute
   '/data': typeof DataRoute
   '/distribution': typeof DistributionRoute
   '/donations': typeof DonationsRoute
@@ -1447,6 +1469,7 @@ export interface FileRoutesByTo {
   '/receipts': typeof ReceiptsRoute
   '/recurring': typeof RecurringRoute
   '/reports': typeof ReportsRoute
+  '/set-password': typeof SetPasswordRoute
   '/workflows': typeof WorkflowsRoute
   '/aid/new': typeof AidNewRoute
   '/api/aid': typeof ApiAidRoute
@@ -1454,6 +1477,7 @@ export interface FileRoutesByTo {
   '/api/assets': typeof ApiAssetsRoute
   '/api/audit': typeof ApiAuditRoute
   '/api/auth': typeof ApiAuthRoute
+  '/api/auth-setup': typeof ApiAuthSetupRoute
   '/api/beneficiaries': typeof ApiBeneficiariesRoute
   '/api/campaigns': typeof ApiCampaignsRoute
   '/api/diagnose': typeof ApiDiagnoseRoute
@@ -1630,6 +1654,7 @@ export interface FileRoutesById {
   '/audit': typeof AuditRoute
   '/beneficiaries': typeof BeneficiariesRoute
   '/campaigns': typeof CampaignsRoute
+  '/change-password': typeof ChangePasswordRoute
   '/data': typeof DataRoute
   '/distribution': typeof DistributionRoute
   '/donations': typeof DonationsRoute
@@ -1648,6 +1673,7 @@ export interface FileRoutesById {
   '/receipts': typeof ReceiptsRoute
   '/recurring': typeof RecurringRoute
   '/reports': typeof ReportsRoute
+  '/set-password': typeof SetPasswordRoute
   '/workflows': typeof WorkflowsRoute
   '/aid_/new': typeof AidNewRoute
   '/api/aid': typeof ApiAidRoute
@@ -1655,6 +1681,7 @@ export interface FileRoutesById {
   '/api/assets': typeof ApiAssetsRoute
   '/api/audit': typeof ApiAuditRoute
   '/api/auth': typeof ApiAuthRoute
+  '/api/auth-setup': typeof ApiAuthSetupRoute
   '/api/beneficiaries': typeof ApiBeneficiariesRoute
   '/api/campaigns': typeof ApiCampaignsRoute
   '/api/diagnose': typeof ApiDiagnoseRoute
@@ -1832,6 +1859,7 @@ export interface FileRouteTypes {
     | '/audit'
     | '/beneficiaries'
     | '/campaigns'
+    | '/change-password'
     | '/data'
     | '/distribution'
     | '/donations'
@@ -1850,6 +1878,7 @@ export interface FileRouteTypes {
     | '/receipts'
     | '/recurring'
     | '/reports'
+    | '/set-password'
     | '/workflows'
     | '/aid/new'
     | '/api/aid'
@@ -1857,6 +1886,7 @@ export interface FileRouteTypes {
     | '/api/assets'
     | '/api/audit'
     | '/api/auth'
+    | '/api/auth-setup'
     | '/api/beneficiaries'
     | '/api/campaigns'
     | '/api/diagnose'
@@ -2032,6 +2062,7 @@ export interface FileRouteTypes {
     | '/audit'
     | '/beneficiaries'
     | '/campaigns'
+    | '/change-password'
     | '/data'
     | '/distribution'
     | '/donations'
@@ -2050,6 +2081,7 @@ export interface FileRouteTypes {
     | '/receipts'
     | '/recurring'
     | '/reports'
+    | '/set-password'
     | '/workflows'
     | '/aid/new'
     | '/api/aid'
@@ -2057,6 +2089,7 @@ export interface FileRouteTypes {
     | '/api/assets'
     | '/api/audit'
     | '/api/auth'
+    | '/api/auth-setup'
     | '/api/beneficiaries'
     | '/api/campaigns'
     | '/api/diagnose'
@@ -2232,6 +2265,7 @@ export interface FileRouteTypes {
     | '/audit'
     | '/beneficiaries'
     | '/campaigns'
+    | '/change-password'
     | '/data'
     | '/distribution'
     | '/donations'
@@ -2250,6 +2284,7 @@ export interface FileRouteTypes {
     | '/receipts'
     | '/recurring'
     | '/reports'
+    | '/set-password'
     | '/workflows'
     | '/aid_/new'
     | '/api/aid'
@@ -2257,6 +2292,7 @@ export interface FileRouteTypes {
     | '/api/assets'
     | '/api/audit'
     | '/api/auth'
+    | '/api/auth-setup'
     | '/api/beneficiaries'
     | '/api/campaigns'
     | '/api/diagnose'
@@ -2433,6 +2469,7 @@ export interface RootRouteChildren {
   AuditRoute: typeof AuditRoute
   BeneficiariesRoute: typeof BeneficiariesRoute
   CampaignsRoute: typeof CampaignsRoute
+  ChangePasswordRoute: typeof ChangePasswordRoute
   DataRoute: typeof DataRoute
   DistributionRoute: typeof DistributionRoute
   DonationsRoute: typeof DonationsRoute
@@ -2451,6 +2488,7 @@ export interface RootRouteChildren {
   ReceiptsRoute: typeof ReceiptsRoute
   RecurringRoute: typeof RecurringRoute
   ReportsRoute: typeof ReportsRoute
+  SetPasswordRoute: typeof SetPasswordRoute
   WorkflowsRoute: typeof WorkflowsRoute
   AidNewRoute: typeof AidNewRoute
   ApiAidRoute: typeof ApiAidRoute
@@ -2458,6 +2496,7 @@ export interface RootRouteChildren {
   ApiAssetsRoute: typeof ApiAssetsRoute
   ApiAuditRoute: typeof ApiAuditRoute
   ApiAuthRoute: typeof ApiAuthRoute
+  ApiAuthSetupRoute: typeof ApiAuthSetupRoute
   ApiBeneficiariesRoute: typeof ApiBeneficiariesRoute
   ApiCampaignsRoute: typeof ApiCampaignsRoute
   ApiDiagnoseRoute: typeof ApiDiagnoseRoute
@@ -2631,6 +2670,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkflowsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/set-password': {
+      id: '/set-password'
+      path: '/set-password'
+      fullPath: '/set-password'
+      preLoaderRoute: typeof SetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reports': {
       id: '/reports'
       path: '/reports'
@@ -2755,6 +2801,13 @@ declare module '@tanstack/react-router' {
       path: '/data'
       fullPath: '/data'
       preLoaderRoute: typeof DataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/change-password': {
+      id: '/change-password'
+      path: '/change-password'
+      fullPath: '/change-password'
+      preLoaderRoute: typeof ChangePasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/campaigns': {
@@ -3308,6 +3361,13 @@ declare module '@tanstack/react-router' {
       path: '/api/beneficiaries'
       fullPath: '/api/beneficiaries'
       preLoaderRoute: typeof ApiBeneficiariesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth-setup': {
+      id: '/api/auth-setup'
+      path: '/api/auth-setup'
+      fullPath: '/api/auth-setup'
+      preLoaderRoute: typeof ApiAuthSetupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth': {
@@ -4045,6 +4105,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuditRoute: AuditRoute,
   BeneficiariesRoute: BeneficiariesRoute,
   CampaignsRoute: CampaignsRoute,
+  ChangePasswordRoute: ChangePasswordRoute,
   DataRoute: DataRoute,
   DistributionRoute: DistributionRoute,
   DonationsRoute: DonationsRoute,
@@ -4063,6 +4124,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReceiptsRoute: ReceiptsRoute,
   RecurringRoute: RecurringRoute,
   ReportsRoute: ReportsRoute,
+  SetPasswordRoute: SetPasswordRoute,
   WorkflowsRoute: WorkflowsRoute,
   AidNewRoute: AidNewRoute,
   ApiAidRoute: ApiAidRoute,
@@ -4070,6 +4132,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAssetsRoute: ApiAssetsRoute,
   ApiAuditRoute: ApiAuditRoute,
   ApiAuthRoute: ApiAuthRoute,
+  ApiAuthSetupRoute: ApiAuthSetupRoute,
   ApiBeneficiariesRoute: ApiBeneficiariesRoute,
   ApiCampaignsRoute: ApiCampaignsRoute,
   ApiDiagnoseRoute: ApiDiagnoseRoute,

@@ -15,6 +15,7 @@ export interface CurrentUser {
   status: string;
   avatar: string | null;
   lastLogin: string | null;
+  mustChangePassword?: boolean;
   permissions?: string[];
 }
 

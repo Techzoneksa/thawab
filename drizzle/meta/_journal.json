@@ -232,6 +232,13 @@
       "when": 1787130001000,
       "tag": "0032_allocation_amount_2dp_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1787130002000,
+      "tag": "0033_auth_tokens",
+      "breakpoints": true
     }
   ]
 }

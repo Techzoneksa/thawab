@@ -41,6 +41,30 @@ export const users = pgTable(
   }),
 );
 
+/**
+ * One-time tokens for account setup / password reset sent by email. Only the
+ * SHA-256 hash of the token is stored — the raw token lives only in the emailed
+ * link. A token is single-use (usedAt) and time-bounded (expiresAt).
+ */
+export const authTokens = pgTable(
+  "auth_tokens",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    tokenHash: text("token_hash").notNull(),
+    purpose: text("purpose").notNull(), // 'invite' | 'reset'
+    expiresAt: text("expires_at").notNull(),
+    usedAt: text("used_at"),
+    createdAt: text("created_at").notNull().default(""),
+  },
+  (t) => ({
+    tokenHashIdx: uniqueIndex("auth_tokens_token_hash_idx").on(t.tokenHash),
+    userIdx: index("auth_tokens_user_idx").on(t.userId),
+  }),
+);
+
 export const roles = pgTable("roles", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),

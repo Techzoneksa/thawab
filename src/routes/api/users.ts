@@ -5,6 +5,8 @@ import { randomBytes } from "node:crypto";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { users, roles, sessions } from "@/server/db/schema";
 import { hashPassword } from "@/server/db/auth";
+import { createSetupToken, INVITE_TTL_HOURS } from "@/server/db/invitations";
+import { sendInvitationEmail, appUrl } from "@/server/db/mailer";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
 import { UserStatus } from "@/lib/enums";
 
@@ -31,7 +33,8 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "50") || 50));
 
   const conditions = [];
-  if (search) conditions.push(or(like(users.name, `%${search}%`), like(users.email, `%${search}%`)));
+  if (search)
+    conditions.push(or(like(users.name, `%${search}%`), like(users.email, `%${search}%`)));
   if (status) conditions.push(eq(users.status, status));
   if (role) conditions.push(eq(users.role, role));
   const where = conditions.length ? and(...conditions) : undefined;
@@ -75,10 +78,12 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     const role = (await db.select().from(roles).where(eq(roles.id, b.role)).limit(1))[0];
     if (!role) return err("الدور غير موجود", 400, "BAD_ROLE");
 
-    // Provided password → set as-is. Otherwise generate a temporary one (invite).
-    const tempPassword = b.password ? null : randomBytes(6).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 9) + "A9!";
-    const plain = b.password ?? tempPassword!;
-    const mustChange = b.password ? (b.mustChangePassword ?? false) : true;
+    // Invite flow (no password): create with an unusable random password, then
+    // email a one-time set-password link so the user chooses their own password.
+    // Admin-provided password → set as-is (optionally forcing a first-login change).
+    const isInvite = !b.password;
+    const plain = b.password ?? randomBytes(24).toString("base64url"); // unknown → unusable until link is used
+    const mustChange = b.password ? (b.mustChangePassword ?? false) : false;
 
     const id = genId("USR");
     await db.insert(users).values({
@@ -103,9 +108,27 @@ async function POST(event: { request: Request }, ctx: Ctx) {
       ip: ctx.ip,
     });
 
+    // Send the invitation link. If SMTP is not configured or the send fails, the
+    // link is returned to the (trusted) admin as a fallback to share manually.
+    let emailSent = false;
+    let setupUrl: string | undefined;
+    if (isInvite) {
+      const { token } = await createSetupToken(id, "invite");
+      setupUrl = `${appUrl()}/set-password?token=${token}`;
+      const r = await sendInvitationEmail({
+        to: email,
+        name: b.name,
+        setupUrl,
+        expiresHours: INVITE_TTL_HOURS,
+      });
+      emailSent = r.sent;
+    }
+
     const created = (await db.select().from(users).where(eq(users.id, id)).limit(1))[0];
-    // tempPassword is returned ONCE so the admin can share the invitation.
-    return Response.json({ item: safe(created), tempPassword }, { status: 201 });
+    return Response.json(
+      { item: safe(created), emailSent, setupUrl: emailSent ? undefined : setupUrl },
+      { status: 201 },
+    );
   });
 }
 
