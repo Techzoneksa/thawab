@@ -61,6 +61,7 @@ import {
   invoiceAllocations,
   getGrnLineMatchingPosition,
   expectedGrniClearValue,
+  lockReceiptCapacity,
 } from "./invoice-matching";
 import { recordWorkflowEvent } from "./finance-workflow";
 import {
@@ -754,6 +755,14 @@ export async function transitionSupplierInvoice(
           [...allocs.values()].map((a: any) => a.goodsReceiptLineId).filter(Boolean) as string[],
         ),
       ].sort();
+      // Phase 5B.1 — enter the shared receipt-capacity gate for every DISTINCT
+      // matched receipt BEFORE the goods_receipt_lines row locks, so this matched
+      // POST serializes with a concurrent GRN reverse / purchase return on the same
+      // receipt (a reversal can never slip in after this invoice's capacity check).
+      await lockReceiptCapacity(
+        tx as any,
+        [...allocs.values()].map((a: any) => a.goodsReceiptId),
+      );
       for (const glId of grnLineIds)
         await tx
           .select({ id: goodsReceiptLines.id })

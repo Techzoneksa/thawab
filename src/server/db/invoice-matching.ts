@@ -27,8 +27,31 @@ import {
   purchaseReturnLines,
 } from "./schema";
 import { GoodsReceiptStatus, SupplierInvoiceStatus, PurchaseReturnStatus } from "@/lib/enums";
+import { LOCK_NS } from "./lock-namespaces";
 
 type Db = { select: (...a: any[]) => any };
+
+/**
+ * Phase 5B.1 — the shared receipt-CAPACITY gate. Every operation that validates,
+ * consumes, releases or reverses a governed receipt's line capacity — Supplier
+ * Invoice matched POST, Purchase Return POST, Purchase Return REVERSE and GRN
+ * REVERSE — MUST call this FIRST in its transaction, before any FOR UPDATE row
+ * lock. It takes one advisory xact lock per DISTINCT goods_receipt_id, in sorted
+ * order, so two operations touching the same receipt fully serialize (no race
+ * window between a downstream-state check and its commit) while independent
+ * receipts stay concurrent. Advisory-first + deterministic order avoids the FK
+ * KEY-SHARE / row-lock deadlock class (the Phase 5A.1 lesson).
+ */
+export async function lockReceiptCapacity(
+  tx: { execute: (q: any) => Promise<any> },
+  goodsReceiptIds: Array<string | null | undefined>,
+): Promise<void> {
+  const ids = [...new Set(goodsReceiptIds.filter((x): x is string => !!x))].sort();
+  for (const id of ids)
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(${LOCK_NS.RECEIPT_CAPACITY}, hashtext(${id}))`,
+    );
+}
 
 const QTY_TOLERANCE = 0.0001;
 const MONEY_TOLERANCE = 0.005; // project halala precision (2 dp)

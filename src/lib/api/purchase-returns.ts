@@ -71,9 +71,7 @@ export interface ReturnableLine {
   returnableQuantity: number;
   remainingGrniValue: number;
 }
-export async function returnableGrnLines(
-  goodsReceiptId: string,
-): Promise<{
+export async function returnableGrnLines(goodsReceiptId: string): Promise<{
   grn: { id: string; grnNumber: string; supplierId: string | null; status: string };
   lines: ReturnableLine[];
 }> {
@@ -81,6 +79,24 @@ export async function returnableGrnLines(
     await fetch(`${API}?returnable=${encodeURIComponent(goodsReceiptId)}`),
     "تعذّر جلب سطور الاستلام القابلة للإرجاع",
   );
+}
+
+export interface EligibleGrn {
+  goodsReceiptId: string;
+  grnNumber: string;
+  receiptDate: string;
+  supplierId: string | null;
+  poNumber: string | null;
+  returnableLineCount: number;
+}
+export async function eligibleGrnsForReturn(
+  opts: { supplierId?: string; q?: string; limit?: number } = {},
+): Promise<{ items: EligibleGrn[] }> {
+  const p = new URLSearchParams({ eligible: "1" });
+  if (opts.supplierId) p.set("supplierId", opts.supplierId);
+  if (opts.q) p.set("q", opts.q);
+  if (opts.limit) p.set("limit", String(opts.limit));
+  return j(await fetch(`${API}?${p.toString()}`), "تعذّر جلب سندات الاستلام المؤهّلة للإرجاع");
 }
 
 export async function createPurchaseReturn(input: {

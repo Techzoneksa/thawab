@@ -7,11 +7,11 @@ import { showToast, EntityFormDrawer, EmptyState } from "@/components/erp/action
 import { fmtSAR } from "@/data/sample";
 import { Plus, Eye, X } from "lucide-react";
 import { useAuth, userCan } from "@/lib/api/auth";
-import { listGoodsReceipts } from "@/lib/api/goods-receipts";
 import {
   listPurchaseReturns,
   getPurchaseReturn,
   returnableGrnLines,
+  eligibleGrnsForReturn,
   createPurchaseReturn,
   purchaseReturnAction,
   type PurchaseReturnRow,
@@ -144,8 +144,8 @@ function CreateDrawer({
   const [reason, setReason] = useState("");
 
   const grnsQ = useQuery({
-    queryKey: ["grn-posted-picker", grnSearch],
-    queryFn: () => listGoodsReceipts({ status: "posted", search: grnSearch || undefined } as any),
+    queryKey: ["eligible-grn-picker", grnSearch],
+    queryFn: () => eligibleGrnsForReturn({ q: grnSearch || undefined, limit: 20 }),
     enabled: !grnId,
   });
   const returnableQ = useQuery({
@@ -193,22 +193,24 @@ function CreateDrawer({
               onChange={(e) => setGrnSearch(e.target.value)}
             />
             <div className="space-y-1 max-h-72 overflow-y-auto">
-              {(grnsQ.data?.items || []).map((g: any) => (
+              {(grnsQ.data?.items || []).map((g) => (
                 <button
-                  key={g.id}
+                  key={g.goodsReceiptId}
                   className="w-full text-right rounded-lg border px-3 py-2 hover:bg-muted"
-                  onClick={() => setGrnId(g.id)}
+                  onClick={() => setGrnId(g.goodsReceiptId)}
                 >
                   <span className="font-mono text-xs font-semibold">{g.grnNumber}</span>
                   <span className="text-xs text-muted-foreground">
                     {" "}
-                    — {g.receiptDate} — {fmtSAR(g.totalValue)}
+                    — {g.receiptDate}
+                    {g.poNumber ? ` — ${g.poNumber}` : ""} — {g.returnableLineCount} سطر قابل
+                    للإرجاع
                   </span>
                 </button>
               ))}
               {(grnsQ.data?.items?.length ?? 0) === 0 && (
                 <div className="text-xs text-muted-foreground py-2">
-                  لا توجد سندات استلام مُرحَّلة
+                  لا توجد سندات استلام مؤهّلة للإرجاع
                 </div>
               )}
             </div>

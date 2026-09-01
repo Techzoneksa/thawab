@@ -38,6 +38,7 @@ import {
   goodsReceipts,
   goodsReceiptLines,
   purchaseOrders,
+  suppliers,
   inventoryItems,
   stockMovements,
   journalLines,
@@ -48,7 +49,11 @@ import { nextCode } from "./numbering";
 import { hasPermission } from "./auth";
 import { postBalancedEntry, reverseEntry, existingSourceEntryId } from "./gl";
 import { receiptGrniLink, createGrniLink } from "./grni-link";
-import { getGrnLineMatchingPosition, expectedGrniClearValue } from "./invoice-matching";
+import {
+  getGrnLineMatchingPosition,
+  expectedGrniClearValue,
+  lockReceiptCapacity,
+} from "./invoice-matching";
 import { recordWorkflowEvent } from "./finance-workflow";
 import {
   findTransition,
@@ -60,6 +65,9 @@ import { PURCHASE_RETURN_TRANSITIONS } from "@/lib/procurement-permissions";
 import {
   PurchaseReturnStatus as R,
   GoodsReceiptStatus as G,
+  GoodsReceiptStatus,
+  SupplierInvoiceStatus,
+  PurchaseReturnStatus,
   PurchaseOrderLineType,
   StockMovementType,
   JournalStatus,
@@ -396,6 +404,14 @@ export async function transitionPurchaseReturn(
 // ------------------------------- POST -----------------------------------
 
 async function postApprovedReturn(tx: any, ctx: Ctx, id: string) {
+  const head = (
+    await tx.select().from(purchaseReturns).where(eq(purchaseReturns.id, id)).limit(1)
+  )[0] as any;
+  if (!head) throw new AppError("تعذّر الترحيل — تغيّرت حالة المرتجع", 409, "STATE_CONFLICT");
+  // Phase 5B.1 — enter the shared receipt-capacity gate FIRST (before any row
+  // lock) so this return serializes with a concurrent GRN reverse / invoice
+  // matched POST on the same receipt.
+  await lockReceiptCapacity(tx, [head.goodsReceiptId]);
   const locked = (
     await tx.select().from(purchaseReturns).where(eq(purchaseReturns.id, id)).for("update").limit(1)
   )[0] as any;
@@ -565,6 +581,13 @@ async function reversePostedReturn(
   id: string,
   cleanReason: string,
 ): Promise<string> {
+  const head = (
+    await tx.select().from(purchaseReturns).where(eq(purchaseReturns.id, id)).limit(1)
+  )[0] as any;
+  if (!head) throw new AppError("تعذّر العكس — تغيّرت حالة المرتجع", 409, "STATE_CONFLICT");
+  // Phase 5B.1 — this reversal RELEASES receipt capacity; enter the shared gate
+  // FIRST so it serializes with GRN reverse / invoice matched POST on the receipt.
+  await lockReceiptCapacity(tx, [head.goodsReceiptId]);
   const locked = (
     await tx.select().from(purchaseReturns).where(eq(purchaseReturns.id, id)).for("update").limit(1)
   )[0] as any;
@@ -700,9 +723,13 @@ export async function listPurchaseReturns(filters: PurchaseReturnFilters & PageP
     conds.push(eq(purchaseReturns.goodsReceiptId, filters.goodsReceiptId));
   if (filters.supplierId) conds.push(eq(purchaseReturns.supplierId, filters.supplierId));
   if (filters.search) {
+    // Server-side reachability: search across return number, GRN number, PO number
+    // and supplier name — so any return stays discoverable regardless of age (no
+    // client-side "first N" cap). Joined columns are referenced under the same
+    // joins on both the page and the count query.
     const like = `%${filters.search}%`;
     conds.push(
-      sql`(${purchaseReturns.returnNumber} ILIKE ${like} OR ${purchaseReturns.reason} ILIKE ${like})`,
+      sql`(${purchaseReturns.returnNumber} ILIKE ${like} OR ${purchaseReturns.reason} ILIKE ${like} OR ${goodsReceipts.grnNumber} ILIKE ${like} OR ${purchaseOrders.poNumber} ILIKE ${like} OR ${suppliers.name} ILIKE ${like})`,
     );
   }
   const where = conds.length ? and(...conds) : undefined;
@@ -714,6 +741,7 @@ export async function listPurchaseReturns(filters: PurchaseReturnFilters & PageP
       goodsReceiptId: purchaseReturns.goodsReceiptId,
       grnNumber: goodsReceipts.grnNumber,
       supplierId: purchaseReturns.supplierId,
+      supplierName: suppliers.name,
       returnDate: purchaseReturns.returnDate,
       status: purchaseReturns.status,
       totalValue: purchaseReturns.totalValue,
@@ -722,6 +750,7 @@ export async function listPurchaseReturns(filters: PurchaseReturnFilters & PageP
     .from(purchaseReturns)
     .leftJoin(goodsReceipts, eq(purchaseReturns.goodsReceiptId, goodsReceipts.id))
     .leftJoin(purchaseOrders, eq(purchaseReturns.purchaseOrderId, purchaseOrders.id))
+    .leftJoin(suppliers, eq(purchaseReturns.supplierId, suppliers.id))
     .where(where)
     .orderBy(desc(purchaseReturns.returnDate), desc(purchaseReturns.returnNumber))
     .limit(pg.pageSize)
@@ -729,8 +758,78 @@ export async function listPurchaseReturns(filters: PurchaseReturnFilters & PageP
   const totalRow = (await db
     .select({ c: sql<number>`COUNT(*)` })
     .from(purchaseReturns)
+    .leftJoin(goodsReceipts, eq(purchaseReturns.goodsReceiptId, goodsReceipts.id))
+    .leftJoin(purchaseOrders, eq(purchaseReturns.purchaseOrderId, purchaseOrders.id))
+    .leftJoin(suppliers, eq(purchaseReturns.supplierId, suppliers.id))
     .where(where)) as any[];
   return paginatedResult(rows, Number(totalRow[0]?.c || 0), pg);
+}
+
+/**
+ * Bounded + searchable ELIGIBLE-GRN lookup for the return create form. Returns
+ * governed POSTED goods receipts that still have returnable capacity (a line with
+ * received − matched − returned > 0), for the given supplier when fixed. Any such
+ * receipt is discoverable by SERVER SEARCH across GRN number / PO number / receipt
+ * date, regardless of age — no silent "latest N" universe. Bounded (default 20,
+ * max 50); the certified eligibility filters are enforced here and never weakened
+ * by search. POST remains authoritative.
+ */
+export async function eligibleGrnsForReturn(
+  dbh: Db,
+  opts: { supplierId?: string; q?: string; limit?: number } = {},
+) {
+  const limit = Math.min(50, Math.max(1, Math.floor(Number(opts.limit) || 20)));
+  const q = (opts.q || "").trim();
+  const like = `%${q}%`;
+  const fetchWindow = q ? 400 : 120;
+  const rows = (await (dbh as any).execute(sql`
+    WITH cand AS (
+      SELECT gr.id, gr.grn_number, gr.receipt_date, gr.supplier_id, po.po_number
+      FROM goods_receipts gr
+      JOIN purchase_orders po ON po.id = gr.purchase_order_id AND po.governance_mode = 'governed'
+      WHERE gr.status = ${GoodsReceiptStatus.POSTED}
+        ${opts.supplierId ? sql`AND gr.supplier_id = ${opts.supplierId}` : sql``}
+        ${
+          q
+            ? sql`AND (gr.grn_number ILIKE ${like} OR po.po_number ILIKE ${like} OR gr.receipt_date ILIKE ${like})`
+            : sql``
+        }
+      ORDER BY gr.receipt_date DESC, gr.grn_number DESC
+      LIMIT ${fetchWindow}
+    ),
+    line AS (
+      SELECT gl.goods_receipt_id AS grn,
+        (gl.quantity_received
+          - COALESCE((SELECT SUM(a.matched_quantity) FROM supplier_invoice_grn_allocations a
+               JOIN supplier_invoices si ON a.supplier_invoice_id = si.id
+               WHERE a.goods_receipt_line_id = gl.id AND si.status = ${SupplierInvoiceStatus.POSTED}),0)
+          - COALESCE((SELECT SUM(prl.quantity_returned) FROM purchase_return_lines prl
+               JOIN purchase_returns pr ON prl.purchase_return_id = pr.id
+               WHERE prl.goods_receipt_line_id = gl.id AND pr.status = ${PurchaseReturnStatus.POSTED}),0)
+        ) AS remaining
+      FROM goods_receipt_lines gl
+      WHERE gl.goods_receipt_id IN (SELECT id FROM cand)
+    ),
+    ret AS (
+      SELECT grn, COUNT(*) FILTER (WHERE remaining > ${QTY_TOLERANCE}) AS returnable_lines
+      FROM line GROUP BY grn HAVING COUNT(*) FILTER (WHERE remaining > ${QTY_TOLERANCE}) > 0
+    )
+    SELECT c.id, c.grn_number, c.receipt_date, c.supplier_id, c.po_number, r.returnable_lines
+    FROM cand c JOIN ret r ON r.grn = c.id
+    ORDER BY c.receipt_date DESC, c.grn_number DESC
+    LIMIT ${limit}
+  `)) as any;
+  const list = (rows.rows ?? rows ?? []) as any[];
+  return {
+    items: list.map((r) => ({
+      goodsReceiptId: r.id,
+      grnNumber: r.grn_number,
+      receiptDate: r.receipt_date,
+      supplierId: r.supplier_id,
+      poNumber: r.po_number ?? null,
+      returnableLineCount: Number(r.returnable_lines || 0),
+    })),
+  };
 }
 
 /**

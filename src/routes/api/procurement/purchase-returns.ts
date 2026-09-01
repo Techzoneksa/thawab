@@ -24,6 +24,7 @@ import {
   getPurchaseReturnDetail,
   listPurchaseReturns,
   returnableGrnLines,
+  eligibleGrnsForReturn,
 } from "@/server/db/purchase-return";
 
 const createSchema = z.object({
@@ -48,6 +49,15 @@ const transitionSchema = z.object({
 
 async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const url = new URL(request.url);
+  const eligible = url.searchParams.get("eligible");
+  if (eligible)
+    return Response.json(
+      await eligibleGrnsForReturn(db as any, {
+        supplierId: url.searchParams.get("supplierId") || undefined,
+        q: url.searchParams.get("q") || undefined,
+        limit: Number(url.searchParams.get("limit")) || undefined,
+      }),
+    );
   const returnable = url.searchParams.get("returnable");
   if (returnable) return Response.json(await returnableGrnLines(db as any, returnable));
   const id = url.searchParams.get("id");

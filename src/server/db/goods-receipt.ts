@@ -68,6 +68,7 @@ import {
   grnHasActivePostedInvoice,
   grnHasActivePostedReturn,
   receiptMatchSummary,
+  lockReceiptCapacity,
 } from "./invoice-matching";
 import { recordWorkflowEvent } from "./finance-workflow";
 import { LOCK_NS } from "./lock-namespaces";
@@ -789,6 +790,12 @@ async function reversePostedReceipt(
   id: string,
   cleanReason: string,
 ): Promise<string> {
+  // Phase 5B.1 — enter the shared receipt-capacity gate FIRST (before the row
+  // lock) so no receipt-capacity consumer (invoice matched POST / purchase return
+  // POST / return reverse) can commit between the downstream-state checks below
+  // and reverseEntry. Without it a concurrent Return/Invoice POST could commit
+  // after the check, leaving a REVERSED GRN with an active downstream document.
+  await lockReceiptCapacity(tx, [id]);
   const locked = (
     await tx.select().from(goodsReceipts).where(eq(goodsReceipts.id, id)).for("update").limit(1)
   )[0] as any;
