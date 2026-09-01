@@ -13,9 +13,7 @@ const DATABASE_URL = process.env.DATABASE_URL;
 
 if (!DATABASE_URL) {
   // Fail loud and early — there is no SQLite fallback anymore.
-  console.error(
-    "[db] FATAL: DATABASE_URL is not set. Set it to a PostgreSQL connection string.",
-  );
+  console.error("[db] FATAL: DATABASE_URL is not set. Set it to a PostgreSQL connection string.");
 }
 
 let _sql: ReturnType<typeof postgres> | null = null;
@@ -28,6 +26,20 @@ function client() {
       max: 10,
       prepare: false,
       onnotice: () => {},
+      // Resilience against a stuck/leaked transaction that holds a row lock and
+      // would otherwise hang every later write forever (a governance approve/post
+      // spins indefinitely, then the pool exhausts). These GUCs are set per
+      // connection at startup:
+      //  - lock_timeout: a statement WAITING for a lock aborts after 15s (does NOT
+      //    interrupt legitimate long-running work — only lock waits) → the caller
+      //    gets a clear error instead of an infinite hang.
+      //  - idle_in_transaction_session_timeout: Postgres terminates a transaction
+      //    left idle for 60s (a leaked/abandoned txn), releasing its locks so the
+      //    system self-heals without a restart.
+      connection: {
+        lock_timeout: 15000, // ms
+        idle_in_transaction_session_timeout: 60000, // ms
+      },
     });
   }
   return _sql;

@@ -2,6 +2,32 @@ import { JournalStatus as JournalStatusEnum, Fund } from "@/lib/enums";
 
 const API_BASE = "/api/finance/journal";
 
+/**
+ * fetch with a hard timeout. Governance writes (approve/post/reverse) take a row
+ * lock server-side; if a stuck/leaked transaction holds that lock the request can
+ * otherwise hang indefinitely and leave the confirmation dialog spinning forever.
+ * A bounded timeout surfaces a clear, actionable error instead of a dead UI.
+ */
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit = {},
+  ms = 20000,
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(input, { ...init, signal: ctrl.signal });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError")
+      throw new Error(
+        "انتهت مهلة الاتصال بالخادم ولم تكتمل العملية. حدّث الصفحة وحاول مجدداً؛ إن تكرّرت المشكلة فقد تكون هناك عملية معلّقة على الخادم تتطلب إعادة تشغيل التطبيق.",
+      );
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export const JOURNAL_STATUSES = Object.values(JournalStatusEnum);
 export type JournalStatus = (typeof JOURNAL_STATUSES)[number];
 
@@ -217,7 +243,7 @@ export async function journalAction(options: {
   action: JournalWorkflowAction;
   reason?: string;
 }): Promise<JournalEntry> {
-  const res = await fetch(API_BASE, {
+  const res = await fetchWithTimeout(API_BASE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(options),
