@@ -6,15 +6,22 @@
 export type IoType = "journal" | "budget";
 
 // Header (Arabic) ↔ payload key. Order defines the template column order.
+// The journal layout mirrors the client's own template ("استيراد القيود") exactly
+// so a file exported/downloaded here is byte-for-byte importable, and a file the
+// client fills against their template is recognized on upload. "نوع الحساب" and
+// "جهة اتصال/ضريبة/موظف" are informational template columns we round-trip on
+// export but do NOT consume on import (see JOURNAL_PARSE_ALIASES below).
 const JOURNAL_COLUMNS: { header: string; key: string; type?: "number" }[] = [
-  { header: "رقم القيد", key: "number" },
+  { header: "تسلسل القيد", key: "number" },
   { header: "التاريخ", key: "date" },
-  { header: "الوصف", key: "description" },
+  { header: "وصف القيد", key: "description" },
+  { header: "نوع الحساب", key: "accountType" },
   { header: "رمز الحساب", key: "accountCode" },
+  { header: "مركز التكلفة / المشروع", key: "costCenter" },
+  { header: "جهة اتصال/ضريبة/موظف", key: "contact" },
   { header: "مدين", key: "debit", type: "number" },
   { header: "دائن", key: "credit", type: "number" },
-  { header: "مركز التكلفة", key: "costCenter" },
-  { header: "ملاحظات", key: "notes" },
+  { header: "التعليقات", key: "notes" },
 ];
 
 const BUDGET_COLUMNS: { header: string; key: string; type?: "number" }[] = [
@@ -26,9 +33,44 @@ const BUDGET_COLUMNS: { header: string; key: string; type?: "number" }[] = [
   { header: "ملاحظات", key: "notes" },
 ];
 
+// Collapse internal whitespace so header matching tolerates spacing variants
+// (e.g. "مركز التكلفة / المشروع" vs "مركز التكلفة  /المشروع").
+const normHeader = (s: string) => s.trim().replace(/\s+/g, " ");
+
+// Parse-time header recognition. Includes the current client template headers
+// AND legacy headers from older templates, so both upload cleanly. Deliberately
+// omits "نوع الحساب"/"جهة اتصال/ضريبة/موظف": those columns come pre-filled in the
+// client's blank template, and mapping them would make every empty template row
+// look non-empty and spawn "سطر بدون رقم القيد" warnings.
+const JOURNAL_PARSE_ALIASES: Record<string, string> = {
+  // Current client template
+  "تسلسل القيد": "number",
+  التاريخ: "date",
+  "وصف القيد": "description",
+  "رمز الحساب": "accountCode",
+  "مركز التكلفة / المشروع": "costCenter",
+  مدين: "debit",
+  دائن: "credit",
+  التعليقات: "notes",
+  // Legacy headers (older downloaded templates / exports)
+  "رقم القيد": "number",
+  الوصف: "description",
+  "مركز التكلفة": "costCenter",
+  ملاحظات: "notes",
+};
+
+// keyByHeader for WRITING (export + template) — every canonical column has a key.
 const HEADER_MAP: Record<IoType, Record<string, string>> = {
   journal: Object.fromEntries(JOURNAL_COLUMNS.map((c) => [c.header, c.key])),
   budget: Object.fromEntries(BUDGET_COLUMNS.map((c) => [c.header, c.key])),
+};
+
+// Normalized header → key for PARSING an uploaded workbook.
+const PARSE_MAP: Record<IoType, Record<string, string>> = {
+  journal: Object.fromEntries(
+    Object.entries(JOURNAL_PARSE_ALIASES).map(([h, k]) => [normHeader(h), k]),
+  ),
+  budget: Object.fromEntries(BUDGET_COLUMNS.map((c) => [normHeader(c.header), c.key])),
 };
 
 function download(blob: Blob, filename: string) {
@@ -137,23 +179,27 @@ export async function downloadTemplate(type: IoType) {
     type === "journal"
       ? [
           {
-            number: "JV-1",
+            number: "1",
             date: stamp(),
-            description: "قيد افتتاحي",
-            accountCode: "1101",
-            debit: 1000,
-            credit: 0,
+            description: "عمولة بنكية",
+            accountType: "حسابات دفتر الاستاذ",
+            accountCode: "5201",
             costCenter: "",
-            notes: "",
+            contact: "",
+            debit: 15,
+            credit: 0,
+            notes: "رسوم تحويل",
           },
           {
-            number: "JV-1",
+            number: "1",
             date: stamp(),
-            description: "قيد افتتاحي",
-            accountCode: "3101",
-            debit: 0,
-            credit: 1000,
+            description: "عمولة بنكية",
+            accountType: "حسابات دفتر الاستاذ",
+            accountCode: "1101",
             costCenter: "",
+            contact: "",
+            debit: 0,
+            credit: 15,
             notes: "",
           },
         ]
@@ -187,11 +233,11 @@ async function parseRows(file: File, type: IoType): Promise<Record<string, strin
   const ws = wb.worksheets[0];
   if (!ws) throw new Error("الملف لا يحتوي على أوراق عمل");
 
-  const map = HEADER_MAP[type];
+  const map = PARSE_MAP[type];
   const colKey: Record<number, string> = {};
   const headerRow = ws.getRow(1);
   headerRow.eachCell((cell, col) => {
-    const key = map[cellText(cell.value).trim()];
+    const key = map[normHeader(cellText(cell.value))];
     if (key) colKey[col] = key;
   });
   if (Object.keys(colKey).length === 0)
