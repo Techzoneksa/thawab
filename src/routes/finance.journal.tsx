@@ -29,6 +29,7 @@ import {
   Send,
   ThumbsUp,
   Undo2,
+  Upload,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
@@ -39,8 +40,10 @@ import {
   EmptyState,
 } from "@/components/erp/actions";
 import { DocumentActions } from "@/components/documents/DocumentActions";
+import { JournalImportDialog } from "@/components/finance/JournalImportDialog";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
-import { useAuth } from "@/lib/api/auth";
+import { useAuth, useCan } from "@/lib/api/auth";
+import { FINANCE_PERMISSIONS } from "@/lib/finance-permissions";
 import { label, options } from "@/lib/i18n/labels";
 import { JournalStatus } from "@/lib/enums";
 import { getAccounts, type Account } from "@/lib/api/accounts";
@@ -136,7 +139,9 @@ interface DraftLine {
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const can = useCan();
   const navigate = useNavigate();
+  const [importOpen, setImportOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [fundFilter, setFundFilter] = useState("");
@@ -296,6 +301,11 @@ function Page() {
       actions={
         <>
           <DocumentActions document={buildDoc} />
+          {can(FINANCE_PERMISSIONS.importJournal) && (
+            <Btn variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload size={15} /> استيراد Excel
+            </Btn>
+          )}
           <Btn variant="primary" onClick={openAdd}>
             <Plus size={15} /> قيد جديد
           </Btn>
@@ -745,6 +755,16 @@ function Page() {
           </div>
         </div>
       </MobileFilterDrawer>
+
+      <JournalImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          setStatusFilter(JournalStatus.DRAFT);
+          setPage(1);
+          queryClient.invalidateQueries({ queryKey: ["journal"] });
+        }}
+      />
     </AppShell>
   );
 }
