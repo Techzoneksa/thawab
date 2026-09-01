@@ -64,7 +64,11 @@ import {
 import { resolveConfirmedGrniAccount } from "./account-mapping";
 import { accountMappedToAnyCashBank } from "./cash-bank";
 import { linkEntryGrniLine, receiptGrniLink } from "./grni-link";
-import { grnHasActivePostedInvoice, receiptMatchSummary } from "./invoice-matching";
+import {
+  grnHasActivePostedInvoice,
+  grnHasActivePostedReturn,
+  receiptMatchSummary,
+} from "./invoice-matching";
 import { recordWorkflowEvent } from "./finance-workflow";
 import { LOCK_NS } from "./lock-namespaces";
 import {
@@ -800,6 +804,16 @@ async function reversePostedReceipt(
       "لا يمكن عكس سند الاستلام لوجود فاتورة مورد مُرحَّلة مطابِقة له — اعكس الفاتورة أولاً",
       409,
       "GRN_HAS_POSTED_SUPPLIER_INVOICE",
+    );
+
+  // Phase 5B guard: a receipt with an ACTIVE posted Purchase Return must not be
+  // reversed underneath it (the return already cleared part of this receipt's GRNI
+  // and reduced stock). Reverse the return first, then the GRN.
+  if (await grnHasActivePostedReturn(tx, id))
+    throw new AppError(
+      "لا يمكن عكس سند الاستلام لوجود مرتجع مشتريات مُرحَّل عليه — اعكس المرتجع أولاً",
+      409,
+      "GRN_HAS_POSTED_PURCHASE_RETURN",
     );
 
   const grnLines = (await loadGrnLines(tx, id)) as any[];

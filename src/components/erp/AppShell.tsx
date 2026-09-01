@@ -137,6 +137,7 @@ const NAV: NavGroup[] = [
       { to: "/procurement/orders", label: "أوامر الشراء (قديمة)", icon: ShoppingCart },
       { to: "/procurement/purchase-orders", label: "أوامر الشراء", icon: ShoppingCart },
       { to: "/procurement/goods-receipts", label: "سندات الاستلام", icon: PackageCheck },
+      { to: "/procurement/purchase-returns", label: "مرتجعات المشتريات", icon: PackageSearch },
       { to: "/procurement/suppliers", label: "الموردون", icon: Truck },
       { to: "/inventory/warehouses", label: "المستودعات", icon: Warehouse },
       { to: "/inventory/items", label: "الأصناف", icon: Boxes },

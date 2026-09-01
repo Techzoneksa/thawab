@@ -23,8 +23,10 @@ import {
   journalLines,
   journalEntries,
   purchaseOrders,
+  purchaseReturns,
+  purchaseReturnLines,
 } from "./schema";
-import { GoodsReceiptStatus, SupplierInvoiceStatus } from "@/lib/enums";
+import { GoodsReceiptStatus, SupplierInvoiceStatus, PurchaseReturnStatus } from "@/lib/enums";
 
 type Db = { select: (...a: any[]) => any };
 
@@ -34,6 +36,68 @@ const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
 /** Supplier-invoice statuses whose allocations actively consume GRN quantity. */
 const ACTIVE_INVOICE_STATES = [SupplierInvoiceStatus.POSTED];
+/** Purchase-return statuses whose lines actively consume GRN quantity. */
+const ACTIVE_RETURN_STATES = [PurchaseReturnStatus.POSTED];
+
+/**
+ * Phase 5B — Σ returned quantity per GRN line over ACTIVE (POSTED) purchase
+ * returns. A returned quantity consumes the SAME receipt-line capacity as an
+ * invoice match, so invoiceable/returnable = received − matched − returned.
+ * `excludeReturnId` ignores a given return's own lines (under-lock revalidation).
+ */
+export async function returnedQtyByGrnLine(
+  dbh: Db,
+  grnLineIds: string[],
+  opts: { excludeReturnId?: string } = {},
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (!grnLineIds.length) return map;
+  const conds = [
+    inArray(purchaseReturnLines.goodsReceiptLineId, grnLineIds),
+    inArray(purchaseReturns.status, ACTIVE_RETURN_STATES),
+  ];
+  if (opts.excludeReturnId)
+    conds.push(sql`${purchaseReturnLines.purchaseReturnId} <> ${opts.excludeReturnId}`);
+  const rows = (await (dbh as any)
+    .select({
+      grnLineId: purchaseReturnLines.goodsReceiptLineId,
+      qty: purchaseReturnLines.quantityReturned,
+    })
+    .from(purchaseReturnLines)
+    .innerJoin(purchaseReturns, eq(purchaseReturnLines.purchaseReturnId, purchaseReturns.id))
+    .where(and(...conds))) as any[];
+  for (const r of rows) map.set(r.grnLineId, (map.get(r.grnLineId) || 0) + Number(r.qty || 0));
+  return map;
+}
+
+/**
+ * Phase 5B — GRNI value ALREADY CLEARED for a GRN line by ACTIVE (POSTED) purchase
+ * returns — GL-derived (sum of the debit amounts of the return-clearing GRNI
+ * journal lines, link_type='return', on a POSTED purchase_return entry). Mirrors
+ * activeClearedGrniValue for the return side.
+ */
+export async function activeReturnedGrniValue(
+  dbh: Db,
+  goodsReceiptLineId: string,
+  opts: { excludeReturnId?: string } = {},
+): Promise<number> {
+  const conds = [
+    eq(grniJournalLinks.goodsReceiptLineId, goodsReceiptLineId),
+    eq(grniJournalLinks.linkType, "return"),
+    eq(journalEntries.sourceType, "purchase_return"),
+    eq(journalEntries.status, SupplierInvoiceStatus.POSTED),
+  ];
+  if (opts.excludeReturnId) conds.push(sql`${journalEntries.sourceId} <> ${opts.excludeReturnId}`);
+  const r = (
+    await (dbh as any)
+      .select({ v: sql<number>`COALESCE(SUM(${journalLines.debit}),0)` })
+      .from(grniJournalLinks)
+      .innerJoin(journalLines, eq(grniJournalLinks.journalLineId, journalLines.id))
+      .innerJoin(journalEntries, eq(journalLines.journalEntryId, journalEntries.id))
+      .where(and(...conds))
+  )[0] as any;
+  return r2(Number(r?.v || 0));
+}
 
 /**
  * Σ matched quantity per GRN line over ACTIVE (POSTED) supplier invoices. Pass
@@ -110,6 +174,17 @@ export interface GrnLineMatchingPosition {
   activeMatchedQuantity: number;
   /** GRNI value already cleared by active POSTED invoices — GL-derived. */
   activeClearedGrniValue: number;
+  /** Phase 5B — quantity already returned by active POSTED purchase returns. */
+  activeReturnedQuantity: number;
+  /** Phase 5B — GRNI value already cleared by active POSTED returns — GL-derived. */
+  activeReturnedGrniValue: number;
+  /**
+   * Quantity/value CONSUMED = matched (invoices) + returned (returns). Both drain
+   * the same received capacity and clear the same GRNI, so consumers telescope
+   * against one shared truth.
+   */
+  consumedQuantity: number;
+  consumedGrniValue: number;
   remainingQuantity: number;
   remainingGrniValue: number;
   status: "UNMATCHED" | "PARTIAL" | "FULL" | "INTEGRITY_MISMATCH";
@@ -127,7 +202,7 @@ export interface GrnLineMatchingPosition {
 export async function getGrnLineMatchingPosition(
   dbh: Db,
   goodsReceiptLineId: string,
-  opts: { excludeInvoiceId?: string } = {},
+  opts: { excludeInvoiceId?: string; excludeReturnId?: string } = {},
 ): Promise<GrnLineMatchingPosition> {
   const gl = (
     await (dbh as any)
@@ -148,14 +223,22 @@ export async function getGrnLineMatchingPosition(
   ) as number | undefined;
   const activeMatchedQuantity = Number(qMatched || 0);
   const cleared = await activeClearedGrniValue(dbh, goodsReceiptLineId, opts);
+  // Phase 5B — returns consume the SAME capacity and clear the SAME GRNI.
+  const qReturned = (await returnedQtyByGrnLine(dbh, [goodsReceiptLineId], opts)).get(
+    goodsReceiptLineId,
+  ) as number | undefined;
+  const activeReturnedQuantity = Number(qReturned || 0);
+  const returnedValue = await activeReturnedGrniValue(dbh, goodsReceiptLineId, opts);
 
   const receivedQuantity = Number(gl.received || 0);
   const originalPostedGrniValue = r2(Number(gl.lineValue || 0));
-  const remainingQuantity = r2(receivedQuantity - activeMatchedQuantity);
-  const remainingGrniValue = r2(originalPostedGrniValue - cleared);
+  const consumedQuantity = r2(activeMatchedQuantity + activeReturnedQuantity);
+  const consumedGrniValue = r2(cleared + returnedValue);
+  const remainingQuantity = r2(receivedQuantity - consumedQuantity);
+  const remainingGrniValue = r2(originalPostedGrniValue - consumedGrniValue);
 
   let status: GrnLineMatchingPosition["status"];
-  if (activeMatchedQuantity <= QTY_TOLERANCE && Math.abs(cleared) <= MONEY_TOLERANCE)
+  if (consumedQuantity <= QTY_TOLERANCE && Math.abs(consumedGrniValue) <= MONEY_TOLERANCE)
     status = "UNMATCHED";
   else if (remainingQuantity <= QTY_TOLERANCE)
     status = Math.abs(remainingGrniValue) <= MONEY_TOLERANCE ? "FULL" : "INTEGRITY_MISMATCH";
@@ -168,6 +251,10 @@ export async function getGrnLineMatchingPosition(
     originalPostedGrniValue,
     activeMatchedQuantity,
     activeClearedGrniValue: cleared,
+    activeReturnedQuantity,
+    activeReturnedGrniValue: returnedValue,
+    consumedQuantity,
+    consumedGrniValue,
     remainingQuantity,
     remainingGrniValue,
     status,
@@ -193,6 +280,21 @@ export function expectedGrniClearValue(input: {
   if (qAfter >= input.qTotal - QTY_TOLERANCE) return r2(input.vTotal - input.prevValue);
   const target = r2((input.vTotal * qAfter) / input.qTotal);
   return r2(target - input.prevValue);
+}
+
+/** Phase 5B — True if the GRN has any ACTIVE (POSTED) purchase return. */
+export async function grnHasActivePostedReturn(dbh: Db, goodsReceiptId: string): Promise<boolean> {
+  const rows = (await (dbh as any)
+    .select({ id: purchaseReturns.id })
+    .from(purchaseReturns)
+    .where(
+      and(
+        eq(purchaseReturns.goodsReceiptId, goodsReceiptId),
+        inArray(purchaseReturns.status, ACTIVE_RETURN_STATES),
+      ),
+    )
+    .limit(1)) as any[];
+  return rows.length > 0;
 }
 
 /** True if the GRN has any allocation belonging to an ACTIVE (POSTED) invoice. */
@@ -287,20 +389,23 @@ export async function matchableGrnLinesForSupplier(
     .orderBy(desc(goodsReceipts.receiptDate))
     .limit(fetchWindow)) as any[];
 
-  const matched = await matchedQtyByGrnLine(
-    dbh,
-    rows.map((r) => r.grnLineId),
-  );
+  const grnLineIds = rows.map((r) => r.grnLineId);
+  const matched = await matchedQtyByGrnLine(dbh, grnLineIds);
+  const returned = await returnedQtyByGrnLine(dbh, grnLineIds);
   const out: MatchableGrnLine[] = [];
   for (const r of rows) {
     if (out.length >= limit) break; // bound response + per-line GRNI lookups
     const received = Number(r.qty || 0);
     const invoiced = matched.get(r.grnLineId) || 0;
-    const remaining = r2(received - invoiced);
+    // Phase 5B — returned quantity also consumes capacity; a fully returned line
+    // is no longer invoiceable.
+    const returnedQty = returned.get(r.grnLineId) || 0;
+    const remaining = r2(received - invoiced - returnedQty);
     if (remaining <= QTY_TOLERANCE) continue;
     // remainingGrniValue is the EXACT posted line value minus the GL-cleared value
-    // (never qty × price), so partial matching against it can never drift.
+    // (invoices AND returns), never qty × price, so partial matching can't drift.
     const cleared = await activeClearedGrniValue(dbh, r.grnLineId);
+    const returnedVal = await activeReturnedGrniValue(dbh, r.grnLineId);
     out.push({
       goodsReceiptId: r.goodsReceiptId,
       grnNumber: r.grnNumber,
@@ -316,7 +421,7 @@ export async function matchableGrnLinesForSupplier(
       receivedQuantity: received,
       invoicedQuantity: invoiced,
       remainingQuantity: remaining,
-      remainingGrniValue: r2(Number(r.lineValue || 0) - cleared),
+      remainingGrniValue: r2(Number(r.lineValue || 0) - cleared - returnedVal),
     });
   }
   return out;
@@ -338,22 +443,30 @@ export async function receiptMatchSummary(dbh: Db, goodsReceiptId: string) {
     .where(eq(goodsReceiptLines.goodsReceiptId, goodsReceiptId))) as any[];
   let receivedValue = 0;
   let invoicedValue = 0; // EXACT cleared value from GL (never qty × price)
+  let returnedValue = 0; // Phase 5B — GRNI cleared by returns (GL-derived)
   let receivedQty = 0;
   let matchedQty = 0;
+  let returnedQty = 0;
   for (const l of lines) {
     receivedValue = r2(receivedValue + Number(l.lineValue || 0));
     invoicedValue = r2(invoicedValue + (await activeClearedGrniValue(dbh, l.grnLineId)));
+    returnedValue = r2(returnedValue + (await activeReturnedGrniValue(dbh, l.grnLineId)));
     receivedQty = r2(receivedQty + Number(l.qty || 0));
     matchedQty = r2(
       matchedQty + ((await matchedQtyByGrnLine(dbh, [l.grnLineId])).get(l.grnLineId) || 0),
     );
+    returnedQty = r2(
+      returnedQty + ((await returnedQtyByGrnLine(dbh, [l.grnLineId])).get(l.grnLineId) || 0),
+    );
   }
-  const remainingValue = r2(receivedValue - invoicedValue);
-  const remainingQty = r2(receivedQty - matchedQty);
-  // FULL requires BOTH zero remaining quantity AND zero remaining GRNI value.
+  // Remaining = received − invoiced − returned (both consume the same GRNI/capacity).
+  const remainingValue = r2(receivedValue - invoicedValue - returnedValue);
+  const remainingQty = r2(receivedQty - matchedQty - returnedQty);
+  // FULL (no residual GRNI) requires BOTH zero remaining quantity AND zero value.
   return {
     receivedValue,
     invoicedValue,
+    returnedValue,
     remainingValue,
     remainingQuantity: remainingQty,
     fullyInvoiced: remainingQty <= QTY_TOLERANCE && Math.abs(remainingValue) <= MONEY_TOLERANCE,

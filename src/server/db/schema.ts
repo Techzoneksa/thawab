@@ -1231,6 +1231,83 @@ export const grniJournalLinks = pgTable(
   }),
 );
 
+// Phase 5B — governed Purchase Return (مرتجع مشتريات) of UNINVOICED received
+// quantity against a POSTED governed GRN. On POST it books (atomically)
+// Dr GRNI (the receipt's HISTORICAL GRNI account) / Cr the line's HISTORICAL
+// actual receipt debit account, decrements inventory for ITEM lines, and links
+// the GRNI debit line ('return') per receipt line. NEVER touches Accounts
+// Payable, VAT, suppliers.balance, or supplier_journal_links. Returned quantity
+// consumes the SAME receipt-line capacity as invoice matching
+// (matched + returned ≤ received).
+export const purchaseReturns = pgTable(
+  "purchase_returns",
+  {
+    id: text("id").primaryKey(),
+    returnNumber: text("return_number").notNull().unique(), // PRET-2026-000001
+    goodsReceiptId: text("goods_receipt_id")
+      .notNull()
+      .references(() => goodsReceipts.id),
+    purchaseOrderId: text("purchase_order_id").references(() => purchaseOrders.id),
+    supplierId: text("supplier_id").references(() => suppliers.id),
+    returnDate: text("return_date").notNull().default(""),
+    status: text("status").notNull().default("draft"),
+    currency: text("currency").notNull().default("SAR"),
+    totalValue: doublePrecision("total_value").notNull().default(0),
+    reason: text("reason").default(""),
+    journalEntryId: text("journal_entry_id").references(() => journalEntries.id),
+    reversalJournalEntryId: text("reversal_journal_entry_id").references(() => journalEntries.id),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+    submittedBy: text("submitted_by").references(() => users.id),
+    submittedAt: text("submitted_at"),
+    approvedBy: text("approved_by").references(() => users.id),
+    approvedAt: text("approved_at"),
+    postedBy: text("posted_by").references(() => users.id),
+    postedAt: text("posted_at"),
+    reversedBy: text("reversed_by").references(() => users.id),
+    reversedAt: text("reversed_at"),
+    reversalReason: text("reversal_reason"),
+  },
+  (t) => ({
+    numberIdx: uniqueIndex("purchase_returns_number_idx").on(t.returnNumber),
+    journalIdx: uniqueIndex("purchase_returns_journal_entry_idx").on(t.journalEntryId),
+    grnIdx: index("purchase_returns_grn_idx").on(t.goodsReceiptId),
+    statusIdx: index("purchase_returns_status_idx").on(t.status),
+    supplierIdx: index("purchase_returns_supplier_idx").on(t.supplierId),
+  }),
+);
+
+export const purchaseReturnLines = pgTable(
+  "purchase_return_lines",
+  {
+    id: text("id").primaryKey(),
+    purchaseReturnId: text("purchase_return_id")
+      .notNull()
+      .references(() => purchaseReturns.id, { onDelete: "cascade" }),
+    goodsReceiptLineId: text("goods_receipt_line_id")
+      .notNull()
+      .references(() => goodsReceiptLines.id),
+    lineNumber: integer("line_number").notNull().default(1),
+    lineType: text("line_type").notNull().default("ITEM"),
+    description: text("description").default(""),
+    itemId: text("item_id").references(() => inventoryItems.id),
+    // The HISTORICAL actual receipt debit account credited back on the return.
+    accountId: text("account_id").references(() => accounts.id),
+    quantityReturned: doublePrecision("quantity_returned").notNull().default(0),
+    // The GRNI value cleared by this return line (telescoped, never qty × price).
+    lineValue: doublePrecision("line_value").notNull().default(0),
+    costCenterId: text("cost_center_id").references(() => costCenters.id),
+    stockMovementId: text("stock_movement_id"), // set for ITEM returns (one OUT movement)
+    createdAt: text("created_at").notNull().default(""),
+  },
+  (t) => ({
+    returnIdx: index("purchase_return_lines_return_idx").on(t.purchaseReturnId),
+    grnLineIdx: index("purchase_return_lines_grn_line_idx").on(t.goodsReceiptLineId),
+    qtyPositive: check("purchase_return_lines_qty_positive", drizzleSql`${t.quantityReturned} > 0`),
+  }),
+);
+
 export const quotes = pgTable("quotes", {
   id: text("id").primaryKey(),
   requestId: text("request_id").references(() => purchaseRequests.id),

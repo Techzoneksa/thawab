@@ -305,11 +305,15 @@ export async function validateInvoice(
       const grniAccountId = link.accountId as string;
 
       // Authoritative quantity + monetary position (GL-derived, excl this invoice).
+      // Phase 5B — CONSUMED = matched (invoices) + returned (purchase returns): an
+      // invoice and a return share the receipt-line capacity and the same GRNI, so
+      // matched + returned + this line ≤ received, and clearing telescopes against
+      // the combined prior consumption.
       const pos = await getGrnLineMatchingPosition(dbh, grnLine.id, {
         excludeInvoiceId: opts.invoiceId,
       });
-      const prevQty = pos.activeMatchedQuantity + (priorInThisInvoice.get(grnLine.id) || 0);
-      const prevValue = pos.activeClearedGrniValue + (priorValueInThisInvoice.get(grnLine.id) || 0);
+      const prevQty = pos.consumedQuantity + (priorInThisInvoice.get(grnLine.id) || 0);
+      const prevValue = pos.consumedGrniValue + (priorValueInThisInvoice.get(grnLine.id) || 0);
       const qTotal = pos.receivedQuantity;
       const vTotal = pos.originalPostedGrniValue;
 

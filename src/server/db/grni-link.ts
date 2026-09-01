@@ -69,7 +69,8 @@ export async function createGrniLink(
     goodsReceiptId: string;
     journalLineId: string;
     goodsReceiptLineId?: string | null;
-    linkType?: "receipt" | "reversal" | "invoice" | "invoice_reversal";
+    linkType?:
+      "receipt" | "reversal" | "invoice" | "invoice_reversal" | "return" | "return_reversal";
     expectedAccountId?: string | null;
     expectedReversedOf?: string | null;
     userId?: string | null;
@@ -109,6 +110,14 @@ export async function createGrniLink(
   } else if (linkType === "invoice") {
     if (entry.sourceType !== "supplier_invoice")
       throw new AppError("قيد الإقفال ليس قيد فاتورة مورد", 400, "LINK_ENTRY_MISMATCH");
+  } else if (linkType === "return") {
+    // Phase 5B — a Purchase Return posting that clears this receipt's GRNI.
+    if (entry.sourceType !== "purchase_return")
+      throw new AppError("قيد الإقفال ليس قيد مرتجع مشتريات", 400, "LINK_ENTRY_MISMATCH");
+  } else if (linkType === "return_reversal") {
+    // The mirror of the clearing return's posting.
+    if (entry.sourceType !== "reversal" || entry.reversedOf !== (input.expectedReversedOf ?? null))
+      throw new AppError("قيد عكس المرتجع لا يخص هذا الإقفال", 400, "LINK_ENTRY_MISMATCH");
   } else {
     // invoice_reversal — the mirror of the clearing invoice's posting.
     if (entry.sourceType !== "reversal" || entry.reversedOf !== (input.expectedReversedOf ?? null))

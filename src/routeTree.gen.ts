@@ -50,6 +50,7 @@ import { Route as ProjectsIdRouteImport } from './routes/projects_.$id'
 import { Route as ProcurementSuppliersRouteImport } from './routes/procurement.suppliers'
 import { Route as ProcurementRequestsRouteImport } from './routes/procurement.requests'
 import { Route as ProcurementQuotesRouteImport } from './routes/procurement.quotes'
+import { Route as ProcurementPurchaseReturnsRouteImport } from './routes/procurement.purchase-returns'
 import { Route as ProcurementPurchaseOrdersRouteImport } from './routes/procurement.purchase-orders'
 import { Route as ProcurementOrdersRouteImport } from './routes/procurement.orders'
 import { Route as ProcurementGoodsReceiptsRouteImport } from './routes/procurement.goods-receipts'
@@ -160,6 +161,7 @@ import { Route as ApiReportsSavedRouteImport } from './routes/api/reports/saved'
 import { Route as ApiProcurementSuppliersRouteImport } from './routes/api/procurement/suppliers'
 import { Route as ApiProcurementRequestsRouteImport } from './routes/api/procurement/requests'
 import { Route as ApiProcurementQuotesRouteImport } from './routes/api/procurement/quotes'
+import { Route as ApiProcurementPurchaseReturnsRouteImport } from './routes/api/procurement/purchase-returns'
 import { Route as ApiProcurementPurchaseOrdersRouteImport } from './routes/api/procurement/purchase-orders'
 import { Route as ApiProcurementOrdersRouteImport } from './routes/api/procurement/orders'
 import { Route as ApiProcurementGoodsReceiptsRouteImport } from './routes/api/procurement/goods-receipts'
@@ -416,6 +418,12 @@ const ProcurementQuotesRoute = ProcurementQuotesRouteImport.update({
   path: '/procurement/quotes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProcurementPurchaseReturnsRoute =
+  ProcurementPurchaseReturnsRouteImport.update({
+    id: '/procurement/purchase-returns',
+    path: '/procurement/purchase-returns',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ProcurementPurchaseOrdersRoute =
   ProcurementPurchaseOrdersRouteImport.update({
     id: '/procurement/purchase-orders',
@@ -968,6 +976,12 @@ const ApiProcurementQuotesRoute = ApiProcurementQuotesRouteImport.update({
   path: '/api/procurement/quotes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProcurementPurchaseReturnsRoute =
+  ApiProcurementPurchaseReturnsRouteImport.update({
+    id: '/api/procurement/purchase-returns',
+    path: '/api/procurement/purchase-returns',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiProcurementPurchaseOrdersRoute =
   ApiProcurementPurchaseOrdersRouteImport.update({
     id: '/api/procurement/purchase-orders',
@@ -1334,6 +1348,7 @@ export interface FileRoutesByFullPath {
   '/procurement/goods-receipts': typeof ProcurementGoodsReceiptsRoute
   '/procurement/orders': typeof ProcurementOrdersRoute
   '/procurement/purchase-orders': typeof ProcurementPurchaseOrdersRoute
+  '/procurement/purchase-returns': typeof ProcurementPurchaseReturnsRoute
   '/procurement/quotes': typeof ProcurementQuotesRoute
   '/procurement/requests': typeof ProcurementRequestsRoute
   '/procurement/suppliers': typeof ProcurementSuppliersRoute
@@ -1375,6 +1390,7 @@ export interface FileRoutesByFullPath {
   '/api/procurement/goods-receipts': typeof ApiProcurementGoodsReceiptsRoute
   '/api/procurement/orders': typeof ApiProcurementOrdersRoute
   '/api/procurement/purchase-orders': typeof ApiProcurementPurchaseOrdersRoute
+  '/api/procurement/purchase-returns': typeof ApiProcurementPurchaseReturnsRoute
   '/api/procurement/quotes': typeof ApiProcurementQuotesRoute
   '/api/procurement/requests': typeof ApiProcurementRequestsRoute
   '/api/procurement/suppliers': typeof ApiProcurementSuppliersRoute
@@ -1537,6 +1553,7 @@ export interface FileRoutesByTo {
   '/procurement/goods-receipts': typeof ProcurementGoodsReceiptsRoute
   '/procurement/orders': typeof ProcurementOrdersRoute
   '/procurement/purchase-orders': typeof ProcurementPurchaseOrdersRoute
+  '/procurement/purchase-returns': typeof ProcurementPurchaseReturnsRoute
   '/procurement/quotes': typeof ProcurementQuotesRoute
   '/procurement/requests': typeof ProcurementRequestsRoute
   '/procurement/suppliers': typeof ProcurementSuppliersRoute
@@ -1578,6 +1595,7 @@ export interface FileRoutesByTo {
   '/api/procurement/goods-receipts': typeof ApiProcurementGoodsReceiptsRoute
   '/api/procurement/orders': typeof ApiProcurementOrdersRoute
   '/api/procurement/purchase-orders': typeof ApiProcurementPurchaseOrdersRoute
+  '/api/procurement/purchase-returns': typeof ApiProcurementPurchaseReturnsRoute
   '/api/procurement/quotes': typeof ApiProcurementQuotesRoute
   '/api/procurement/requests': typeof ApiProcurementRequestsRoute
   '/api/procurement/suppliers': typeof ApiProcurementSuppliersRoute
@@ -1741,6 +1759,7 @@ export interface FileRoutesById {
   '/procurement/goods-receipts': typeof ProcurementGoodsReceiptsRoute
   '/procurement/orders': typeof ProcurementOrdersRoute
   '/procurement/purchase-orders': typeof ProcurementPurchaseOrdersRoute
+  '/procurement/purchase-returns': typeof ProcurementPurchaseReturnsRoute
   '/procurement/quotes': typeof ProcurementQuotesRoute
   '/procurement/requests': typeof ProcurementRequestsRoute
   '/procurement/suppliers': typeof ProcurementSuppliersRoute
@@ -1782,6 +1801,7 @@ export interface FileRoutesById {
   '/api/procurement/goods-receipts': typeof ApiProcurementGoodsReceiptsRoute
   '/api/procurement/orders': typeof ApiProcurementOrdersRoute
   '/api/procurement/purchase-orders': typeof ApiProcurementPurchaseOrdersRoute
+  '/api/procurement/purchase-returns': typeof ApiProcurementPurchaseReturnsRoute
   '/api/procurement/quotes': typeof ApiProcurementQuotesRoute
   '/api/procurement/requests': typeof ApiProcurementRequestsRoute
   '/api/procurement/suppliers': typeof ApiProcurementSuppliersRoute
@@ -1946,6 +1966,7 @@ export interface FileRouteTypes {
     | '/procurement/goods-receipts'
     | '/procurement/orders'
     | '/procurement/purchase-orders'
+    | '/procurement/purchase-returns'
     | '/procurement/quotes'
     | '/procurement/requests'
     | '/procurement/suppliers'
@@ -1987,6 +2008,7 @@ export interface FileRouteTypes {
     | '/api/procurement/goods-receipts'
     | '/api/procurement/orders'
     | '/api/procurement/purchase-orders'
+    | '/api/procurement/purchase-returns'
     | '/api/procurement/quotes'
     | '/api/procurement/requests'
     | '/api/procurement/suppliers'
@@ -2149,6 +2171,7 @@ export interface FileRouteTypes {
     | '/procurement/goods-receipts'
     | '/procurement/orders'
     | '/procurement/purchase-orders'
+    | '/procurement/purchase-returns'
     | '/procurement/quotes'
     | '/procurement/requests'
     | '/procurement/suppliers'
@@ -2190,6 +2213,7 @@ export interface FileRouteTypes {
     | '/api/procurement/goods-receipts'
     | '/api/procurement/orders'
     | '/api/procurement/purchase-orders'
+    | '/api/procurement/purchase-returns'
     | '/api/procurement/quotes'
     | '/api/procurement/requests'
     | '/api/procurement/suppliers'
@@ -2352,6 +2376,7 @@ export interface FileRouteTypes {
     | '/procurement/goods-receipts'
     | '/procurement/orders'
     | '/procurement/purchase-orders'
+    | '/procurement/purchase-returns'
     | '/procurement/quotes'
     | '/procurement/requests'
     | '/procurement/suppliers'
@@ -2393,6 +2418,7 @@ export interface FileRouteTypes {
     | '/api/procurement/goods-receipts'
     | '/api/procurement/orders'
     | '/api/procurement/purchase-orders'
+    | '/api/procurement/purchase-returns'
     | '/api/procurement/quotes'
     | '/api/procurement/requests'
     | '/api/procurement/suppliers'
@@ -2555,6 +2581,7 @@ export interface RootRouteChildren {
   ProcurementGoodsReceiptsRoute: typeof ProcurementGoodsReceiptsRoute
   ProcurementOrdersRoute: typeof ProcurementOrdersRoute
   ProcurementPurchaseOrdersRoute: typeof ProcurementPurchaseOrdersRoute
+  ProcurementPurchaseReturnsRoute: typeof ProcurementPurchaseReturnsRoute
   ProcurementQuotesRoute: typeof ProcurementQuotesRoute
   ProcurementRequestsRoute: typeof ProcurementRequestsRoute
   ProcurementSuppliersRoute: typeof ProcurementSuppliersRoute
@@ -2595,6 +2622,7 @@ export interface RootRouteChildren {
   ApiProcurementGoodsReceiptsRoute: typeof ApiProcurementGoodsReceiptsRoute
   ApiProcurementOrdersRoute: typeof ApiProcurementOrdersRoute
   ApiProcurementPurchaseOrdersRoute: typeof ApiProcurementPurchaseOrdersRoute
+  ApiProcurementPurchaseReturnsRoute: typeof ApiProcurementPurchaseReturnsRoute
   ApiProcurementQuotesRoute: typeof ApiProcurementQuotesRoute
   ApiProcurementRequestsRoute: typeof ApiProcurementRequestsRoute
   ApiProcurementSuppliersRoute: typeof ApiProcurementSuppliersRoute
@@ -2948,6 +2976,13 @@ declare module '@tanstack/react-router' {
       path: '/procurement/quotes'
       fullPath: '/procurement/quotes'
       preLoaderRoute: typeof ProcurementQuotesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/procurement/purchase-returns': {
+      id: '/procurement/purchase-returns'
+      path: '/procurement/purchase-returns'
+      fullPath: '/procurement/purchase-returns'
+      preLoaderRoute: typeof ProcurementPurchaseReturnsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/procurement/purchase-orders': {
@@ -3720,6 +3755,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProcurementQuotesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/procurement/purchase-returns': {
+      id: '/api/procurement/purchase-returns'
+      path: '/api/procurement/purchase-returns'
+      fullPath: '/api/procurement/purchase-returns'
+      preLoaderRoute: typeof ApiProcurementPurchaseReturnsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/procurement/purchase-orders': {
       id: '/api/procurement/purchase-orders'
       path: '/api/procurement/purchase-orders'
@@ -4191,6 +4233,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProcurementGoodsReceiptsRoute: ProcurementGoodsReceiptsRoute,
   ProcurementOrdersRoute: ProcurementOrdersRoute,
   ProcurementPurchaseOrdersRoute: ProcurementPurchaseOrdersRoute,
+  ProcurementPurchaseReturnsRoute: ProcurementPurchaseReturnsRoute,
   ProcurementQuotesRoute: ProcurementQuotesRoute,
   ProcurementRequestsRoute: ProcurementRequestsRoute,
   ProcurementSuppliersRoute: ProcurementSuppliersRoute,
@@ -4231,6 +4274,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProcurementGoodsReceiptsRoute: ApiProcurementGoodsReceiptsRoute,
   ApiProcurementOrdersRoute: ApiProcurementOrdersRoute,
   ApiProcurementPurchaseOrdersRoute: ApiProcurementPurchaseOrdersRoute,
+  ApiProcurementPurchaseReturnsRoute: ApiProcurementPurchaseReturnsRoute,
   ApiProcurementQuotesRoute: ApiProcurementQuotesRoute,
   ApiProcurementRequestsRoute: ApiProcurementRequestsRoute,
   ApiProcurementSuppliersRoute: ApiProcurementSuppliersRoute,

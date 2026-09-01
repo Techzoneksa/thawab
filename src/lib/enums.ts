@@ -390,6 +390,19 @@ export const GoodsReceiptStatus = {
 } as const;
 export type GoodsReceiptStatus = (typeof GoodsReceiptStatus)[keyof typeof GoodsReceiptStatus];
 
+// Phase 5B — governed Purchase Return (مرتجع مشتريات) of UNINVOICED received
+// quantity. Same governed lifecycle as GRN. Only POSTED/REVERSED touch the GL,
+// the GRNI subledger and inventory.
+export const PurchaseReturnStatus = {
+  DRAFT: "draft",
+  SUBMITTED: "submitted",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+  POSTED: "posted",
+  REVERSED: "reversed",
+} as const;
+export type PurchaseReturnStatus = (typeof PurchaseReturnStatus)[keyof typeof PurchaseReturnStatus];
+
 export const QuoteStatus = {
   PENDING: "pending",
   ACCEPTED: "accepted",

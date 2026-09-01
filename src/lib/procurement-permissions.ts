@@ -13,7 +13,11 @@
  * and `*.action`). They are deliberately granular so submit ≠ approve ≠ issue ≠
  * cancel, and none imply supplier-master mutation or Supplier Invoice posting.
  */
-import { PurchaseOrderGovernedStatus as S, GoodsReceiptStatus as G } from "./enums";
+import {
+  PurchaseOrderGovernedStatus as S,
+  GoodsReceiptStatus as G,
+  PurchaseReturnStatus as R,
+} from "./enums";
 import type { Transition } from "./finance-permissions";
 
 export const PROCUREMENT_PERMISSIONS = {
@@ -46,6 +50,21 @@ export const PROCUREMENT_PERMISSIONS = {
   // receipts, matched values). Minimal, read-only. Actually clearing GRNI still
   // requires finance.supplier_invoice.post — this never grants posting authority.
   matchingView: "procurement.matching.view",
+
+  // Phase 5B — governed Purchase Returns of UNINVOICED received quantity. Granular
+  // full governance lifecycle so create ≠ submit ≠ approve ≠ reject ≠ post ≠
+  // reverse. Only POST books Dr GRNI / Cr (historical receipt debit account) +
+  // reduces inventory; approval has ZERO accounting/inventory effect. NEVER
+  // touches Accounts Payable, VAT, or suppliers.balance.
+  returnView: "procurement.purchase_return.view",
+  returnCreate: "procurement.purchase_return.create",
+  returnUpdateDraft: "procurement.purchase_return.update_draft",
+  returnSubmit: "procurement.purchase_return.submit",
+  returnApprove: "procurement.purchase_return.approve",
+  returnReject: "procurement.purchase_return.reject",
+  returnPost: "procurement.purchase_return.post",
+  returnReverse: "procurement.purchase_return.reverse",
+  returnAuditView: "procurement.purchase_return.audit.view",
 } as const;
 
 export type ProcurementPermission =
@@ -134,6 +153,100 @@ export const PROCUREMENT_PERM_GROUPS: ProcurementPermGroup[] = [
         desc: "عرض المطابقات والاستلامات القابلة للفوترة والقيم المطابَقة — لا يمنح صلاحية الترحيل/الإقفال",
       },
     ],
+  },
+  {
+    key: "procurement-purchase-returns",
+    label: "المشتريات — مرتجعات المشتريات",
+    perms: [
+      { key: PROCUREMENT_PERMISSIONS.returnView, label: "عرض مرتجعات المشتريات" },
+      {
+        key: PROCUREMENT_PERMISSIONS.returnCreate,
+        label: "إنشاء مرتجع مشتريات (مسودة)",
+        desc: "إنشاء مسودة مرتجع للكمية المستلمة غير المفوترة، بدون أثر محاسبي أو مخزني",
+      },
+      { key: PROCUREMENT_PERMISSIONS.returnUpdateDraft, label: "تعديل مسودة مرتجع مشتريات" },
+      { key: PROCUREMENT_PERMISSIONS.returnSubmit, label: "إرسال مرتجع مشتريات للاعتماد" },
+      {
+        key: PROCUREMENT_PERMISSIONS.returnApprove,
+        label: "اعتماد مرتجع مشتريات",
+        desc: "مراجعة واعتماد المرتجع المُرسَل (لا يُنشئ أي قيد أو حركة مخزون)",
+      },
+      {
+        key: PROCUREMENT_PERMISSIONS.returnReject,
+        label: "إعادة / رفض مرتجع مشتريات",
+        desc: "إعادة المرتجع للمسودة أو رفضه بسبب",
+      },
+      {
+        key: PROCUREMENT_PERMISSIONS.returnPost,
+        label: "ترحيل مرتجع مشتريات",
+        desc: "ترحيل المرتجع: مدين بضاعة مستلمة لم تُفوتر / دائن حساب الاستلام الأصلي + تخفيض المخزون — لا يمس الذمم الدائنة أو الضريبة",
+      },
+      {
+        key: PROCUREMENT_PERMISSIONS.returnReverse,
+        label: "عكس مرتجع مشتريات",
+        desc: "يعكس القيد وربط أستاذ GRNI ويعيد المخزون والسعة القابلة للفوترة",
+      },
+      { key: PROCUREMENT_PERMISSIONS.returnAuditView, label: "عرض سجل تدقيق مرتجعات المشتريات" },
+    ],
+  },
+];
+
+/**
+ * Phase 5B — governed Purchase Return state matrix. Identical certified
+ * governance engine and JournalAction verbs as the GRN.
+ *   DRAFT → SUBMITTED → APPROVED → POSTED,  POSTED → REVERSED,
+ *   SUBMITTED → DRAFT (return),  SUBMITTED → REJECTED,  APPROVED → DRAFT (return).
+ * Only POST books the GL (Dr GRNI / Cr historical receipt debit), the GRNI
+ * subledger 'return' link and the inventory decrement; only REVERSE unwinds them.
+ * Approval is maker-checker-blocked and has ZERO accounting/inventory effect.
+ */
+export const PURCHASE_RETURN_TRANSITIONS: Transition[] = [
+  {
+    from: R.DRAFT,
+    action: "submit",
+    to: R.SUBMITTED,
+    permission: PROCUREMENT_PERMISSIONS.returnSubmit,
+  },
+  {
+    from: R.SUBMITTED,
+    action: "approve",
+    to: R.APPROVED,
+    permission: PROCUREMENT_PERMISSIONS.returnApprove,
+    makerCheckerBlocked: true,
+  },
+  {
+    from: R.SUBMITTED,
+    action: "return",
+    to: R.DRAFT,
+    permission: PROCUREMENT_PERMISSIONS.returnReject,
+    reasonRequired: true,
+  },
+  {
+    from: R.SUBMITTED,
+    action: "reject",
+    to: R.REJECTED,
+    permission: PROCUREMENT_PERMISSIONS.returnReject,
+    reasonRequired: true,
+  },
+  {
+    from: R.APPROVED,
+    action: "return",
+    to: R.DRAFT,
+    permission: PROCUREMENT_PERMISSIONS.returnReject,
+    reasonRequired: true,
+  },
+  {
+    from: R.APPROVED,
+    action: "post",
+    to: R.POSTED,
+    permission: PROCUREMENT_PERMISSIONS.returnPost,
+  },
+  {
+    from: R.POSTED,
+    action: "reverse",
+    to: R.REVERSED,
+    permission: PROCUREMENT_PERMISSIONS.returnReverse,
+    reasonRequired: true,
   },
 ];
 
