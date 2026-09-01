@@ -25,6 +25,11 @@ export const SYS = {
   AID_EXPENSE: "aid_expense",
   INKIND_AID: "inkind_aid",
   ACCOUNTS_PAYABLE: "accounts_payable",
+  // Accounts Receivable control (ذمم مدينة — عملاء) — an ASSET debited by a posted
+  // Sales Invoice (Phase Sales-1) and reduced by a customer receipt allocated to
+  // it. The customer subledger (customer_journal_links) is reconciled to THIS
+  // control account. Resolved by systemKey, never a hardcoded account number.
+  ACCOUNTS_RECEIVABLE: "accounts_receivable",
   // Recoverable input VAT (ضريبة القيمة المضافة — مدخلات) — an ASSET receivable
   // from ZATCA. Resolved by systemKey, never by a hardcoded account number.
   INPUT_VAT: "input_vat",

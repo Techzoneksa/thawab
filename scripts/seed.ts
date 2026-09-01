@@ -107,6 +107,9 @@ const COA: Row[] = [
   ["110204", "البنك — حساب الأوقاف", "asset", true],
   ["1103", "الذمم المدينة والسُّلف", "asset", false],
   ["110301", "ذمم مدينة — جهات مانحة", "asset", true],
+  // Phase Sales-1 — Accounts Receivable control account (customers). The customer
+  // AR subledger reconciles to THIS account; a posted Sales Invoice debits it.
+  ["110307", "ذمم مدينة — عملاء", "asset", true, "accounts_receivable"],
   ["110302", "سلف وعُهد الموظفين", "asset", true],
   ["110303", "مصروفات مدفوعة مقدماً", "asset", true],
   ["110304", "إيرادات مستحقة القبض", "asset", true],

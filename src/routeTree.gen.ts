@@ -68,15 +68,18 @@ import { Route as FinanceSuppliersRouteImport } from './routes/finance.suppliers
 import { Route as FinanceSupplierPaymentsRouteImport } from './routes/finance.supplier-payments'
 import { Route as FinanceSupplierInvoicesRouteImport } from './routes/finance.supplier-invoices'
 import { Route as FinanceStatementsRouteImport } from './routes/finance.statements'
+import { Route as FinanceSalesInvoicesRouteImport } from './routes/finance.sales-invoices'
 import { Route as FinanceReceiptVouchersRouteImport } from './routes/finance.receipt-vouchers'
 import { Route as FinancePaymentVouchersRouteImport } from './routes/finance.payment-vouchers'
 import { Route as FinanceOpeningBalanceRouteImport } from './routes/finance.opening-balance'
 import { Route as FinanceLedgerRouteImport } from './routes/finance.ledger'
 import { Route as FinanceJournalRouteImport } from './routes/finance.journal'
+import { Route as FinanceCustomersRouteImport } from './routes/finance.customers'
 import { Route as FinanceCostCentersRouteImport } from './routes/finance.cost-centers'
 import { Route as FinanceClosingRouteImport } from './routes/finance.closing'
 import { Route as FinanceCashBankRouteImport } from './routes/finance.cash-bank'
 import { Route as FinanceBudgetsRouteImport } from './routes/finance.budgets'
+import { Route as FinanceArAgingRouteImport } from './routes/finance.ar-aging'
 import { Route as FinanceApAgingRouteImport } from './routes/finance.ap-aging'
 import { Route as FinanceAccountsRouteImport } from './routes/finance.accounts'
 import { Route as FinanceAccountMappingsRouteImport } from './routes/finance.account-mappings'
@@ -172,16 +175,19 @@ import { Route as ApiHrPayrollRouteImport } from './routes/api/hr/payroll'
 import { Route as ApiFinanceSuppliersRouteImport } from './routes/api/finance/suppliers'
 import { Route as ApiFinanceSupplierInvoicesRouteImport } from './routes/api/finance/supplier-invoices'
 import { Route as ApiFinanceStatementsRouteImport } from './routes/api/finance/statements'
+import { Route as ApiFinanceSalesInvoicesRouteImport } from './routes/api/finance/sales-invoices'
 import { Route as ApiFinanceReceiptVouchersRouteImport } from './routes/api/finance/receipt-vouchers'
 import { Route as ApiFinancePeriodsRouteImport } from './routes/api/finance/periods'
 import { Route as ApiFinancePaymentVouchersRouteImport } from './routes/api/finance/payment-vouchers'
 import { Route as ApiFinanceOpeningBalanceRouteImport } from './routes/api/finance/opening-balance'
 import { Route as ApiFinanceLedgerRouteImport } from './routes/api/finance/ledger'
 import { Route as ApiFinanceJournalRouteImport } from './routes/api/finance/journal'
+import { Route as ApiFinanceCustomersRouteImport } from './routes/api/finance/customers'
 import { Route as ApiFinanceCostCentersRouteImport } from './routes/api/finance/cost-centers'
 import { Route as ApiFinanceCashboxesRouteImport } from './routes/api/finance/cashboxes'
 import { Route as ApiFinanceBudgetsRouteImport } from './routes/api/finance/budgets'
 import { Route as ApiFinanceBankAccountsRouteImport } from './routes/api/finance/bank-accounts'
+import { Route as ApiFinanceArAgingRouteImport } from './routes/api/finance/ar-aging'
 import { Route as ApiFinanceApAllocationRouteImport } from './routes/api/finance/ap-allocation'
 import { Route as ApiFinanceApAgingRouteImport } from './routes/api/finance/ap-aging'
 import { Route as ApiFinanceAccountsRouteImport } from './routes/api/finance/accounts'
@@ -204,6 +210,7 @@ import { Route as InventoryStocktakeIdEditRouteImport } from './routes/inventory
 import { Route as InventoryItemsIdEditRouteImport } from './routes/inventory.items_.$id_.edit'
 import { Route as HrPayrollIdEditRouteImport } from './routes/hr.payroll_.$id_.edit'
 import { Route as FinanceSupplierInvoicesIdPrintRouteImport } from './routes/finance.supplier-invoices_.$id.print'
+import { Route as FinanceSalesInvoicesIdPrintRouteImport } from './routes/finance.sales-invoices_.$id.print'
 import { Route as FinanceReceiptVouchersIdPrintRouteImport } from './routes/finance.receipt-vouchers_.$id.print'
 import { Route as FinancePaymentVouchersIdPrintRouteImport } from './routes/finance.payment-vouchers_.$id.print'
 import { Route as FinanceJournalIdEditRouteImport } from './routes/finance.journal_.$id_.edit'
@@ -511,6 +518,11 @@ const FinanceStatementsRoute = FinanceStatementsRouteImport.update({
   path: '/finance/statements',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FinanceSalesInvoicesRoute = FinanceSalesInvoicesRouteImport.update({
+  id: '/finance/sales-invoices',
+  path: '/finance/sales-invoices',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FinanceReceiptVouchersRoute = FinanceReceiptVouchersRouteImport.update({
   id: '/finance/receipt-vouchers',
   path: '/finance/receipt-vouchers',
@@ -536,6 +548,11 @@ const FinanceJournalRoute = FinanceJournalRouteImport.update({
   path: '/finance/journal',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FinanceCustomersRoute = FinanceCustomersRouteImport.update({
+  id: '/finance/customers',
+  path: '/finance/customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FinanceCostCentersRoute = FinanceCostCentersRouteImport.update({
   id: '/finance/cost-centers',
   path: '/finance/cost-centers',
@@ -554,6 +571,11 @@ const FinanceCashBankRoute = FinanceCashBankRouteImport.update({
 const FinanceBudgetsRoute = FinanceBudgetsRouteImport.update({
   id: '/finance/budgets',
   path: '/finance/budgets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FinanceArAgingRoute = FinanceArAgingRouteImport.update({
+  id: '/finance/ar-aging',
+  path: '/finance/ar-aging',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FinanceApAgingRoute = FinanceApAgingRouteImport.update({
@@ -1035,6 +1057,11 @@ const ApiFinanceStatementsRoute = ApiFinanceStatementsRouteImport.update({
   path: '/api/finance/statements',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFinanceSalesInvoicesRoute = ApiFinanceSalesInvoicesRouteImport.update({
+  id: '/api/finance/sales-invoices',
+  path: '/api/finance/sales-invoices',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiFinanceReceiptVouchersRoute =
   ApiFinanceReceiptVouchersRouteImport.update({
     id: '/api/finance/receipt-vouchers',
@@ -1068,6 +1095,11 @@ const ApiFinanceJournalRoute = ApiFinanceJournalRouteImport.update({
   path: '/api/finance/journal',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFinanceCustomersRoute = ApiFinanceCustomersRouteImport.update({
+  id: '/api/finance/customers',
+  path: '/api/finance/customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiFinanceCostCentersRoute = ApiFinanceCostCentersRouteImport.update({
   id: '/api/finance/cost-centers',
   path: '/api/finance/cost-centers',
@@ -1086,6 +1118,11 @@ const ApiFinanceBudgetsRoute = ApiFinanceBudgetsRouteImport.update({
 const ApiFinanceBankAccountsRoute = ApiFinanceBankAccountsRouteImport.update({
   id: '/api/finance/bank-accounts',
   path: '/api/finance/bank-accounts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFinanceArAgingRoute = ApiFinanceArAgingRouteImport.update({
+  id: '/api/finance/ar-aging',
+  path: '/api/finance/ar-aging',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiFinanceApAllocationRoute = ApiFinanceApAllocationRouteImport.update({
@@ -1208,6 +1245,12 @@ const FinanceSupplierInvoicesIdPrintRoute =
     path: '/finance/supplier-invoices/$id/print',
     getParentRoute: () => rootRouteImport,
   } as any)
+const FinanceSalesInvoicesIdPrintRoute =
+  FinanceSalesInvoicesIdPrintRouteImport.update({
+    id: '/finance/sales-invoices_/$id/print',
+    path: '/finance/sales-invoices/$id/print',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const FinanceReceiptVouchersIdPrintRoute =
   FinanceReceiptVouchersIdPrintRouteImport.update({
     id: '/finance/receipt-vouchers_/$id/print',
@@ -1322,15 +1365,18 @@ export interface FileRoutesByFullPath {
   '/finance/account-mappings': typeof FinanceAccountMappingsRoute
   '/finance/accounts': typeof FinanceAccountsRoute
   '/finance/ap-aging': typeof FinanceApAgingRoute
+  '/finance/ar-aging': typeof FinanceArAgingRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
   '/finance/cash-bank': typeof FinanceCashBankRoute
   '/finance/closing': typeof FinanceClosingRoute
   '/finance/cost-centers': typeof FinanceCostCentersRoute
+  '/finance/customers': typeof FinanceCustomersRoute
   '/finance/journal': typeof FinanceJournalRoute
   '/finance/ledger': typeof FinanceLedgerRoute
   '/finance/opening-balance': typeof FinanceOpeningBalanceRoute
   '/finance/payment-vouchers': typeof FinancePaymentVouchersRoute
   '/finance/receipt-vouchers': typeof FinanceReceiptVouchersRoute
+  '/finance/sales-invoices': typeof FinanceSalesInvoicesRoute
   '/finance/statements': typeof FinanceStatementsRoute
   '/finance/supplier-invoices': typeof FinanceSupplierInvoicesRoute
   '/finance/supplier-payments': typeof FinanceSupplierPaymentsRoute
@@ -1370,16 +1416,19 @@ export interface FileRoutesByFullPath {
   '/api/finance/accounts': typeof ApiFinanceAccountsRoute
   '/api/finance/ap-aging': typeof ApiFinanceApAgingRoute
   '/api/finance/ap-allocation': typeof ApiFinanceApAllocationRoute
+  '/api/finance/ar-aging': typeof ApiFinanceArAgingRoute
   '/api/finance/bank-accounts': typeof ApiFinanceBankAccountsRoute
   '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
   '/api/finance/cashboxes': typeof ApiFinanceCashboxesRoute
   '/api/finance/cost-centers': typeof ApiFinanceCostCentersRoute
+  '/api/finance/customers': typeof ApiFinanceCustomersRoute
   '/api/finance/journal': typeof ApiFinanceJournalRoute
   '/api/finance/ledger': typeof ApiFinanceLedgerRoute
   '/api/finance/opening-balance': typeof ApiFinanceOpeningBalanceRoute
   '/api/finance/payment-vouchers': typeof ApiFinancePaymentVouchersRoute
   '/api/finance/periods': typeof ApiFinancePeriodsRoute
   '/api/finance/receipt-vouchers': typeof ApiFinanceReceiptVouchersRoute
+  '/api/finance/sales-invoices': typeof ApiFinanceSalesInvoicesRoute
   '/api/finance/statements': typeof ApiFinanceStatementsRoute
   '/api/finance/supplier-invoices': typeof ApiFinanceSupplierInvoicesRoute
   '/api/finance/suppliers': typeof ApiFinanceSuppliersRoute
@@ -1443,6 +1492,7 @@ export interface FileRoutesByFullPath {
   '/finance/journal/$id/edit': typeof FinanceJournalIdEditRoute
   '/finance/payment-vouchers/$id/print': typeof FinancePaymentVouchersIdPrintRoute
   '/finance/receipt-vouchers/$id/print': typeof FinanceReceiptVouchersIdPrintRoute
+  '/finance/sales-invoices/$id/print': typeof FinanceSalesInvoicesIdPrintRoute
   '/finance/supplier-invoices/$id/print': typeof FinanceSupplierInvoicesIdPrintRoute
   '/hr/payroll/$id/edit': typeof HrPayrollIdEditRoute
   '/inventory/items/$id/edit': typeof InventoryItemsIdEditRoute
@@ -1527,15 +1577,18 @@ export interface FileRoutesByTo {
   '/finance/account-mappings': typeof FinanceAccountMappingsRoute
   '/finance/accounts': typeof FinanceAccountsRoute
   '/finance/ap-aging': typeof FinanceApAgingRoute
+  '/finance/ar-aging': typeof FinanceArAgingRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
   '/finance/cash-bank': typeof FinanceCashBankRoute
   '/finance/closing': typeof FinanceClosingRoute
   '/finance/cost-centers': typeof FinanceCostCentersRoute
+  '/finance/customers': typeof FinanceCustomersRoute
   '/finance/journal': typeof FinanceJournalRoute
   '/finance/ledger': typeof FinanceLedgerRoute
   '/finance/opening-balance': typeof FinanceOpeningBalanceRoute
   '/finance/payment-vouchers': typeof FinancePaymentVouchersRoute
   '/finance/receipt-vouchers': typeof FinanceReceiptVouchersRoute
+  '/finance/sales-invoices': typeof FinanceSalesInvoicesRoute
   '/finance/statements': typeof FinanceStatementsRoute
   '/finance/supplier-invoices': typeof FinanceSupplierInvoicesRoute
   '/finance/supplier-payments': typeof FinanceSupplierPaymentsRoute
@@ -1575,16 +1628,19 @@ export interface FileRoutesByTo {
   '/api/finance/accounts': typeof ApiFinanceAccountsRoute
   '/api/finance/ap-aging': typeof ApiFinanceApAgingRoute
   '/api/finance/ap-allocation': typeof ApiFinanceApAllocationRoute
+  '/api/finance/ar-aging': typeof ApiFinanceArAgingRoute
   '/api/finance/bank-accounts': typeof ApiFinanceBankAccountsRoute
   '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
   '/api/finance/cashboxes': typeof ApiFinanceCashboxesRoute
   '/api/finance/cost-centers': typeof ApiFinanceCostCentersRoute
+  '/api/finance/customers': typeof ApiFinanceCustomersRoute
   '/api/finance/journal': typeof ApiFinanceJournalRoute
   '/api/finance/ledger': typeof ApiFinanceLedgerRoute
   '/api/finance/opening-balance': typeof ApiFinanceOpeningBalanceRoute
   '/api/finance/payment-vouchers': typeof ApiFinancePaymentVouchersRoute
   '/api/finance/periods': typeof ApiFinancePeriodsRoute
   '/api/finance/receipt-vouchers': typeof ApiFinanceReceiptVouchersRoute
+  '/api/finance/sales-invoices': typeof ApiFinanceSalesInvoicesRoute
   '/api/finance/statements': typeof ApiFinanceStatementsRoute
   '/api/finance/supplier-invoices': typeof ApiFinanceSupplierInvoicesRoute
   '/api/finance/suppliers': typeof ApiFinanceSuppliersRoute
@@ -1648,6 +1704,7 @@ export interface FileRoutesByTo {
   '/finance/journal/$id/edit': typeof FinanceJournalIdEditRoute
   '/finance/payment-vouchers/$id/print': typeof FinancePaymentVouchersIdPrintRoute
   '/finance/receipt-vouchers/$id/print': typeof FinanceReceiptVouchersIdPrintRoute
+  '/finance/sales-invoices/$id/print': typeof FinanceSalesInvoicesIdPrintRoute
   '/finance/supplier-invoices/$id/print': typeof FinanceSupplierInvoicesIdPrintRoute
   '/hr/payroll/$id/edit': typeof HrPayrollIdEditRoute
   '/inventory/items/$id/edit': typeof InventoryItemsIdEditRoute
@@ -1733,15 +1790,18 @@ export interface FileRoutesById {
   '/finance/account-mappings': typeof FinanceAccountMappingsRoute
   '/finance/accounts': typeof FinanceAccountsRoute
   '/finance/ap-aging': typeof FinanceApAgingRoute
+  '/finance/ar-aging': typeof FinanceArAgingRoute
   '/finance/budgets': typeof FinanceBudgetsRoute
   '/finance/cash-bank': typeof FinanceCashBankRoute
   '/finance/closing': typeof FinanceClosingRoute
   '/finance/cost-centers': typeof FinanceCostCentersRoute
+  '/finance/customers': typeof FinanceCustomersRoute
   '/finance/journal': typeof FinanceJournalRoute
   '/finance/ledger': typeof FinanceLedgerRoute
   '/finance/opening-balance': typeof FinanceOpeningBalanceRoute
   '/finance/payment-vouchers': typeof FinancePaymentVouchersRoute
   '/finance/receipt-vouchers': typeof FinanceReceiptVouchersRoute
+  '/finance/sales-invoices': typeof FinanceSalesInvoicesRoute
   '/finance/statements': typeof FinanceStatementsRoute
   '/finance/supplier-invoices': typeof FinanceSupplierInvoicesRoute
   '/finance/supplier-payments': typeof FinanceSupplierPaymentsRoute
@@ -1781,16 +1841,19 @@ export interface FileRoutesById {
   '/api/finance/accounts': typeof ApiFinanceAccountsRoute
   '/api/finance/ap-aging': typeof ApiFinanceApAgingRoute
   '/api/finance/ap-allocation': typeof ApiFinanceApAllocationRoute
+  '/api/finance/ar-aging': typeof ApiFinanceArAgingRoute
   '/api/finance/bank-accounts': typeof ApiFinanceBankAccountsRoute
   '/api/finance/budgets': typeof ApiFinanceBudgetsRoute
   '/api/finance/cashboxes': typeof ApiFinanceCashboxesRoute
   '/api/finance/cost-centers': typeof ApiFinanceCostCentersRoute
+  '/api/finance/customers': typeof ApiFinanceCustomersRoute
   '/api/finance/journal': typeof ApiFinanceJournalRoute
   '/api/finance/ledger': typeof ApiFinanceLedgerRoute
   '/api/finance/opening-balance': typeof ApiFinanceOpeningBalanceRoute
   '/api/finance/payment-vouchers': typeof ApiFinancePaymentVouchersRoute
   '/api/finance/periods': typeof ApiFinancePeriodsRoute
   '/api/finance/receipt-vouchers': typeof ApiFinanceReceiptVouchersRoute
+  '/api/finance/sales-invoices': typeof ApiFinanceSalesInvoicesRoute
   '/api/finance/statements': typeof ApiFinanceStatementsRoute
   '/api/finance/supplier-invoices': typeof ApiFinanceSupplierInvoicesRoute
   '/api/finance/suppliers': typeof ApiFinanceSuppliersRoute
@@ -1854,6 +1917,7 @@ export interface FileRoutesById {
   '/finance/journal_/$id_/edit': typeof FinanceJournalIdEditRoute
   '/finance/payment-vouchers_/$id/print': typeof FinancePaymentVouchersIdPrintRoute
   '/finance/receipt-vouchers_/$id/print': typeof FinanceReceiptVouchersIdPrintRoute
+  '/finance/sales-invoices_/$id/print': typeof FinanceSalesInvoicesIdPrintRoute
   '/finance/supplier-invoices_/$id/print': typeof FinanceSupplierInvoicesIdPrintRoute
   '/hr/payroll_/$id_/edit': typeof HrPayrollIdEditRoute
   '/inventory/items_/$id_/edit': typeof InventoryItemsIdEditRoute
@@ -1940,15 +2004,18 @@ export interface FileRouteTypes {
     | '/finance/account-mappings'
     | '/finance/accounts'
     | '/finance/ap-aging'
+    | '/finance/ar-aging'
     | '/finance/budgets'
     | '/finance/cash-bank'
     | '/finance/closing'
     | '/finance/cost-centers'
+    | '/finance/customers'
     | '/finance/journal'
     | '/finance/ledger'
     | '/finance/opening-balance'
     | '/finance/payment-vouchers'
     | '/finance/receipt-vouchers'
+    | '/finance/sales-invoices'
     | '/finance/statements'
     | '/finance/supplier-invoices'
     | '/finance/supplier-payments'
@@ -1988,16 +2055,19 @@ export interface FileRouteTypes {
     | '/api/finance/accounts'
     | '/api/finance/ap-aging'
     | '/api/finance/ap-allocation'
+    | '/api/finance/ar-aging'
     | '/api/finance/bank-accounts'
     | '/api/finance/budgets'
     | '/api/finance/cashboxes'
     | '/api/finance/cost-centers'
+    | '/api/finance/customers'
     | '/api/finance/journal'
     | '/api/finance/ledger'
     | '/api/finance/opening-balance'
     | '/api/finance/payment-vouchers'
     | '/api/finance/periods'
     | '/api/finance/receipt-vouchers'
+    | '/api/finance/sales-invoices'
     | '/api/finance/statements'
     | '/api/finance/supplier-invoices'
     | '/api/finance/suppliers'
@@ -2061,6 +2131,7 @@ export interface FileRouteTypes {
     | '/finance/journal/$id/edit'
     | '/finance/payment-vouchers/$id/print'
     | '/finance/receipt-vouchers/$id/print'
+    | '/finance/sales-invoices/$id/print'
     | '/finance/supplier-invoices/$id/print'
     | '/hr/payroll/$id/edit'
     | '/inventory/items/$id/edit'
@@ -2145,15 +2216,18 @@ export interface FileRouteTypes {
     | '/finance/account-mappings'
     | '/finance/accounts'
     | '/finance/ap-aging'
+    | '/finance/ar-aging'
     | '/finance/budgets'
     | '/finance/cash-bank'
     | '/finance/closing'
     | '/finance/cost-centers'
+    | '/finance/customers'
     | '/finance/journal'
     | '/finance/ledger'
     | '/finance/opening-balance'
     | '/finance/payment-vouchers'
     | '/finance/receipt-vouchers'
+    | '/finance/sales-invoices'
     | '/finance/statements'
     | '/finance/supplier-invoices'
     | '/finance/supplier-payments'
@@ -2193,16 +2267,19 @@ export interface FileRouteTypes {
     | '/api/finance/accounts'
     | '/api/finance/ap-aging'
     | '/api/finance/ap-allocation'
+    | '/api/finance/ar-aging'
     | '/api/finance/bank-accounts'
     | '/api/finance/budgets'
     | '/api/finance/cashboxes'
     | '/api/finance/cost-centers'
+    | '/api/finance/customers'
     | '/api/finance/journal'
     | '/api/finance/ledger'
     | '/api/finance/opening-balance'
     | '/api/finance/payment-vouchers'
     | '/api/finance/periods'
     | '/api/finance/receipt-vouchers'
+    | '/api/finance/sales-invoices'
     | '/api/finance/statements'
     | '/api/finance/supplier-invoices'
     | '/api/finance/suppliers'
@@ -2266,6 +2343,7 @@ export interface FileRouteTypes {
     | '/finance/journal/$id/edit'
     | '/finance/payment-vouchers/$id/print'
     | '/finance/receipt-vouchers/$id/print'
+    | '/finance/sales-invoices/$id/print'
     | '/finance/supplier-invoices/$id/print'
     | '/hr/payroll/$id/edit'
     | '/inventory/items/$id/edit'
@@ -2350,15 +2428,18 @@ export interface FileRouteTypes {
     | '/finance/account-mappings'
     | '/finance/accounts'
     | '/finance/ap-aging'
+    | '/finance/ar-aging'
     | '/finance/budgets'
     | '/finance/cash-bank'
     | '/finance/closing'
     | '/finance/cost-centers'
+    | '/finance/customers'
     | '/finance/journal'
     | '/finance/ledger'
     | '/finance/opening-balance'
     | '/finance/payment-vouchers'
     | '/finance/receipt-vouchers'
+    | '/finance/sales-invoices'
     | '/finance/statements'
     | '/finance/supplier-invoices'
     | '/finance/supplier-payments'
@@ -2398,16 +2479,19 @@ export interface FileRouteTypes {
     | '/api/finance/accounts'
     | '/api/finance/ap-aging'
     | '/api/finance/ap-allocation'
+    | '/api/finance/ar-aging'
     | '/api/finance/bank-accounts'
     | '/api/finance/budgets'
     | '/api/finance/cashboxes'
     | '/api/finance/cost-centers'
+    | '/api/finance/customers'
     | '/api/finance/journal'
     | '/api/finance/ledger'
     | '/api/finance/opening-balance'
     | '/api/finance/payment-vouchers'
     | '/api/finance/periods'
     | '/api/finance/receipt-vouchers'
+    | '/api/finance/sales-invoices'
     | '/api/finance/statements'
     | '/api/finance/supplier-invoices'
     | '/api/finance/suppliers'
@@ -2471,6 +2555,7 @@ export interface FileRouteTypes {
     | '/finance/journal_/$id_/edit'
     | '/finance/payment-vouchers_/$id/print'
     | '/finance/receipt-vouchers_/$id/print'
+    | '/finance/sales-invoices_/$id/print'
     | '/finance/supplier-invoices_/$id/print'
     | '/hr/payroll_/$id_/edit'
     | '/inventory/items_/$id_/edit'
@@ -2556,15 +2641,18 @@ export interface RootRouteChildren {
   FinanceAccountMappingsRoute: typeof FinanceAccountMappingsRoute
   FinanceAccountsRoute: typeof FinanceAccountsRoute
   FinanceApAgingRoute: typeof FinanceApAgingRoute
+  FinanceArAgingRoute: typeof FinanceArAgingRoute
   FinanceBudgetsRoute: typeof FinanceBudgetsRoute
   FinanceCashBankRoute: typeof FinanceCashBankRoute
   FinanceClosingRoute: typeof FinanceClosingRoute
   FinanceCostCentersRoute: typeof FinanceCostCentersRoute
+  FinanceCustomersRoute: typeof FinanceCustomersRoute
   FinanceJournalRoute: typeof FinanceJournalRoute
   FinanceLedgerRoute: typeof FinanceLedgerRoute
   FinanceOpeningBalanceRoute: typeof FinanceOpeningBalanceRoute
   FinancePaymentVouchersRoute: typeof FinancePaymentVouchersRoute
   FinanceReceiptVouchersRoute: typeof FinanceReceiptVouchersRoute
+  FinanceSalesInvoicesRoute: typeof FinanceSalesInvoicesRoute
   FinanceStatementsRoute: typeof FinanceStatementsRoute
   FinanceSupplierInvoicesRoute: typeof FinanceSupplierInvoicesRoute
   FinanceSupplierPaymentsRoute: typeof FinanceSupplierPaymentsRoute
@@ -2603,16 +2691,19 @@ export interface RootRouteChildren {
   ApiFinanceAccountsRoute: typeof ApiFinanceAccountsRoute
   ApiFinanceApAgingRoute: typeof ApiFinanceApAgingRoute
   ApiFinanceApAllocationRoute: typeof ApiFinanceApAllocationRoute
+  ApiFinanceArAgingRoute: typeof ApiFinanceArAgingRoute
   ApiFinanceBankAccountsRoute: typeof ApiFinanceBankAccountsRoute
   ApiFinanceBudgetsRoute: typeof ApiFinanceBudgetsRoute
   ApiFinanceCashboxesRoute: typeof ApiFinanceCashboxesRoute
   ApiFinanceCostCentersRoute: typeof ApiFinanceCostCentersRoute
+  ApiFinanceCustomersRoute: typeof ApiFinanceCustomersRoute
   ApiFinanceJournalRoute: typeof ApiFinanceJournalRoute
   ApiFinanceLedgerRoute: typeof ApiFinanceLedgerRoute
   ApiFinanceOpeningBalanceRoute: typeof ApiFinanceOpeningBalanceRoute
   ApiFinancePaymentVouchersRoute: typeof ApiFinancePaymentVouchersRoute
   ApiFinancePeriodsRoute: typeof ApiFinancePeriodsRoute
   ApiFinanceReceiptVouchersRoute: typeof ApiFinanceReceiptVouchersRoute
+  ApiFinanceSalesInvoicesRoute: typeof ApiFinanceSalesInvoicesRoute
   ApiFinanceStatementsRoute: typeof ApiFinanceStatementsRoute
   ApiFinanceSupplierInvoicesRoute: typeof ApiFinanceSupplierInvoicesRoute
   ApiFinanceSuppliersRoute: typeof ApiFinanceSuppliersRoute
@@ -2674,6 +2765,7 @@ export interface RootRouteChildren {
   FinanceJournalIdEditRoute: typeof FinanceJournalIdEditRoute
   FinancePaymentVouchersIdPrintRoute: typeof FinancePaymentVouchersIdPrintRoute
   FinanceReceiptVouchersIdPrintRoute: typeof FinanceReceiptVouchersIdPrintRoute
+  FinanceSalesInvoicesIdPrintRoute: typeof FinanceSalesInvoicesIdPrintRoute
   FinanceSupplierInvoicesIdPrintRoute: typeof FinanceSupplierInvoicesIdPrintRoute
   InventoryItemsIdEditRoute: typeof InventoryItemsIdEditRoute
   InventoryStocktakeIdEditRoute: typeof InventoryStocktakeIdEditRoute
@@ -3104,6 +3196,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FinanceStatementsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/finance/sales-invoices': {
+      id: '/finance/sales-invoices'
+      path: '/finance/sales-invoices'
+      fullPath: '/finance/sales-invoices'
+      preLoaderRoute: typeof FinanceSalesInvoicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/finance/receipt-vouchers': {
       id: '/finance/receipt-vouchers'
       path: '/finance/receipt-vouchers'
@@ -3139,6 +3238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FinanceJournalRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/finance/customers': {
+      id: '/finance/customers'
+      path: '/finance/customers'
+      fullPath: '/finance/customers'
+      preLoaderRoute: typeof FinanceCustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/finance/cost-centers': {
       id: '/finance/cost-centers'
       path: '/finance/cost-centers'
@@ -3165,6 +3271,13 @@ declare module '@tanstack/react-router' {
       path: '/finance/budgets'
       fullPath: '/finance/budgets'
       preLoaderRoute: typeof FinanceBudgetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/finance/ar-aging': {
+      id: '/finance/ar-aging'
+      path: '/finance/ar-aging'
+      fullPath: '/finance/ar-aging'
+      preLoaderRoute: typeof FinanceArAgingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/finance/ap-aging': {
@@ -3832,6 +3945,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFinanceStatementsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/finance/sales-invoices': {
+      id: '/api/finance/sales-invoices'
+      path: '/api/finance/sales-invoices'
+      fullPath: '/api/finance/sales-invoices'
+      preLoaderRoute: typeof ApiFinanceSalesInvoicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/finance/receipt-vouchers': {
       id: '/api/finance/receipt-vouchers'
       path: '/api/finance/receipt-vouchers'
@@ -3874,6 +3994,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFinanceJournalRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/finance/customers': {
+      id: '/api/finance/customers'
+      path: '/api/finance/customers'
+      fullPath: '/api/finance/customers'
+      preLoaderRoute: typeof ApiFinanceCustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/finance/cost-centers': {
       id: '/api/finance/cost-centers'
       path: '/api/finance/cost-centers'
@@ -3900,6 +4027,13 @@ declare module '@tanstack/react-router' {
       path: '/api/finance/bank-accounts'
       fullPath: '/api/finance/bank-accounts'
       preLoaderRoute: typeof ApiFinanceBankAccountsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/finance/ar-aging': {
+      id: '/api/finance/ar-aging'
+      path: '/api/finance/ar-aging'
+      fullPath: '/api/finance/ar-aging'
+      preLoaderRoute: typeof ApiFinanceArAgingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/finance/ap-allocation': {
@@ -4056,6 +4190,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FinanceSupplierInvoicesIdPrintRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/finance/sales-invoices_/$id/print': {
+      id: '/finance/sales-invoices_/$id/print'
+      path: '/finance/sales-invoices/$id/print'
+      fullPath: '/finance/sales-invoices/$id/print'
+      preLoaderRoute: typeof FinanceSalesInvoicesIdPrintRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/finance/receipt-vouchers_/$id/print': {
       id: '/finance/receipt-vouchers_/$id/print'
       path: '/finance/receipt-vouchers/$id/print'
@@ -4208,15 +4349,18 @@ const rootRouteChildren: RootRouteChildren = {
   FinanceAccountMappingsRoute: FinanceAccountMappingsRoute,
   FinanceAccountsRoute: FinanceAccountsRoute,
   FinanceApAgingRoute: FinanceApAgingRoute,
+  FinanceArAgingRoute: FinanceArAgingRoute,
   FinanceBudgetsRoute: FinanceBudgetsRoute,
   FinanceCashBankRoute: FinanceCashBankRoute,
   FinanceClosingRoute: FinanceClosingRoute,
   FinanceCostCentersRoute: FinanceCostCentersRoute,
+  FinanceCustomersRoute: FinanceCustomersRoute,
   FinanceJournalRoute: FinanceJournalRoute,
   FinanceLedgerRoute: FinanceLedgerRoute,
   FinanceOpeningBalanceRoute: FinanceOpeningBalanceRoute,
   FinancePaymentVouchersRoute: FinancePaymentVouchersRoute,
   FinanceReceiptVouchersRoute: FinanceReceiptVouchersRoute,
+  FinanceSalesInvoicesRoute: FinanceSalesInvoicesRoute,
   FinanceStatementsRoute: FinanceStatementsRoute,
   FinanceSupplierInvoicesRoute: FinanceSupplierInvoicesRoute,
   FinanceSupplierPaymentsRoute: FinanceSupplierPaymentsRoute,
@@ -4255,16 +4399,19 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFinanceAccountsRoute: ApiFinanceAccountsRoute,
   ApiFinanceApAgingRoute: ApiFinanceApAgingRoute,
   ApiFinanceApAllocationRoute: ApiFinanceApAllocationRoute,
+  ApiFinanceArAgingRoute: ApiFinanceArAgingRoute,
   ApiFinanceBankAccountsRoute: ApiFinanceBankAccountsRoute,
   ApiFinanceBudgetsRoute: ApiFinanceBudgetsRoute,
   ApiFinanceCashboxesRoute: ApiFinanceCashboxesRoute,
   ApiFinanceCostCentersRoute: ApiFinanceCostCentersRoute,
+  ApiFinanceCustomersRoute: ApiFinanceCustomersRoute,
   ApiFinanceJournalRoute: ApiFinanceJournalRoute,
   ApiFinanceLedgerRoute: ApiFinanceLedgerRoute,
   ApiFinanceOpeningBalanceRoute: ApiFinanceOpeningBalanceRoute,
   ApiFinancePaymentVouchersRoute: ApiFinancePaymentVouchersRoute,
   ApiFinancePeriodsRoute: ApiFinancePeriodsRoute,
   ApiFinanceReceiptVouchersRoute: ApiFinanceReceiptVouchersRoute,
+  ApiFinanceSalesInvoicesRoute: ApiFinanceSalesInvoicesRoute,
   ApiFinanceStatementsRoute: ApiFinanceStatementsRoute,
   ApiFinanceSupplierInvoicesRoute: ApiFinanceSupplierInvoicesRoute,
   ApiFinanceSuppliersRoute: ApiFinanceSuppliersRoute,
@@ -4326,6 +4473,7 @@ const rootRouteChildren: RootRouteChildren = {
   FinanceJournalIdEditRoute: FinanceJournalIdEditRoute,
   FinancePaymentVouchersIdPrintRoute: FinancePaymentVouchersIdPrintRoute,
   FinanceReceiptVouchersIdPrintRoute: FinanceReceiptVouchersIdPrintRoute,
+  FinanceSalesInvoicesIdPrintRoute: FinanceSalesInvoicesIdPrintRoute,
   FinanceSupplierInvoicesIdPrintRoute: FinanceSupplierInvoicesIdPrintRoute,
   InventoryItemsIdEditRoute: InventoryItemsIdEditRoute,
   InventoryStocktakeIdEditRoute: InventoryStocktakeIdEditRoute,

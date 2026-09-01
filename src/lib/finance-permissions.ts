@@ -112,6 +112,31 @@ export const FINANCE_PERMISSIONS = {
   supplierInvoiceReverse: "finance.supplier_invoice.reverse",
   supplierInvoiceAuditView: "finance.supplier_invoice.audit.view",
 
+  // Phase Sales-1 — Customers & Accounts Receivable. Granular so master view/
+  // create/update/deactivate, subledger ledger view, audit and AR reconciliation
+  // are separate; none imply another. AR is the mirror of the supplier/AP set.
+  customerView: "finance.customer.view",
+  customerCreate: "finance.customer.create",
+  customerUpdate: "finance.customer.update",
+  customerDeactivate: "finance.customer.deactivate",
+  customerLedgerView: "finance.customer.ledger.view",
+  customerAuditView: "finance.customer.audit.view",
+  arReconciliationView: "finance.ar.reconciliation.view",
+  arAgingView: "finance.ar_aging.view",
+
+  // Phase Sales-1 — Sales Invoices (فواتير المبيعات). Granular so create ≠ submit
+  // ≠ approve ≠ post ≠ reverse; none imply customer-master mutation or a raw
+  // journal action. Posting recognizes revenue: Dr accounts receivable / Cr revenue.
+  salesInvoiceView: "finance.sales_invoice.view",
+  salesInvoiceCreate: "finance.sales_invoice.create",
+  salesInvoiceUpdateDraft: "finance.sales_invoice.update_draft",
+  salesInvoiceSubmit: "finance.sales_invoice.submit",
+  salesInvoiceApprove: "finance.sales_invoice.approve",
+  salesInvoiceReject: "finance.sales_invoice.reject",
+  salesInvoicePost: "finance.sales_invoice.post",
+  salesInvoiceReverse: "finance.sales_invoice.reverse",
+  salesInvoiceAuditView: "finance.sales_invoice.audit.view",
+
   // Phase 3B.1 — configuring system-purpose GL account mappings (e.g. the
   // recoverable Input VAT control account). High-authority Finance/CoA admin
   // action — never granted to ordinary document creators.
@@ -375,6 +400,59 @@ export const FINANCE_PERM_GROUPS: FinancePermGroup[] = [
         desc: "عكس فاتورة مورد مُرحَّلة",
       },
       { key: FINANCE_PERMISSIONS.supplierInvoiceAuditView, label: "عرض سجل تدقيق فواتير الموردين" },
+    ],
+  },
+  {
+    key: "finance-customers",
+    label: "المالية — العملاء والذمم المدينة",
+    perms: [
+      { key: FINANCE_PERMISSIONS.customerView, label: "عرض العملاء" },
+      { key: FINANCE_PERMISSIONS.customerCreate, label: "إنشاء عميل" },
+      { key: FINANCE_PERMISSIONS.customerUpdate, label: "تعديل عميل" },
+      { key: FINANCE_PERMISSIONS.customerDeactivate, label: "تعطيل عميل" },
+      { key: FINANCE_PERMISSIONS.customerLedgerView, label: "عرض كشف حساب العميل" },
+      { key: FINANCE_PERMISSIONS.customerAuditView, label: "عرض سجل تدقيق العملاء" },
+      {
+        key: FINANCE_PERMISSIONS.arReconciliationView,
+        label: "عرض مطابقة الذمم المدينة",
+        desc: "مطابقة رصيد أستاذ العملاء مع حساب الذمم المدينة في الأستاذ العام",
+      },
+      {
+        key: FINANCE_PERMISSIONS.arAgingView,
+        label: "عرض أعمار الذمم المدينة",
+        desc: "تقرير أعمار الذمم المدينة للعملاء (قابل للقراءة فقط)",
+      },
+    ],
+  },
+  {
+    key: "finance-sales-invoices",
+    label: "المالية — فواتير المبيعات",
+    perms: [
+      { key: FINANCE_PERMISSIONS.salesInvoiceView, label: "عرض فواتير المبيعات" },
+      { key: FINANCE_PERMISSIONS.salesInvoiceCreate, label: "إنشاء فاتورة مبيعات" },
+      { key: FINANCE_PERMISSIONS.salesInvoiceUpdateDraft, label: "تعديل مسودة فاتورة مبيعات" },
+      { key: FINANCE_PERMISSIONS.salesInvoiceSubmit, label: "إرسال فاتورة مبيعات للاعتماد" },
+      {
+        key: FINANCE_PERMISSIONS.salesInvoiceApprove,
+        label: "اعتماد فاتورة مبيعات",
+        desc: "مراجعة واعتماد فواتير المبيعات المُرسَلة",
+      },
+      {
+        key: FINANCE_PERMISSIONS.salesInvoiceReject,
+        label: "إعادة / رفض فاتورة مبيعات",
+        desc: "إعادة الفاتورة للمسودة أو رفضها بسبب",
+      },
+      {
+        key: FINANCE_PERMISSIONS.salesInvoicePost,
+        label: "ترحيل فاتورة مبيعات",
+        desc: "ترحيل الفاتورة المعتمدة (إثبات الإيراد والذمم المدينة) إلى الأستاذ",
+      },
+      {
+        key: FINANCE_PERMISSIONS.salesInvoiceReverse,
+        label: "عكس فاتورة مبيعات",
+        desc: "عكس فاتورة مبيعات مُرحَّلة",
+      },
+      { key: FINANCE_PERMISSIONS.salesInvoiceAuditView, label: "عرض سجل تدقيق فواتير المبيعات" },
     ],
   },
   {
@@ -651,6 +729,56 @@ export const SUPPLIER_INVOICE_TRANSITIONS: Transition[] = [
     action: "reverse",
     to: JournalStatus.REVERSED,
     permission: FINANCE_PERMISSIONS.supplierInvoiceReverse,
+    reasonRequired: true,
+  },
+];
+
+/**
+ * Phase Sales-1 — Sales Invoice (فاتورة مبيعات) state matrix. Same governance
+ * engine and JournalAction verbs as journals/supplier invoices, its own
+ * transitions and its own granular sales-invoice permissions. DRAFT→POSTED and
+ * SUBMITTED→POSTED are absent by construction; approval (maker-checker-blocked)
+ * and posting are separate.
+ */
+export const SALES_INVOICE_TRANSITIONS: Transition[] = [
+  {
+    from: JournalStatus.DRAFT,
+    action: "submit",
+    to: JournalStatus.SUBMITTED,
+    permission: FINANCE_PERMISSIONS.salesInvoiceSubmit,
+  },
+  {
+    from: JournalStatus.SUBMITTED,
+    action: "approve",
+    to: JournalStatus.APPROVED,
+    permission: FINANCE_PERMISSIONS.salesInvoiceApprove,
+    makerCheckerBlocked: true,
+  },
+  {
+    from: JournalStatus.SUBMITTED,
+    action: "return",
+    to: JournalStatus.DRAFT,
+    permission: FINANCE_PERMISSIONS.salesInvoiceReject,
+    reasonRequired: true,
+  },
+  {
+    from: JournalStatus.SUBMITTED,
+    action: "reject",
+    to: JournalStatus.REJECTED,
+    permission: FINANCE_PERMISSIONS.salesInvoiceReject,
+    reasonRequired: true,
+  },
+  {
+    from: JournalStatus.APPROVED,
+    action: "post",
+    to: JournalStatus.POSTED,
+    permission: FINANCE_PERMISSIONS.salesInvoicePost,
+  },
+  {
+    from: JournalStatus.POSTED,
+    action: "reverse",
+    to: JournalStatus.REVERSED,
+    permission: FINANCE_PERMISSIONS.salesInvoiceReverse,
     reasonRequired: true,
   },
 ];

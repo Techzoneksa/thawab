@@ -239,6 +239,31 @@ export const SupplierInvoiceStatus = {
 export type SupplierInvoiceStatus =
   (typeof SupplierInvoiceStatus)[keyof typeof SupplierInvoiceStatus];
 
+/** Phase Sales-1 — customer master lifecycle (mirror of SupplierStatus). */
+export const CustomerStatus = {
+  ACTIVE: "active",
+  INACTIVE: "inactive",
+} as const;
+export type CustomerStatus = (typeof CustomerStatus)[keyof typeof CustomerStatus];
+
+/**
+ * Phase Sales-1 — Sales Invoice (فاتورة مبيعات / عميل) lifecycle. A
+ * DRAFT/SUBMITTED/APPROVED invoice has NO General Ledger effect; only POSTED
+ * creates the revenue-recognition journal (Dr accounts receivable / Cr revenue)
+ * and links the AR debit line to the customer subledger. REVERSED nets it via
+ * the certified reversal engine. Shared status strings drive the same governance
+ * engine as journals and supplier invoices.
+ */
+export const SalesInvoiceStatus = {
+  DRAFT: "draft",
+  SUBMITTED: "submitted",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+  POSTED: "posted",
+  REVERSED: "reversed",
+} as const;
+export type SalesInvoiceStatus = (typeof SalesInvoiceStatus)[keyof typeof SalesInvoiceStatus];
+
 /** Net-asset fund classes — essential for charity restricted-funds tracking. */
 export const Fund = {
   UNRESTRICTED: "unrestricted",

@@ -1045,6 +1045,149 @@ export const supplierInvoiceGrnAllocations = pgTable(
   }),
 );
 
+// ============ SALES / ACCOUNTS RECEIVABLE (Phase Sales-1) ============
+
+// Customer master (عميل) — the AR-side mirror of `suppliers`. A customer's
+// receivable is NOT stored here as accounting truth; it is DERIVED from the GL
+// via the customer AR subledger (customer_journal_links → journal_lines). There
+// is deliberately no balance column.
+export const customers = pgTable(
+  "customers",
+  {
+    id: text("id").primaryKey(),
+    customerCode: text("customer_code"), // unique when present (CUST-000001)
+    name: text("name").notNull(),
+    legalName: text("legal_name").default(""),
+    commercialRegistration: text("commercial_registration"),
+    taxNumber: text("tax_number").default(""),
+    phone: text("phone"),
+    email: text("email"),
+    contactPerson: text("contact_person").default(""),
+    address: text("address").default(""),
+    // National Address (العنوان الوطني السعودي)
+    buildingNo: text("building_no").default(""),
+    street: text("street").default(""),
+    district: text("district").default(""),
+    city: text("city").default(""),
+    postalCode: text("postal_code").default(""),
+    additionalNo: text("additional_no").default(""),
+    currency: text("currency").notNull().default("SAR"),
+    paymentTermsDays: integer("payment_terms_days"),
+    notes: text("notes").default(""),
+    status: text("status").notNull().default("active"),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+  },
+  (t) => ({
+    codeIdx: uniqueIndex("customers_code_idx").on(t.customerCode),
+    statusIdx: index("customers_status_idx").on(t.status),
+  }),
+);
+
+// Customer AR subledger link — maps a customer to a SINGLE posted AR control
+// journal line (the money lives ONLY in journal_lines). Receivable is derived by
+// joining links → journal_lines → journal_entries (debit − credit, posted+reversed).
+// journal_line_id is UNIQUE so one AR line can never belong to two customers.
+export const customerJournalLinks = pgTable(
+  "customer_journal_links",
+  {
+    id: text("id").primaryKey(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id),
+    journalLineId: text("journal_line_id")
+      .notNull()
+      .references(() => journalLines.id),
+    sourceType: text("source_type"), // optional provenance (sales_invoice, customer_receipt…)
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+  },
+  (t) => ({
+    lineIdx: uniqueIndex("customer_journal_links_line_idx").on(t.journalLineId),
+    customerIdx: index("customer_journal_links_customer_idx").on(t.customerId),
+  }),
+);
+
+// Sales Invoice (فاتورة مبيعات) — a controlled financial DOCUMENT. Its header/
+// lines are NOT accounting truth: only POSTING creates the certified revenue
+// journal (Dr accounts receivable / Cr revenue per line) and links the AR DEBIT
+// line to the customer subledger (customer_journal_links) so the receivable
+// rises automatically. Phase Sales-1 is revenue-only: no VAT, no inventory/COGS.
+export const salesInvoices = pgTable(
+  "sales_invoices",
+  {
+    id: text("id").primaryKey(),
+    // Internal system number (SV-2026-000001) — always unique, allocated on create.
+    invoiceNumber: text("invoice_number").notNull().unique(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id),
+    invoiceDate: text("invoice_date").notNull().default(""), // accounting date
+    dueDate: text("due_date"),
+    status: text("status").notNull().default("draft"),
+    currency: text("currency").notNull().default("SAR"),
+    subtotal: doublePrecision("subtotal").notNull().default(0),
+    taxAmount: doublePrecision("tax_amount").notNull().default(0), // reserved; 0 in Sales-1
+    totalAmount: doublePrecision("total_amount").notNull().default(0),
+    // Net-asset fund + optional project — revenue is fund-tagged for charity funds.
+    fund: text("fund").notNull().default("unrestricted"),
+    projectId: text("project_id").references(() => projects.id),
+    customerReference: text("customer_reference"), // customer's own PO/reference
+    description: text("description").default(""),
+    notes: text("notes").default(""),
+    journalEntryId: text("journal_entry_id").references(() => journalEntries.id),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+    submittedBy: text("submitted_by").references(() => users.id),
+    submittedAt: text("submitted_at"),
+    approvedBy: text("approved_by").references(() => users.id),
+    approvedAt: text("approved_at"),
+    postedBy: text("posted_by").references(() => users.id),
+    postedAt: text("posted_at"),
+    reversedBy: text("reversed_by").references(() => users.id),
+    reversedAt: text("reversed_at"),
+  },
+  (t) => ({
+    numberIdx: uniqueIndex("sales_invoices_number_idx").on(t.invoiceNumber),
+    journalIdx: uniqueIndex("sales_invoices_journal_entry_idx").on(t.journalEntryId),
+    customerIdx: index("sales_invoices_customer_idx").on(t.customerId),
+    statusIdx: index("sales_invoices_status_idx").on(t.status),
+    dateIdx: index("sales_invoices_date_idx").on(t.invoiceDate),
+    dueIdx: index("sales_invoices_due_idx").on(t.dueDate),
+  }),
+);
+
+export const salesInvoiceLines = pgTable(
+  "sales_invoice_lines",
+  {
+    id: text("id").primaryKey(),
+    salesInvoiceId: text("sales_invoice_id")
+      .notNull()
+      .references(() => salesInvoices.id, { onDelete: "cascade" }),
+    lineNumber: integer("line_number").notNull().default(1),
+    description: text("description").default(""),
+    // The REVENUE account credited when posted. Server-validated: revenue/postable/
+    // active, never AR/cash/bank/control.
+    accountId: text("account_id")
+      .notNull()
+      .references(() => accounts.id),
+    quantity: doublePrecision("quantity").notNull().default(1),
+    unitPrice: doublePrecision("unit_price").notNull().default(0),
+    lineSubtotal: doublePrecision("line_subtotal").notNull().default(0),
+    taxRate: doublePrecision("tax_rate").notNull().default(0), // reserved; 0 in Sales-1
+    taxAmount: doublePrecision("tax_amount").notNull().default(0),
+    lineTotal: doublePrecision("line_total").notNull().default(0),
+    costCenterId: text("cost_center_id").references(() => costCenters.id),
+    createdAt: text("created_at").notNull().default(""),
+  },
+  (t) => ({
+    invoiceIdx: index("sales_invoice_lines_invoice_idx").on(t.salesInvoiceId),
+    accountIdx: index("sales_invoice_lines_account_idx").on(t.accountId),
+  }),
+);
+
 // ============ PURCHASES ============
 
 export const purchaseRequests = pgTable("purchase_requests", {

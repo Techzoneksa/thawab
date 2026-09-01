@@ -246,6 +246,13 @@
       "when": 1787130003000,
       "tag": "0034_purchase_returns",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1787130004000,
+      "tag": "0035_customers_sales_invoices",
+      "breakpoints": true
     }
   ]
 }
