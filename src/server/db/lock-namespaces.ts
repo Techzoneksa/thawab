@@ -31,6 +31,10 @@ export const LOCK_NS = {
    *  so per-GRN serialization holds while independent GRNs stay concurrent and no
    *  FK-KEY-SHARE/row-lock deadlock can form (the 5A.1 lesson). */
   RECEIPT_CAPACITY: 47,
+  /** Phase Sales-2 — customer receipt↔sales-invoice allocation (per receipt AND
+   *  per invoice resource), so concurrent allocations recompute outstanding/
+   *  unapplied safely. Mirror of PAYMENT_ALLOCATION on the AR side. */
+  RECEIVABLE_ALLOCATION: 48,
 } as const;
 
 export type LockNamespace = (typeof LOCK_NS)[keyof typeof LOCK_NS];

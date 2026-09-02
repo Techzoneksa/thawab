@@ -1188,6 +1188,76 @@ export const salesInvoiceLines = pgTable(
   }),
 );
 
+// Phase Sales-2 — Customer Receipt event (تحصيل من عميل). The AR mirror of
+// supplier_payments: a posted receipt journals Dr Cash|Bank / Cr AR and links the
+// AR CREDIT line to the customer subledger (receivable falls). `id` (CRC-…) is the
+// idempotency anchor; a retry with the same id reuses the existing journal.
+// journal_entry_id is UNIQUE (one receipt → one journal). No stored balance.
+export const customerReceipts = pgTable(
+  "customer_receipts",
+  {
+    id: text("id").primaryKey(), // stable receipt-event id (CRC-…)
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id),
+    amount: doublePrecision("amount").notNull().default(0),
+    receiptMethod: text("receipt_method").notNull().default("bank"), // cash | bank
+    reference: text("reference"),
+    receiptDate: text("receipt_date").notNull().default(""),
+    note: text("note").default(""),
+    journalEntryId: text("journal_entry_id").references(() => journalEntries.id),
+    status: text("status").notNull().default("pending"), // pending | posted
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(""),
+  },
+  (t) => ({
+    journalIdx: uniqueIndex("customer_receipts_journal_entry_idx").on(t.journalEntryId),
+    customerIdx: index("customer_receipts_customer_idx").on(t.customerId),
+  }),
+);
+
+// Phase Sales-2 — Customer Receipt ↔ Sales-Invoice ALLOCATION (settlement metadata,
+// NOT accounting). Records how much of ONE posted receipt's AR credit is attributed
+// to ONE posted sales invoice's AR debit. Stores NO balance: invoice outstanding
+// and receipt unapplied stay derived from real posted AR journal lines minus Σ
+// active allocations. One effective row per (receipt, invoice); amount strictly > 0.
+// Creating/editing/removing a row produces NO journal, NO GL, NO cash/bank movement.
+export const customerReceiptAllocations = pgTable(
+  "customer_receipt_allocations",
+  {
+    id: text("id").primaryKey(),
+    customerReceiptId: text("customer_receipt_id")
+      .notNull()
+      .references(() => customerReceipts.id),
+    salesInvoiceId: text("sales_invoice_id")
+      .notNull()
+      .references(() => salesInvoices.id),
+    amount: doublePrecision("amount").notNull(),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+    updatedBy: text("updated_by").references(() => users.id),
+    updatedAt: text("updated_at"),
+  },
+  (t) => ({
+    pairIdx: uniqueIndex("customer_receipt_allocations_pair_idx").on(
+      t.customerReceiptId,
+      t.salesInvoiceId,
+    ),
+    receiptIdx: index("customer_receipt_allocations_receipt_idx").on(t.customerReceiptId),
+    invoiceIdx: index("customer_receipt_allocations_invoice_idx").on(t.salesInvoiceId),
+    amountPositive: check(
+      "customer_receipt_allocations_amount_positive",
+      drizzleSql`${t.amount} > 0`,
+    ),
+    // 2-decimal money guard (defense-in-depth; the service is authoritative).
+    amount2dp: check(
+      "customer_receipt_allocations_amount_2dp",
+      drizzleSql`abs(${t.amount} - round(${t.amount}::numeric, 2)) < 0.000001`,
+    ),
+  }),
+);
+
 // ============ PURCHASES ============
 
 export const purchaseRequests = pgTable("purchase_requests", {

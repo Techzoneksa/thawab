@@ -124,6 +124,16 @@ export const FINANCE_PERMISSIONS = {
   arReconciliationView: "finance.ar.reconciliation.view",
   arAgingView: "finance.ar_aging.view",
 
+  // Phase Sales-2 — Customer Receipts & AR settlement allocation. Receipt view/
+  // create post cash-in against AR; allocation is SETTLEMENT METADATA (never
+  // accounting): view is read-only drill-down; manage creates/edits/removes
+  // allocation attribution, separate from receipt-posting authority. Mirror of
+  // the supplier payment/allocation set on the AR side.
+  customerReceiptView: "finance.customer_receipt.view",
+  customerReceiptCreate: "finance.customer_receipt.create",
+  customerReceiptAllocationView: "finance.customer_receipt_allocation.view",
+  customerReceiptAllocationManage: "finance.customer_receipt_allocation.manage",
+
   // Phase Sales-1 — Sales Invoices (فواتير المبيعات). Granular so create ≠ submit
   // ≠ approve ≠ post ≠ reverse; none imply customer-master mutation or a raw
   // journal action. Posting recognizes revenue: Dr accounts receivable / Cr revenue.
@@ -453,6 +463,30 @@ export const FINANCE_PERM_GROUPS: FinancePermGroup[] = [
         desc: "عكس فاتورة مبيعات مُرحَّلة",
       },
       { key: FINANCE_PERMISSIONS.salesInvoiceAuditView, label: "عرض سجل تدقيق فواتير المبيعات" },
+    ],
+  },
+  {
+    key: "finance-ar-allocation",
+    label: "المالية — تحصيل العملاء والتخصيص",
+    perms: [
+      {
+        key: FINANCE_PERMISSIONS.customerReceiptView,
+        label: "عرض سندات القبض من العملاء",
+      },
+      {
+        key: FINANCE_PERMISSIONS.customerReceiptCreate,
+        label: "تسجيل سند قبض من عميل",
+        desc: "إثبات تحصيل نقدي/بنكي من عميل وتخفيض الذمم المدينة",
+      },
+      {
+        key: FINANCE_PERMISSIONS.customerReceiptAllocationView,
+        label: "عرض تخصيص التحصيل على الفواتير",
+      },
+      {
+        key: FINANCE_PERMISSIONS.customerReceiptAllocationManage,
+        label: "إدارة تخصيص التحصيل على الفواتير",
+        desc: "تخصيص/تعديل/إلغاء توزيع مبلغ التحصيل على فواتير العميل — بيانات تسوية لا تُنشئ قيوداً",
+      },
     ],
   },
   {

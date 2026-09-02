@@ -253,6 +253,13 @@
       "when": 1787130004000,
       "tag": "0035_customers_sales_invoices",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787130005000,
+      "tag": "0036_customer_receipts",
+      "breakpoints": true
     }
   ]
 }

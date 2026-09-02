@@ -47,6 +47,10 @@ import {
 } from "./gl";
 import { accountMappedToAnyCashBank } from "./cash-bank";
 import { linkEntryArLine } from "./customer";
+import {
+  invoiceHasAllocations,
+  lockInvoiceAllocationResource,
+} from "./customer-receipt-allocation";
 import { recordWorkflowEvent } from "./finance-workflow";
 import {
   findTransition,
@@ -499,6 +503,14 @@ export async function transitionSalesInvoice(
       if (changed.length === 0)
         throw new AppError("تعذّر الترحيل — تغيّرت حالة الفاتورة", 409, "STATE_CONFLICT");
     } else if (action === "reverse") {
+      // Phase Sales-2 — serialize with allocate/unallocate on the SAME invoice
+      // allocation resource so a reversal can never interleave between an
+      // allocation's over-allocation check and its commit (which would leave a
+      // REVERSED invoice carrying an active allocation). The advisory lock is
+      // taken BEFORE the FOR UPDATE row lock (the 5A.1 deadlock lesson): an
+      // allocate INSERT takes FOR KEY SHARE on this invoice row, which would
+      // deadlock against a FOR UPDATE held while waiting on the advisory lock.
+      await lockInvoiceAllocationResource(tx as any, id);
       const locked = (
         await tx.select().from(salesInvoices).where(eq(salesInvoices.id, id)).for("update").limit(1)
       )[0];
@@ -506,6 +518,14 @@ export async function transitionSalesInvoice(
         throw new AppError("تعذّر العكس — تغيّرت حالة الفاتورة", 409, "STATE_CONFLICT");
       if (!locked.journalEntryId)
         throw new AppError("لا يوجد قيد مُرحَّل لعكسه", 409, "NO_JOURNAL");
+      // An invoice with active receipt allocations must not be reversed silently;
+      // that would detach settlement history from AR. Unallocate first.
+      if (await invoiceHasAllocations(tx as any, id))
+        throw new AppError(
+          "لا يمكن عكس فاتورة لها تخصيصات تحصيل نشطة — ألغِ التخصيص أولاً",
+          409,
+          "SALES_INVOICE_HAS_RECEIPT_ALLOCATIONS",
+        );
       reversalId = await reverseEntry(tx as any, locked.journalEntryId, ctx.user.id);
       // Attribute the reversal-mirror AR CREDIT line to the SAME customer so the
       // subledger nets against the original AR debit.

@@ -164,10 +164,12 @@ export async function getArAging(opts: { asOfDate?: string; customerId?: string 
   summary: ArAgingSummary;
   reconciliation: {
     agingOutstanding: number;
+    unappliedReceipts: number;
+    otherAr: number;
     arGl: number;
     subledgerTotal: number;
-    unallocatedNet: number;
     difference: number;
+    reconciled: boolean;
   };
 }> {
   const p = new URLSearchParams();

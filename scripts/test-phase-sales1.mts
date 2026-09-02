@@ -144,6 +144,13 @@ CREATE TABLE sales_invoice_lines (id text PRIMARY KEY, sales_invoice_id text NOT
   unit_price double precision NOT NULL DEFAULT 0, line_subtotal double precision NOT NULL DEFAULT 0,
   tax_rate double precision NOT NULL DEFAULT 0, tax_amount double precision NOT NULL DEFAULT 0,
   line_total double precision NOT NULL DEFAULT 0, cost_center_id text, created_at text NOT NULL DEFAULT '');
+CREATE TABLE customer_receipts (id text PRIMARY KEY, customer_id text NOT NULL, amount double precision NOT NULL DEFAULT 0,
+  receipt_method text NOT NULL DEFAULT 'bank', reference text, receipt_date text NOT NULL DEFAULT '', note text DEFAULT '',
+  journal_entry_id text, status text NOT NULL DEFAULT 'pending', created_by text,
+  created_at text NOT NULL DEFAULT '', updated_at text NOT NULL DEFAULT '');
+CREATE TABLE customer_receipt_allocations (id text PRIMARY KEY, customer_receipt_id text NOT NULL,
+  sales_invoice_id text NOT NULL, amount double precision NOT NULL, created_by text, created_at text NOT NULL DEFAULT '',
+  updated_by text, updated_at text);
 `;
 
 async function freshDb() {
@@ -458,18 +465,28 @@ async function run() {
   {
     const { db, client } = await freshDb();
     await mkCustomer(client, "cust1", "CUST-1");
-    // Insert posted sales_invoices directly for aging (aging reads status='posted').
-    const rows = [
+    // Post a real invoice per bucket (aging derives outstanding from the posted AR
+    // debit line), then reflect each as a posted sales_invoices row with its due date.
+    const rows: [string, string, number][] = [
       ["si-cur", "2026-06-15", 100], // due after asOf → current
       ["si-30", "2026-05-20", 200], // ~26 days overdue
       ["si-60", "2026-04-20", 300], // ~56 days
       ["si-90", "2026-03-20", 400], // ~87 days
       ["si-old", "2026-01-10", 500], // >90
     ];
-    for (const [id, due, amt] of rows)
-      await client.exec(
-        `INSERT INTO sales_invoices (id,invoice_number,customer_id,invoice_date,due_date,status,total_amount,created_at,updated_at) VALUES ('${id}','${id}','cust1','2026-01-01','${due}','posted',${amt},'${now()}','${now()}')`,
+    for (const [id, due, amt] of rows) {
+      const { entryId } = await postInvoice(
+        db,
+        inv({
+          invoiceDate: "2026-01-01",
+          lines: [{ accountId: "a-rev", quantity: 1, unitPrice: amt }],
+        }),
+        id,
       );
+      await client.exec(
+        `INSERT INTO sales_invoices (id,invoice_number,customer_id,invoice_date,due_date,status,total_amount,journal_entry_id,created_at,updated_at) VALUES ('${id}','${id}','cust1','2026-01-01','${due}','posted',${amt},'${entryId}','${now()}','${now()}')`,
+      );
+    }
     const aging = await arAging(db, { asOfDate: "2026-06-15" });
     ok("AGING-A total = 1500", near(aging.total, 1500), String(aging.total));
     ok(

@@ -95,6 +95,7 @@ const NAV: NavGroup[] = [
       { to: "/finance/ap-aging", label: "أعمار الذمم الدائنة", icon: Hourglass },
       { to: "/finance/customers", label: "العملاء والذمم المدينة", icon: UsersRound },
       { to: "/finance/sales-invoices", label: "فواتير المبيعات", icon: FileText },
+      { to: "/finance/customer-receipts", label: "تحصيل العملاء والتخصيص", icon: Link2 },
       { to: "/finance/ar-aging", label: "أعمار الذمم المدينة", icon: Hourglass },
       { to: "/finance/account-mappings", label: "ربط الحسابات النظامية", icon: SlidersHorizontal },
       { to: "/finance/ledger", label: "دفتر الأستاذ", icon: Wallet },
