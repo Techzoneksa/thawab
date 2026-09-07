@@ -138,7 +138,10 @@ async function nextJournalNumber(tx: Db, dateISO: string): Promise<string> {
       .orderBy(desc(journalEntries.number))
       .limit(1)
   )[0];
-  const seq = last ? parseInt(String(last.number).slice(prefix.length), 10) + 1 : 1;
+  // `|| 0` guard (mirrors numbering.ts nextCode): a non-numeric/empty tail must
+  // fall back to 0 → seq 1, never NaN. Without it a single unparseable tail would
+  // emit "JV-YYYY-00NaN" and then poison the unique index for all later postings.
+  const seq = last ? (parseInt(String(last.number).slice(prefix.length), 10) || 0) + 1 : 1;
   return `${prefix}${String(seq).padStart(5, "0")}`;
 }
 

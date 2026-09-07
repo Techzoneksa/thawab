@@ -99,45 +99,39 @@ async function seedGrn(supplierId: string, qty: number, unit: number) {
   const lineValue = Math.round(qty * unit * 100) / 100;
   const ts = now();
   await db.transaction(async (tx) => {
-    await tx
-      .insert(purchaseOrders)
-      .values({
-        id: poId,
-        poNumber: `PO-5B1-${RUN}-${seq}`,
-        supplierId,
-        governanceMode: "governed",
-        subject: "5B1",
-        date: "2026-03-01",
-        status: "issued",
-        currency: "SAR",
-        createdAt: ts,
-        updatedAt: ts,
-      } as any);
-    await tx
-      .insert(inventoryItems)
-      .values({
-        id: itemId,
-        name: `I${seq}`,
-        unit: "قطعة",
-        quantity: qty,
-        price: unit,
-        status: "active",
-        createdAt: ts,
-        updatedAt: ts,
-      } as any);
-    await tx
-      .insert(purchaseOrderLines)
-      .values({
-        id: poLineId,
-        orderId: poId,
-        lineNumber: 1,
-        itemId,
-        description: "i",
-        quantity: qty,
-        unitPrice: unit,
-        receivedQuantity: qty,
-        lineType: "ITEM",
-      } as any);
+    await tx.insert(purchaseOrders).values({
+      id: poId,
+      poNumber: `PO-5B1-${RUN}-${seq}`,
+      supplierId,
+      governanceMode: "governed",
+      subject: "5B1",
+      date: "2026-03-01",
+      status: "issued",
+      currency: "SAR",
+      createdAt: ts,
+      updatedAt: ts,
+    } as any);
+    await tx.insert(inventoryItems).values({
+      id: itemId,
+      name: `I${seq}`,
+      unit: "قطعة",
+      quantity: qty,
+      price: unit,
+      status: "active",
+      createdAt: ts,
+      updatedAt: ts,
+    } as any);
+    await tx.insert(purchaseOrderLines).values({
+      id: poLineId,
+      orderId: poId,
+      lineNumber: 1,
+      itemId,
+      description: "i",
+      quantity: qty,
+      unitPrice: unit,
+      receivedQuantity: qty,
+      lineType: "ITEM",
+    } as any);
     const entryId = await postBalancedEntry(
       tx as any,
       {
@@ -156,51 +150,45 @@ async function seedGrn(supplierId: string, qty: number, unit: number) {
       } as any,
     );
     const mvId = genId("MV");
-    await tx
-      .insert(goodsReceipts)
-      .values({
-        id: grnId,
-        grnNumber: `GRN-5B1-${RUN}-${seq}`,
-        purchaseOrderId: poId,
-        supplierId,
-        receiptDate: "2026-03-10",
-        status: "posted",
-        currency: "SAR",
-        totalValue: lineValue,
-        journalEntryId: entryId,
-        createdAt: ts,
-        updatedAt: ts,
-      } as any);
-    await tx
-      .insert(goodsReceiptLines)
-      .values({
-        id: grnLineId,
-        goodsReceiptId: grnId,
-        poLineId,
-        lineNumber: 1,
-        lineType: "ITEM",
-        description: "i",
-        itemId,
-        accountId: INV,
-        quantityReceived: qty,
-        unitPrice: unit,
-        lineValue,
-        stockMovementId: mvId,
-        createdAt: ts,
-      } as any);
-    await tx
-      .insert(stockMovements)
-      .values({
-        id: mvId,
-        itemId,
-        type: "in",
-        quantity: qty,
-        balanceAfter: qty,
-        sourceType: "goods_receipt",
-        sourceId: grnId,
-        date: "2026-03-10",
-        createdAt: ts,
-      } as any);
+    await tx.insert(goodsReceipts).values({
+      id: grnId,
+      grnNumber: `GRN-5B1-${RUN}-${seq}`,
+      purchaseOrderId: poId,
+      supplierId,
+      receiptDate: "2026-03-10",
+      status: "posted",
+      currency: "SAR",
+      totalValue: lineValue,
+      journalEntryId: entryId,
+      createdAt: ts,
+      updatedAt: ts,
+    } as any);
+    await tx.insert(goodsReceiptLines).values({
+      id: grnLineId,
+      goodsReceiptId: grnId,
+      poLineId,
+      lineNumber: 1,
+      lineType: "ITEM",
+      description: "i",
+      itemId,
+      accountId: INV,
+      quantityReceived: qty,
+      unitPrice: unit,
+      lineValue,
+      stockMovementId: mvId,
+      createdAt: ts,
+    } as any);
+    await tx.insert(stockMovements).values({
+      id: mvId,
+      itemId,
+      type: "in",
+      quantity: qty,
+      balanceAfter: qty,
+      sourceType: "goods_receipt",
+      sourceId: grnId,
+      date: "2026-03-10",
+      createdAt: ts,
+    } as any);
     await linkEntryGrniLine(tx as any, {
       goodsReceiptId: grnId,
       entryId,
@@ -632,6 +620,17 @@ async function main() {
 
   console.log("\nPERF — p50/p95 (repeated runs) + response sizes");
   {
+    // Controlled measurement per Phase 5B.2: never benchmark during the bulk-insert
+    // checkpoint storm. ANALYZE + warm up first so plans are fresh and caches primed.
+    // (The authoritative standalone benchmark with the documented threshold is
+    // scripts/bench-eligible.mts.)
+    await db.execute(
+      sql`ANALYZE goods_receipts, goods_receipt_lines, purchase_return_lines, supplier_invoice_grn_allocations, purchase_orders, purchase_returns`,
+    );
+    for (let w = 0; w < 6; w++) {
+      await eligibleGrnsForReturn(db as any, { limit: 20 });
+      await listPurchaseReturns({ page: 1, pageSize: 25 });
+    }
     const p1 = await bench("purchase return list (page 1)", () =>
       listPurchaseReturns({ page: 1, pageSize: 25 }),
     );
