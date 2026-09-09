@@ -260,6 +260,13 @@
       "when": 1787130005000,
       "tag": "0036_customer_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1787130006000,
+      "tag": "0037_supplier_invoice_tax_provenance",
+      "breakpoints": true
     }
   ]
 }

@@ -57,6 +57,7 @@ import { accountMappedToAnyCashBank } from "./cash-bank";
 import { resolveConfirmedInputVatAccount } from "./account-mapping";
 import { linkEntryApLine } from "./supplier";
 import { createGrniLink, receiptGrniLink } from "./grni-link";
+import { createSupplierInvoiceTaxLink } from "./supplier-invoice-tax-link";
 import {
   invoiceAllocations,
   getGrnLineMatchingPosition,
@@ -789,14 +790,22 @@ export async function transitionSupplierInvoice(
         description: l.description || desc,
       }));
       // … Dr recoverable input VAT (single aggregated leg) — the CONFIRMED account.
-      // VAT is NOT part of GRNI value; it always gets its own leg.
+      // VAT is NOT part of GRNI value; it always gets its own leg. Capture the VAT
+      // leg's account + exact lineNumber HERE (deterministic identity at journal
+      // construction) so its journal line can be resolved after posting WITHOUT
+      // any amount/description/current-mapping search (Phase 5C.0.2 §4/§5).
+      let vatAccountId: string | null = null;
+      let vatLineNumber = 0;
       if (computed.taxAmount > AMOUNT_TOLERANCE) {
-        const vatId = await resolveConfirmedInputVatAccount(tx as any);
+        vatAccountId = await resolveConfirmedInputVatAccount(tx as any);
         jLines.push({
-          accountId: vatId,
+          accountId: vatAccountId,
           debit: computed.taxAmount,
           description: `ضريبة مدخلات — ${desc}`,
         });
+        // lineNumber is assigned by postBalancedEntry as the 1-based array position,
+        // so the VAT leg's number equals the array length right after this push.
+        vatLineNumber = jLines.length;
       }
       // … Cr accounts payable (gross) — the supplier-attributed leg.
       jLines.push({ accountId: apId, credit: computed.totalAmount, description: desc });
@@ -812,6 +821,22 @@ export async function transitionSupplierInvoice(
         userId: ctx.user.id,
         status: JournalStatus.POSTED,
       });
+
+      // Phase 5C.0.2 — for a taxable invoice, capture immutable provenance of the
+      // exact Input VAT debit line THIS posting created, in the SAME transaction.
+      // The failpoint proves that a failure here rolls the whole POST back (no
+      // POSTED taxable invoice can exist without its VAT provenance link).
+      if (computed.taxAmount > AMOUNT_TOLERANCE) {
+        failpoint("si.before_vat_provenance_link");
+        await createSupplierInvoiceTaxLink(tx as any, {
+          supplierInvoiceId: id,
+          journalEntryId: entryId,
+          vatLineNumber,
+          expectedVatDebit: computed.taxAmount,
+          expectedAccountId: vatAccountId as string,
+          userId: ctx.user.id,
+        });
+      }
 
       // REL-B failpoint: journal is posted; AP link not yet written. A failure
       // here must roll the whole transaction back (no orphan journal, no AP link).

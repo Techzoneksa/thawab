@@ -43,8 +43,16 @@ const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 const near = (a: number, b: number) => Math.abs(a - b) < 0.0000001; // exact-to-halala
 
 const RUN = Date.now().toString(36);
-const maker: any = { user: { id: "u-5c01-mk", name: "Maker", role: "role-admin" }, ip: "127.0.0.1", request: new Request("http://localhost/") };
-const checker: any = { user: { id: "u-5c01-ck", name: "Checker", role: "role-admin" }, ip: "127.0.0.1", request: new Request("http://localhost/") };
+const maker: any = {
+  user: { id: "u-5c01-mk", name: "Maker", role: "role-admin" },
+  ip: "127.0.0.1",
+  request: new Request("http://localhost/"),
+};
+const checker: any = {
+  user: { id: "u-5c01-ck", name: "Checker", role: "role-admin" },
+  ip: "127.0.0.1",
+  request: new Request("http://localhost/"),
+};
 
 let EXP = "",
   ASSET = "",
@@ -111,7 +119,10 @@ async function balanced(entryId: string) {
   return near(Number(row.d), Number(row.c));
 }
 async function headerTax(invoiceId: string) {
-  const r = (await db.select({ t: supplierInvoices.taxAmount }).from(supplierInvoices).where(eq(supplierInvoices.id, invoiceId))) as any;
+  const r = (await db
+    .select({ t: supplierInvoices.taxAmount })
+    .from(supplierInvoices)
+    .where(eq(supplierInvoices.id, invoiceId))) as any;
   return Number(r[0]?.t || 0);
 }
 
@@ -126,7 +137,9 @@ async function main() {
   EXP = await mkAccount(`5C01E-${RUN}`, "5C01 expense", "expense");
   ASSET = await mkAccount(`5C01A-${RUN}`, "5C01 asset", "asset");
   VAT = await mkAccount(`5C01V-${RUN}`, "5C01 input VAT", "asset");
-  await db.transaction((tx: any) => assignInputVatAccount(tx, { accountId: VAT, userId: "u-5c01-mk" }));
+  await db.transaction((tx: any) =>
+    assignInputVatAccount(tx, { accountId: VAT, userId: "u-5c01-mk" }),
+  );
   SUP = genId("SUP");
   const ts = now();
   await db.execute(
@@ -138,17 +151,26 @@ async function main() {
     sql`SELECT (SELECT id FROM accounts WHERE system_key='input_vat') m, (SELECT account_id FROM finance_account_mapping_confirmations WHERE purpose='INPUT_VAT') c`,
   )) as any;
   const crow = (chk.rows ?? chk ?? [])[0];
-  ok("SEED: Input VAT mapped AND confirmed to the test account (READY)", crow.m === VAT && crow.c === VAT);
+  ok(
+    "SEED: Input VAT mapped AND confirmed to the test account (READY)",
+    crow.m === VAT && crow.c === VAT,
+  );
 
   // ===================== VAT-A — one taxable line =====================
   console.log("\nVAT-A — single taxable line");
   {
-    const id = await postInvoice([{ accountId: EXP, quantity: 1, unitPrice: 100, taxRate: 15 }], `5C01-A-${RUN}`);
+    const id = await postInvoice(
+      [{ accountId: EXP, quantity: 1, unitPrice: 100, taxRate: 15 }],
+      `5C01-A-${RUN}`,
+    );
     const e = await entryFor(id);
     const v = await vatDebit(e);
     const s = r2(await lineTaxSum(id));
     const h = await headerTax(id);
-    ok("VAT-A: posted VAT debit == Σ line tax == header tax == 15.00", v.lines === 1 && near(v.debit, 15) && near(s, 15) && near(h, 15));
+    ok(
+      "VAT-A: posted VAT debit == Σ line tax == header tax == 15.00",
+      v.lines === 1 && near(v.debit, 15) && near(s, 15) && near(h, 15),
+    );
     ok("VAT-A: r2(Σ line tax) == posted VAT debit (invariant)", near(s, v.debit));
     ok("VAT-A: journal balanced", await balanced(e));
   }
@@ -169,7 +191,10 @@ async function main() {
     const v = await vatDebit(e);
     const s = r2(await lineTaxSum(id));
     const h = await headerTax(id);
-    ok("VAT-B: Σ persisted line tax == posted VAT debit exactly (4.56)", near(s, v.debit) && near(v.debit, 4.56));
+    ok(
+      "VAT-B: Σ persisted line tax == posted VAT debit exactly (4.56)",
+      near(s, v.debit) && near(v.debit, 4.56),
+    );
     ok("VAT-B: header tax == 4.56 == Σ line tax", near(h, 4.56) && near(h, s));
     ok("VAT-B: single aggregated VAT leg (not one-per-line)", v.lines === 1);
     ok("VAT-B: journal balanced", await balanced(e));
@@ -188,7 +213,10 @@ async function main() {
     const e = await entryFor(id);
     const v = await vatDebit(e);
     const s = r2(await lineTaxSum(id));
-    ok("VAT-C: only the taxable line contributes (VAT debit 15.00)", near(v.debit, 15) && near(s, 15));
+    ok(
+      "VAT-C: only the taxable line contributes (VAT debit 15.00)",
+      near(v.debit, 15) && near(s, 15),
+    );
     ok("VAT-C: r2(Σ line tax) == posted VAT debit", near(s, v.debit));
     ok("VAT-C: journal balanced", await balanced(e));
   }
@@ -208,8 +236,14 @@ async function main() {
     const e = await entryFor(id);
     const v = await vatDebit(e);
     const s = r2(await lineTaxSum(id));
-    ok("VAT-D: POLICY is per-line r2 then SUM → 3.51 (NOT tax-on-total 3.50)", near(v.debit, 3.51) && near(s, 3.51));
-    ok("VAT-D: posted VAT debit != tax-on-total (3.50) — proves the actual policy", !near(v.debit, 3.5));
+    ok(
+      "VAT-D: POLICY is per-line r2 then SUM → 3.51 (NOT tax-on-total 3.50)",
+      near(v.debit, 3.51) && near(s, 3.51),
+    );
+    ok(
+      "VAT-D: posted VAT debit != tax-on-total (3.50) — proves the actual policy",
+      !near(v.debit, 3.5),
+    );
     ok("VAT-D: r2(Σ line tax) == posted VAT debit", near(s, v.debit));
     ok("VAT-D: journal balanced", await balanced(e));
   }
@@ -228,7 +262,10 @@ async function main() {
     const v = await vatDebit(e);
     const s = r2(await lineTaxSum(id));
     const h = await headerTax(id);
-    ok("VAT-E: posted Input VAT debit == 0 AND NO Input VAT journal line", v.lines === 0 && near(v.debit, 0));
+    ok(
+      "VAT-E: posted Input VAT debit == 0 AND NO Input VAT journal line",
+      v.lines === 0 && near(v.debit, 0),
+    );
     ok("VAT-E: header tax == 0 and Σ line tax == 0", near(h, 0) && near(s, 0));
     ok("VAT-E: journal balanced", await balanced(e));
   }

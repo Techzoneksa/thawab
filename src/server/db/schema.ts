@@ -1045,6 +1045,36 @@ export const supplierInvoiceGrnAllocations = pgTable(
   }),
 );
 
+// Phase 5C.0.2 — immutable FORWARD provenance of a POSTED taxable Supplier
+// Invoice's Input VAT debit journal line. Created ONLY inside the Invoice POST
+// transaction, for taxable invoices (tax_amount > 0). There is deliberately NO
+// amount column: the linked journal_lines row (its debit / credit / account_id)
+// IS the accounting evidence — this table records identity only, never a second
+// VAT ledger. One link per invoice (UNIQUE supplier_invoice_id); one line per
+// link (UNIQUE journal_line_id). Historical taxable invoices posted before this
+// table existed have NO link and are never backfilled by inference. The link
+// documents the ORIGINAL invoice's VAT debit; reversal never links a mirror row.
+export const supplierInvoiceTaxJournalLinks = pgTable(
+  "supplier_invoice_tax_journal_links",
+  {
+    id: text("id").primaryKey(),
+    supplierInvoiceId: text("supplier_invoice_id")
+      .notNull()
+      .references(() => supplierInvoices.id),
+    journalLineId: text("journal_line_id")
+      .notNull()
+      .references(() => journalLines.id),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(""),
+  },
+  (t) => ({
+    invoiceIdx: uniqueIndex("supplier_invoice_tax_journal_links_invoice_idx").on(
+      t.supplierInvoiceId,
+    ),
+    lineIdx: uniqueIndex("supplier_invoice_tax_journal_links_line_idx").on(t.journalLineId),
+  }),
+);
+
 // ============ SALES / ACCOUNTS RECEIVABLE (Phase Sales-1) ============
 
 // Customer master (عميل) — the AR-side mirror of `suppliers`. A customer's
