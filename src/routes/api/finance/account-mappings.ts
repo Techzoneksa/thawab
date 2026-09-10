@@ -20,23 +20,29 @@ import {
   setGrniAccount,
   grniPreflight,
   getGrniMapping,
+  setOutputVatAccount,
+  outputVatPreflight,
+  getOutputVatMapping,
 } from "@/server/db/account-mapping";
 
 async function GET(_event: { request: Request }, _ctx: Ctx) {
-  const [vatPf, vatMap, grniPf, grniMap] = await Promise.all([
+  const [vatPf, vatMap, grniPf, grniMap, outPf, outMap] = await Promise.all([
     inputVatPreflight(db),
     getInputVatMapping(db),
     grniPreflight(db),
     getGrniMapping(db),
+    outputVatPreflight(db),
+    getOutputVatMapping(db),
   ]);
   return Response.json({
     inputVat: { preflight: vatPf, mapping: vatMap ?? null },
     grni: { preflight: grniPf, mapping: grniMap ?? null },
+    outputVat: { preflight: outPf, mapping: outMap ?? null },
   });
 }
 
 const setSchema = z.object({
-  purpose: z.enum(["input_vat", "grni"]),
+  purpose: z.enum(["input_vat", "grni", "output_vat"]),
   accountId: z.string().min(1, "الحساب مطلوب"),
 });
 
@@ -48,7 +54,9 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     const item =
       b.purpose === "grni"
         ? await setGrniAccount(ctx, b.accountId)
-        : await setInputVatAccount(ctx, b.accountId);
+        : b.purpose === "output_vat"
+          ? await setOutputVatAccount(ctx, b.accountId)
+          : await setInputVatAccount(ctx, b.accountId);
     return Response.json({ item });
   });
 }

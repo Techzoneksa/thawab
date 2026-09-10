@@ -33,6 +33,10 @@ export const SYS = {
   // Recoverable input VAT (ضريبة القيمة المضافة — مدخلات) — an ASSET receivable
   // from ZATCA. Resolved by systemKey, never by a hardcoded account number.
   INPUT_VAT: "input_vat",
+  // Output VAT payable (ضريبة القيمة المضافة — مخرجات) — a LIABILITY owed to
+  // ZATCA, credited by a taxable Sales Invoice (Phase Sales-VAT). NEVER Accounts
+  // Receivable/Payable. Resolved by an admin-confirmed mapping, never hardcoded.
+  OUTPUT_VAT: "output_vat",
   // Goods Received Not Invoiced (بضاعة مستلمة لم تُفوتر) — a LIABILITY accrual
   // credited by a governed Goods Receipt (Phase 3D), later cleared by the
   // Supplier Invoice. NEVER Accounts Payable. Resolved by an admin-confirmed

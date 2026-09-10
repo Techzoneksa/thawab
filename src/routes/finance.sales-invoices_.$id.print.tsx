@@ -101,10 +101,27 @@ function PrintPage() {
                 {fmtSAR(l.unitPrice)}
               </td>
               <td className="border border-black p-1.5 text-left tabular-nums">
-                {fmtSAR(l.lineTotal)}
+                {fmtSAR(l.lineSubtotal)}
               </td>
             </tr>
           ))}
+          <tr>
+            <td className="border border-black p-1.5 text-left" colSpan={3}>
+              الصافي (قبل الضريبة)
+            </td>
+            <td className="border border-black p-1.5 text-left tabular-nums">
+              {fmtSAR(v.subtotal)}
+            </td>
+          </tr>
+          <tr>
+            <td className="border border-black p-1.5 text-left" colSpan={3}>
+              ضريبة القيمة المضافة
+              {v.subtotal > 0 ? ` (${Math.round((v.taxAmount / v.subtotal) * 100)}%)` : ""}
+            </td>
+            <td className="border border-black p-1.5 text-left tabular-nums">
+              {fmtSAR(v.taxAmount)}
+            </td>
+          </tr>
           <tr className="font-bold bg-gray-100">
             <td className="border border-black p-1.5 text-left" colSpan={3}>
               الإجمالي المستحق على العميل

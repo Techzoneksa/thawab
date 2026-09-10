@@ -22,12 +22,19 @@ const FUND_OPTIONS = [
   { value: "endowment", label: "وقف" },
 ];
 
-type LineForm = { accountId: string; description: string; quantity: string; unitPrice: string };
+type LineForm = {
+  accountId: string;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+  taxRate: string;
+};
 const emptyLine = (): LineForm => ({
   accountId: "",
   description: "",
   quantity: "1",
   unitPrice: "",
+  taxRate: "15",
 });
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -56,8 +63,12 @@ function NewSalesInvoicePage() {
     (a: Account) => a.postable && a.status === "active" && a.classification === "revenue",
   );
 
-  const computed = lines.map((l) => round2((Number(l.quantity) || 0) * (Number(l.unitPrice) || 0)));
-  const grand = round2(computed.reduce((s, c) => s + c, 0));
+  const lineNet = lines.map((l) => round2((Number(l.quantity) || 0) * (Number(l.unitPrice) || 0)));
+  const lineTax = lines.map((l, i) => round2((lineNet[i] * (Number(l.taxRate) || 0)) / 100));
+  const lineGross = lines.map((l, i) => round2(lineNet[i] + lineTax[i]));
+  const subtotal = round2(lineNet.reduce((s, c) => s + c, 0));
+  const vatTotal = round2(lineTax.reduce((s, c) => s + c, 0));
+  const grand = round2(subtotal + vatTotal);
 
   const backToList = () => nav({ to: "/finance/sales-invoices" });
 
@@ -77,6 +88,7 @@ function NewSalesInvoicePage() {
             description: l.description || undefined,
             quantity: Number(l.quantity),
             unitPrice: Number(l.unitPrice),
+            taxRate: Number(l.taxRate) || 0,
           })),
       };
       return createSalesInvoice(body);
@@ -213,7 +225,7 @@ function NewSalesInvoicePage() {
                     value={l.description}
                     onChange={(e) => setLine(i, "description", e.target.value)}
                   />
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <NumIn
                       placeholder="الكمية"
                       value={l.quantity}
@@ -224,9 +236,22 @@ function NewSalesInvoicePage() {
                       value={l.unitPrice}
                       onChange={(v) => setLine(i, "unitPrice", v)}
                     />
+                    <label className="relative">
+                      <NumIn
+                        placeholder="الضريبة %"
+                        value={l.taxRate}
+                        onChange={(v) => setLine(i, "taxRate", v)}
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 start-2 flex items-center text-[10px] text-muted-foreground">
+                        ض%
+                      </span>
+                    </label>
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="tabular-nums">الإجمالي {fmtSAR(computed[i] || 0)}</span>
+                    <span className="tabular-nums">
+                      صافي {fmtSAR(lineNet[i] || 0)} · ضريبة {fmtSAR(lineTax[i] || 0)} · الإجمالي{" "}
+                      {fmtSAR(lineGross[i] || 0)}
+                    </span>
                     {lines.length > 1 && (
                       <button
                         type="button"
@@ -242,12 +267,15 @@ function NewSalesInvoicePage() {
               ))}
             </div>
 
-            <div className="mt-3 rounded-lg bg-muted/40 px-3 py-2">
+            <div className="mt-3 rounded-lg bg-muted/40 px-3 py-2 space-y-1">
+              <Row label="الصافي (قبل الضريبة)" value={subtotal} />
+              <Row label="ضريبة القيمة المضافة" value={vatTotal} />
               <Row label="الإجمالي المستحق على العميل" value={grand} bold />
             </div>
             <div className="text-[11px] text-muted-foreground mt-2">
-              الترحيل يُنشئ: مدين الذمم المدينة / دائن الإيراد — ويُنسب الطرف المدين لأستاذ العميل.
-              لا ضريبة في هذه المرحلة. القيم تُعاد حسابتها على الخادم.
+              الترحيل يُنشئ: مدين الذمم المدينة (شامل الضريبة) / دائن الإيراد (الصافي) / دائن ضريبة
+              المخرجات. القيم تُعاد حسابتها على الخادم. الفواتير الخاضعة للضريبة تتطلب تأكيد حساب
+              ضريبة المخرجات من إعدادات ربط الحسابات.
             </div>
           </Card>
 

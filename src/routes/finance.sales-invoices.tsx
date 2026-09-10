@@ -294,6 +294,7 @@ type LineForm = {
   description: string;
   quantity: string;
   unitPrice: string;
+  taxRate: string;
 };
 
 const emptyLine = (): LineForm => ({
@@ -301,6 +302,7 @@ const emptyLine = (): LineForm => ({
   description: "",
   quantity: "1",
   unitPrice: "",
+  taxRate: "15",
 });
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
@@ -341,6 +343,7 @@ function CreateEditDrawer({
         description: l.description || "",
         quantity: String(l.quantity),
         unitPrice: String(l.unitPrice),
+        taxRate: String(l.taxRate ?? 0),
       })),
     );
   }
@@ -351,8 +354,12 @@ function CreateEditDrawer({
     (a: Account) => a.postable && a.status === "active" && a.classification === "revenue",
   );
 
-  const computed = lines.map((l) => round2((Number(l.quantity) || 0) * (Number(l.unitPrice) || 0)));
-  const grand = round2(computed.reduce((s, c) => s + c, 0));
+  const lineNet = lines.map((l) => round2((Number(l.quantity) || 0) * (Number(l.unitPrice) || 0)));
+  const lineTax = lines.map((l, i) => round2((lineNet[i] * (Number(l.taxRate) || 0)) / 100));
+  const computed = lines.map((_, i) => round2(lineNet[i] + lineTax[i]));
+  const subtotal = round2(lineNet.reduce((s, c) => s + c, 0));
+  const vatTotal = round2(lineTax.reduce((s, c) => s + c, 0));
+  const grand = round2(subtotal + vatTotal);
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -371,6 +378,7 @@ function CreateEditDrawer({
             description: l.description || undefined,
             quantity: Number(l.quantity),
             unitPrice: Number(l.unitPrice),
+            taxRate: Number(l.taxRate) || 0,
           })),
       };
       return item?.id ? updateSalesInvoice(body) : createSalesInvoice(body);
@@ -493,7 +501,7 @@ function CreateEditDrawer({
                   value={l.description}
                   onChange={(e) => setLine(i, "description", e.target.value)}
                 />
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-3 gap-1.5">
                   <NumIn
                     placeholder="الكمية"
                     value={l.quantity}
@@ -504,9 +512,17 @@ function CreateEditDrawer({
                     value={l.unitPrice}
                     onChange={(v) => setLine(i, "unitPrice", v)}
                   />
+                  <NumIn
+                    placeholder="الضريبة %"
+                    value={l.taxRate}
+                    onChange={(v) => setLine(i, "taxRate", v)}
+                  />
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span className="tabular-nums">الإجمالي {fmtSAR(computed[i] || 0)}</span>
+                  <span className="tabular-nums">
+                    صافي {fmtSAR(lineNet[i] || 0)} · ضريبة {fmtSAR(lineTax[i] || 0)} · الإجمالي{" "}
+                    {fmtSAR(computed[i] || 0)}
+                  </span>
                   {lines.length > 1 && (
                     <button
                       type="button"
@@ -523,11 +539,13 @@ function CreateEditDrawer({
           </div>
 
           <div className="mt-2 rounded-lg bg-muted/40 px-3 py-2 space-y-1">
+            <Row label="الصافي (قبل الضريبة)" value={subtotal} />
+            <Row label="ضريبة القيمة المضافة" value={vatTotal} />
             <Row label="الإجمالي المستحق على العميل" value={grand} bold />
           </div>
           <div className="text-[10px] text-muted-foreground mt-1">
-            الترحيل يُنشئ: مدين الذمم المدينة / دائن الإيراد — ويُنسب الطرف المدين لأستاذ العميل. لا
-            ضريبة في هذه المرحلة. القيم تُعاد حسابتها على الخادم.
+            الترحيل يُنشئ: مدين الذمم المدينة (شامل الضريبة) / دائن الإيراد (الصافي) / دائن ضريبة
+            المخرجات. القيم تُعاد حسابتها على الخادم.
           </div>
         </div>
       </div>

@@ -41,6 +41,7 @@ export interface GrniPreflight {
 export interface AccountMappingsState {
   inputVat: { preflight: InputVatPreflight; mapping: any | null };
   grni: { preflight: GrniPreflight; mapping: any | null };
+  outputVat: { preflight: GrniPreflight; mapping: any | null };
 }
 
 async function j(res: Response, fallback: string) {
@@ -53,7 +54,11 @@ export async function getAccountMappings(): Promise<AccountMappingsState> {
   return j(await fetch("/api/finance/account-mappings"), "تعذّر جلب ربط الحسابات النظامية");
 }
 
-async function setMapping(purpose: "input_vat" | "grni", accountId: string, fallback: string) {
+async function setMapping(
+  purpose: "input_vat" | "grni" | "output_vat",
+  accountId: string,
+  fallback: string,
+) {
   const res = await fetch("/api/finance/account-mappings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -68,4 +73,8 @@ export function setInputVatAccount(accountId: string): Promise<any> {
 
 export function setGrniAccount(accountId: string): Promise<any> {
   return setMapping("grni", accountId, "تعذّر تعيين حساب GRNI");
+}
+
+export function setOutputVatAccount(accountId: string): Promise<any> {
+  return setMapping("output_vat", accountId, "تعذّر تعيين حساب ضريبة المخرجات");
 }

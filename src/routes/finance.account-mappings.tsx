@@ -9,6 +9,7 @@ import {
   getAccountMappings,
   setInputVatAccount,
   setGrniAccount,
+  setOutputVatAccount,
   type MappingStatus,
 } from "@/lib/api/account-mappings";
 
@@ -212,8 +213,141 @@ function Page() {
           canEdit={canEdit}
           onSaved={() => qc.invalidateQueries({ queryKey: ["account-mappings"] })}
         />
+
+        <LiabilityMappingCard
+          title="حساب ضريبة القيمة المضافة — المخرجات (Output VAT)"
+          intro="عند ترحيل فاتورة مبيعات خاضعة للضريبة، يُقيَّد مبلغ الضريبة دائناً على هذا الحساب (التزام مستحق لهيئة الزكاة والضريبة والجمارك). يجب أن يكون حساب التزام، ولا يُعتمد إلا بعد تأكيد صريح من مسؤول مالي. الفواتير غير الخاضعة للضريبة لا تتطلب هذا الربط."
+          notReadyNote="الإعداد ليس جاهزاً. لن يمكن ترحيل فواتير المبيعات الخاضعة للضريبة حتى يتم تعيين حساب التزام صالح وتأكيده صراحةً."
+          saveText="تعيين وتأكيد حساب ضريبة المخرجات"
+          confirmChangeText="تغيير حساب ضريبة المخرجات المؤكَّد. متابعة؟"
+          savedToast="تم تعيين وتأكيد حساب ضريبة المخرجات"
+          pf={mapQ.data?.outputVat.preflight}
+          accounts={acctQ.data?.items || []}
+          canEdit={canEdit}
+          save={setOutputVatAccount}
+          onSaved={() => qc.invalidateQueries({ queryKey: ["account-mappings"] })}
+        />
       </div>
     </AppShell>
+  );
+}
+
+/** Generic admin card for a LIABILITY system-account mapping (GRNI / Output VAT). */
+function LiabilityMappingCard({
+  title,
+  intro,
+  notReadyNote,
+  saveText,
+  confirmChangeText,
+  savedToast,
+  pf,
+  accounts,
+  canEdit,
+  save,
+  onSaved,
+}: {
+  title: string;
+  intro: string;
+  notReadyNote: string;
+  saveText: string;
+  confirmChangeText: string;
+  savedToast: string;
+  pf: any;
+  accounts: Account[];
+  canEdit: boolean;
+  save: (accountId: string) => Promise<any>;
+  onSaved: () => void;
+}) {
+  const [accountId, setAccountId] = useState("");
+  const mut = useMutation({
+    mutationFn: () => save(accountId),
+    onSuccess: () => {
+      showToast(savedToast, "success");
+      setAccountId("");
+      onSaved();
+    },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
+  const status = (pf?.status || "MISSING") as MappingStatus;
+  const sMeta = STATUS_META[status];
+  const mapping = pf?.mapping || null;
+  const confirmation = pf?.confirmation || null;
+  const isChange = status === "READY";
+  const candidates = accounts.filter(
+    (a) => a.postable && a.status === "active" && a.classification === "liability",
+  );
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="font-bold">{title}</div>
+        <Badge tone={sMeta.tone}>{sMeta.label}</Badge>
+      </div>
+      <p className="text-xs text-muted-foreground mb-3 leading-relaxed">{intro}</p>
+      <div className="grid grid-cols-1 gap-2 mb-3 sm:grid-cols-2">
+        <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+          <div className="text-[10px] text-muted-foreground">
+            الحساب المرتبط حالياً (system_key)
+          </div>
+          {mapping ? (
+            <div className="font-mono font-semibold">
+              {mapping.code} — {mapping.name}
+            </div>
+          ) : (
+            <div className="text-muted-foreground">— لا يوجد —</div>
+          )}
+        </div>
+        <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+          <div className="text-[10px] text-muted-foreground">التأكيد الصريح</div>
+          {confirmation ? (
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              بواسطة: {confirmation.confirmedBy || "—"} ·{" "}
+              {String(confirmation.confirmedAt || "")
+                .slice(0, 16)
+                .replace("T", " ")}
+            </div>
+          ) : (
+            <div className="text-muted-foreground">— غير مؤكَّد —</div>
+          )}
+        </div>
+      </div>
+      {status !== "READY" ? (
+        <div className="rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs mb-3">
+          {notReadyNote}
+        </div>
+      ) : null}
+      {canEdit ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="flex-1 block">
+            <div className="text-xs font-semibold text-muted-foreground mb-1">
+              {isChange ? "تغيير الحساب المؤكَّد" : "اختر الحساب (التزام قابل للترحيل)"}
+            </div>
+            <select
+              className="inp"
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+            >
+              <option value="">— اختر حساب التزام —</option>
+              {candidates.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.code} — {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Btn
+            variant="primary"
+            disabled={!accountId || mut.isPending}
+            onClick={() => {
+              if (isChange && !window.confirm(confirmChangeText)) return;
+              mut.mutate();
+            }}
+          >
+            {saveText}
+          </Btn>
+        </div>
+      ) : null}
+    </Card>
   );
 }
 

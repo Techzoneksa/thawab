@@ -46,6 +46,7 @@ import {
   SYS,
 } from "./gl";
 import { accountMappedToAnyCashBank } from "./cash-bank";
+import { resolveConfirmedOutputVatAccount } from "./account-mapping";
 import { linkEntryArLine } from "./customer";
 import {
   invoiceHasAllocations,
@@ -80,6 +81,8 @@ export interface SalesInvoiceLineInput {
   description?: string;
   quantity: number;
   unitPrice: number;
+  /** VAT rate percent (e.g. 15). Optional; 0/omitted = zero-rated line. */
+  taxRate?: number;
   costCenterId?: string | null;
 }
 
@@ -102,12 +105,15 @@ interface ComputedLine {
   quantity: number;
   unitPrice: number;
   lineSubtotal: number;
+  taxRate: number;
+  taxAmount: number;
   lineTotal: number;
   costCenterId: string | null;
 }
 interface Computed {
   lines: ComputedLine[];
   subtotal: number;
+  taxAmount: number;
   totalAmount: number;
 }
 
@@ -185,24 +191,39 @@ export async function validateInvoice(dbh: Db, input: SalesInvoiceInput): Promis
         "LINE_IS_CASH_BANK",
       );
 
+    const taxRate = Number(l.taxRate || 0);
+    if (taxRate < 0 || taxRate > 100)
+      throw new AppError("نسبة الضريبة غير صالحة", 400, "TAX_RATE_INVALID");
+
     const lineSubtotal = r2(quantity * unitPrice);
+    const taxAmount = r2((lineSubtotal * taxRate) / 100);
     computedLines.push({
       accountId: accId,
       description: l.description ?? "",
       quantity,
       unitPrice,
       lineSubtotal,
-      lineTotal: lineSubtotal,
+      taxRate,
+      taxAmount,
+      lineTotal: r2(lineSubtotal + taxAmount),
       costCenterId: l.costCenterId ?? null,
     });
   }
 
   const subtotal = r2(computedLines.reduce((s, l) => s + l.lineSubtotal, 0));
-  const totalAmount = subtotal;
+  const taxAmount = r2(computedLines.reduce((s, l) => s + l.taxAmount, 0));
+  const totalAmount = r2(subtotal + taxAmount);
   if (!(totalAmount > 0))
     throw new AppError("إجمالي الفاتورة يجب أن يكون أكبر من صفر", 400, "AMOUNT_INVALID");
 
-  return { lines: computedLines, subtotal, totalAmount };
+  // Taxable invoices require an EXPLICITLY CONFIRMED, still-valid Output VAT
+  // account (OUTPUT_VAT_ACCOUNT_MISSING / OUTPUT_VAT_MAPPING_UNCONFIRMED). VAT is
+  // always its own credit leg — never mixed into a revenue line.
+  if (taxAmount > AMOUNT_TOLERANCE) {
+    await resolveConfirmedOutputVatAccount(dbh);
+  }
+
+  return { lines: computedLines, subtotal, taxAmount, totalAmount };
 }
 
 async function loadInvoice(id: string) {
@@ -231,6 +252,7 @@ function linesToInput(inv: any, lines: any[]): SalesInvoiceInput {
       description: l.description,
       quantity: Number(l.quantity),
       unitPrice: Number(l.unitPrice),
+      taxRate: Number(l.taxRate),
       costCenterId: l.costCenterId,
     })),
   };
@@ -249,8 +271,8 @@ async function persistLines(tx: any, invoiceId: string, computed: Computed, ts: 
       quantity: l.quantity,
       unitPrice: l.unitPrice,
       lineSubtotal: l.lineSubtotal,
-      taxRate: 0,
-      taxAmount: 0,
+      taxRate: l.taxRate,
+      taxAmount: l.taxAmount,
       lineTotal: l.lineTotal,
       costCenterId: l.costCenterId,
       createdAt: ts,
@@ -284,7 +306,7 @@ export async function createSalesInvoice(ctx: Ctx, input: SalesInvoiceInput) {
       status: SalesInvoiceStatus.DRAFT,
       currency: cur,
       subtotal: computed.subtotal,
-      taxAmount: 0,
+      taxAmount: computed.taxAmount,
       totalAmount: computed.totalAmount,
       fund,
       projectId: input.projectId ?? null,
@@ -457,14 +479,24 @@ export async function transitionSalesInvoice(
       )[0];
       const desc = `فاتورة مبيعات ${locked.invoiceNumber} — ${cust?.name || ""}`.trim();
 
-      // One revenue CREDIT leg per line (computed order), then the AR DEBIT control
-      // leg (gross). No VAT leg in Sales-1.
+      // One revenue CREDIT leg per line (computed order = posted order), for the
+      // line NET; then (if taxable) a single aggregated Output VAT CREDIT leg on
+      // the CONFIRMED account; then the AR DEBIT control leg for the GROSS total.
+      //   Dr AR (subtotal + VAT) / Cr revenue (net per line) / Cr Output VAT (tax)
       const jLines: any[] = computed.lines.map((l) => ({
         accountId: l.accountId,
         credit: l.lineSubtotal,
         costCenterId: l.costCenterId ?? null,
         description: l.description || desc,
       }));
+      if (computed.taxAmount > AMOUNT_TOLERANCE) {
+        const outVatId = await resolveConfirmedOutputVatAccount(tx as any);
+        jLines.push({
+          accountId: outVatId,
+          credit: computed.taxAmount,
+          description: `ضريبة مخرجات — ${desc}`,
+        });
+      }
       jLines.push({ accountId: arId, debit: computed.totalAmount, description: desc });
 
       const entryId = await postBalancedEntry(tx as any, {

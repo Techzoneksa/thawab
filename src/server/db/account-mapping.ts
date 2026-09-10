@@ -538,3 +538,223 @@ export async function grniPreflight(dbh: Db) {
     duplicateMappingCount: dupMapping.length,
   };
 }
+
+// ============================================================================
+// Phase Sales-VAT — Output VAT payable mapping. Same admin-confirmed provenance
+// model as Input VAT, but the account is a LIABILITY (VAT owed to ZATCA on
+// sales) and is explicitly NOT Accounts Payable/Receivable.
+// ============================================================================
+
+export const OUTPUT_VAT_PURPOSE = "OUTPUT_VAT";
+
+/** Validate that `accountId` may be mapped as the Output VAT payable control account. */
+export async function validateOutputVatMappingAccount(dbh: Db, accountId: string) {
+  const acc = (await dbh.select().from(accounts).where(eq(accounts.id, accountId)).limit(1))[0] as
+    any | undefined;
+  if (!acc) throw new AppError("الحساب غير موجود", 404, "ACCOUNT_NOT_FOUND");
+  if (acc.status !== AccountStatus.ACTIVE)
+    throw new AppError("الحساب غير نشط", 400, "ACCOUNT_INACTIVE");
+  if (!acc.postable)
+    throw new AppError(
+      "الحساب رئيسي/غير قابل للترحيل — اختر حساباً فرعياً",
+      400,
+      "ACCOUNT_NOT_POSTABLE",
+    );
+  const apId = await resolveSystemAccountId(dbh as any, SYS.ACCOUNTS_PAYABLE);
+  if (acc.id === apId)
+    throw new AppError("لا يمكن استخدام حساب الذمم الدائنة كضريبة مخرجات", 400, "MAPPING_IS_AP");
+  const arId = await resolveSystemAccountId(dbh as any, SYS.ACCOUNTS_RECEIVABLE);
+  if (acc.id === arId)
+    throw new AppError("لا يمكن استخدام حساب الذمم المدينة كضريبة مخرجات", 400, "MAPPING_IS_AR");
+  const mapped = await accountMappedToAnyCashBank(dbh, accountId);
+  if (mapped)
+    throw new AppError(
+      "لا يمكن استخدام حساب مرتبط بصندوق/بنك كضريبة مخرجات",
+      400,
+      "MAPPING_IS_CASH_BANK",
+    );
+  if (acc.classification !== AccountClassification.LIABILITY)
+    throw new AppError(
+      "حساب ضريبة المخرجات يجب أن يكون التزاماً (مستحق لهيئة الزكاة والضريبة)",
+      400,
+      "MAPPING_CLASS_INVALID",
+    );
+  return acc;
+}
+
+/** The account currently carrying system_key='output_vat' (or null). */
+export async function getOutputVatMapping(dbh: Db) {
+  const rows = await dbh.select().from(accounts).where(eq(accounts.systemKey, SYS.OUTPUT_VAT));
+  return (rows[0] as any) ?? null;
+}
+
+/** The explicit Output VAT confirmation row (or null). */
+export async function getOutputVatConfirmation(dbh: Db) {
+  const rows = await dbh
+    .select()
+    .from(financeAccountMappingConfirmations)
+    .where(eq(financeAccountMappingConfirmations.purpose, OUTPUT_VAT_PURPOSE));
+  return (rows[0] as any) ?? null;
+}
+
+/** Full Output VAT configuration snapshot + derived status (see MappingStatus). */
+export async function getOutputVatConfiguration(dbh: Db): Promise<{
+  mapping: any | null;
+  confirmation: any | null;
+  status: MappingStatus;
+  matches: boolean;
+  valid: boolean;
+}> {
+  const mapping = await getOutputVatMapping(dbh);
+  const confirmation = await getOutputVatConfirmation(dbh);
+  const matches = !!mapping && !!confirmation && confirmation.accountId === mapping.id;
+  let valid = false;
+  if (matches) {
+    try {
+      await validateOutputVatMappingAccount(dbh, mapping.id);
+      valid = true;
+    } catch {
+      valid = false;
+    }
+  }
+  let status: MappingStatus;
+  if (!mapping) status = "MISSING";
+  else if (!confirmation) status = "UNCONFIRMED";
+  else if (!matches) status = "MISMATCH";
+  else if (!valid) status = "INVALID";
+  else status = "READY";
+  return { mapping, confirmation, status, matches, valid };
+}
+
+/**
+ * The single resolver a taxable Sales Invoice MUST use for its Output VAT credit.
+ * Requires a system_key mapping + matching confirmation + a still-valid account,
+ * else throws OUTPUT_VAT_ACCOUNT_MISSING / OUTPUT_VAT_MAPPING_UNCONFIRMED.
+ */
+export async function resolveConfirmedOutputVatAccount(dbh: Db): Promise<string> {
+  const mapping = await getOutputVatMapping(dbh);
+  if (!mapping)
+    throw new AppError(
+      "لا يوجد حساب ضريبة مخرجات مُهيّأ في الدليل المحاسبي",
+      400,
+      "OUTPUT_VAT_ACCOUNT_MISSING",
+    );
+  const confirmation = await getOutputVatConfirmation(dbh);
+  if (!confirmation || confirmation.accountId !== mapping.id)
+    throw new AppError(
+      "ربط حساب ضريبة المخرجات غير مؤكَّد من مسؤول مالي — يلزم التأكيد قبل ترحيل فاتورة مبيعات خاضعة للضريبة",
+      400,
+      "OUTPUT_VAT_MAPPING_UNCONFIRMED",
+    );
+  try {
+    await validateOutputVatMappingAccount(dbh, mapping.id);
+  } catch {
+    throw new AppError(
+      "حساب ضريبة المخرجات المؤكَّد لم يعد صالحاً — أعد تهيئته وتأكيده",
+      400,
+      "OUTPUT_VAT_MAPPING_UNCONFIRMED",
+    );
+  }
+  return mapping.id as string;
+}
+
+/** Atomically (re)assign AND confirm the Output VAT mapping inside the caller's tx. */
+export async function assignOutputVatAccount(
+  tx: any,
+  input: { accountId: string; userId?: string | null },
+): Promise<{ account: any; previousAccountId: string | null }> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(${LOCK_NS.ACCOUNT_MAPPING}, hashtext(${OUTPUT_VAT_PURPOSE}))`,
+  );
+  const prior = await getOutputVatMapping(tx);
+  const previousAccountId = prior?.id ?? null;
+  const acc = await validateOutputVatMappingAccount(tx, input.accountId);
+  const ts = now();
+  await tx
+    .update(accounts)
+    .set({ systemKey: null, updatedAt: ts })
+    .where(and(eq(accounts.systemKey, SYS.OUTPUT_VAT), ne(accounts.id, input.accountId)));
+  await tx
+    .update(accounts)
+    .set({ systemKey: SYS.OUTPUT_VAT, updatedAt: ts })
+    .where(eq(accounts.id, input.accountId));
+  await tx
+    .insert(financeAccountMappingConfirmations)
+    .values({
+      id: genId("FMAP"),
+      purpose: OUTPUT_VAT_PURPOSE,
+      accountId: input.accountId,
+      confirmedBy: input.userId ?? null,
+      confirmedAt: ts,
+      updatedAt: ts,
+    })
+    .onConflictDoUpdate({
+      target: financeAccountMappingConfirmations.purpose,
+      set: {
+        accountId: input.accountId,
+        confirmedBy: input.userId ?? null,
+        confirmedAt: ts,
+        updatedAt: ts,
+      },
+    });
+  return { account: acc, previousAccountId };
+}
+
+/** Admin action: set/confirm (or change) the Output VAT account — atomic + audited. */
+export async function setOutputVatAccount(ctx: Ctx, accountId: string) {
+  let previousAccountId: string | null = null;
+  await db.transaction(async (tx) => {
+    const res = await assignOutputVatAccount(tx as any, { accountId, userId: ctx.user.id });
+    previousAccountId = res.previousAccountId;
+  });
+  const acc = (await db.select().from(accounts).where(eq(accounts.id, accountId)).limit(1))[0];
+  const changed = !!previousAccountId && previousAccountId !== accountId;
+  const prev = previousAccountId
+    ? (await db.select().from(accounts).where(eq(accounts.id, previousAccountId)).limit(1))[0]
+    : null;
+  await addAudit({
+    action: changed ? "OUTPUT_VAT_MAPPING_CHANGED" : "OUTPUT_VAT_MAPPING_CONFIRMED",
+    entityType: "account_mapping",
+    entityId: OUTPUT_VAT_PURPOSE,
+    description: changed
+      ? `تغيير وتأكيد حساب ضريبة المخرجات من ${prev?.code ?? "—"} إلى ${acc?.code} — ${acc?.name}`
+      : `تأكيد حساب ضريبة المخرجات: ${acc?.code} — ${acc?.name}`,
+    userId: ctx.user.id,
+    userName: ctx.user.name,
+    ip: ctx.ip,
+  });
+  return acc;
+}
+
+/** Diagnostic ONLY for Output VAT configuration (never mutates, never auto-maps). */
+export async function outputVatPreflight(dbh: Db) {
+  const { mapping, confirmation, status, matches, valid } = await getOutputVatConfiguration(dbh);
+  const dupMapping = (await dbh
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(eq(accounts.systemKey, SYS.OUTPUT_VAT))) as any[];
+  return {
+    purpose: "output_vat",
+    status,
+    mappingMatchesConfirmation: matches,
+    mappingValid: valid,
+    mapping: mapping
+      ? {
+          accountId: mapping.id,
+          code: mapping.code,
+          name: mapping.name,
+          active: mapping.status === AccountStatus.ACTIVE,
+          postable: !!mapping.postable,
+          classification: mapping.classification,
+        }
+      : null,
+    confirmation: confirmation
+      ? {
+          accountId: confirmation.accountId,
+          confirmedBy: confirmation.confirmedBy,
+          confirmedAt: confirmation.confirmedAt,
+        }
+      : null,
+    duplicateMappingCount: dupMapping.length,
+  };
+}
