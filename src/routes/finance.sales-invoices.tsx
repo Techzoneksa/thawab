@@ -6,7 +6,19 @@ import { Pager } from "@/components/erp/Pager";
 import { Combobox } from "@/components/erp/Combobox";
 import { showToast, EntityFormDrawer, EmptyState } from "@/components/erp/actions";
 import { fmtSAR } from "@/data/sample";
-import { Plus, Eye, Printer, Send, Check, Undo2, X, Trash2, RotateCcw } from "lucide-react";
+import {
+  Plus,
+  Eye,
+  Printer,
+  Send,
+  Check,
+  Undo2,
+  X,
+  Trash2,
+  RotateCcw,
+  Pencil,
+  Download,
+} from "lucide-react";
 import { useAuth, userCan } from "@/lib/api/auth";
 import { getAccounts, type Account } from "@/lib/api/accounts";
 import { customerLookup } from "@/lib/api/customers-finance";
@@ -51,6 +63,43 @@ const QUEUES = [
   { key: "reversed", label: "معكوسة" },
 ];
 
+/** Export the given invoices to a UTF‑8 CSV (Excel-friendly, with BOM for Arabic). */
+function exportInvoicesCsv(rows: SalesInvoice[]) {
+  const headers = [
+    "رقم الفاتورة",
+    "مرجع العميل",
+    "تاريخ الفاتورة",
+    "تاريخ الاستحقاق",
+    "الإجمالي",
+    "الحالة",
+    "رقم القيد",
+  ];
+  const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = rows.map((v) =>
+    [
+      v.invoiceNumber,
+      v.customerReference || "",
+      v.invoiceDate,
+      v.dueDate || "",
+      v.totalAmount,
+      SV_STATUS[v.status]?.label || v.status,
+      v.journalEntryId ? "مُرحَّل" : "",
+    ]
+      .map(esc)
+      .join(","),
+  );
+  const csv = "﻿" + [headers.map(esc).join(","), ...lines].join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `فواتير-المبيعات-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function Page() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -63,6 +112,7 @@ function Page() {
   useEffect(() => setPage(1), [queue, search]);
 
   const canCreate = userCan(user, "finance.sales_invoice.create");
+  const canEdit = userCan(user, "finance.sales_invoice.update_draft");
 
   const listQ = useQuery({
     queryKey: ["sales-invoices", queue, search, page],
@@ -84,11 +134,20 @@ function Page() {
       breadcrumb={["الرئيسية", "المالية", "فواتير المبيعات"]}
       title="فواتير المبيعات"
       actions={
-        canCreate ? (
-          <Btn variant="primary" onClick={() => nav({ to: "/finance/sales-invoices/new" })}>
-            <Plus size={15} /> فاتورة مبيعات جديدة
+        <>
+          <Btn
+            variant="ghost"
+            onClick={() => exportInvoicesCsv(items)}
+            disabled={items.length === 0}
+          >
+            <Download size={15} /> تصدير Excel
           </Btn>
-        ) : null
+          {canCreate && (
+            <Btn variant="primary" onClick={() => nav({ to: "/finance/sales-invoices/new" })}>
+              <Plus size={15} /> فاتورة مبيعات جديدة
+            </Btn>
+          )}
+        </>
       }
     >
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
@@ -157,6 +216,27 @@ function Page() {
                     onClick={() => setDetailId(v.id)}
                   >
                     <Eye size={15} />
+                  </button>
+                  {canEdit && v.status === "draft" && (
+                    <button
+                      className="p-1.5 rounded hover:bg-muted"
+                      title="تعديل المسودة"
+                      onClick={() => setEditing({ item: v })}
+                    >
+                      <Pencil size={15} />
+                    </button>
+                  )}
+                  <button
+                    className="p-1.5 rounded hover:bg-muted"
+                    title="عرض / طباعة A4 (PDF)"
+                    onClick={() =>
+                      nav({
+                        to: "/finance/sales-invoices/$id/print",
+                        params: { id: v.id } as any,
+                      })
+                    }
+                  >
+                    <Printer size={15} />
                   </button>
                 </div>
               </Td>
