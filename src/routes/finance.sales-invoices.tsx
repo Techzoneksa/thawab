@@ -54,6 +54,7 @@ const QUEUES = [
 function Page() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const nav = useNavigate();
   const [queue, setQueue] = useState("");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<{ item?: SalesInvoice } | null>(null);
@@ -84,7 +85,7 @@ function Page() {
       title="فواتير المبيعات"
       actions={
         canCreate ? (
-          <Btn variant="primary" onClick={() => setEditing({})}>
+          <Btn variant="primary" onClick={() => nav({ to: "/finance/sales-invoices/new" })}>
             <Plus size={15} /> فاتورة مبيعات جديدة
           </Btn>
         ) : null
