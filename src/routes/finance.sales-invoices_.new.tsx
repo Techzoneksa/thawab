@@ -251,23 +251,22 @@ function NewSalesInvoicePage() {
             </div>
           </Card>
 
-          {/* Sticky action bar */}
-          <div className="fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur px-4 py-3">
-            <div className="mx-auto max-w-3xl flex items-center justify-between gap-3">
-              <div className="text-sm">
-                <span className="text-muted-foreground">الإجمالي: </span>
-                <span className="font-extrabold tabular-nums">{fmtSAR(grand)}</span>
-              </div>
-              <div className="flex gap-2">
-                <Btn variant="ghost" onClick={backToList} disabled={mut.isPending}>
-                  إلغاء
-                </Btn>
-                <Btn variant="primary" onClick={() => mut.mutate()} disabled={!canSubmit}>
-                  {mut.isPending ? "جارٍ الإنشاء…" : "إنشاء"}
-                </Btn>
-              </div>
+          {/* Inline action row (normal flow — no fixed bar, so the page scrolls
+              freely and never collides with the mobile bottom nav). */}
+          <Card className="p-3 flex items-center justify-between gap-3">
+            <div className="text-sm">
+              <span className="text-muted-foreground">الإجمالي: </span>
+              <span className="font-extrabold tabular-nums">{fmtSAR(grand)}</span>
             </div>
-          </div>
+            <div className="flex gap-2">
+              <Btn variant="ghost" onClick={backToList} disabled={mut.isPending}>
+                إلغاء
+              </Btn>
+              <Btn variant="primary" onClick={() => mut.mutate()} disabled={!canSubmit}>
+                {mut.isPending ? "جارٍ الإنشاء…" : "إنشاء"}
+              </Btn>
+            </div>
+          </Card>
         </div>
       )}
     </AppShell>
