@@ -18,13 +18,7 @@ import {
 import { fmtNum, fmtSAR } from "@/data/sample";
 import { Plus, Search, Filter, Eye, Pencil, Trash2, CheckCircle, Lock, Unlock } from "lucide-react";
 import { useState, useEffect } from "react";
-import {
-  showToast,
-  ConfirmDialog,
-  EntityFormDrawer,
-  ActionMenu,
-  EmptyState,
-} from "@/components/erp/actions";
+import { showToast, ConfirmDialog, ActionMenu, EmptyState } from "@/components/erp/actions";
 import { DocumentActions } from "@/components/documents/DocumentActions";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 import { useAuth } from "@/lib/api/auth";
@@ -69,7 +63,6 @@ function Page() {
     name: string;
     action: "approve" | "lock" | "unlock";
   } | null>(null);
-  const [detailId, setDetailId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["budgets", { search: searchQuery, status: statusFilter, year: yearFilter }],
@@ -79,11 +72,7 @@ function Page() {
   const budgets = data?.items || [];
   const total = data?.total || 0;
 
-  const { data: detailData } = useQuery({
-    queryKey: ["budget", detailId],
-    queryFn: () => (detailId ? getBudget(detailId) : Promise.resolve(null)),
-    enabled: !!detailId,
-  });
+  const openDetail = (bid: string) => navigate({ to: "/finance/budgets/$id", params: { id: bid } });
 
   // Derive available years from data + a few defaults
   const years = Array.from(new Set(budgets.map((b: Budget) => b.year))).sort();
@@ -93,7 +82,10 @@ function Page() {
 
   const openEdit = (b: Budget) => {
     if (b.status !== BudgetStatus.DRAFT) {
-      showToast("لا يمكن تعديل موازنة معتمدة أو مقفلة. افتح التفاصيل لعرض السجل أو تنفيذ إجراء.", "error");
+      showToast(
+        "لا يمكن تعديل موازنة معتمدة أو مقفلة. افتح التفاصيل لعرض السجل أو تنفيذ إجراء.",
+        "error",
+      );
       return;
     }
     navigate({ to: "/finance/budgets/$id/edit", params: { id: b.id } });
@@ -242,9 +234,7 @@ function Page() {
           onChange={(e) => {
             const v = e.target.value;
             setStatusFilter(
-              v === "الكل"
-                ? ""
-                : (options("budgetStatus").find((o) => o.label === v)?.value ?? ""),
+              v === "الكل" ? "" : (options("budgetStatus").find((o) => o.label === v)?.value ?? ""),
             );
           }}
         />
@@ -314,7 +304,7 @@ function Page() {
               <>
                 <Td>
                   <button
-                    onClick={() => setDetailId(b.id)}
+                    onClick={() => openDetail(b.id)}
                     className="font-semibold hover:text-primary text-right"
                   >
                     {b.name}
@@ -341,7 +331,7 @@ function Page() {
                   <ActionMenu
                     actions={getBudgetActions(
                       b,
-                      setDetailId,
+                      openDetail,
                       openEdit,
                       setDeleteTarget,
                       setActionTarget,
@@ -358,7 +348,7 @@ function Page() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <button
-                      onClick={() => setDetailId(b.id)}
+                      onClick={() => openDetail(b.id)}
                       className="text-sm font-bold hover:text-primary text-right"
                     >
                       {b.name}
@@ -387,101 +377,6 @@ function Page() {
           }}
         />
       )}
-
-      <EntityFormDrawer
-        open={!!detailId}
-        onClose={() => setDetailId(null)}
-        title={`الموازنة: ${detailData?.item?.name || ""}`}
-        onSave={() => setDetailId(null)}
-        saveText="إغلاق"
-      >
-        {detailData && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow label="السنة" value={detailData.item.year} />
-              <DetailRow label="الحالة" value={label("budgetStatus", detailData.item.status)} />
-              <DetailRow label="القسم" value={detailData.item.department || "—"} />
-              <DetailRow label="العملة" value={detailData.item.currency} />
-            </div>
-            {detailData.item.description && (
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground">الوصف</div>
-                <div className="text-sm mt-1">{detailData.item.description}</div>
-              </div>
-            )}
-
-            <div>
-              <div className="text-xs font-semibold text-muted-foreground mb-2">
-                مقارنة المخطط بالفعلي
-              </div>
-              <div className="space-y-2">
-                {detailData.lines.length === 0 ? (
-                  <div className="text-xs text-muted-foreground">لا توجد سطور</div>
-                ) : (
-                  detailData.lines.map((l: BudgetLine) => (
-                    <div key={l.id} className="rounded-lg border p-2 bg-muted/30">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="font-semibold">
-                          {l.accountCode} - {l.accountName}
-                        </span>
-                        <span className="text-muted-foreground">{l.costCenterName || ""}</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-xs">
-                        <div className="rounded bg-info/10 p-1.5 text-center">
-                          <div className="text-muted-foreground">المخطط</div>
-                          <div className="font-bold tabular-nums">{fmtSAR(l.plannedAmount)}</div>
-                        </div>
-                        <div className="rounded bg-success/10 p-1.5 text-center">
-                          <div className="text-success">الفعلي</div>
-                          <div className="font-bold tabular-nums text-success">
-                            {fmtSAR(l.actualAmount)}
-                          </div>
-                        </div>
-                        <div
-                          className={`rounded p-1.5 text-center ${
-                            (l.variance || 0) < 0 ? "bg-destructive/10" : "bg-warning/10"
-                          }`}
-                        >
-                          <div className="text-muted-foreground">الفرق</div>
-                          <div className="font-bold tabular-nums">{fmtSAR(l.variance || 0)}</div>
-                        </div>
-                      </div>
-                      <div className="mt-1 h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={`h-full ${(l.utilization || 0) > 90 ? "bg-destructive" : (l.utilization || 0) > 70 ? "bg-warning" : "bg-success"}`}
-                          style={{ width: `${Math.min(100, l.utilization || 0)}%` }}
-                        />
-                      </div>
-                      <div className="text-[10px] text-muted-foreground mt-1 text-center">
-                        {l.utilization || 0}% استخدام
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <Card className="p-3 bg-primary/10">
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <div className="text-center">
-                  <div className="text-muted-foreground">إجمالي المخطط</div>
-                  <div className="font-bold tabular-nums">{fmtSAR(detailData.totals.planned)}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-success">إجمالي الفعلي</div>
-                  <div className="font-bold tabular-nums text-success">
-                    {fmtSAR(detailData.totals.actual)}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-muted-foreground">الفرق</div>
-                  <div className="font-bold tabular-nums">{fmtSAR(detailData.totals.variance)}</div>
-                </div>
-              </div>
-            </Card>
-          </div>
-        )}
-      </EntityFormDrawer>
 
       <ConfirmDialog
         open={!!deleteTarget}
@@ -560,18 +455,9 @@ function Page() {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-b pb-1">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold">{value}</div>
-    </div>
-  );
-}
-
 function getBudgetActions(
   b: Budget,
-  setDetailId: (id: string) => void,
+  openDetail: (id: string) => void,
   openEdit: (b: Budget) => void,
   setDeleteTarget: (id: string) => void,
   setActionTarget: (t: { id: string; name: string; action: "approve" | "lock" | "unlock" }) => void,
@@ -581,7 +467,7 @@ function getBudgetActions(
     icon: any;
     onClick: () => void;
     variant?: "destructive";
-  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(b.id) }];
+  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => openDetail(b.id) }];
 
   if (b.status === BudgetStatus.DRAFT) {
     actions.push({ label: "تعديل", icon: Pencil, onClick: () => openEdit(b) });

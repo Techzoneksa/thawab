@@ -162,6 +162,7 @@ import { Route as FinanceCustomerReceiptsIdRouteImport } from './routes/finance.
 import { Route as FinanceCostCentersNewRouteImport } from './routes/finance.cost-centers_.new'
 import { Route as FinanceClosingNewRouteImport } from './routes/finance.closing_.new'
 import { Route as FinanceBudgetsNewRouteImport } from './routes/finance.budgets_.new'
+import { Route as FinanceBudgetsIdRouteImport } from './routes/finance.budgets_.$id'
 import { Route as FinanceAccountsNewRouteImport } from './routes/finance.accounts_.new'
 import { Route as EndowmentsIdEditRouteImport } from './routes/endowments_.$id_.edit'
 import { Route as EndowmentReturnsIdEditRouteImport } from './routes/endowment-returns_.$id_.edit'
@@ -1021,6 +1022,11 @@ const FinanceBudgetsNewRoute = FinanceBudgetsNewRouteImport.update({
   path: '/finance/budgets/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FinanceBudgetsIdRoute = FinanceBudgetsIdRouteImport.update({
+  id: '/finance/budgets_/$id',
+  path: '/finance/budgets/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FinanceAccountsNewRoute = FinanceAccountsNewRouteImport.update({
   id: '/finance/accounts_/new',
   path: '/finance/accounts/new',
@@ -1619,6 +1625,7 @@ export interface FileRoutesByFullPath {
   '/endowment-returns/$id/edit': typeof EndowmentReturnsIdEditRoute
   '/endowments/$id/edit': typeof EndowmentsIdEditRoute
   '/finance/accounts/new': typeof FinanceAccountsNewRoute
+  '/finance/budgets/$id': typeof FinanceBudgetsIdRoute
   '/finance/budgets/new': typeof FinanceBudgetsNewRoute
   '/finance/closing/new': typeof FinanceClosingNewRoute
   '/finance/cost-centers/new': typeof FinanceCostCentersNewRoute
@@ -1855,6 +1862,7 @@ export interface FileRoutesByTo {
   '/endowment-returns/$id/edit': typeof EndowmentReturnsIdEditRoute
   '/endowments/$id/edit': typeof EndowmentsIdEditRoute
   '/finance/accounts/new': typeof FinanceAccountsNewRoute
+  '/finance/budgets/$id': typeof FinanceBudgetsIdRoute
   '/finance/budgets/new': typeof FinanceBudgetsNewRoute
   '/finance/closing/new': typeof FinanceClosingNewRoute
   '/finance/cost-centers/new': typeof FinanceCostCentersNewRoute
@@ -2092,6 +2100,7 @@ export interface FileRoutesById {
   '/endowment-returns_/$id_/edit': typeof EndowmentReturnsIdEditRoute
   '/endowments_/$id_/edit': typeof EndowmentsIdEditRoute
   '/finance/accounts_/new': typeof FinanceAccountsNewRoute
+  '/finance/budgets_/$id': typeof FinanceBudgetsIdRoute
   '/finance/budgets_/new': typeof FinanceBudgetsNewRoute
   '/finance/closing_/new': typeof FinanceClosingNewRoute
   '/finance/cost-centers_/new': typeof FinanceCostCentersNewRoute
@@ -2330,6 +2339,7 @@ export interface FileRouteTypes {
     | '/endowment-returns/$id/edit'
     | '/endowments/$id/edit'
     | '/finance/accounts/new'
+    | '/finance/budgets/$id'
     | '/finance/budgets/new'
     | '/finance/closing/new'
     | '/finance/cost-centers/new'
@@ -2566,6 +2576,7 @@ export interface FileRouteTypes {
     | '/endowment-returns/$id/edit'
     | '/endowments/$id/edit'
     | '/finance/accounts/new'
+    | '/finance/budgets/$id'
     | '/finance/budgets/new'
     | '/finance/closing/new'
     | '/finance/cost-centers/new'
@@ -2802,6 +2813,7 @@ export interface FileRouteTypes {
     | '/endowment-returns_/$id_/edit'
     | '/endowments_/$id_/edit'
     | '/finance/accounts_/new'
+    | '/finance/budgets_/$id'
     | '/finance/budgets_/new'
     | '/finance/closing_/new'
     | '/finance/cost-centers_/new'
@@ -3037,6 +3049,7 @@ export interface RootRouteChildren {
   EndowmentReturnsIdEditRoute: typeof EndowmentReturnsIdEditRoute
   EndowmentsIdEditRoute: typeof EndowmentsIdEditRoute
   FinanceAccountsNewRoute: typeof FinanceAccountsNewRoute
+  FinanceBudgetsIdRoute: typeof FinanceBudgetsIdRoute
   FinanceBudgetsNewRoute: typeof FinanceBudgetsNewRoute
   FinanceClosingNewRoute: typeof FinanceClosingNewRoute
   FinanceCostCentersNewRoute: typeof FinanceCostCentersNewRoute
@@ -4170,6 +4183,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FinanceBudgetsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/finance/budgets_/$id': {
+      id: '/finance/budgets_/$id'
+      path: '/finance/budgets/$id'
+      fullPath: '/finance/budgets/$id'
+      preLoaderRoute: typeof FinanceBudgetsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/finance/accounts_/new': {
       id: '/finance/accounts_/new'
       path: '/finance/accounts/new'
@@ -5013,6 +5033,7 @@ const rootRouteChildren: RootRouteChildren = {
   EndowmentReturnsIdEditRoute: EndowmentReturnsIdEditRoute,
   EndowmentsIdEditRoute: EndowmentsIdEditRoute,
   FinanceAccountsNewRoute: FinanceAccountsNewRoute,
+  FinanceBudgetsIdRoute: FinanceBudgetsIdRoute,
   FinanceBudgetsNewRoute: FinanceBudgetsNewRoute,
   FinanceClosingNewRoute: FinanceClosingNewRoute,
   FinanceCostCentersNewRoute: FinanceCostCentersNewRoute,
