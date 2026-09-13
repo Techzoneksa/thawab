@@ -49,14 +49,24 @@ export const DOC_STYLES = `
   @page landscape{size:A4 landscape}
   html,body{background:#fff !important}
   body *{visibility:hidden}
+  /* Neutralize the off-screen 0×0 clipping mount so the absolutely-positioned
+     document resolves against the page, not a collapsed containing block. */
+  .doc-print-mount{position:static !important;left:auto !important;top:auto !important;
+    width:auto !important;height:auto !important;overflow:visible !important}
   .thawab-doc,.thawab-doc *{visibility:visible}
-  .thawab-doc{position:absolute;inset:0;width:auto;min-height:0;margin:0;padding:0;box-shadow:none}
+  .thawab-doc{position:absolute;left:0;top:0;right:0;width:auto;min-height:0;margin:0;padding:0;box-shadow:none}
   .doc-table thead{display:table-header-group}
   .doc-table tr{break-inside:avoid}
 }
 `;
 
-export function DocumentLayout({ def, children }: { def: DocumentDefinition; children?: ReactNode }) {
+export function DocumentLayout({
+  def,
+  children,
+}: {
+  def: DocumentDefinition;
+  children?: ReactNode;
+}) {
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: DOC_STYLES }} />

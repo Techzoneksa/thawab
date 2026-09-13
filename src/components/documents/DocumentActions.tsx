@@ -134,10 +134,14 @@ export function DocumentActions({ document: docSource, perms, className = "" }: 
         )}
       </div>
 
-      {/* Hidden mount so window.print() can isolate the document */}
+      {/* Hidden mount so window.print() can isolate the document. The
+          `doc-print-mount` class lets the print CSS neutralize this off-screen
+          clipping wrapper — otherwise `.thawab-doc` (position:absolute;inset:0)
+          resolves against a 0×0 containing block and prints blank. */}
       {active && !preview && (
         <div
           aria-hidden
+          className="doc-print-mount"
           style={{
             position: "fixed",
             left: -99999,
