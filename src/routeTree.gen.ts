@@ -236,6 +236,7 @@ import { Route as AdminSystemFinancePreflightRouteImport } from './routes/admin.
 import { Route as SettingsUsersIdEditRouteImport } from './routes/settings.users_.$id_.edit'
 import { Route as SettingsIntegrationsIdEditRouteImport } from './routes/settings.integrations_.$id_.edit'
 import { Route as SettingsBranchesIdEditRouteImport } from './routes/settings.branches_.$id_.edit'
+import { Route as ProcurementSuppliersIdPayRouteImport } from './routes/procurement.suppliers_.$id_.pay'
 import { Route as ProcurementSuppliersIdEditRouteImport } from './routes/procurement.suppliers_.$id_.edit'
 import { Route as ProcurementRequestsIdEditRouteImport } from './routes/procurement.requests_.$id_.edit'
 import { Route as ProcurementQuotesIdEditRouteImport } from './routes/procurement.quotes_.$id_.edit'
@@ -1431,6 +1432,12 @@ const SettingsBranchesIdEditRoute = SettingsBranchesIdEditRouteImport.update({
   path: '/settings/branches/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProcurementSuppliersIdPayRoute =
+  ProcurementSuppliersIdPayRouteImport.update({
+    id: '/procurement/suppliers_/$id_/pay',
+    path: '/procurement/suppliers/$id/pay',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ProcurementSuppliersIdEditRoute =
   ProcurementSuppliersIdEditRouteImport.update({
     id: '/procurement/suppliers_/$id_/edit',
@@ -1855,6 +1862,7 @@ export interface FileRoutesByFullPath {
   '/procurement/quotes/$id/edit': typeof ProcurementQuotesIdEditRoute
   '/procurement/requests/$id/edit': typeof ProcurementRequestsIdEditRoute
   '/procurement/suppliers/$id/edit': typeof ProcurementSuppliersIdEditRoute
+  '/procurement/suppliers/$id/pay': typeof ProcurementSuppliersIdPayRoute
   '/settings/branches/$id/edit': typeof SettingsBranchesIdEditRoute
   '/settings/integrations/$id/edit': typeof SettingsIntegrationsIdEditRoute
   '/settings/users/$id/edit': typeof SettingsUsersIdEditRoute
@@ -2114,6 +2122,7 @@ export interface FileRoutesByTo {
   '/procurement/quotes/$id/edit': typeof ProcurementQuotesIdEditRoute
   '/procurement/requests/$id/edit': typeof ProcurementRequestsIdEditRoute
   '/procurement/suppliers/$id/edit': typeof ProcurementSuppliersIdEditRoute
+  '/procurement/suppliers/$id/pay': typeof ProcurementSuppliersIdPayRoute
   '/settings/branches/$id/edit': typeof SettingsBranchesIdEditRoute
   '/settings/integrations/$id/edit': typeof SettingsIntegrationsIdEditRoute
   '/settings/users/$id/edit': typeof SettingsUsersIdEditRoute
@@ -2374,6 +2383,7 @@ export interface FileRoutesById {
   '/procurement/quotes_/$id_/edit': typeof ProcurementQuotesIdEditRoute
   '/procurement/requests_/$id_/edit': typeof ProcurementRequestsIdEditRoute
   '/procurement/suppliers_/$id_/edit': typeof ProcurementSuppliersIdEditRoute
+  '/procurement/suppliers_/$id_/pay': typeof ProcurementSuppliersIdPayRoute
   '/settings/branches_/$id_/edit': typeof SettingsBranchesIdEditRoute
   '/settings/integrations_/$id_/edit': typeof SettingsIntegrationsIdEditRoute
   '/settings/users_/$id_/edit': typeof SettingsUsersIdEditRoute
@@ -2635,6 +2645,7 @@ export interface FileRouteTypes {
     | '/procurement/quotes/$id/edit'
     | '/procurement/requests/$id/edit'
     | '/procurement/suppliers/$id/edit'
+    | '/procurement/suppliers/$id/pay'
     | '/settings/branches/$id/edit'
     | '/settings/integrations/$id/edit'
     | '/settings/users/$id/edit'
@@ -2894,6 +2905,7 @@ export interface FileRouteTypes {
     | '/procurement/quotes/$id/edit'
     | '/procurement/requests/$id/edit'
     | '/procurement/suppliers/$id/edit'
+    | '/procurement/suppliers/$id/pay'
     | '/settings/branches/$id/edit'
     | '/settings/integrations/$id/edit'
     | '/settings/users/$id/edit'
@@ -3153,6 +3165,7 @@ export interface FileRouteTypes {
     | '/procurement/quotes_/$id_/edit'
     | '/procurement/requests_/$id_/edit'
     | '/procurement/suppliers_/$id_/edit'
+    | '/procurement/suppliers_/$id_/pay'
     | '/settings/branches_/$id_/edit'
     | '/settings/integrations_/$id_/edit'
     | '/settings/users_/$id_/edit'
@@ -3395,6 +3408,7 @@ export interface RootRouteChildren {
   ProcurementQuotesIdEditRoute: typeof ProcurementQuotesIdEditRoute
   ProcurementRequestsIdEditRoute: typeof ProcurementRequestsIdEditRoute
   ProcurementSuppliersIdEditRoute: typeof ProcurementSuppliersIdEditRoute
+  ProcurementSuppliersIdPayRoute: typeof ProcurementSuppliersIdPayRoute
   SettingsBranchesIdEditRoute: typeof SettingsBranchesIdEditRoute
   SettingsIntegrationsIdEditRoute: typeof SettingsIntegrationsIdEditRoute
   SettingsUsersIdEditRoute: typeof SettingsUsersIdEditRoute
@@ -4991,6 +5005,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsBranchesIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/procurement/suppliers_/$id_/pay': {
+      id: '/procurement/suppliers_/$id_/pay'
+      path: '/procurement/suppliers/$id/pay'
+      fullPath: '/procurement/suppliers/$id/pay'
+      preLoaderRoute: typeof ProcurementSuppliersIdPayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/procurement/suppliers_/$id_/edit': {
       id: '/procurement/suppliers_/$id_/edit'
       path: '/procurement/suppliers/$id/edit'
@@ -5594,6 +5615,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProcurementQuotesIdEditRoute: ProcurementQuotesIdEditRoute,
   ProcurementRequestsIdEditRoute: ProcurementRequestsIdEditRoute,
   ProcurementSuppliersIdEditRoute: ProcurementSuppliersIdEditRoute,
+  ProcurementSuppliersIdPayRoute: ProcurementSuppliersIdPayRoute,
   SettingsBranchesIdEditRoute: SettingsBranchesIdEditRoute,
   SettingsIntegrationsIdEditRoute: SettingsIntegrationsIdEditRoute,
   SettingsUsersIdEditRoute: SettingsUsersIdEditRoute,

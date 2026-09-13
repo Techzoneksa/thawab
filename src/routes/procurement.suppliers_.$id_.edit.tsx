@@ -13,7 +13,7 @@ import {
   FormSection,
   FormSummaryLine,
 } from "@/components/erp/FormFields";
-import { showToast, ConfirmDialog, EntityFormDrawer } from "@/components/erp/actions";
+import { showToast, ConfirmDialog } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import { getAuditEntries } from "@/lib/api/audit";
 import { SupplierStatus as SupplierStatusEnum } from "@/lib/enums";
@@ -24,7 +24,6 @@ import {
   activateSupplier,
   deactivateSupplier,
   deleteSupplier,
-  paySupplier,
   type Supplier,
 } from "@/lib/api/suppliers";
 import { fmtSAR } from "@/data/sample";
@@ -73,12 +72,6 @@ function EditSupplierPage() {
     null,
   );
   const [hydrated, setHydrated] = useState(false);
-  const [payOpen, setPayOpen] = useState(false);
-  const [payAmount, setPayAmount] = useState("");
-  const [payMethod, setPayMethod] = useState<"cash" | "bank">("bank");
-  // Stable payment-intent id — generated ONCE per pay dialog, reused for every
-  // submit/retry so a double-click/network-retry cannot create two payments.
-  const [payIntentId, setPayIntentId] = useState("");
 
   if (item && !hydrated) {
     setName(item.name);
@@ -373,26 +366,6 @@ function EditSupplierPage() {
     onError: (err: Error) => showToast(err.message, "error"),
   });
 
-  const payMut = useMutation({
-    mutationFn: () =>
-      paySupplier({
-        id,
-        amount: Number(payAmount) || 0,
-        method: payMethod,
-        paymentId: payIntentId,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      queryClient.invalidateQueries({ queryKey: ["supplierDetail", id] });
-      queryClient.invalidateQueries({ queryKey: ["supplierAudit", id] });
-      showToast("تم تسجيل السداد وترحيله للدفتر", "success");
-      setPayOpen(false);
-      setPayAmount("");
-      setPayIntentId(""); // completed intent — the next payment gets a fresh id
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
   if (detailQuery.isLoading) {
     return (
       <AppShell title="الموردين" breadcrumb={["المشتريات", "الموردين"]}>
@@ -443,11 +416,9 @@ function EditSupplierPage() {
           <>
             <button
               type="button"
-              onClick={() => {
-                setPayAmount(item.balance > 0 ? String(item.balance) : "");
-                setPayIntentId(crypto.randomUUID()); // one stable intent per dialog
-                setPayOpen(true);
-              }}
+              onClick={() =>
+                navigate({ to: "/procurement/suppliers/$id/pay", params: { id } as any })
+              }
               className="inline-flex items-center gap-1.5 rounded-lg border bg-background px-3 py-2 text-sm font-medium hover:bg-muted transition-colors min-h-[40px]"
             >
               <Wallet size={15} /> سداد
@@ -483,49 +454,6 @@ function EditSupplierPage() {
         onPrimary={handleSave}
         onCancel={() => navigate({ to: "/procurement/suppliers" })}
       />
-
-      <EntityFormDrawer
-        open={payOpen}
-        onClose={() => setPayOpen(false)}
-        title={`سداد للمورد: ${item.name}`}
-        onSave={() => {
-          if (!(Number(payAmount) > 0)) {
-            showToast("أدخل مبلغاً صحيحاً", "error");
-            return;
-          }
-          payMut.mutate();
-        }}
-        saveText="تسجيل السداد"
-        loading={payMut.isPending}
-      >
-        <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
-          الرصيد المستحق للمورد حالياً:{" "}
-          <span className="font-bold">{fmtSAR(item.balance || 0)}</span>
-          <br />
-          سيُنشأ قيد تلقائي: مدين «ذمم دائنة — موردون» / دائن «النقد أو البنك».
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">المبلغ</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            type="number"
-            dir="ltr"
-            value={payAmount}
-            onChange={(e) => setPayAmount(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">طريقة السداد</label>
-          <select
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            value={payMethod}
-            onChange={(e) => setPayMethod(e.target.value as "cash" | "bank")}
-          >
-            <option value="bank">تحويل بنكي</option>
-            <option value="cash">نقداً</option>
-          </select>
-        </div>
-      </EntityFormDrawer>
 
       <ConfirmDialog
         open={confirmAction === "activate"}

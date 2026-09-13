@@ -31,13 +31,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
-import {
-  showToast,
-  EntityFormDrawer,
-  ConfirmDialog,
-  ActionMenu,
-  EmptyState,
-} from "@/components/erp/actions";
+import { showToast, ConfirmDialog, ActionMenu, EmptyState } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import { PurchaseRequestStatus } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
@@ -424,43 +418,27 @@ function Page() {
         />
       )}
 
-      <EntityFormDrawer
-        open={!!actionTarget && actionTarget.action === "reject"}
-        onClose={() => {
-          setActionTarget(null);
-          setRejectReason("");
-        }}
-        title={`رفض الطلب: ${actionTarget?.req.subject || ""}`}
-        onSave={() => {
-          if (actionTarget) {
-            rejectMutation.mutate({
-              id: actionTarget.req.id,
-              reason: rejectReason,
-              userId: user?.id,
-              userName: user?.name,
-            });
-          }
-        }}
-        loading={rejectMutation.isPending}
-        saveText="تأكيد الرفض"
-      >
-        <div className="space-y-3">
-          <div className="rounded-lg bg-warning/10 p-3 text-sm">
-            <div className="font-bold text-warning mb-1">⚠ رفض طلب الشراء</div>
-            <p className="text-xs">سيتم رفض الطلب وإضافة السبب إلى الملاحظات.</p>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">سبب الرفض</label>
-            <textarea
-              className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-              rows={3}
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="اذكر سبب الرفض..."
-            />
-          </div>
-        </div>
-      </EntityFormDrawer>
+      {actionTarget?.action === "reject" && (
+        <ReasonDialog
+          title={`رفض الطلب: ${actionTarget?.req.subject || ""}`}
+          onCancel={() => {
+            setActionTarget(null);
+            setRejectReason("");
+          }}
+          onConfirm={(reason) => {
+            if (actionTarget) {
+              setRejectReason(reason);
+              rejectMutation.mutate({
+                id: actionTarget.req.id,
+                reason,
+                userId: user?.id,
+                userName: user?.name,
+              });
+            }
+          }}
+          loading={rejectMutation.isPending}
+        />
+      )}
 
       <ConfirmDialog
         open={!!actionTarget && actionTarget.action === "return"}
@@ -639,4 +617,44 @@ function getRequestActions(
   }
 
   return actions;
+}
+
+function ReasonDialog({
+  title,
+  onCancel,
+  onConfirm,
+  loading,
+}: {
+  title: string;
+  onCancel: () => void;
+  onConfirm: (reason: string) => void;
+  loading?: boolean;
+}) {
+  const [r, setR] = useState("");
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+      dir="rtl"
+    >
+      <div className="w-full max-w-md rounded-xl bg-background p-4 shadow-xl border">
+        <div className="font-bold mb-2">{title}</div>
+        <textarea
+          className="inp"
+          rows={3}
+          placeholder="اكتب السبب (مطلوب)…"
+          value={r}
+          onChange={(e) => setR(e.target.value)}
+          autoFocus
+        />
+        <div className="flex justify-end gap-2 mt-3">
+          <Btn variant="ghost" onClick={onCancel}>
+            إلغاء
+          </Btn>
+          <Btn variant="primary" onClick={() => onConfirm(r)} disabled={!r.trim() || loading}>
+            تأكيد الرفض
+          </Btn>
+        </div>
+      </div>
+    </div>
+  );
 }
