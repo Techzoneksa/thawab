@@ -4,7 +4,7 @@ import { AppShell, Card, Btn, Badge } from "@/components/erp/AppShell";
 import { DocumentActions } from "@/components/documents/DocumentActions";
 import { showToast } from "@/components/erp/actions";
 import { fmtSAR } from "@/data/sample";
-import { ArrowRight, Share2, Pencil } from "lucide-react";
+import { ArrowRight, Share2, Pencil, ArrowRightLeft } from "lucide-react";
 import { getInventoryItem } from "@/lib/api/inventory-items";
 import { getWarehouses } from "@/lib/api/warehouses";
 import { InventoryItemStatus } from "@/lib/enums";
@@ -109,6 +109,14 @@ function ItemDetailPage() {
       actions={
         <>
           {d && <DocumentActions document={buildDoc} />}
+          {d && (
+            <Btn
+              variant="ghost"
+              onClick={() => nav({ to: "/inventory/items/$id/move", params: { id } as any })}
+            >
+              <ArrowRightLeft size={15} /> حركة مخزون
+            </Btn>
+          )}
           {d && (
             <Btn
               variant="ghost"

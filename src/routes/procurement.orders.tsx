@@ -23,26 +23,17 @@ import {
   Search,
 } from "lucide-react";
 import { useState } from "react";
-import {
-  showToast,
-  EntityFormDrawer,
-  ConfirmDialog,
-  ActionMenu,
-  EmptyState,
-} from "@/components/erp/actions";
+import { showToast, ConfirmDialog, ActionMenu, EmptyState } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import { PurchaseOrderStatus, PurchaseRequestStatus } from "@/lib/enums";
 import { label } from "@/lib/i18n/labels";
 import {
   getPurchaseOrders,
-  getPurchaseOrder,
   approvePurchaseOrder,
   cancelPurchaseOrder,
-  receivePurchaseOrder,
   closePurchaseOrder,
   deletePurchaseOrder,
   type PurchaseOrder,
-  type PurchaseOrderLine,
 } from "@/lib/api/purchase-orders";
 import { getSuppliers, type Supplier } from "@/lib/api/suppliers";
 import { getPurchaseRequests, type PurchaseRequest } from "@/lib/api/purchase-requests";
@@ -59,14 +50,11 @@ function Page() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [receiveTarget, setReceiveTarget] = useState<PurchaseOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null);
   const [actionTarget, setActionTarget] = useState<{
     order: PurchaseOrder;
     action: "approve" | "cancel" | "close";
   } | null>(null);
-
-  const [receiveLines, setReceiveLines] = useState<Record<string, string>>({});
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["purchaseOrders", { search: searchQuery }],
@@ -81,13 +69,6 @@ function Page() {
   const { data: requestsData } = useQuery({
     queryKey: ["purchaseRequests-approved"],
     queryFn: () => getPurchaseRequests({ status: PurchaseRequestStatus.APPROVED }),
-  });
-
-  // Lines for the currently open receive drawer.
-  const receiveDetailQuery = useQuery({
-    queryKey: ["purchaseOrderDetail", receiveTarget?.id],
-    queryFn: () => (receiveTarget ? getPurchaseOrder(receiveTarget.id) : Promise.resolve(null)),
-    enabled: !!receiveTarget,
   });
 
   const approveMutation = useMutation({
@@ -121,19 +102,6 @@ function Page() {
     onError: (err: Error) => showToast(err.message, "error"),
   });
 
-  const receiveMutation = useMutation({
-    mutationFn: receivePurchaseOrder,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] });
-      queryClient.invalidateQueries({ queryKey: ["purchaseOrderDetail"] });
-      queryClient.invalidateQueries({ queryKey: ["inventoryItems"] });
-      showToast("تم تسجيل الاستلام وتحديث المخزون", "success");
-      setReceiveTarget(null);
-      setReceiveLines({});
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
   const deleteMutation = useMutation({
     mutationFn: deletePurchaseOrder,
     onSuccess: () => {
@@ -151,35 +119,11 @@ function Page() {
     navigate({ to: "/procurement/purchase-orders" });
   };
 
-  const openReceive = (o: PurchaseOrder) => {
-    setReceiveTarget(o);
-    setReceiveLines({});
-  };
+  const openReceive = (o: PurchaseOrder) =>
+    navigate({ to: "/procurement/orders/$id/receive", params: { id: o.id } as any });
 
   const openDetail = (id: string) =>
     navigate({ to: "/procurement/orders/$id", params: { id } as any });
-
-  const handleReceive = () => {
-    if (!receiveTarget || !receiveDetailQuery.data?.lines) return;
-    const receipts = (receiveDetailQuery.data.lines as PurchaseOrderLine[])
-      .filter((l) => {
-        const qty = parseFloat(receiveLines[l.id] || "0");
-        return qty > 0;
-      })
-      .map((l) => ({
-        lineId: l.id,
-        receivedQty: parseFloat(receiveLines[l.id] || "0"),
-      }));
-    if (receipts.length === 0) {
-      return showToast("يرجى إدخال كمية واحدة على الأقل للاستلام", "error");
-    }
-    receiveMutation.mutate({
-      id: receiveTarget.id,
-      receipts,
-      userId: user?.id,
-      userName: user?.name,
-    });
-  };
 
   const items = data?.items || [];
   const total = data?.total || 0;
@@ -401,58 +345,6 @@ function Page() {
           )}
         />
       )}
-
-      <EntityFormDrawer
-        open={!!receiveTarget}
-        onClose={() => {
-          setReceiveTarget(null);
-          setReceiveLines({});
-        }}
-        title={`استلام أصناف الأمر: ${receiveTarget?.id || ""}`}
-        onSave={handleReceive}
-        loading={receiveMutation.isPending}
-        saveText="تأكيد الاستلام"
-      >
-        {receiveTarget && (
-          <div className="space-y-3">
-            <div className="rounded-lg bg-info/10 p-3 text-sm">
-              <div className="font-bold text-info mb-1">📦 تسجيل الاستلام</div>
-              <p className="text-xs">
-                أدخل الكميات المستلمة. سيتم تحديث المخزون تلقائياً وإنشاء حركة استلام لكل صنف.
-              </p>
-            </div>
-            <Card className="p-3 bg-muted/30">
-              <div className="text-xs font-semibold mb-2">سطور الأمر</div>
-              {(receiveDetailQuery.data?.lines as PurchaseOrderLine[] | undefined)?.map((l) => {
-                const remaining = l.quantity - (l.receivedQuantity || 0);
-                return (
-                  <div key={l.id} className="text-xs py-2 border-b last:border-0">
-                    <div className="flex justify-between mb-1">
-                      <span className="font-semibold">{l.description}</span>
-                      <span className="text-muted-foreground">
-                        متبقي: {remaining} {l.unit}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        className="flex-1 rounded-lg border bg-background p-2 text-sm"
-                        value={receiveLines[l.id] || ""}
-                        onChange={(e) =>
-                          setReceiveLines({ ...receiveLines, [l.id]: e.target.value })
-                        }
-                        placeholder="0"
-                        max={remaining}
-                      />
-                      <span className="text-xs text-muted-foreground">{l.unit}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </Card>
-          </div>
-        )}
-      </EntityFormDrawer>
 
       <ConfirmDialog
         open={!!actionTarget && actionTarget.action === "approve"}

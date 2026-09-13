@@ -104,6 +104,7 @@ function PurchaseOrderDetailPage() {
 
   const back = () => nav({ to: "/procurement/orders" });
   const openEdit = () => nav({ to: "/procurement/orders/$id/edit", params: { id } as any });
+  const openReceive = () => nav({ to: "/procurement/orders/$id/receive", params: { id } as any });
 
   const buildDoc = (): DocumentDefinition => {
     const v = item!;
@@ -275,8 +276,8 @@ function PurchaseOrderDetailPage() {
               </Btn>
             )}
             {canReceive && (
-              <Btn variant="primary" onClick={openEdit}>
-                <PackageCheck size={14} /> استلام
+              <Btn variant="primary" onClick={openReceive}>
+                <PackageCheck size={14} /> تسجيل الاستلام
               </Btn>
             )}
             {canClose && (

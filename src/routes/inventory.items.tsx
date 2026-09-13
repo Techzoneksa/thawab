@@ -16,32 +16,20 @@ import {
   AlertTriangle,
   Edit,
   Trash2,
-  ShoppingCart,
-  ArrowRight,
   Eye,
   Search,
   ToggleLeft,
   ToggleRight,
-  Package,
+  ArrowRightLeft,
   ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
-import {
-  showToast,
-  EntityFormDrawer,
-  ConfirmDialog,
-  ActionMenu,
-  EmptyState,
-} from "@/components/erp/actions";
+import { showToast, ConfirmDialog, ActionMenu, EmptyState } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import {
   getInventoryItems,
   activateInventoryItem,
   deactivateInventoryItem,
-  receiveInventoryItem,
-  issueInventoryItem,
-  adjustInventoryItem,
-  transferInventoryItem,
   deleteInventoryItem,
   type InventoryItem,
 } from "@/lib/api/inventory-items";
@@ -56,14 +44,6 @@ export const Route = createFileRoute("/inventory/items")({
   component: Page,
 });
 
-interface MoveDraft {
-  type: "receive" | "issue" | "adjust" | "transfer";
-  quantity: string;
-  fromWarehouseId: string;
-  toWarehouseId: string;
-  notes: string;
-}
-
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -72,14 +52,6 @@ function Page() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<InventoryItem | null>(null);
-  const [moveTarget, setMoveTarget] = useState<InventoryItem | null>(null);
-  const [moveDraft, setMoveDraft] = useState<MoveDraft>({
-    type: "receive",
-    quantity: "",
-    fromWarehouseId: "",
-    toWarehouseId: "",
-    notes: "",
-  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: [
@@ -113,50 +85,6 @@ function Page() {
     onError: (err: Error) => showToast(err.message, "error"),
   });
 
-  const receiveMutation = useMutation({
-    mutationFn: receiveInventoryItem,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventoryItems"] });
-      queryClient.invalidateQueries({ queryKey: ["inventoryItemDetail"] });
-      showToast("تم استلام الصنف وتحديث المخزون", "success");
-      setMoveTarget(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const issueMutation = useMutation({
-    mutationFn: issueInventoryItem,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventoryItems"] });
-      queryClient.invalidateQueries({ queryKey: ["inventoryItemDetail"] });
-      showToast("تم صرف الصنف وتحديث المخزون", "success");
-      setMoveTarget(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const adjustMutation = useMutation({
-    mutationFn: adjustInventoryItem,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventoryItems"] });
-      queryClient.invalidateQueries({ queryKey: ["inventoryItemDetail"] });
-      showToast("تم تسوية الصنف", "success");
-      setMoveTarget(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const transferMutation = useMutation({
-    mutationFn: transferInventoryItem,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventoryItems"] });
-      queryClient.invalidateQueries({ queryKey: ["inventoryItemDetail"] });
-      showToast("تم تحويل الصنف بين المستودعات", "success");
-      setMoveTarget(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
   const deleteMutation = useMutation({
     mutationFn: deleteInventoryItem,
     onSuccess: () => {
@@ -179,46 +107,8 @@ function Page() {
     navigate({ to: "/inventory/items/$id", params: { id: i.id } as any });
   };
 
-  const openMove = (i: InventoryItem, type: MoveDraft["type"]) => {
-    setMoveTarget(i);
-    setMoveDraft({
-      type,
-      quantity: "",
-      fromWarehouseId: i.warehouseId || "",
-      toWarehouseId: "",
-      notes: "",
-    });
-  };
-
-  const handleMove = () => {
-    if (!moveTarget) return;
-    const qty = parseFloat(moveDraft.quantity) || 0;
-    if (qty <= 0) return showToast("يرجى إدخال كمية صحيحة", "error");
-
-    const base = {
-      id: moveTarget.id,
-      quantity: qty,
-      notes: moveDraft.notes,
-      userId: user?.id,
-      userName: user?.name,
-    };
-
-    if (moveDraft.type === "receive") {
-      receiveMutation.mutate({ ...base, warehouseId: moveTarget.warehouseId || undefined });
-    } else if (moveDraft.type === "issue") {
-      issueMutation.mutate({ ...base, warehouseId: moveTarget.warehouseId || undefined });
-    } else if (moveDraft.type === "adjust") {
-      adjustMutation.mutate({ ...base, warehouseId: moveTarget.warehouseId || undefined });
-    } else if (moveDraft.type === "transfer") {
-      if (!moveDraft.fromWarehouseId || !moveDraft.toWarehouseId) {
-        return showToast("يرجى تحديد المستودع المصدر والهدف", "error");
-      }
-      transferMutation.mutate({
-        ...base,
-        fromWarehouseId: moveDraft.fromWarehouseId,
-        toWarehouseId: moveDraft.toWarehouseId,
-      });
-    }
+  const openMove = (i: InventoryItem) => {
+    navigate({ to: "/inventory/items/$id/move", params: { id: i.id } as any });
   };
 
   const items = data?.items || [];
@@ -469,15 +359,9 @@ function Page() {
               <div className="flex gap-2 mt-2">
                 <button
                   className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px]"
-                  onClick={() => openMove(i, "receive")}
+                  onClick={() => openMove(i)}
                 >
-                  استلام
-                </button>
-                <button
-                  className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px]"
-                  onClick={() => openMove(i, "issue")}
-                >
-                  صرف
+                  حركة مخزون
                 </button>
                 <button
                   className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px]"
@@ -490,128 +374,6 @@ function Page() {
           )}
         />
       )}
-
-      <EntityFormDrawer
-        open={!!moveTarget}
-        onClose={() => setMoveTarget(null)}
-        title={`${moveTarget?.name || ""} — حركة مخزون`}
-        onSave={handleMove}
-        loading={
-          receiveMutation.isPending ||
-          issueMutation.isPending ||
-          adjustMutation.isPending ||
-          transferMutation.isPending
-        }
-      >
-        {moveTarget && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-4 gap-2">
-              {(["receive", "issue", "adjust", "transfer"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className={`rounded-lg border p-2 text-xs font-bold transition-colors ${
-                    moveDraft.type === t
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background hover:bg-muted"
-                  }`}
-                  onClick={() => setMoveDraft({ ...moveDraft, type: t })}
-                >
-                  {t === "receive"
-                    ? "استلام"
-                    : t === "issue"
-                      ? "صرف"
-                      : t === "adjust"
-                        ? "تسوية"
-                        : "تحويل"}
-                </button>
-              ))}
-            </div>
-            <Card className="p-3 bg-info/10 text-sm">
-              <div className="font-bold text-info mb-1">
-                {moveDraft.type === "receive"
-                  ? "📥 استلام"
-                  : moveDraft.type === "issue"
-                    ? "📤 صرف"
-                    : moveDraft.type === "adjust"
-                      ? "⚖ تسوية"
-                      : "🔄 تحويل"}
-              </div>
-              <div className="text-xs">
-                الرصيد الحالي: {fmtSAR(moveTarget.quantity)} {moveTarget.unit}
-                {moveDraft.type === "issue" && moveTarget.quantity === 0 && (
-                  <div className="text-destructive font-bold mt-1">
-                    ⚠ لا يمكن الصرف — الرصيد صفر
-                  </div>
-                )}
-              </div>
-            </Card>
-            {moveDraft.type === "transfer" ? (
-              <>
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground">
-                    من المستودع *
-                  </label>
-                  <select
-                    className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                    value={moveDraft.fromWarehouseId}
-                    onChange={(e) =>
-                      setMoveDraft({ ...moveDraft, fromWarehouseId: e.target.value })
-                    }
-                  >
-                    <option value="">— اختر —</option>
-                    {warehouses.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground">
-                    إلى المستودع *
-                  </label>
-                  <select
-                    className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                    value={moveDraft.toWarehouseId}
-                    onChange={(e) => setMoveDraft({ ...moveDraft, toWarehouseId: e.target.value })}
-                  >
-                    <option value="">— اختر —</option>
-                    {warehouses
-                      .filter((w) => w.id !== moveDraft.fromWarehouseId)
-                      .map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              </>
-            ) : null}
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">
-                {moveDraft.type === "adjust" ? "الرصيد الجديد *" : "الكمية *"}
-              </label>
-              <input
-                type="number"
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={moveDraft.quantity}
-                onChange={(e) => setMoveDraft({ ...moveDraft, quantity: e.target.value })}
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-              <textarea
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                rows={2}
-                value={moveDraft.notes}
-                onChange={(e) => setMoveDraft({ ...moveDraft, notes: e.target.value })}
-              />
-            </div>
-          </div>
-        )}
-      </EntityFormDrawer>
 
       <ConfirmDialog
         open={!!deleteTarget}
@@ -655,7 +417,7 @@ function getItemActions(
   i: InventoryItem,
   openDetail: (i: InventoryItem) => void,
   openEdit: (i: InventoryItem) => void,
-  openMove: (i: InventoryItem, type: "receive" | "issue" | "adjust" | "transfer") => void,
+  openMove: (i: InventoryItem) => void,
   activateMutation: { mutate: (o: { id: string; userId?: string; userName?: string }) => void },
   deactivateMutation: { mutate: (o: { id: string; userId?: string; userName?: string }) => void },
   setDeleteTarget: (i: InventoryItem) => void,
@@ -671,10 +433,7 @@ function getItemActions(
   ];
 
   if (i.status !== InventoryItemStatus.INACTIVE) {
-    actions.push({ label: "استلام", icon: ShoppingCart, onClick: () => openMove(i, "receive") });
-    actions.push({ label: "صرف", icon: ArrowRight, onClick: () => openMove(i, "issue") });
-    actions.push({ label: "تسوية", icon: Package, onClick: () => openMove(i, "adjust") });
-    actions.push({ label: "تحويل", icon: ArrowRight, onClick: () => openMove(i, "transfer") });
+    actions.push({ label: "حركة مخزون", icon: ArrowRightLeft, onClick: () => openMove(i) });
   }
 
   if (i.status === InventoryItemStatus.ACTIVE) {
