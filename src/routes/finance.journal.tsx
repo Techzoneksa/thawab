@@ -32,13 +32,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import {
-  showToast,
-  ConfirmDialog,
-  EntityFormDrawer,
-  ActionMenu,
-  EmptyState,
-} from "@/components/erp/actions";
+import { showToast, ConfirmDialog, ActionMenu, EmptyState } from "@/components/erp/actions";
 import { DocumentActions } from "@/components/documents/DocumentActions";
 import { JournalImportDialog } from "@/components/finance/JournalImportDialog";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
@@ -154,7 +148,6 @@ function Page() {
     action: JournalWorkflowAction;
   } | null>(null);
   const [actionReason, setActionReason] = useState("");
-  const [detailId, setDetailId] = useState<string | null>(null);
   // View a journal on a dedicated FULL PAGE (no pop-up) with print/PDF/Excel/share.
   const viewEntry = (id: string) => navigate({ to: "/finance/journal/$id", params: { id } });
 
@@ -173,13 +166,6 @@ function Page() {
   const entries = data?.items || [];
   const total = data?.total || 0;
   const totalPages = Math.ceil(total / 50);
-
-  // Detail query
-  const { data: detailData } = useQuery({
-    queryKey: ["journal-entry", detailId],
-    queryFn: () => (detailId ? getJournalEntry(detailId) : Promise.resolve(null)),
-    enabled: !!detailId,
-  });
 
   useEffect(() => {
     setPage(1);
@@ -529,133 +515,6 @@ function Page() {
         </div>
       )}
 
-      <EntityFormDrawer
-        open={!!detailId}
-        onClose={() => setDetailId(null)}
-        title={`القيد: ${detailData?.item?.number || ""}`}
-        onSave={() => setDetailId(null)}
-        saveText="إغلاق"
-      >
-        {detailData && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow label="الرقم" value={detailData.item.number} />
-              <DetailRow label="التاريخ" value={detailData.item.date} />
-              <DetailRow label="الحالة" value={label("journalStatus", detailData.item.status)} />
-              <DetailRow label="الصندوق" value={label("fund", detailData.item.fund)} />
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-muted-foreground">الوصف</div>
-              <div className="text-sm mt-1">{detailData.item.description}</div>
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-muted-foreground mb-1">السطور</div>
-              <div className="space-y-1">
-                {detailData.lines.map((l: JournalLine) => (
-                  <div key={l.id} className="rounded-lg border p-2 bg-muted/30 text-xs">
-                    <div className="flex justify-between">
-                      <span className="font-mono font-bold">
-                        {l.accountCode} - {l.accountName}
-                      </span>
-                      <span>
-                        {l.debit > 0 ? (
-                          <span className="text-success font-bold">مدين {fmtSAR(l.debit)}</span>
-                        ) : (
-                          <span className="text-info font-bold">دائن {fmtSAR(l.credit)}</span>
-                        )}
-                      </span>
-                    </div>
-                    {l.description && (
-                      <div className="text-muted-foreground mt-1">{l.description}</div>
-                    )}
-                    {l.costCenterName && (
-                      <div className="text-muted-foreground mt-1">
-                        مركز التكلفة: {l.costCenterName}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div className="mt-2 flex justify-between rounded-lg bg-primary/10 p-2 text-sm font-bold">
-                <span>الإجمالي</span>
-                <span>
-                  مدين {fmtSAR(detailData.totals.debit)} | دائن {fmtSAR(detailData.totals.credit)}
-                </span>
-              </div>
-              <div className="mt-1">
-                <Badge tone={detailData.totals.balanced ? "success" : "destructive"}>
-                  {detailData.totals.balanced ? "متوازن ✓" : "غير متوازن ✗"}
-                </Badge>
-              </div>
-            </div>
-            {detailData.item.notes && (
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground">ملاحظات</div>
-                <div className="text-sm mt-1">{detailData.item.notes}</div>
-              </div>
-            )}
-            {detailData.reversedOf && (
-              <Card className="p-2 bg-warning/10">
-                <div className="text-xs">
-                  هذا القيد عكس القيد:{" "}
-                  <span className="font-mono">{detailData.reversedOf.number}</span>
-                </div>
-              </Card>
-            )}
-            {detailData.reversalEntries.length > 0 && (
-              <Card className="p-2 bg-warning/10">
-                <div className="text-xs">القيد تم عكسه بواسطة:</div>
-                {detailData.reversalEntries.map((r: JournalEntry) => (
-                  <div key={r.id} className="text-xs font-mono mt-0.5">
-                    {r.number}
-                  </div>
-                ))}
-              </Card>
-            )}
-
-            {/* Workflow timeline — how the journal reached its current state. */}
-            <div>
-              <div className="text-xs font-semibold text-muted-foreground mb-1">
-                مسار الاعتماد والترحيل
-              </div>
-              {detailData.workflowHistory && detailData.workflowHistory.length > 0 ? (
-                <ol className="relative space-y-2 border-r-2 border-muted pr-3">
-                  {detailData.workflowHistory.map((w: WorkflowEvent) => (
-                    <li key={w.id} className="text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold">
-                          {WF_ACTION_LABEL[w.action] || w.action}
-                        </span>
-                        <span className="text-muted-foreground tabular-nums">
-                          {w.createdAt?.slice(0, 16).replace("T", " ")}
-                        </span>
-                      </div>
-                      <div className="text-muted-foreground">
-                        بواسطة {w.userName || "—"}
-                        {w.fromStatus && w.toStatus ? (
-                          <>
-                            {" "}
-                            · {label("journalStatus", w.fromStatus)} →{" "}
-                            {label("journalStatus", w.toStatus)}
-                          </>
-                        ) : null}
-                      </div>
-                      {w.reason ? (
-                        <div className="mt-0.5 rounded bg-muted/40 px-2 py-1">
-                          السبب: {w.reason}
-                        </div>
-                      ) : null}
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <div className="text-xs text-muted-foreground">لا يوجد سجل مسار بعد.</div>
-              )}
-            </div>
-          </div>
-        )}
-      </EntityFormDrawer>
-
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -768,15 +627,6 @@ function Page() {
         }}
       />
     </AppShell>
-  );
-}
-
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-b pb-1">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold">{value}</div>
-    </div>
   );
 }
 
