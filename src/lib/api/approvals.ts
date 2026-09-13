@@ -53,6 +53,13 @@ export async function getApprovals(
   return res.json();
 }
 
+export async function getApproval(id: string): Promise<Approval> {
+  const res = await fetch(`${API_BASE}?id=${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error("فشل في جلب الطلب");
+  const d = await res.json();
+  return d.item;
+}
+
 export async function createApproval(data: CreateApprovalInput): Promise<Approval> {
   const res = await fetch(API_BASE, {
     method: "POST",

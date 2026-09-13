@@ -4,23 +4,11 @@ import { AppShell, Card, Btn, Badge, MobilePageHeader } from "@/components/erp/A
 import { fmtSAR } from "@/data/sample";
 import { CheckCircle2, ThumbsUp, ThumbsDown, Trash2, Plus, Star, Eye, Pencil } from "lucide-react";
 import { useState } from "react";
-import {
-  showToast,
-  EntityFormDrawer,
-  ConfirmDialog,
-  ActionMenu,
-  EmptyState,
-} from "@/components/erp/actions";
+import { showToast, ConfirmDialog, ActionMenu, EmptyState } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import { QuoteStatus } from "@/lib/enums";
 import { label } from "@/lib/i18n/labels";
-import {
-  getQuotes,
-  acceptQuote,
-  rejectQuote,
-  deleteQuote,
-  type Quote,
-} from "@/lib/api/quotes";
+import { getQuotes, acceptQuote, rejectQuote, deleteQuote, type Quote } from "@/lib/api/quotes";
 import { getPurchaseRequests, type PurchaseRequest } from "@/lib/api/purchase-requests";
 import { getSuppliers, type Supplier } from "@/lib/api/suppliers";
 import { DocumentActions } from "@/components/documents/DocumentActions";
@@ -39,7 +27,6 @@ function Page() {
   const [statusFilter, setStatusFilter] = useState("");
   const [requestFilter, setRequestFilter] = useState("الكل");
   const [deleteTarget, setDeleteTarget] = useState<Quote | null>(null);
-  const [detailTarget, setDetailTarget] = useState<Quote | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["quotes", { search: searchQuery, status: statusFilter, requestId: requestFilter }],
@@ -100,6 +87,9 @@ function Page() {
     }
     navigate({ to: "/procurement/quotes/$id/edit", params: { id: q.id } });
   };
+
+  const openDetail = (id: string) =>
+    navigate({ to: "/procurement/quotes/$id", params: { id } as any });
 
   const items = data?.items || [];
   const requests = requestsData?.items || [];
@@ -221,7 +211,7 @@ function Page() {
                         <ActionMenu
                           actions={getQuoteActions(
                             q,
-                            setDetailTarget,
+                            openDetail,
                             openEdit,
                             acceptMutation,
                             rejectMutation,
@@ -296,7 +286,7 @@ function Page() {
                           <Btn
                             variant="outline"
                             className="w-full justify-center"
-                            onClick={() => setDetailTarget(q)}
+                            onClick={() => openDetail(q.id)}
                           >
                             عرض التفاصيل
                           </Btn>
@@ -310,36 +300,6 @@ function Page() {
           })}
         </div>
       )}
-
-      <EntityFormDrawer
-        open={!!detailTarget}
-        onClose={() => setDetailTarget(null)}
-        title={`تفاصيل عرض السعر: ${detailTarget?.supplier || ""}`}
-        onSave={() => setDetailTarget(null)}
-        saveText="إغلاق"
-      >
-        {detailTarget && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow label="الحالة" value={label("quoteStatus", detailTarget.status)} />
-              <DetailRow label="الموصى به" value={detailTarget.winner ? "نعم" : "لا"} />
-              <DetailRow label="السعر" value={fmtSAR(detailTarget.price)} />
-              <DetailRow label="التقييم" value={`${detailTarget.rating} / 5`} />
-              <DetailRow label="مدة التسليم" value={detailTarget.delivery || "—"} />
-              <DetailRow label="الضمان" value={detailTarget.warranty || "—"} />
-              {detailTarget.validUntil && (
-                <DetailRow label="صالح حتى" value={detailTarget.validUntil} />
-              )}
-            </div>
-            {detailTarget.notes && (
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground mb-1">ملاحظات</div>
-                <div className="text-sm">{detailTarget.notes}</div>
-              </div>
-            )}
-          </div>
-        )}
-      </EntityFormDrawer>
 
       <ConfirmDialog
         open={!!deleteTarget}
@@ -369,18 +329,9 @@ function quoteStatusTone(s: string): "success" | "destructive" | "warning" | "mu
   return "warning";
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-b pb-1">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold">{value}</div>
-    </div>
-  );
-}
-
 function getQuoteActions(
   q: Quote,
-  setDetailTarget: (q: Quote) => void,
+  openDetail: (id: string) => void,
   openEdit: (q: Quote) => void,
   acceptMutation: { mutate: (o: { id: string; userId?: string; userName?: string }) => void },
   rejectMutation: { mutate: (o: { id: string; userId?: string; userName?: string }) => void },
@@ -391,7 +342,7 @@ function getQuoteActions(
     icon: typeof Eye;
     onClick: () => void;
     variant?: "destructive";
-  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailTarget(q) }];
+  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => openDetail(q.id) }];
 
   if (q.status === QuoteStatus.PENDING) {
     actions.push({ label: "تعديل", icon: Pencil, onClick: () => openEdit(q) });

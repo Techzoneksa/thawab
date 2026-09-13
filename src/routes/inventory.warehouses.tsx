@@ -24,13 +24,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
-import {
-  showToast,
-  EntityFormDrawer,
-  ConfirmDialog,
-  ActionMenu,
-  EmptyState,
-} from "@/components/erp/actions";
+import { showToast, ConfirmDialog, ActionMenu, EmptyState } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import {
   getWarehouses,
@@ -56,20 +50,10 @@ function Page() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Warehouse | null>(null);
-  const [detailId, setDetailId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["warehouses", { search: searchQuery, status: statusFilter }],
     queryFn: () => getWarehouses({ search: searchQuery, status: statusFilter }),
-  });
-
-  const detailQuery = useQuery({
-    queryKey: ["warehouseDetail", detailId],
-    queryFn: async () =>
-      detailId
-        ? await fetch(`/api/inventory/warehouses?id=${detailId}`).then((r) => r.json())
-        : null,
-    enabled: !!detailId,
   });
 
   const activateMutation = useMutation({
@@ -106,6 +90,10 @@ function Page() {
 
   const openEdit = (w: Warehouse) => {
     navigate({ to: "/inventory/warehouses/$id/edit", params: { id: w.id } });
+  };
+
+  const openDetail = (w: Warehouse) => {
+    navigate({ to: "/inventory/warehouses/$id", params: { id: w.id } as any });
   };
 
   const handleToggle = (w: Warehouse) => {
@@ -274,7 +262,7 @@ function Page() {
               <Td>
                 <button
                   onClick={() =>
-                    navigate({ to: "/inventory/warehouses/$id/edit", params: { id: w.id } })
+                    navigate({ to: "/inventory/warehouses/$id", params: { id: w.id } as any })
                   }
                   className="font-semibold hover:text-primary text-right"
                 >
@@ -292,7 +280,7 @@ function Page() {
                 <ActionMenu
                   actions={getWarehouseActions(
                     w,
-                    setDetailId,
+                    openDetail,
                     openEdit,
                     handleToggle,
                     setDeleteTarget,
@@ -309,7 +297,7 @@ function Page() {
               </div>
               <button
                 onClick={() =>
-                  navigate({ to: "/inventory/warehouses/$id/edit", params: { id: w.id } })
+                  navigate({ to: "/inventory/warehouses/$id", params: { id: w.id } as any })
                 }
                 className="font-semibold text-right hover:text-primary"
               >
@@ -337,48 +325,6 @@ function Page() {
         />
       )}
 
-      <EntityFormDrawer
-        open={!!detailId}
-        onClose={() => setDetailId(null)}
-        title={`تفاصيل المستودع: ${detailQuery.data?.item?.name || ""}`}
-        onSave={() => setDetailId(null)}
-        saveText="إغلاق"
-      >
-        {detailQuery.data && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow
-                label="الحالة"
-                value={label("warehouseStatus", detailQuery.data.item.status)}
-              />
-              <DetailRow label="الموقع" value={detailQuery.data.item.location || "—"} />
-              <DetailRow label="المسؤول" value={detailQuery.data.item.manager || "—"} />
-              <DetailRow label="السعة" value={fmtSAR(detailQuery.data.item.capacity)} />
-            </div>
-            <Card className="p-3 bg-primary/10">
-              <div className="text-xs font-semibold text-muted-foreground mb-2">
-                إحصائيات المستودع
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <StatBox label="عدد الأصناف" value={fmtSAR(detailQuery.data.itemCount)} />
-                <StatBox label="إجمالي الحركات" value={fmtSAR(detailQuery.data.movementCount)} />
-                <StatBox label="إجمالي الكمية" value={fmtSAR(detailQuery.data.totalQty)} />
-                <StatBox
-                  label="نسبة الإشغال"
-                  value={`${detailQuery.data.item.capacity > 0 ? Math.round((detailQuery.data.totalQty / detailQuery.data.item.capacity) * 100) : 0}%`}
-                />
-              </div>
-            </Card>
-            {detailQuery.data.item.notes && (
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground mb-1">ملاحظات</div>
-                <div className="text-sm">{detailQuery.data.item.notes}</div>
-              </div>
-            )}
-          </div>
-        )}
-      </EntityFormDrawer>
-
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -405,33 +351,15 @@ function Page() {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-b pb-1">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold">{value}</div>
-    </div>
-  );
-}
-
-function StatBox({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="text-center">
-      <div className="text-muted-foreground">{label}</div>
-      <div className="font-bold tabular-nums">{value}</div>
-    </div>
-  );
-}
-
 function getWarehouseActions(
   w: Warehouse,
-  setDetailId: (id: string) => void,
+  openDetail: (w: Warehouse) => void,
   openEdit: (w: Warehouse) => void,
   handleToggle: (w: Warehouse) => void,
   setDeleteTarget: (w: Warehouse) => void,
 ) {
   return [
-    { label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(w.id) },
+    { label: "عرض التفاصيل", icon: Eye, onClick: () => openDetail(w) },
     { label: "تعديل", icon: Edit, onClick: () => openEdit(w) },
     {
       label: w.status === WarehouseStatus.ACTIVE ? "تعطيل" : "تفعيل",

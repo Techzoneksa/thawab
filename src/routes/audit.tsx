@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   AppShell,
@@ -7,7 +7,6 @@ import {
   Btn,
   FilterBar,
   Select,
-  Table,
   Td,
   MobileTable,
   MobilePageHeader,
@@ -16,8 +15,8 @@ import {
 } from "@/components/erp/AppShell";
 import { Eye, Search, Filter } from "lucide-react";
 import { useState, useEffect } from "react";
-import { EntityFormDrawer, EmptyState } from "@/components/erp/actions";
-import { getAuditEntries, getAuditEntry, type AuditEntry } from "@/lib/api/audit";
+import { EmptyState } from "@/components/erp/actions";
+import { getAuditEntries, type AuditEntry } from "@/lib/api/audit";
 import { DocumentActions } from "@/components/documents/DocumentActions";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
@@ -27,6 +26,7 @@ export const Route = createFileRoute("/audit")({
 });
 
 function Page() {
+  const nav = useNavigate();
   const [filterOpen, setFilterOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [userFilter, setUserFilter] = useState("الكل");
@@ -35,7 +35,6 @@ function Page() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
-  const [detailId, setDetailId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: [
@@ -67,13 +66,6 @@ function Page() {
   const total = data?.total || 0;
   const totalPages = Math.ceil(total / 50);
   const options = data?.options || { users: [], actions: [], entities: [] };
-
-  // Detail query
-  const { data: detailData } = useQuery({
-    queryKey: ["audit-entry", detailId],
-    queryFn: () => (detailId ? getAuditEntry(detailId) : Promise.resolve(null)),
-    enabled: !!detailId,
-  });
 
   useEffect(() => {
     setPage(1);
@@ -252,7 +244,7 @@ function Page() {
               <Td className="font-mono text-xs text-muted-foreground">{a.entityId}</Td>
               <Td>
                 <button
-                  onClick={() => setDetailId(a.id)}
+                  onClick={() => nav({ to: "/audit/$id", params: { id: a.id } as any })}
                   className="text-info text-xs font-semibold inline-flex items-center gap-1"
                 >
                   <Eye size={12} /> تفاصيل
@@ -274,7 +266,7 @@ function Page() {
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs text-muted-foreground">{a.entityId}</span>
                 <button
-                  onClick={() => setDetailId(a.id)}
+                  onClick={() => nav({ to: "/audit/$id", params: { id: a.id } as any })}
                   className="text-info text-xs font-semibold inline-flex items-center gap-1"
                 >
                   <Eye size={12} /> تفاصيل
@@ -308,56 +300,6 @@ function Page() {
           </div>
         </div>
       )}
-
-      <EntityFormDrawer
-        open={!!detailId}
-        onClose={() => setDetailId(null)}
-        title="تفاصيل السجل"
-        onSave={() => setDetailId(null)}
-        saveText="إغلاق"
-      >
-        {detailData && (
-          <div className="space-y-4">
-            <Card className="p-3 bg-muted/30">
-              <div className="grid grid-cols-1 gap-3 text-sm">
-                <DetailRow label="المستخدم" value={detailData.item.userName || "—"} />
-                <DetailRow label="الإجراء" value={detailData.item.action} />
-                <DetailRow label="نوع الكيان" value={detailData.item.entityType} />
-                <DetailRow label="رقم السجل" value={detailData.item.entityId} />
-                <DetailRow label="الوقت" value={detailData.item.timestamp || "—"} />
-                {detailData.item.ip && <DetailRow label="IP" value={detailData.item.ip} />}
-              </div>
-            </Card>
-
-            {detailData.item.description && (
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground mb-1">الوصف</div>
-                <div className="text-sm p-3 bg-muted/30 rounded-lg">
-                  {detailData.item.description}
-                </div>
-              </div>
-            )}
-
-            {(Boolean(detailData.before) || Boolean(detailData.after)) && (
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground mb-2">
-                  التغييرات (Before / After)
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                  <SnapshotPanel title="قبل" data={detailData.before} tone="destructive" />
-                  <SnapshotPanel title="بعد" data={detailData.after} tone="success" />
-                </div>
-              </div>
-            )}
-
-            <Card className="p-3 bg-info/10 border-info">
-              <div className="text-xs text-muted-foreground">
-                ⚠ سجل التدقيق للقراءة فقط — لا يمكن تعديل أو حذف السجلات من الواجهة.
-              </div>
-            </Card>
-          </div>
-        )}
-      </EntityFormDrawer>
 
       <MobileFilterDrawer open={filterOpen} onClose={() => setFilterOpen(false)}>
         <div className="space-y-4">
@@ -415,42 +357,6 @@ function Page() {
         </div>
       </MobileFilterDrawer>
     </AppShell>
-  );
-}
-
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold break-words">{value}</div>
-    </div>
-  );
-}
-
-function SnapshotPanel({
-  title,
-  data,
-  tone,
-}: {
-  title: string;
-  data: unknown;
-  tone: "success" | "destructive";
-}) {
-  return (
-    <div
-      className={`rounded-lg border p-2 ${tone === "success" ? "bg-success/10" : "bg-destructive/10"}`}
-    >
-      <div className="text-[10px] font-semibold text-muted-foreground mb-1">{title}</div>
-      {data == null ? (
-        <div className="text-xs text-muted-foreground italic">لا توجد بيانات</div>
-      ) : typeof data === "object" ? (
-        <pre className="text-[10px] font-mono whitespace-pre-wrap break-words leading-relaxed">
-          {String(JSON.stringify(data, null, 2))}
-        </pre>
-      ) : (
-        <div className="text-xs break-words">{String(data)}</div>
-      )}
-    </div>
   );
 }
 

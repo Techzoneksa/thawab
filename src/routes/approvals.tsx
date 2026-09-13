@@ -21,15 +21,9 @@ import {
   type ApprovalAction,
 } from "@/lib/api/approvals";
 import { ApprovalStatus, Priority } from "@/lib/enums";
-import { CheckCircle2, XCircle, RotateCcw, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, Eye, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import {
-  showToast,
-  ConfirmDialog,
-  EntityFormDrawer,
-  ExportButton,
-  EmptyState,
-} from "@/components/erp/actions";
+import { showToast, ConfirmDialog, ExportButton, EmptyState } from "@/components/erp/actions";
 
 // Approval "type" is free text; these are the standard request categories.
 const TYPE_OPTIONS = ["قيد يومية", "طلب شراء", "مساعدة", "ميزانية مشروع", "فاتورة مورد", "أخرى"];
@@ -54,9 +48,6 @@ function Page() {
   const [priorityFilter, setPriorityFilter] = useState("الكل");
 
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  // Pending reject/return awaiting an optional note.
-  const [noteAction, setNoteAction] = useState<{ id: string; action: ApprovalAction } | null>(null);
-  const [noteText, setNoteText] = useState("");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["approvals"],
@@ -86,8 +77,6 @@ function Page() {
             ? "تم رفض الطلب"
             : "تم إرجاع الطلب للتصحيح";
       showToast(msg, v.action === "reject" ? "info" : "success");
-      setNoteAction(null);
-      setNoteText("");
     },
     onError: (e: Error) => showToast(e.message, "error"),
   });
@@ -200,7 +189,12 @@ function Page() {
               </Badge>
               <Badge tone={statusTone(a.status)}>{label("approvalStatus", a.status)}</Badge>
             </div>
-            <h4 className="mt-1 font-semibold text-sm">{a.subject}</h4>
+            <button
+              onClick={() => navigate({ to: "/approvals/$id", params: { id: a.id } as any })}
+              className="mt-1 block text-right font-semibold text-sm hover:text-primary"
+            >
+              {a.subject}
+            </button>
             <div className="mt-1 text-xs text-muted-foreground">
               {a.requester} · المستوى: {a.level}
             </div>
@@ -216,28 +210,16 @@ function Page() {
               {a.status === ApprovalStatus.PENDING ? (
                 <div className="flex flex-wrap gap-2">
                   <button
+                    onClick={() => navigate({ to: "/approvals/$id", params: { id: a.id } as any })}
+                    className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold hover:bg-muted min-h-[32px]"
+                  >
+                    <Eye size={14} /> مراجعة
+                  </button>
+                  <button
                     onClick={() => actMutation.mutate({ id: a.id, action: "approve" })}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-success/15 text-success px-3 py-1.5 text-xs font-semibold hover:bg-success/25 min-h-[32px]"
                   >
                     <CheckCircle2 size={14} /> اعتماد
-                  </button>
-                  <button
-                    onClick={() => {
-                      setNoteAction({ id: a.id, action: "return" });
-                      setNoteText("");
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-warning/20 text-warning-foreground px-3 py-1.5 text-xs font-semibold hover:bg-warning/30 min-h-[32px]"
-                  >
-                    <RotateCcw size={14} /> إعادة
-                  </button>
-                  <button
-                    onClick={() => {
-                      setNoteAction({ id: a.id, action: "reject" });
-                      setNoteText("");
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-destructive/15 text-destructive px-3 py-1.5 text-xs font-semibold hover:bg-destructive/25 min-h-[32px]"
-                  >
-                    <XCircle size={14} /> رفض
                   </button>
                 </div>
               ) : (
@@ -252,29 +234,6 @@ function Page() {
           </Card>
         ))}
       </div>
-
-      {/* Note-carrying reject / return */}
-      <EntityFormDrawer
-        open={noteAction !== null}
-        onClose={() => setNoteAction(null)}
-        title={noteAction?.action === "reject" ? "رفض الطلب" : "إرجاع الطلب للتصحيح"}
-        onSave={() => {
-          if (noteAction)
-            actMutation.mutate({ id: noteAction.id, action: noteAction.action, note: noteText });
-        }}
-        saveText="تأكيد"
-      >
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الملاحظة (اختياري)</label>
-          <textarea
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            rows={4}
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
-            placeholder="سبب الرفض أو ملاحظات التصحيح..."
-          />
-        </div>
-      </EntityFormDrawer>
 
       {confirmId !== null && (
         <ConfirmDialog

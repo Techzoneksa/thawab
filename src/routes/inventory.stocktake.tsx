@@ -24,13 +24,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
-import {
-  showToast,
-  EntityFormDrawer,
-  ConfirmDialog,
-  ActionMenu,
-  EmptyState,
-} from "@/components/erp/actions";
+import { showToast, ConfirmDialog, ActionMenu, EmptyState } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import {
   getStocktakes,
@@ -41,7 +35,6 @@ import {
   type Stocktake,
 } from "@/lib/api/stocktake";
 import { getWarehouses, type Warehouse } from "@/lib/api/warehouses";
-import { getInventoryItems, type InventoryItem } from "@/lib/api/inventory-items";
 import { StocktakeStatus } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
 import { DocumentActions } from "@/components/documents/DocumentActions";
@@ -58,7 +51,6 @@ function Page() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [detailId, setDetailId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Stocktake | null>(null);
   const [actionTarget, setActionTarget] = useState<{
     st: Stocktake;
@@ -73,20 +65,6 @@ function Page() {
   const { data: warehousesData } = useQuery({
     queryKey: ["warehouses-all"],
     queryFn: () => getWarehouses({}),
-  });
-
-  const { data: itemsData } = useQuery({
-    queryKey: ["inventoryItems-all"],
-    queryFn: () => getInventoryItems({}),
-  });
-
-  const detailQuery = useQuery({
-    queryKey: ["stocktakeDetail", detailId],
-    queryFn: async () =>
-      detailId
-        ? await fetch(`/api/inventory/stocktake?id=${detailId}`).then((r) => r.json())
-        : null,
-    enabled: !!detailId,
   });
 
   const submitMutation = useMutation({
@@ -136,7 +114,6 @@ function Page() {
   const items = data?.items || [];
   const total = data?.total || 0;
   const warehouses = warehousesData?.items || [];
-  const inventoryItems = itemsData?.items || [];
 
   const stats = {
     draft: items.filter((s) => s.status === StocktakeStatus.DRAFT).length,
@@ -292,7 +269,7 @@ function Page() {
               <Td>
                 <button
                   onClick={() =>
-                    navigate({ to: "/inventory/stocktake/$id/edit", params: { id: s.id } })
+                    navigate({ to: "/inventory/stocktake/$id", params: { id: s.id } as any })
                   }
                   className="font-semibold hover:text-primary text-right"
                 >
@@ -323,7 +300,7 @@ function Page() {
               </div>
               <button
                 onClick={() =>
-                  navigate({ to: "/inventory/stocktake/$id/edit", params: { id: s.id } })
+                  navigate({ to: "/inventory/stocktake/$id", params: { id: s.id } as any })
                 }
                 className="font-semibold text-right hover:text-primary"
               >
@@ -336,7 +313,7 @@ function Page() {
                 <button
                   className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px]"
                   onClick={() =>
-                    navigate({ to: "/inventory/stocktake/$id/edit", params: { id: s.id } })
+                    navigate({ to: "/inventory/stocktake/$id", params: { id: s.id } as any })
                   }
                 >
                   تفاصيل
@@ -368,83 +345,6 @@ function Page() {
           )}
         />
       )}
-
-      <EntityFormDrawer
-        open={!!detailId}
-        onClose={() => setDetailId(null)}
-        title={`تفاصيل الجرد: ${detailQuery.data?.item?.name || ""}`}
-        onSave={() => setDetailId(null)}
-        saveText="إغلاق"
-      >
-        {detailQuery.data && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow
-                label="الحالة"
-                value={label("stocktakeStatus", detailQuery.data.item.status)}
-              />
-              <DetailRow label="التاريخ" value={detailQuery.data.item.date} />
-              <DetailRow
-                label="المستودع"
-                value={
-                  warehouses.find((w) => w.id === detailQuery.data.item.warehouseId)?.name ||
-                  "كل المستودعات"
-                }
-              />
-              <DetailRow label="اعتمد بواسطة" value={detailQuery.data.item.approvedBy || "—"} />
-            </div>
-            <Card className="p-3 bg-primary/10">
-              <div className="text-xs font-semibold text-muted-foreground mb-2">سطور الجرد</div>
-              <div className="space-y-1">
-                {detailQuery.data.lines.map(
-                  (l: {
-                    itemId: string;
-                    systemQuantity: number;
-                    countedQuantity: number;
-                    difference: number;
-                    notes: string;
-                  }) => {
-                    const item = inventoryItems.find((it) => it.id === l.itemId);
-                    return (
-                      <div
-                        key={l.itemId}
-                        className="text-xs py-1 border-b last:border-0 flex justify-between"
-                      >
-                        <div>
-                          <div className="font-semibold">{item?.name || l.itemId}</div>
-                          <div className="text-muted-foreground">
-                            بالنظام: {fmtSAR(l.systemQuantity)} · معدود: {fmtSAR(l.countedQuantity)}
-                          </div>
-                        </div>
-                        <div className="text-left">
-                          <div
-                            className={`font-bold ${
-                              l.difference > 0
-                                ? "text-success"
-                                : l.difference < 0
-                                  ? "text-destructive"
-                                  : "text-muted-foreground"
-                            }`}
-                          >
-                            {l.difference > 0 ? "+" : ""}
-                            {fmtSAR(l.difference)}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  },
-                )}
-              </div>
-            </Card>
-            {detailQuery.data.item.notes && (
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground mb-1">ملاحظات</div>
-                <div className="text-sm">{detailQuery.data.item.notes}</div>
-              </div>
-            )}
-          </div>
-        )}
-      </EntityFormDrawer>
 
       <ConfirmDialog
         open={!!actionTarget && actionTarget.action === "submit"}
@@ -529,15 +429,6 @@ function Page() {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-b pb-1">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold">{value}</div>
-    </div>
-  );
-}
-
 function getStocktakeActions(
   s: Stocktake,
   navigate: (opts: { to: string; params: { id: string } }) => void,
@@ -553,7 +444,7 @@ function getStocktakeActions(
     {
       label: "عرض التفاصيل",
       icon: Eye,
-      onClick: () => navigate({ to: "/inventory/stocktake/$id/edit", params: { id: s.id } }),
+      onClick: () => navigate({ to: "/inventory/stocktake/$id", params: { id: s.id } }),
     },
   ];
 

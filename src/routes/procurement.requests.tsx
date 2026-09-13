@@ -43,7 +43,6 @@ import { PurchaseRequestStatus } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
 import {
   getPurchaseRequests,
-  getPurchaseRequest,
   submitPurchaseRequest,
   approvePurchaseRequest,
   rejectPurchaseRequest,
@@ -73,14 +72,7 @@ function Page() {
     req: PurchaseRequest;
     action: "reject" | "return" | "cancel";
   } | null>(null);
-  const [detailId, setDetailId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
-
-  const detailQuery = useQuery({
-    queryKey: ["purchaseRequest", detailId],
-    queryFn: () => getPurchaseRequest(detailId!),
-    enabled: !!detailId,
-  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: [
@@ -154,11 +146,11 @@ function Page() {
 
   const openAdd = () => navigate({ to: "/procurement/requests/new" });
 
+  const openDetail = (id: string) =>
+    navigate({ to: "/procurement/requests/$id", params: { id } as any });
+
   const openEdit = (r: PurchaseRequest) => {
-    if (
-      r.status !== PurchaseRequestStatus.DRAFT &&
-      r.status !== PurchaseRequestStatus.REJECTED
-    ) {
+    if (r.status !== PurchaseRequestStatus.DRAFT && r.status !== PurchaseRequestStatus.REJECTED) {
       showToast("لا يمكن تعديل طلب في حالة حالية. أعده إلى المسودة أولاً.", "error");
       return;
     }
@@ -346,7 +338,7 @@ function Page() {
               <Td className="font-mono text-xs">{r.id}</Td>
               <Td>
                 <button
-                  onClick={() => setDetailId(r.id)}
+                  onClick={() => openDetail(r.id)}
                   className="font-semibold hover:text-primary text-right"
                 >
                   <ClipboardList size={13} className="inline ms-1 text-primary" />
@@ -365,7 +357,7 @@ function Page() {
                 <ActionMenu
                   actions={getRequestActions(
                     r,
-                    setDetailId,
+                    openDetail,
                     openEdit,
                     submitMutation,
                     approveMutation,
@@ -382,7 +374,7 @@ function Page() {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <button
-                    onClick={() => setDetailId(r.id)}
+                    onClick={() => openDetail(r.id)}
                     className="text-sm font-bold truncate text-right hover:text-primary"
                   >
                     {r.subject}
@@ -422,7 +414,7 @@ function Page() {
                 )}
                 <button
                   className="flex-1 rounded-lg border py-2 text-xs font-semibold min-h-[36px]"
-                  onClick={() => setDetailId(r.id)}
+                  onClick={() => openDetail(r.id)}
                 >
                   تفاصيل
                 </button>
@@ -431,45 +423,6 @@ function Page() {
           )}
         />
       )}
-
-      <EntityFormDrawer
-        open={!!detailId}
-        onClose={() => setDetailId(null)}
-        title={`تفاصيل الطلب: ${detailQuery.data?.item?.subject || ""}`}
-        onSave={() => setDetailId(null)}
-        saveText="إغلاق"
-      >
-        {detailQuery.data && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow
-                label="الحالة"
-                value={label("purchaseRequestStatus", detailQuery.data.item.status)}
-              />
-              <DetailRow label="القسم" value={detailQuery.data.item.department} />
-              <DetailRow
-                label="الأولوية"
-                value={label("priority", detailQuery.data.item.priority)}
-              />
-              <DetailRow label="مقدم الطلب" value={detailQuery.data.item.requester || "—"} />
-              <DetailRow label="المبلغ" value={fmtSAR(detailQuery.data.item.amount)} />
-              <DetailRow label="تاريخ التوريد" value={detailQuery.data.item.deliveryDate || "—"} />
-            </div>
-            <Card className="p-3 bg-primary/10">
-              <div className="text-xs font-semibold text-muted-foreground mb-1">
-                أوامر الشراء المرتبطة
-              </div>
-              <div className="text-base font-bold">{fmtSAR(detailQuery.data.orderCount)}</div>
-            </Card>
-            {detailQuery.data.item.notes && (
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground mb-1">ملاحظات</div>
-                <div className="text-sm whitespace-pre-wrap">{detailQuery.data.item.notes}</div>
-              </div>
-            )}
-          </div>
-        )}
-      </EntityFormDrawer>
 
       <EntityFormDrawer
         open={!!actionTarget && actionTarget.action === "reject"}
@@ -605,18 +558,9 @@ function Page() {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-b pb-1">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold">{value}</div>
-    </div>
-  );
-}
-
 function getRequestActions(
   r: PurchaseRequest,
-  setDetailId: (id: string) => void,
+  openDetail: (id: string) => void,
   openEdit: (r: PurchaseRequest) => void,
   submitMutation: { mutate: (o: { id: string; userId?: string; userName?: string }) => void },
   approveMutation: { mutate: (o: { id: string; userId?: string; userName?: string }) => void },
@@ -629,7 +573,7 @@ function getRequestActions(
     icon: typeof Eye;
     onClick: () => void;
     variant?: "destructive";
-  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(r.id) }];
+  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => openDetail(r.id) }];
 
   if (r.status === PurchaseRequestStatus.DRAFT) {
     actions.push({ label: "تعديل", icon: Edit, onClick: () => openEdit(r) });
@@ -670,10 +614,7 @@ function getRequestActions(
     });
   }
 
-  if (
-    r.status !== PurchaseRequestStatus.ORDERED &&
-    r.status !== PurchaseRequestStatus.CANCELLED
-  ) {
+  if (r.status !== PurchaseRequestStatus.ORDERED && r.status !== PurchaseRequestStatus.CANCELLED) {
     actions.push({
       label: "إلغاء",
       icon: XCircle,

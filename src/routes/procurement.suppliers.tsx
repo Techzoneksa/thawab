@@ -13,13 +13,7 @@ import {
 import { fmtSAR } from "@/data/sample";
 import { Plus, Star, Edit, Trash2, ToggleLeft, ToggleRight, Eye } from "lucide-react";
 import { useState } from "react";
-import {
-  showToast,
-  EntityFormDrawer,
-  ConfirmDialog,
-  ActionMenu,
-  EmptyState,
-} from "@/components/erp/actions";
+import { showToast, ConfirmDialog, ActionMenu, EmptyState } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
 import { SupplierStatus } from "@/lib/enums";
 import { label } from "@/lib/i18n/labels";
@@ -44,20 +38,10 @@ function Page() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null);
-  const [detailId, setDetailId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["suppliers", { search: searchQuery }],
     queryFn: () => getSuppliers({ search: searchQuery }),
-  });
-
-  const detailQuery = useQuery({
-    queryKey: ["supplierDetail", detailId],
-    queryFn: async () =>
-      detailId
-        ? await fetch(`/api/procurement/suppliers?id=${detailId}`).then((r) => r.json())
-        : null,
-    enabled: !!detailId,
   });
 
   const deleteMutation = useMutation({
@@ -222,7 +206,7 @@ function Page() {
               <Td>
                 <button
                   onClick={() =>
-                    navigate({ to: "/procurement/suppliers/$id/edit", params: { id: s.id } })
+                    navigate({ to: "/procurement/suppliers/$id", params: { id: s.id } as any })
                   }
                   className="font-semibold hover:text-primary text-right"
                 >
@@ -239,13 +223,7 @@ function Page() {
               </Td>
               <Td>
                 <ActionMenu
-                  actions={getSupplierActions(
-                    s,
-                    setDetailId,
-                    openEdit,
-                    handleToggle,
-                    setDeleteTarget,
-                  )}
+                  actions={getSupplierActions(s, navigate, openEdit, handleToggle, setDeleteTarget)}
                 />
               </Td>
             </>
@@ -258,7 +236,7 @@ function Page() {
               </div>
               <button
                 onClick={() =>
-                  navigate({ to: "/procurement/suppliers/$id/edit", params: { id: s.id } })
+                  navigate({ to: "/procurement/suppliers/$id", params: { id: s.id } as any })
                 }
                 className="font-semibold text-right hover:text-primary"
               >
@@ -285,51 +263,6 @@ function Page() {
         />
       )}
 
-      <EntityFormDrawer
-        open={!!detailId}
-        onClose={() => setDetailId(null)}
-        title={`تفاصيل المورد: ${detailQuery.data?.item?.name || ""}`}
-        onSave={() => setDetailId(null)}
-        saveText="إغلاق"
-      >
-        {detailQuery.data && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow
-                label="الحالة"
-                value={label("supplierStatus", detailQuery.data.item.status)}
-              />
-              <DetailRow label="النشاط" value={detailQuery.data.item.activity || "—"} />
-              <DetailRow label="الجوال" value={detailQuery.data.item.phone || "—"} />
-              <DetailRow label="البريد" value={detailQuery.data.item.email || "—"} />
-              <DetailRow label="الرقم الضريبي" value={detailQuery.data.item.taxNumber || "—"} />
-              <DetailRow label="المسؤول" value={detailQuery.data.item.contactPerson || "—"} />
-            </div>
-            {detailQuery.data.item.address && (
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground mb-1">العنوان</div>
-                <div className="text-sm">{detailQuery.data.item.address}</div>
-              </div>
-            )}
-            <Card className="p-3 bg-primary/10">
-              <div className="text-xs font-semibold text-muted-foreground mb-2">
-                ارتباطات المورد
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <StatBox label="أوامر شراء" value={fmtSAR(detailQuery.data.orderCount)} />
-                <StatBox label="أصول مرتبطة" value={fmtSAR(detailQuery.data.assetCount)} />
-              </div>
-            </Card>
-            {detailQuery.data.item.notes && (
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground mb-1">ملاحظات</div>
-                <div className="text-sm">{detailQuery.data.item.notes}</div>
-              </div>
-            )}
-          </div>
-        )}
-      </EntityFormDrawer>
-
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -348,33 +281,19 @@ function Page() {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-b pb-1">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold">{value}</div>
-    </div>
-  );
-}
-
-function StatBox({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="text-center">
-      <div className="text-muted-foreground">{label}</div>
-      <div className="font-bold tabular-nums">{value}</div>
-    </div>
-  );
-}
-
 function getSupplierActions(
   s: Supplier,
-  setDetailId: (id: string) => void,
+  navigate: ReturnType<typeof useNavigate>,
   openEdit: (s: Supplier) => void,
   handleToggle: (s: Supplier) => void,
   setDeleteTarget: (s: Supplier) => void,
 ) {
   return [
-    { label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(s.id) },
+    {
+      label: "عرض التفاصيل",
+      icon: Eye,
+      onClick: () => navigate({ to: "/procurement/suppliers/$id", params: { id: s.id } as any }),
+    },
     { label: "تعديل", icon: Edit, onClick: () => openEdit(s) },
     {
       label: s.status === SupplierStatus.ACTIVE ? "تعطيل" : "تفعيل",

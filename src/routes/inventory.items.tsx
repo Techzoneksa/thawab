@@ -73,7 +73,6 @@ function Page() {
   const [statusFilter, setStatusFilter] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<InventoryItem | null>(null);
   const [moveTarget, setMoveTarget] = useState<InventoryItem | null>(null);
-  const [detailId, setDetailId] = useState<string | null>(null);
   const [moveDraft, setMoveDraft] = useState<MoveDraft>({
     type: "receive",
     quantity: "",
@@ -94,13 +93,6 @@ function Page() {
   const { data: warehousesData } = useQuery({
     queryKey: ["warehouses-all"],
     queryFn: () => getWarehouses({}),
-  });
-
-  const detailQuery = useQuery({
-    queryKey: ["inventoryItemDetail", detailId],
-    queryFn: async () =>
-      detailId ? await fetch(`/api/inventory/items?id=${detailId}`).then((r) => r.json()) : null,
-    enabled: !!detailId,
   });
 
   const activateMutation = useMutation({
@@ -181,6 +173,10 @@ function Page() {
 
   const openEdit = (i: InventoryItem) => {
     navigate({ to: "/inventory/items/$id/edit", params: { id: i.id } });
+  };
+
+  const openDetail = (i: InventoryItem) => {
+    navigate({ to: "/inventory/items/$id", params: { id: i.id } as any });
   };
 
   const openMove = (i: InventoryItem, type: MoveDraft["type"]) => {
@@ -407,7 +403,7 @@ function Page() {
               <Td className="font-mono text-xs">{i.sku || i.id}</Td>
               <Td>
                 <button
-                  onClick={() => navigate({ to: "/inventory/items/$id/edit", params: { id: i.id } })}
+                  onClick={() => openDetail(i)}
                   className="font-semibold hover:text-primary text-right"
                 >
                   {i.name}
@@ -430,15 +426,13 @@ function Page() {
               </Td>
               <Td className="tabular-nums">{fmtSAR(i.price)}</Td>
               <Td>
-                <Badge tone={statusTone(i.status)}>
-                  {label("inventoryItemStatus", i.status)}
-                </Badge>
+                <Badge tone={statusTone(i.status)}>{label("inventoryItemStatus", i.status)}</Badge>
               </Td>
               <Td>
                 <ActionMenu
                   actions={getItemActions(
                     i,
-                    setDetailId,
+                    openDetail,
                     openEdit,
                     openMove,
                     activateMutation,
@@ -452,13 +446,11 @@ function Page() {
           mobileCard={(i) => (
             <Card key={i.id} className="p-3">
               <div className="flex items-center justify-between mb-2">
-                <Badge tone={statusTone(i.status)}>
-                  {label("inventoryItemStatus", i.status)}
-                </Badge>
+                <Badge tone={statusTone(i.status)}>{label("inventoryItemStatus", i.status)}</Badge>
                 <span className="font-mono text-xs text-muted-foreground">{i.sku || i.id}</span>
               </div>
               <button
-                onClick={() => navigate({ to: "/inventory/items/$id/edit", params: { id: i.id } })}
+                onClick={() => openDetail(i)}
                 className="font-semibold text-right hover:text-primary"
               >
                 {i.name}
@@ -500,65 +492,7 @@ function Page() {
       )}
 
       <EntityFormDrawer
-        open={!!detailId && !moveTarget}
-        onClose={() => setDetailId(null)}
-        title={`تفاصيل الصنف: ${detailQuery.data?.item?.name || ""}`}
-        onSave={() => setDetailId(null)}
-        saveText="إغلاق"
-      >
-        {detailQuery.data && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow label="SKU" value={detailQuery.data.item.sku || "—"} />
-              <DetailRow label="الفئة" value={detailQuery.data.item.category || "—"} />
-              <DetailRow label="الوحدة" value={detailQuery.data.item.unit} />
-              <DetailRow
-                label="الحالة"
-                value={label("inventoryItemStatus", detailQuery.data.item.status)}
-              />
-              <DetailRow
-                label="الكمية"
-                value={`${fmtSAR(detailQuery.data.item.quantity)} ${detailQuery.data.item.unit}`}
-              />
-              <DetailRow
-                label="الحد الأدنى"
-                value={`${fmtSAR(detailQuery.data.item.minQuantity)} ${detailQuery.data.item.unit}`}
-              />
-              <DetailRow label="السعر" value={fmtSAR(detailQuery.data.item.price)} />
-              <DetailRow
-                label="المستودع"
-                value={
-                  warehouses.find((w) => w.id === detailQuery.data.item.warehouseId)?.name || "—"
-                }
-              />
-            </div>
-            <Card className="p-3 bg-primary/10">
-              <div className="text-xs font-semibold text-muted-foreground mb-1">ارتباطات الصنف</div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="text-center">
-                  <div className="text-muted-foreground">حركات المخزون</div>
-                  <div className="font-bold text-base">
-                    {fmtSAR(detailQuery.data.movementCount)}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-muted-foreground">سطور أوامر شراء</div>
-                  <div className="font-bold text-base">{fmtSAR(detailQuery.data.poLineCount)}</div>
-                </div>
-              </div>
-            </Card>
-            {detailQuery.data.item.notes && (
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground mb-1">ملاحظات</div>
-                <div className="text-sm">{detailQuery.data.item.notes}</div>
-              </div>
-            )}
-          </div>
-        )}
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
-        open={!!moveTarget && !detailId}
+        open={!!moveTarget}
         onClose={() => setMoveTarget(null)}
         title={`${moveTarget?.name || ""} — حركة مخزون`}
         onSave={handleMove}
@@ -717,18 +651,9 @@ function statusTone(s: string): "success" | "muted" | "destructive" | "warning" 
   return "muted";
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-b pb-1">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold">{value}</div>
-    </div>
-  );
-}
-
 function getItemActions(
   i: InventoryItem,
-  setDetailId: (id: string) => void,
+  openDetail: (i: InventoryItem) => void,
   openEdit: (i: InventoryItem) => void,
   openMove: (i: InventoryItem, type: "receive" | "issue" | "adjust" | "transfer") => void,
   activateMutation: { mutate: (o: { id: string; userId?: string; userName?: string }) => void },
@@ -741,7 +666,7 @@ function getItemActions(
     onClick: () => void;
     variant?: "destructive";
   }> = [
-    { label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(i.id) },
+    { label: "عرض التفاصيل", icon: Eye, onClick: () => openDetail(i) },
     { label: "تعديل", icon: Edit, onClick: () => openEdit(i) },
   ];
 

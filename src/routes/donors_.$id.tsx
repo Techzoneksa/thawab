@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   AppShell,
@@ -26,17 +26,10 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { useState } from "react";
-import {
-  showToast,
-  ConfirmDialog,
-  EntityFormDrawer,
-  PrintButton,
-  PrintStyle,
-  EmptyState,
-} from "@/components/erp/actions";
+import { showToast, PrintButton, PrintStyle, EmptyState } from "@/components/erp/actions";
 import { getDonor, type Donor } from "@/lib/api/donors";
 import { DonorTag } from "@/lib/enums";
-import { label, options } from "@/lib/i18n/labels";
+import { label } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/donors_/$id")({
   head: () => ({ meta: [{ title: "ملف المتبرع — ثواب" }] }),
@@ -49,6 +42,7 @@ function tagTone(t: string) {
 
 function Page() {
   const { id } = Route.useParams();
+  const nav = useNavigate();
 
   const {
     data: donor,
@@ -61,7 +55,6 @@ function Page() {
 
   const [tab, setTab] = useState("نظرة عامة");
   const [mobileTab, setMobileTab] = useState("نظرة عامة");
-  const [editOpen, setEditOpen] = useState(false);
   const [notesValue, setNotesValue] = useState("");
   const [tasks, setTasks] = useState([
     { t: "إرسال رسالة شكر على التبرع الأخير", done: false },
@@ -143,7 +136,10 @@ function Page() {
               <MessageCircle size={15} />
               تواصل
             </Btn>
-            <Btn variant="primary" onClick={() => setEditOpen(true)}>
+            <Btn
+              variant="primary"
+              onClick={() => nav({ to: "/donors/$id/edit", params: { id } as any })}
+            >
               <Edit size={15} />
               تعديل
             </Btn>
@@ -357,57 +353,6 @@ function Page() {
         </div>
       </AppShell>
 
-      <EntityFormDrawer
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        title="تعديل بيانات المتبرع"
-        onSave={() => {
-          showToast("تم تحديث بيانات المتبرع بنجاح", "success");
-          setEditOpen(false);
-        }}
-      >
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الاسم</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            defaultValue={donor.name}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الجوال</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            defaultValue={donor.phone || ""}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">البريد الإلكتروني</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            defaultValue={donor.email || ""}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">المدينة</label>
-          <input
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            defaultValue={donor.city || ""}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">الوسم</label>
-          <select
-            className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-            defaultValue={donor.tag}
-          >
-            {options("donorTag").map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </EntityFormDrawer>
       <PrintStyle />
     </>
   );

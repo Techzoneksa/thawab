@@ -12,39 +12,11 @@ import {
   MobileSearchInput,
 } from "@/components/erp/AppShell";
 import { fmtSAR } from "@/data/sample";
-import {
-  Plus,
-  Edit,
-  Trash2,
-  Eye,
-  Wrench,
-  ArrowRight,
-  XCircle,
-  TrendingDown,
-  Search,
-  ChevronDown,
-} from "lucide-react";
+import { Plus, Edit, Trash2, Eye, Search, ChevronDown } from "lucide-react";
 import { useState } from "react";
-import {
-  showToast,
-  EntityFormDrawer,
-  ConfirmDialog,
-  ActionMenu,
-  EmptyState,
-} from "@/components/erp/actions";
+import { showToast, ConfirmDialog, ActionMenu, EmptyState } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
-import {
-  getFixedAssets,
-  transferFixedAsset,
-  maintainFixedAsset,
-  returnFromMaintenance,
-  depreciateFixedAsset,
-  disposeFixedAsset,
-  sellFixedAsset,
-  deleteFixedAsset,
-  type FixedAsset,
-} from "@/lib/api/assets";
-import { getSuppliers, type Supplier } from "@/lib/api/suppliers";
+import { getFixedAssets, deleteFixedAsset, type FixedAsset } from "@/lib/api/assets";
 import { AssetStatus as AssetStatusEnum } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
 import { DocumentActions } from "@/components/documents/DocumentActions";
@@ -55,12 +27,6 @@ export const Route = createFileRoute("/assets")({
   component: Page,
 });
 
-interface DepreciationDraft {
-  amount: string;
-  date: string;
-  notes: string;
-}
-
 function Page() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -68,34 +34,7 @@ function Page() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("الكل");
-  const [detailId, setDetailId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FixedAsset | null>(null);
-  const [actionTarget, setActionTarget] = useState<{
-    asset: FixedAsset;
-    action: "depreciate" | "transfer" | "maintain" | "returnMaintenance" | "dispose" | "sell";
-  } | null>(null);
-
-  const [depDraft, setDepDraft] = useState<DepreciationDraft>({
-    amount: "",
-    date: new Date().toISOString().split("T")[0],
-    notes: "",
-  });
-  const [transferDraft, setTransferDraft] = useState({
-    toLocation: "",
-    toResponsible: "",
-    reason: "",
-    notes: "",
-  });
-  const [maintainDraft, setMaintainDraft] = useState({
-    cost: "",
-    reason: "",
-    notes: "",
-  });
-  const [sellDraft, setSellDraft] = useState({
-    salePrice: "",
-    buyer: "",
-    notes: "",
-  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: [
@@ -104,85 +43,6 @@ function Page() {
     ],
     queryFn: () =>
       getFixedAssets({ search: searchQuery, status: statusFilter, category: categoryFilter }),
-  });
-
-  const { data: suppliersData } = useQuery({
-    queryKey: ["suppliers-all"],
-    queryFn: () => getSuppliers({}),
-  });
-
-  const detailQuery = useQuery({
-    queryKey: ["fixedAssetDetail", detailId],
-    queryFn: async () =>
-      detailId ? await fetch(`/api/assets?id=${detailId}`).then((r) => r.json()) : null,
-    enabled: !!detailId,
-  });
-
-  const transferMutation = useMutation({
-    mutationFn: transferFixedAsset,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
-      queryClient.invalidateQueries({ queryKey: ["fixedAssetDetail"] });
-      showToast("تم نقل الأصل بنجاح", "success");
-      setActionTarget(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const maintainMutation = useMutation({
-    mutationFn: maintainFixedAsset,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
-      queryClient.invalidateQueries({ queryKey: ["fixedAssetDetail"] });
-      showToast("تم تسجيل الصيانة", "success");
-      setActionTarget(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const returnMaintenanceMutation = useMutation({
-    mutationFn: returnFromMaintenance,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
-      queryClient.invalidateQueries({ queryKey: ["fixedAssetDetail"] });
-      showToast("تم إنهاء الصيانة وإعادة الأصل للعمل", "success");
-      setActionTarget(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const depreciateMutation = useMutation({
-    mutationFn: depreciateFixedAsset,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
-      queryClient.invalidateQueries({ queryKey: ["fixedAssetDetail"] });
-      showToast("تم تسجيل الإهلاك بنجاح", "success");
-      setActionTarget(null);
-      setDepDraft({ amount: "", date: new Date().toISOString().split("T")[0], notes: "" });
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const disposeMutation = useMutation({
-    mutationFn: disposeFixedAsset,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
-      queryClient.invalidateQueries({ queryKey: ["fixedAssetDetail"] });
-      showToast("تم استبعاد الأصل", "success");
-      setActionTarget(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
-  });
-
-  const sellMutation = useMutation({
-    mutationFn: sellFixedAsset,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["fixedAssets"] });
-      queryClient.invalidateQueries({ queryKey: ["fixedAssetDetail"] });
-      showToast("تم تسجيل بيع الأصل", "success");
-      setActionTarget(null);
-    },
-    onError: (err: Error) => showToast(err.message, "error"),
   });
 
   const deleteMutation = useMutation({
@@ -209,7 +69,6 @@ function Page() {
 
   const items = data?.items || [];
   const total = data?.total || 0;
-  const suppliers = suppliersData?.items || [];
 
   const stats = {
     active: items.filter((a) => a.status === AssetStatusEnum.ACTIVE).length,
@@ -399,7 +258,7 @@ function Page() {
               <>
                 <Td>
                   <button
-                    onClick={() => navigate({ to: "/assets/$id/edit", params: { id: a.id } })}
+                    onClick={() => navigate({ to: "/assets/$id", params: { id: a.id } as any })}
                     className="font-semibold hover:text-primary text-right"
                   >
                     {a.name}
@@ -413,15 +272,7 @@ function Page() {
                   <Badge tone={statusTone(a.status)}>{label("assetStatus", a.status)}</Badge>
                 </Td>
                 <Td>
-                  <ActionMenu
-                    actions={getAssetActions(
-                      a,
-                      navigate,
-                      openEdit,
-                      setActionTarget,
-                      setDeleteTarget,
-                    )}
-                  />
+                  <ActionMenu actions={getAssetActions(a, navigate, openEdit, setDeleteTarget)} />
                 </Td>
               </>
             );
@@ -435,7 +286,7 @@ function Page() {
                   <span className="font-mono text-xs text-muted-foreground">{a.code || a.id}</span>
                 </div>
                 <button
-                  onClick={() => navigate({ to: "/assets/$id/edit", params: { id: a.id } })}
+                  onClick={() => navigate({ to: "/assets/$id", params: { id: a.id } as any })}
                   className="font-semibold text-right hover:text-primary"
                 >
                   {a.name}
@@ -464,407 +315,16 @@ function Page() {
                 <div className="flex gap-2 mt-2">
                   <button
                     className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px]"
-                    onClick={() => navigate({ to: "/assets/$id/edit", params: { id: a.id } })}
+                    onClick={() => navigate({ to: "/assets/$id", params: { id: a.id } as any })}
                   >
                     تفاصيل
                   </button>
-                  {a.status === AssetStatusEnum.ACTIVE && (
-                    <button
-                      className="flex-1 rounded-lg bg-warning/15 text-warning text-xs font-semibold py-2 min-h-[36px]"
-                      onClick={() => setActionTarget({ asset: a, action: "depreciate" })}
-                    >
-                      إهلاك
-                    </button>
-                  )}
                 </div>
               </Card>
             );
           }}
         />
       )}
-
-      <EntityFormDrawer
-        open={!!detailId && !actionTarget}
-        onClose={() => setDetailId(null)}
-        title={`تفاصيل الأصل: ${detailQuery.data?.item?.name || ""}`}
-        onSave={() => setDetailId(null)}
-        saveText="إغلاق"
-      >
-        {detailQuery.data && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow label="الرمز" value={detailQuery.data.item.code || "—"} />
-              <DetailRow label="الفئة" value={detailQuery.data.item.category || "—"} />
-              <DetailRow label="الحالة" value={label("assetStatus", detailQuery.data.item.status)} />
-              <DetailRow
-                label="الحالة الفنية"
-                value={
-                  detailQuery.data.item.condition
-                    ? label("assetCondition", detailQuery.data.item.condition)
-                    : "—"
-                }
-              />
-              <DetailRow label="الموقع" value={detailQuery.data.item.location || "—"} />
-              <DetailRow label="المسؤول" value={detailQuery.data.item.responsiblePerson || "—"} />
-              <DetailRow label="التكلفة" value={fmtSAR(detailQuery.data.item.cost)} />
-              <DetailRow
-                label="الإهلاك المتراكم"
-                value={fmtSAR(detailQuery.data.item.accumulatedDepreciation)}
-              />
-              <DetailRow label="القيمة الدفترية" value={fmtSAR(detailQuery.data.bookValue)} />
-              <DetailRow
-                label="العمر الإنتاجي"
-                value={`${detailQuery.data.item.usefulLifeMonths} شهر`}
-              />
-              <DetailRow
-                label="القيمة المتبقية"
-                value={fmtSAR(detailQuery.data.item.salvageValue)}
-              />
-              <DetailRow
-                label="طريقة الإهلاك"
-                value={label("depreciationMethod", detailQuery.data.item.depreciationMethod)}
-              />
-              <DetailRow label="تاريخ الشراء" value={detailQuery.data.item.purchaseDate || "—"} />
-              <DetailRow
-                label="المورد"
-                value={
-                  suppliers.find((s) => s.id === detailQuery.data.item.supplierId)?.name || "—"
-                }
-              />
-            </div>
-            <Card className="p-3 bg-primary/10">
-              <div className="text-xs font-semibold text-muted-foreground mb-1">سجل الأصل</div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="text-center">
-                  <div className="text-muted-foreground">قيود الإهلاك</div>
-                  <div className="font-bold text-base">
-                    {fmtSAR(detailQuery.data.depreciationCount)}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-muted-foreground">حركات/تحويلات</div>
-                  <div className="font-bold text-base">
-                    {fmtSAR(detailQuery.data.movementCount)}
-                  </div>
-                </div>
-              </div>
-            </Card>
-            {detailQuery.data.item.notes && (
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground mb-1">ملاحظات</div>
-                <div className="text-sm">{detailQuery.data.item.notes}</div>
-              </div>
-            )}
-          </div>
-        )}
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
-        open={!!actionTarget && actionTarget.action === "depreciate"}
-        onClose={() => setActionTarget(null)}
-        title={`إهلاك الأصل: ${actionTarget?.asset.name || ""}`}
-        onSave={() => {
-          if (actionTarget) {
-            const amt = parseFloat(depDraft.amount) || 0;
-            if (amt <= 0) return showToast("يرجى إدخال مبلغ إهلاك صحيح", "error");
-            depreciateMutation.mutate({
-              id: actionTarget.asset.id,
-              amount: amt,
-              date: depDraft.date,
-              notes: depDraft.notes,
-              userId: user?.id,
-              userName: user?.name,
-            });
-          }
-        }}
-        loading={depreciateMutation.isPending}
-        saveText="تأكيد الإهلاك"
-      >
-        {actionTarget && (
-          <div className="space-y-3">
-            <Card className="p-3 bg-warning/10">
-              <div className="text-xs font-bold text-warning mb-1">معلومات الإهلاك</div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  التكلفة: <b>{fmtSAR(actionTarget.asset.cost)}</b>
-                </div>
-                <div>
-                  الإهلاك المتراكم: <b>{fmtSAR(actionTarget.asset.accumulatedDepreciation)}</b>
-                </div>
-                <div>
-                  القيمة الدفترية:{" "}
-                  <b className="text-success">
-                    {fmtSAR(actionTarget.asset.cost - actionTarget.asset.accumulatedDepreciation)}
-                  </b>
-                </div>
-                <div>
-                  القيمة المتبقية: <b>{fmtSAR(actionTarget.asset.salvageValue)}</b>
-                </div>
-                <div className="col-span-2">
-                  الحد الأقصى للإهلاك المتبقي:{" "}
-                  <b>
-                    {fmtSAR(
-                      actionTarget.asset.cost -
-                        actionTarget.asset.accumulatedDepreciation -
-                        (actionTarget.asset.salvageValue || 0),
-                    )}
-                  </b>
-                </div>
-              </div>
-            </Card>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">مبلغ الإهلاك *</label>
-              <input
-                type="number"
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={depDraft.amount}
-                onChange={(e) => setDepDraft({ ...depDraft, amount: e.target.value })}
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">تاريخ الإهلاك</label>
-              <input
-                type="date"
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={depDraft.date}
-                onChange={(e) => setDepDraft({ ...depDraft, date: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-              <textarea
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                rows={2}
-                value={depDraft.notes}
-                onChange={(e) => setDepDraft({ ...depDraft, notes: e.target.value })}
-              />
-            </div>
-          </div>
-        )}
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
-        open={!!actionTarget && actionTarget.action === "transfer"}
-        onClose={() => setActionTarget(null)}
-        title={`نقل الأصل: ${actionTarget?.asset.name || ""}`}
-        onSave={() => {
-          if (actionTarget) {
-            transferMutation.mutate({
-              id: actionTarget.asset.id,
-              toLocation: transferDraft.toLocation,
-              toResponsible: transferDraft.toResponsible,
-              reason: transferDraft.reason,
-              notes: transferDraft.notes,
-              userId: user?.id,
-              userName: user?.name,
-            });
-          }
-        }}
-        loading={transferMutation.isPending}
-        saveText="تأكيد النقل"
-      >
-        {actionTarget && (
-          <div className="space-y-3">
-            <Card className="p-3 bg-info/10 text-xs">
-              <div className="font-bold text-info mb-1">الموقع الحالي</div>
-              <div>الموقع: {actionTarget.asset.location || "—"}</div>
-              <div>المسؤول: {actionTarget.asset.responsiblePerson || "—"}</div>
-            </Card>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">الموقع الجديد</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={transferDraft.toLocation}
-                onChange={(e) => setTransferDraft({ ...transferDraft, toLocation: e.target.value })}
-                placeholder="الموقع الجديد"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">المسؤول الجديد</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={transferDraft.toResponsible}
-                onChange={(e) =>
-                  setTransferDraft({ ...transferDraft, toResponsible: e.target.value })
-                }
-                placeholder="اسم المسؤول الجديد"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">سبب النقل</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={transferDraft.reason}
-                onChange={(e) => setTransferDraft({ ...transferDraft, reason: e.target.value })}
-                placeholder="سبب النقل"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-              <textarea
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                rows={2}
-                value={transferDraft.notes}
-                onChange={(e) => setTransferDraft({ ...transferDraft, notes: e.target.value })}
-              />
-            </div>
-          </div>
-        )}
-      </EntityFormDrawer>
-
-      <EntityFormDrawer
-        open={!!actionTarget && actionTarget.action === "maintain"}
-        onClose={() => setActionTarget(null)}
-        title={`صيانة الأصل: ${actionTarget?.asset.name || ""}`}
-        onSave={() => {
-          if (actionTarget) {
-            maintainMutation.mutate({
-              id: actionTarget.asset.id,
-              cost: parseFloat(maintainDraft.cost) || 0,
-              reason: maintainDraft.reason,
-              notes: maintainDraft.notes,
-              userId: user?.id,
-              userName: user?.name,
-            });
-          }
-        }}
-        loading={maintainMutation.isPending}
-        saveText="تسجيل الصيانة"
-      >
-        {actionTarget && (
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">تكلفة الصيانة</label>
-              <input
-                type="number"
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={maintainDraft.cost}
-                onChange={(e) => setMaintainDraft({ ...maintainDraft, cost: e.target.value })}
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">سبب/وصف الصيانة</label>
-              <textarea
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                rows={2}
-                value={maintainDraft.reason}
-                onChange={(e) => setMaintainDraft({ ...maintainDraft, reason: e.target.value })}
-                placeholder="مثال: صيانة دورية، إصلاح عطل..."
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-              <textarea
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                rows={2}
-                value={maintainDraft.notes}
-                onChange={(e) => setMaintainDraft({ ...maintainDraft, notes: e.target.value })}
-              />
-            </div>
-          </div>
-        )}
-      </EntityFormDrawer>
-
-      <ConfirmDialog
-        open={!!actionTarget && actionTarget.action === "returnMaintenance"}
-        onClose={() => setActionTarget(null)}
-        onConfirm={() => {
-          if (actionTarget) {
-            returnMaintenanceMutation.mutate({
-              id: actionTarget.asset.id,
-              condition: detailQuery.data?.item?.condition,
-              userId: user?.id,
-              userName: user?.name,
-            });
-          }
-        }}
-        title="إنهاء الصيانة"
-        message={`هل تريد إعادة الأصل "${actionTarget?.asset.name}" للعمل بعد الصيانة؟`}
-        confirmText="إعادة للعمل"
-        cancelText="إلغاء"
-      />
-
-      <EntityFormDrawer
-        open={!!actionTarget && actionTarget.action === "sell"}
-        onClose={() => setActionTarget(null)}
-        title={`بيع الأصل: ${actionTarget?.asset.name || ""}`}
-        onSave={() => {
-          if (actionTarget) {
-            sellMutation.mutate({
-              id: actionTarget.asset.id,
-              salePrice: parseFloat(sellDraft.salePrice) || 0,
-              buyer: sellDraft.buyer,
-              notes: sellDraft.notes,
-              userId: user?.id,
-              userName: user?.name,
-            });
-          }
-        }}
-        loading={sellMutation.isPending}
-        saveText="تأكيد البيع"
-      >
-        {actionTarget && (
-          <div className="space-y-3">
-            <Card className="p-3 bg-warning/10 text-xs">
-              <div>
-                القيمة الدفترية الحالية:{" "}
-                <b>
-                  {fmtSAR(actionTarget.asset.cost - actionTarget.asset.accumulatedDepreciation)}
-                </b>
-              </div>
-            </Card>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">سعر البيع</label>
-              <input
-                type="number"
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={sellDraft.salePrice}
-                onChange={(e) => setSellDraft({ ...sellDraft, salePrice: e.target.value })}
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">المشتري</label>
-              <input
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                value={sellDraft.buyer}
-                onChange={(e) => setSellDraft({ ...sellDraft, buyer: e.target.value })}
-                placeholder="اسم المشتري"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">ملاحظات</label>
-              <textarea
-                className="w-full rounded-lg border bg-background p-3 text-sm mt-1"
-                rows={2}
-                value={sellDraft.notes}
-                onChange={(e) => setSellDraft({ ...sellDraft, notes: e.target.value })}
-              />
-            </div>
-          </div>
-        )}
-      </EntityFormDrawer>
-
-      <ConfirmDialog
-        open={!!actionTarget && actionTarget.action === "dispose"}
-        onClose={() => setActionTarget(null)}
-        onConfirm={() => {
-          if (actionTarget) {
-            disposeMutation.mutate({
-              id: actionTarget.asset.id,
-              userId: user?.id,
-              userName: user?.name,
-            });
-          }
-        }}
-        title="استبعاد الأصل"
-        message={`هل تريد استبعاد الأصل "${actionTarget?.asset.name}"؟ سيصبح read-only ويحتفظ به النظام للسجل التاريخي.`}
-        confirmText="استبعاد"
-        cancelText="تراجع"
-        variant="destructive"
-      />
 
       <ConfirmDialog
         open={!!deleteTarget}
@@ -892,23 +352,10 @@ function Page() {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-b pb-1">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold">{value}</div>
-    </div>
-  );
-}
-
 function getAssetActions(
   a: FixedAsset,
   navigate: (opts: { to: string; params: { id: string } }) => void,
   openEdit: (a: FixedAsset) => void,
-  setActionTarget: (t: {
-    asset: FixedAsset;
-    action: "depreciate" | "transfer" | "maintain" | "returnMaintenance" | "dispose" | "sell";
-  }) => void,
   setDeleteTarget: (a: FixedAsset) => void,
 ) {
   const actions: Array<{
@@ -920,7 +367,7 @@ function getAssetActions(
     {
       label: "عرض التفاصيل",
       icon: Eye,
-      onClick: () => navigate({ to: "/assets/$id/edit", params: { id: a.id } }),
+      onClick: () => navigate({ to: "/assets/$id", params: { id: a.id } }),
     },
   ];
 
@@ -928,39 +375,6 @@ function getAssetActions(
 
   if (!readOnly) {
     actions.push({ label: "تعديل", icon: Edit, onClick: () => openEdit(a) });
-    actions.push({
-      label: "تسجيل إهلاك",
-      icon: TrendingDown,
-      onClick: () => setActionTarget({ asset: a, action: "depreciate" }),
-    });
-    actions.push({
-      label: "نقل",
-      icon: ArrowRight,
-      onClick: () => setActionTarget({ asset: a, action: "transfer" }),
-    });
-    if (a.status !== AssetStatusEnum.UNDER_MAINTENANCE) {
-      actions.push({
-        label: "تسجيل صيانة",
-        icon: Wrench,
-        onClick: () => setActionTarget({ asset: a, action: "maintain" }),
-      });
-    } else {
-      actions.push({
-        label: "إنهاء الصيانة",
-        icon: Wrench,
-        onClick: () => setActionTarget({ asset: a, action: "returnMaintenance" }),
-      });
-    }
-    actions.push({
-      label: "بيع",
-      icon: TrendingDown,
-      onClick: () => setActionTarget({ asset: a, action: "sell" }),
-    });
-    actions.push({
-      label: "استبعاد",
-      icon: XCircle,
-      onClick: () => setActionTarget({ asset: a, action: "dispose" }),
-    });
   }
 
   if (!readOnly && !a.accumulatedDepreciation) {

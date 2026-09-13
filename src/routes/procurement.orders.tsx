@@ -35,6 +35,7 @@ import { PurchaseOrderStatus, PurchaseRequestStatus } from "@/lib/enums";
 import { label } from "@/lib/i18n/labels";
 import {
   getPurchaseOrders,
+  getPurchaseOrder,
   approvePurchaseOrder,
   cancelPurchaseOrder,
   receivePurchaseOrder,
@@ -58,7 +59,6 @@ function Page() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [detailId, setDetailId] = useState<string | null>(null);
   const [receiveTarget, setReceiveTarget] = useState<PurchaseOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null);
   const [actionTarget, setActionTarget] = useState<{
@@ -83,11 +83,11 @@ function Page() {
     queryFn: () => getPurchaseRequests({ status: PurchaseRequestStatus.APPROVED }),
   });
 
-  const detailQuery = useQuery({
-    queryKey: ["purchaseOrderDetail", detailId],
-    queryFn: async () =>
-      detailId ? await fetch(`/api/procurement/orders?id=${detailId}`).then((r) => r.json()) : null,
-    enabled: !!detailId,
+  // Lines for the currently open receive drawer.
+  const receiveDetailQuery = useQuery({
+    queryKey: ["purchaseOrderDetail", receiveTarget?.id],
+    queryFn: () => (receiveTarget ? getPurchaseOrder(receiveTarget.id) : Promise.resolve(null)),
+    enabled: !!receiveTarget,
   });
 
   const approveMutation = useMutation({
@@ -156,9 +156,12 @@ function Page() {
     setReceiveLines({});
   };
 
+  const openDetail = (id: string) =>
+    navigate({ to: "/procurement/orders/$id", params: { id } as any });
+
   const handleReceive = () => {
-    if (!receiveTarget || !detailQuery.data?.lines) return;
-    const receipts = (detailQuery.data.lines as PurchaseOrderLine[])
+    if (!receiveTarget || !receiveDetailQuery.data?.lines) return;
+    const receipts = (receiveDetailQuery.data.lines as PurchaseOrderLine[])
       .filter((l) => {
         const qty = parseFloat(receiveLines[l.id] || "0");
         return qty > 0;
@@ -329,9 +332,7 @@ function Page() {
               <Td className="font-mono text-xs">{o.id}</Td>
               <Td>
                 <button
-                  onClick={() =>
-                    navigate({ to: "/procurement/orders/$id/edit", params: { id: o.id } })
-                  }
+                  onClick={() => openDetail(o.id)}
                   className="font-semibold hover:text-primary text-right"
                 >
                   {o.subject}
@@ -365,9 +366,7 @@ function Page() {
                 <span className="font-mono text-xs text-muted-foreground">{o.id}</span>
               </div>
               <button
-                onClick={() =>
-                  navigate({ to: "/procurement/orders/$id/edit", params: { id: o.id } })
-                }
+                onClick={() => openDetail(o.id)}
                 className="font-semibold text-right hover:text-primary"
               >
                 {o.subject}
@@ -384,9 +383,7 @@ function Page() {
               <div className="flex gap-2 mt-2">
                 <button
                   className="flex-1 rounded-lg border text-xs font-semibold py-2 min-h-[36px]"
-                  onClick={() =>
-                    navigate({ to: "/procurement/orders/$id/edit", params: { id: o.id } })
-                  }
+                  onClick={() => openDetail(o.id)}
                 >
                   تفاصيل
                 </button>
@@ -404,62 +401,6 @@ function Page() {
           )}
         />
       )}
-
-      <EntityFormDrawer
-        open={!!detailId && !receiveTarget}
-        onClose={() => setDetailId(null)}
-        title={`تفاصيل أمر الشراء: ${detailQuery.data?.item?.subject || ""}`}
-        onSave={() => setDetailId(null)}
-        saveText="إغلاق"
-      >
-        {detailQuery.data && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <DetailRow
-                label="الحالة"
-                value={label("purchaseOrderStatus", detailQuery.data.item.status)}
-              />
-              <DetailRow
-                label="المورد"
-                value={
-                  suppliers.find((s) => s.id === detailQuery.data.item.supplierId)?.name || "—"
-                }
-              />
-              <DetailRow label="التاريخ" value={detailQuery.data.item.date} />
-              <DetailRow label="تاريخ التوريد" value={detailQuery.data.item.deliveryDate || "—"} />
-              <DetailRow label="الإجمالي" value={fmtSAR(detailQuery.data.item.total)} />
-              <DetailRow label="المستلم" value={fmtSAR(detailQuery.data.item.receivedAmount)} />
-            </div>
-            <Card className="p-3 bg-primary/10">
-              <div className="text-xs font-semibold text-muted-foreground mb-2">سطور الأمر</div>
-              {(detailQuery.data.lines as PurchaseOrderLine[]).map((l) => (
-                <div
-                  key={l.id}
-                  className="text-xs py-1 border-b last:border-0 flex justify-between"
-                >
-                  <div>
-                    <div className="font-semibold">{l.description}</div>
-                    <div className="text-muted-foreground">
-                      {l.quantity} {l.unit} × {fmtSAR(l.unitPrice)} ={" "}
-                      {fmtSAR(l.quantity * l.unitPrice)}
-                    </div>
-                  </div>
-                  <div className="text-left">
-                    <div className="text-muted-foreground">مستلم</div>
-                    <div className="font-bold">{l.receivedQuantity || 0}</div>
-                  </div>
-                </div>
-              ))}
-            </Card>
-            {detailQuery.data.item.notes && (
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground mb-1">ملاحظات</div>
-                <div className="text-sm whitespace-pre-wrap">{detailQuery.data.item.notes}</div>
-              </div>
-            )}
-          </div>
-        )}
-      </EntityFormDrawer>
 
       <EntityFormDrawer
         open={!!receiveTarget}
@@ -482,7 +423,7 @@ function Page() {
             </div>
             <Card className="p-3 bg-muted/30">
               <div className="text-xs font-semibold mb-2">سطور الأمر</div>
-              {(detailQuery.data?.lines as PurchaseOrderLine[] | undefined)?.map((l) => {
+              {(receiveDetailQuery.data?.lines as PurchaseOrderLine[] | undefined)?.map((l) => {
                 const remaining = l.quantity - (l.receivedQuantity || 0);
                 return (
                   <div key={l.id} className="text-xs py-2 border-b last:border-0">
@@ -594,15 +535,6 @@ function Page() {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-b pb-1">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold">{value}</div>
-    </div>
-  );
-}
-
 function getOrderActions(
   o: PurchaseOrder,
   navigate: (opts: { to: string; params: { id: string } }) => void,
@@ -619,7 +551,7 @@ function getOrderActions(
     {
       label: "عرض التفاصيل",
       icon: Eye,
-      onClick: () => navigate({ to: "/procurement/orders/$id/edit", params: { id: o.id } }),
+      onClick: () => navigate({ to: "/procurement/orders/$id", params: { id: o.id } }),
     },
     { label: "طباعة", icon: Printer, onClick: () => window.print() },
   ];

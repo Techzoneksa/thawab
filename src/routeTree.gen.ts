@@ -93,8 +93,11 @@ import { Route as DonationsNewRouteImport } from './routes/donations_.new'
 import { Route as CampaignsNewRouteImport } from './routes/campaigns_.new'
 import { Route as BeneficiariesNewRouteImport } from './routes/beneficiaries_.new'
 import { Route as BeneficiariesIdRouteImport } from './routes/beneficiaries_.$id'
+import { Route as AuditIdRouteImport } from './routes/audit_.$id'
 import { Route as AssetsNewRouteImport } from './routes/assets_.new'
+import { Route as AssetsIdRouteImport } from './routes/assets_.$id'
 import { Route as ApprovalsNewRouteImport } from './routes/approvals_.new'
+import { Route as ApprovalsIdRouteImport } from './routes/approvals_.$id'
 import { Route as ApiUsersRouteImport } from './routes/api/users'
 import { Route as ApiRolesRouteImport } from './routes/api/roles'
 import { Route as ApiRecurringRouteImport } from './routes/api/recurring'
@@ -130,15 +133,28 @@ import { Route as ReportsIdEditRouteImport } from './routes/reports_.$id_.edit'
 import { Route as RecurringIdEditRouteImport } from './routes/recurring_.$id_.edit'
 import { Route as ProjectsIdEditRouteImport } from './routes/projects_.$id_.edit'
 import { Route as ProcurementSuppliersNewRouteImport } from './routes/procurement.suppliers_.new'
+import { Route as ProcurementSuppliersIdRouteImport } from './routes/procurement.suppliers_.$id'
 import { Route as ProcurementRequestsNewRouteImport } from './routes/procurement.requests_.new'
+import { Route as ProcurementRequestsIdRouteImport } from './routes/procurement.requests_.$id'
 import { Route as ProcurementQuotesNewRouteImport } from './routes/procurement.quotes_.new'
+import { Route as ProcurementQuotesIdRouteImport } from './routes/procurement.quotes_.$id'
+import { Route as ProcurementPurchaseReturnsNewRouteImport } from './routes/procurement.purchase-returns_.new'
+import { Route as ProcurementPurchaseReturnsIdRouteImport } from './routes/procurement.purchase-returns_.$id'
+import { Route as ProcurementPurchaseOrdersNewRouteImport } from './routes/procurement.purchase-orders_.new'
+import { Route as ProcurementPurchaseOrdersIdRouteImport } from './routes/procurement.purchase-orders_.$id'
 import { Route as ProcurementOrdersNewRouteImport } from './routes/procurement.orders_.new'
+import { Route as ProcurementOrdersIdRouteImport } from './routes/procurement.orders_.$id'
+import { Route as ProcurementGoodsReceiptsNewRouteImport } from './routes/procurement.goods-receipts_.new'
+import { Route as ProcurementGoodsReceiptsIdRouteImport } from './routes/procurement.goods-receipts_.$id'
 import { Route as PermissionsIdEditRouteImport } from './routes/permissions_.$id_.edit'
 import { Route as MembershipsIdEditRouteImport } from './routes/memberships_.$id_.edit'
 import { Route as MeetingsIdEditRouteImport } from './routes/meetings_.$id_.edit'
 import { Route as InventoryWarehousesNewRouteImport } from './routes/inventory.warehouses_.new'
+import { Route as InventoryWarehousesIdRouteImport } from './routes/inventory.warehouses_.$id'
 import { Route as InventoryStocktakeNewRouteImport } from './routes/inventory.stocktake_.new'
+import { Route as InventoryStocktakeIdRouteImport } from './routes/inventory.stocktake_.$id'
 import { Route as InventoryItemsNewRouteImport } from './routes/inventory.items_.new'
+import { Route as InventoryItemsIdRouteImport } from './routes/inventory.items_.$id'
 import { Route as HrIdEditRouteImport } from './routes/hr_.$id_.edit'
 import { Route as HrPayrollNewRouteImport } from './routes/hr.payroll_.new'
 import { Route as GrantsIdEditRouteImport } from './routes/grants_.$id_.edit'
@@ -224,6 +240,7 @@ import { Route as ProcurementSuppliersIdEditRouteImport } from './routes/procure
 import { Route as ProcurementRequestsIdEditRouteImport } from './routes/procurement.requests_.$id_.edit'
 import { Route as ProcurementQuotesIdEditRouteImport } from './routes/procurement.quotes_.$id_.edit'
 import { Route as ProcurementPurchaseOrdersIdPrintRouteImport } from './routes/procurement.purchase-orders_.$id.print'
+import { Route as ProcurementPurchaseOrdersIdEditRouteImport } from './routes/procurement.purchase-orders_.$id.edit'
 import { Route as ProcurementOrdersIdEditRouteImport } from './routes/procurement.orders_.$id_.edit'
 import { Route as ProcurementGoodsReceiptsIdPrintRouteImport } from './routes/procurement.goods-receipts_.$id.print'
 import { Route as InventoryWarehousesIdEditRouteImport } from './routes/inventory.warehouses_.$id_.edit'
@@ -671,14 +688,29 @@ const BeneficiariesIdRoute = BeneficiariesIdRouteImport.update({
   path: '/beneficiaries/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuditIdRoute = AuditIdRouteImport.update({
+  id: '/audit_/$id',
+  path: '/audit/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AssetsNewRoute = AssetsNewRouteImport.update({
   id: '/assets_/new',
   path: '/assets/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AssetsIdRoute = AssetsIdRouteImport.update({
+  id: '/assets_/$id',
+  path: '/assets/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApprovalsNewRoute = ApprovalsNewRouteImport.update({
   id: '/approvals_/new',
   path: '/approvals/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApprovalsIdRoute = ApprovalsIdRouteImport.update({
+  id: '/approvals_/$id',
+  path: '/approvals/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiUsersRoute = ApiUsersRouteImport.update({
@@ -856,9 +888,19 @@ const ProcurementSuppliersNewRoute = ProcurementSuppliersNewRouteImport.update({
   path: '/procurement/suppliers/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProcurementSuppliersIdRoute = ProcurementSuppliersIdRouteImport.update({
+  id: '/procurement/suppliers_/$id',
+  path: '/procurement/suppliers/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProcurementRequestsNewRoute = ProcurementRequestsNewRouteImport.update({
   id: '/procurement/requests_/new',
   path: '/procurement/requests/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProcurementRequestsIdRoute = ProcurementRequestsIdRouteImport.update({
+  id: '/procurement/requests_/$id',
+  path: '/procurement/requests/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProcurementQuotesNewRoute = ProcurementQuotesNewRouteImport.update({
@@ -866,11 +908,57 @@ const ProcurementQuotesNewRoute = ProcurementQuotesNewRouteImport.update({
   path: '/procurement/quotes/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProcurementQuotesIdRoute = ProcurementQuotesIdRouteImport.update({
+  id: '/procurement/quotes_/$id',
+  path: '/procurement/quotes/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProcurementPurchaseReturnsNewRoute =
+  ProcurementPurchaseReturnsNewRouteImport.update({
+    id: '/procurement/purchase-returns_/new',
+    path: '/procurement/purchase-returns/new',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProcurementPurchaseReturnsIdRoute =
+  ProcurementPurchaseReturnsIdRouteImport.update({
+    id: '/procurement/purchase-returns_/$id',
+    path: '/procurement/purchase-returns/$id',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProcurementPurchaseOrdersNewRoute =
+  ProcurementPurchaseOrdersNewRouteImport.update({
+    id: '/procurement/purchase-orders_/new',
+    path: '/procurement/purchase-orders/new',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProcurementPurchaseOrdersIdRoute =
+  ProcurementPurchaseOrdersIdRouteImport.update({
+    id: '/procurement/purchase-orders_/$id',
+    path: '/procurement/purchase-orders/$id',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ProcurementOrdersNewRoute = ProcurementOrdersNewRouteImport.update({
   id: '/procurement/orders_/new',
   path: '/procurement/orders/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProcurementOrdersIdRoute = ProcurementOrdersIdRouteImport.update({
+  id: '/procurement/orders_/$id',
+  path: '/procurement/orders/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProcurementGoodsReceiptsNewRoute =
+  ProcurementGoodsReceiptsNewRouteImport.update({
+    id: '/procurement/goods-receipts_/new',
+    path: '/procurement/goods-receipts/new',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProcurementGoodsReceiptsIdRoute =
+  ProcurementGoodsReceiptsIdRouteImport.update({
+    id: '/procurement/goods-receipts_/$id',
+    path: '/procurement/goods-receipts/$id',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const PermissionsIdEditRoute = PermissionsIdEditRouteImport.update({
   id: '/permissions_/$id_/edit',
   path: '/permissions/$id/edit',
@@ -891,14 +979,29 @@ const InventoryWarehousesNewRoute = InventoryWarehousesNewRouteImport.update({
   path: '/inventory/warehouses/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InventoryWarehousesIdRoute = InventoryWarehousesIdRouteImport.update({
+  id: '/inventory/warehouses_/$id',
+  path: '/inventory/warehouses/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InventoryStocktakeNewRoute = InventoryStocktakeNewRouteImport.update({
   id: '/inventory/stocktake_/new',
   path: '/inventory/stocktake/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InventoryStocktakeIdRoute = InventoryStocktakeIdRouteImport.update({
+  id: '/inventory/stocktake_/$id',
+  path: '/inventory/stocktake/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InventoryItemsNewRoute = InventoryItemsNewRouteImport.update({
   id: '/inventory/items_/new',
   path: '/inventory/items/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InventoryItemsIdRoute = InventoryItemsIdRouteImport.update({
+  id: '/inventory/items_/$id',
+  path: '/inventory/items/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HrIdEditRoute = HrIdEditRouteImport.update({
@@ -1345,9 +1448,15 @@ const ProcurementQuotesIdEditRoute = ProcurementQuotesIdEditRouteImport.update({
 } as any)
 const ProcurementPurchaseOrdersIdPrintRoute =
   ProcurementPurchaseOrdersIdPrintRouteImport.update({
-    id: '/procurement/purchase-orders_/$id/print',
-    path: '/procurement/purchase-orders/$id/print',
-    getParentRoute: () => rootRouteImport,
+    id: '/print',
+    path: '/print',
+    getParentRoute: () => ProcurementPurchaseOrdersIdRoute,
+  } as any)
+const ProcurementPurchaseOrdersIdEditRoute =
+  ProcurementPurchaseOrdersIdEditRouteImport.update({
+    id: '/edit',
+    path: '/edit',
+    getParentRoute: () => ProcurementPurchaseOrdersIdRoute,
   } as any)
 const ProcurementOrdersIdEditRoute = ProcurementOrdersIdEditRouteImport.update({
   id: '/procurement/orders_/$id_/edit',
@@ -1356,9 +1465,9 @@ const ProcurementOrdersIdEditRoute = ProcurementOrdersIdEditRouteImport.update({
 } as any)
 const ProcurementGoodsReceiptsIdPrintRoute =
   ProcurementGoodsReceiptsIdPrintRouteImport.update({
-    id: '/procurement/goods-receipts_/$id/print',
-    path: '/procurement/goods-receipts/$id/print',
-    getParentRoute: () => rootRouteImport,
+    id: '/print',
+    path: '/print',
+    getParentRoute: () => ProcurementGoodsReceiptsIdRoute,
   } as any)
 const InventoryWarehousesIdEditRoute =
   InventoryWarehousesIdEditRouteImport.update({
@@ -1533,8 +1642,11 @@ export interface FileRoutesByFullPath {
   '/api/recurring': typeof ApiRecurringRoute
   '/api/roles': typeof ApiRolesRoute
   '/api/users': typeof ApiUsersRoute
+  '/approvals/$id': typeof ApprovalsIdRoute
   '/approvals/new': typeof ApprovalsNewRoute
+  '/assets/$id': typeof AssetsIdRoute
   '/assets/new': typeof AssetsNewRoute
+  '/audit/$id': typeof AuditIdRoute
   '/beneficiaries/$id': typeof BeneficiariesIdRoute
   '/beneficiaries/new': typeof BeneficiariesNewRoute
   '/campaigns/new': typeof CampaignsNewRoute
@@ -1669,15 +1781,28 @@ export interface FileRoutesByFullPath {
   '/grants/$id/edit': typeof GrantsIdEditRoute
   '/hr/payroll/new': typeof HrPayrollNewRoute
   '/hr/$id/edit': typeof HrIdEditRoute
+  '/inventory/items/$id': typeof InventoryItemsIdRoute
   '/inventory/items/new': typeof InventoryItemsNewRoute
+  '/inventory/stocktake/$id': typeof InventoryStocktakeIdRoute
   '/inventory/stocktake/new': typeof InventoryStocktakeNewRoute
+  '/inventory/warehouses/$id': typeof InventoryWarehousesIdRoute
   '/inventory/warehouses/new': typeof InventoryWarehousesNewRoute
   '/meetings/$id/edit': typeof MeetingsIdEditRoute
   '/memberships/$id/edit': typeof MembershipsIdEditRoute
   '/permissions/$id/edit': typeof PermissionsIdEditRoute
+  '/procurement/goods-receipts/$id': typeof ProcurementGoodsReceiptsIdRouteWithChildren
+  '/procurement/goods-receipts/new': typeof ProcurementGoodsReceiptsNewRoute
+  '/procurement/orders/$id': typeof ProcurementOrdersIdRoute
   '/procurement/orders/new': typeof ProcurementOrdersNewRoute
+  '/procurement/purchase-orders/$id': typeof ProcurementPurchaseOrdersIdRouteWithChildren
+  '/procurement/purchase-orders/new': typeof ProcurementPurchaseOrdersNewRoute
+  '/procurement/purchase-returns/$id': typeof ProcurementPurchaseReturnsIdRoute
+  '/procurement/purchase-returns/new': typeof ProcurementPurchaseReturnsNewRoute
+  '/procurement/quotes/$id': typeof ProcurementQuotesIdRoute
   '/procurement/quotes/new': typeof ProcurementQuotesNewRoute
+  '/procurement/requests/$id': typeof ProcurementRequestsIdRoute
   '/procurement/requests/new': typeof ProcurementRequestsNewRoute
+  '/procurement/suppliers/$id': typeof ProcurementSuppliersIdRoute
   '/procurement/suppliers/new': typeof ProcurementSuppliersNewRoute
   '/projects/$id/edit': typeof ProjectsIdEditRoute
   '/recurring/$id/edit': typeof RecurringIdEditRoute
@@ -1710,6 +1835,7 @@ export interface FileRoutesByFullPath {
   '/inventory/warehouses/$id/edit': typeof InventoryWarehousesIdEditRoute
   '/procurement/goods-receipts/$id/print': typeof ProcurementGoodsReceiptsIdPrintRoute
   '/procurement/orders/$id/edit': typeof ProcurementOrdersIdEditRoute
+  '/procurement/purchase-orders/$id/edit': typeof ProcurementPurchaseOrdersIdEditRoute
   '/procurement/purchase-orders/$id/print': typeof ProcurementPurchaseOrdersIdPrintRoute
   '/procurement/quotes/$id/edit': typeof ProcurementQuotesIdEditRoute
   '/procurement/requests/$id/edit': typeof ProcurementRequestsIdEditRoute
@@ -1773,8 +1899,11 @@ export interface FileRoutesByTo {
   '/api/recurring': typeof ApiRecurringRoute
   '/api/roles': typeof ApiRolesRoute
   '/api/users': typeof ApiUsersRoute
+  '/approvals/$id': typeof ApprovalsIdRoute
   '/approvals/new': typeof ApprovalsNewRoute
+  '/assets/$id': typeof AssetsIdRoute
   '/assets/new': typeof AssetsNewRoute
+  '/audit/$id': typeof AuditIdRoute
   '/beneficiaries/$id': typeof BeneficiariesIdRoute
   '/beneficiaries/new': typeof BeneficiariesNewRoute
   '/campaigns/new': typeof CampaignsNewRoute
@@ -1909,15 +2038,28 @@ export interface FileRoutesByTo {
   '/grants/$id/edit': typeof GrantsIdEditRoute
   '/hr/payroll/new': typeof HrPayrollNewRoute
   '/hr/$id/edit': typeof HrIdEditRoute
+  '/inventory/items/$id': typeof InventoryItemsIdRoute
   '/inventory/items/new': typeof InventoryItemsNewRoute
+  '/inventory/stocktake/$id': typeof InventoryStocktakeIdRoute
   '/inventory/stocktake/new': typeof InventoryStocktakeNewRoute
+  '/inventory/warehouses/$id': typeof InventoryWarehousesIdRoute
   '/inventory/warehouses/new': typeof InventoryWarehousesNewRoute
   '/meetings/$id/edit': typeof MeetingsIdEditRoute
   '/memberships/$id/edit': typeof MembershipsIdEditRoute
   '/permissions/$id/edit': typeof PermissionsIdEditRoute
+  '/procurement/goods-receipts/$id': typeof ProcurementGoodsReceiptsIdRouteWithChildren
+  '/procurement/goods-receipts/new': typeof ProcurementGoodsReceiptsNewRoute
+  '/procurement/orders/$id': typeof ProcurementOrdersIdRoute
   '/procurement/orders/new': typeof ProcurementOrdersNewRoute
+  '/procurement/purchase-orders/$id': typeof ProcurementPurchaseOrdersIdRouteWithChildren
+  '/procurement/purchase-orders/new': typeof ProcurementPurchaseOrdersNewRoute
+  '/procurement/purchase-returns/$id': typeof ProcurementPurchaseReturnsIdRoute
+  '/procurement/purchase-returns/new': typeof ProcurementPurchaseReturnsNewRoute
+  '/procurement/quotes/$id': typeof ProcurementQuotesIdRoute
   '/procurement/quotes/new': typeof ProcurementQuotesNewRoute
+  '/procurement/requests/$id': typeof ProcurementRequestsIdRoute
   '/procurement/requests/new': typeof ProcurementRequestsNewRoute
+  '/procurement/suppliers/$id': typeof ProcurementSuppliersIdRoute
   '/procurement/suppliers/new': typeof ProcurementSuppliersNewRoute
   '/projects/$id/edit': typeof ProjectsIdEditRoute
   '/recurring/$id/edit': typeof RecurringIdEditRoute
@@ -1950,6 +2092,7 @@ export interface FileRoutesByTo {
   '/inventory/warehouses/$id/edit': typeof InventoryWarehousesIdEditRoute
   '/procurement/goods-receipts/$id/print': typeof ProcurementGoodsReceiptsIdPrintRoute
   '/procurement/orders/$id/edit': typeof ProcurementOrdersIdEditRoute
+  '/procurement/purchase-orders/$id/edit': typeof ProcurementPurchaseOrdersIdEditRoute
   '/procurement/purchase-orders/$id/print': typeof ProcurementPurchaseOrdersIdPrintRoute
   '/procurement/quotes/$id/edit': typeof ProcurementQuotesIdEditRoute
   '/procurement/requests/$id/edit': typeof ProcurementRequestsIdEditRoute
@@ -2014,8 +2157,11 @@ export interface FileRoutesById {
   '/api/recurring': typeof ApiRecurringRoute
   '/api/roles': typeof ApiRolesRoute
   '/api/users': typeof ApiUsersRoute
+  '/approvals_/$id': typeof ApprovalsIdRoute
   '/approvals_/new': typeof ApprovalsNewRoute
+  '/assets_/$id': typeof AssetsIdRoute
   '/assets_/new': typeof AssetsNewRoute
+  '/audit_/$id': typeof AuditIdRoute
   '/beneficiaries_/$id': typeof BeneficiariesIdRoute
   '/beneficiaries_/new': typeof BeneficiariesNewRoute
   '/campaigns_/new': typeof CampaignsNewRoute
@@ -2150,15 +2296,28 @@ export interface FileRoutesById {
   '/grants_/$id_/edit': typeof GrantsIdEditRoute
   '/hr/payroll_/new': typeof HrPayrollNewRoute
   '/hr_/$id_/edit': typeof HrIdEditRoute
+  '/inventory/items_/$id': typeof InventoryItemsIdRoute
   '/inventory/items_/new': typeof InventoryItemsNewRoute
+  '/inventory/stocktake_/$id': typeof InventoryStocktakeIdRoute
   '/inventory/stocktake_/new': typeof InventoryStocktakeNewRoute
+  '/inventory/warehouses_/$id': typeof InventoryWarehousesIdRoute
   '/inventory/warehouses_/new': typeof InventoryWarehousesNewRoute
   '/meetings_/$id_/edit': typeof MeetingsIdEditRoute
   '/memberships_/$id_/edit': typeof MembershipsIdEditRoute
   '/permissions_/$id_/edit': typeof PermissionsIdEditRoute
+  '/procurement/goods-receipts_/$id': typeof ProcurementGoodsReceiptsIdRouteWithChildren
+  '/procurement/goods-receipts_/new': typeof ProcurementGoodsReceiptsNewRoute
+  '/procurement/orders_/$id': typeof ProcurementOrdersIdRoute
   '/procurement/orders_/new': typeof ProcurementOrdersNewRoute
+  '/procurement/purchase-orders_/$id': typeof ProcurementPurchaseOrdersIdRouteWithChildren
+  '/procurement/purchase-orders_/new': typeof ProcurementPurchaseOrdersNewRoute
+  '/procurement/purchase-returns_/$id': typeof ProcurementPurchaseReturnsIdRoute
+  '/procurement/purchase-returns_/new': typeof ProcurementPurchaseReturnsNewRoute
+  '/procurement/quotes_/$id': typeof ProcurementQuotesIdRoute
   '/procurement/quotes_/new': typeof ProcurementQuotesNewRoute
+  '/procurement/requests_/$id': typeof ProcurementRequestsIdRoute
   '/procurement/requests_/new': typeof ProcurementRequestsNewRoute
+  '/procurement/suppliers_/$id': typeof ProcurementSuppliersIdRoute
   '/procurement/suppliers_/new': typeof ProcurementSuppliersNewRoute
   '/projects_/$id_/edit': typeof ProjectsIdEditRoute
   '/recurring_/$id_/edit': typeof RecurringIdEditRoute
@@ -2191,6 +2350,7 @@ export interface FileRoutesById {
   '/inventory/warehouses_/$id_/edit': typeof InventoryWarehousesIdEditRoute
   '/procurement/goods-receipts_/$id/print': typeof ProcurementGoodsReceiptsIdPrintRoute
   '/procurement/orders_/$id_/edit': typeof ProcurementOrdersIdEditRoute
+  '/procurement/purchase-orders_/$id/edit': typeof ProcurementPurchaseOrdersIdEditRoute
   '/procurement/purchase-orders_/$id/print': typeof ProcurementPurchaseOrdersIdPrintRoute
   '/procurement/quotes_/$id_/edit': typeof ProcurementQuotesIdEditRoute
   '/procurement/requests_/$id_/edit': typeof ProcurementRequestsIdEditRoute
@@ -2256,8 +2416,11 @@ export interface FileRouteTypes {
     | '/api/recurring'
     | '/api/roles'
     | '/api/users'
+    | '/approvals/$id'
     | '/approvals/new'
+    | '/assets/$id'
     | '/assets/new'
+    | '/audit/$id'
     | '/beneficiaries/$id'
     | '/beneficiaries/new'
     | '/campaigns/new'
@@ -2392,15 +2555,28 @@ export interface FileRouteTypes {
     | '/grants/$id/edit'
     | '/hr/payroll/new'
     | '/hr/$id/edit'
+    | '/inventory/items/$id'
     | '/inventory/items/new'
+    | '/inventory/stocktake/$id'
     | '/inventory/stocktake/new'
+    | '/inventory/warehouses/$id'
     | '/inventory/warehouses/new'
     | '/meetings/$id/edit'
     | '/memberships/$id/edit'
     | '/permissions/$id/edit'
+    | '/procurement/goods-receipts/$id'
+    | '/procurement/goods-receipts/new'
+    | '/procurement/orders/$id'
     | '/procurement/orders/new'
+    | '/procurement/purchase-orders/$id'
+    | '/procurement/purchase-orders/new'
+    | '/procurement/purchase-returns/$id'
+    | '/procurement/purchase-returns/new'
+    | '/procurement/quotes/$id'
     | '/procurement/quotes/new'
+    | '/procurement/requests/$id'
     | '/procurement/requests/new'
+    | '/procurement/suppliers/$id'
     | '/procurement/suppliers/new'
     | '/projects/$id/edit'
     | '/recurring/$id/edit'
@@ -2433,6 +2609,7 @@ export interface FileRouteTypes {
     | '/inventory/warehouses/$id/edit'
     | '/procurement/goods-receipts/$id/print'
     | '/procurement/orders/$id/edit'
+    | '/procurement/purchase-orders/$id/edit'
     | '/procurement/purchase-orders/$id/print'
     | '/procurement/quotes/$id/edit'
     | '/procurement/requests/$id/edit'
@@ -2496,8 +2673,11 @@ export interface FileRouteTypes {
     | '/api/recurring'
     | '/api/roles'
     | '/api/users'
+    | '/approvals/$id'
     | '/approvals/new'
+    | '/assets/$id'
     | '/assets/new'
+    | '/audit/$id'
     | '/beneficiaries/$id'
     | '/beneficiaries/new'
     | '/campaigns/new'
@@ -2632,15 +2812,28 @@ export interface FileRouteTypes {
     | '/grants/$id/edit'
     | '/hr/payroll/new'
     | '/hr/$id/edit'
+    | '/inventory/items/$id'
     | '/inventory/items/new'
+    | '/inventory/stocktake/$id'
     | '/inventory/stocktake/new'
+    | '/inventory/warehouses/$id'
     | '/inventory/warehouses/new'
     | '/meetings/$id/edit'
     | '/memberships/$id/edit'
     | '/permissions/$id/edit'
+    | '/procurement/goods-receipts/$id'
+    | '/procurement/goods-receipts/new'
+    | '/procurement/orders/$id'
     | '/procurement/orders/new'
+    | '/procurement/purchase-orders/$id'
+    | '/procurement/purchase-orders/new'
+    | '/procurement/purchase-returns/$id'
+    | '/procurement/purchase-returns/new'
+    | '/procurement/quotes/$id'
     | '/procurement/quotes/new'
+    | '/procurement/requests/$id'
     | '/procurement/requests/new'
+    | '/procurement/suppliers/$id'
     | '/procurement/suppliers/new'
     | '/projects/$id/edit'
     | '/recurring/$id/edit'
@@ -2673,6 +2866,7 @@ export interface FileRouteTypes {
     | '/inventory/warehouses/$id/edit'
     | '/procurement/goods-receipts/$id/print'
     | '/procurement/orders/$id/edit'
+    | '/procurement/purchase-orders/$id/edit'
     | '/procurement/purchase-orders/$id/print'
     | '/procurement/quotes/$id/edit'
     | '/procurement/requests/$id/edit'
@@ -2736,8 +2930,11 @@ export interface FileRouteTypes {
     | '/api/recurring'
     | '/api/roles'
     | '/api/users'
+    | '/approvals_/$id'
     | '/approvals_/new'
+    | '/assets_/$id'
     | '/assets_/new'
+    | '/audit_/$id'
     | '/beneficiaries_/$id'
     | '/beneficiaries_/new'
     | '/campaigns_/new'
@@ -2872,15 +3069,28 @@ export interface FileRouteTypes {
     | '/grants_/$id_/edit'
     | '/hr/payroll_/new'
     | '/hr_/$id_/edit'
+    | '/inventory/items_/$id'
     | '/inventory/items_/new'
+    | '/inventory/stocktake_/$id'
     | '/inventory/stocktake_/new'
+    | '/inventory/warehouses_/$id'
     | '/inventory/warehouses_/new'
     | '/meetings_/$id_/edit'
     | '/memberships_/$id_/edit'
     | '/permissions_/$id_/edit'
+    | '/procurement/goods-receipts_/$id'
+    | '/procurement/goods-receipts_/new'
+    | '/procurement/orders_/$id'
     | '/procurement/orders_/new'
+    | '/procurement/purchase-orders_/$id'
+    | '/procurement/purchase-orders_/new'
+    | '/procurement/purchase-returns_/$id'
+    | '/procurement/purchase-returns_/new'
+    | '/procurement/quotes_/$id'
     | '/procurement/quotes_/new'
+    | '/procurement/requests_/$id'
     | '/procurement/requests_/new'
+    | '/procurement/suppliers_/$id'
     | '/procurement/suppliers_/new'
     | '/projects_/$id_/edit'
     | '/recurring_/$id_/edit'
@@ -2913,6 +3123,7 @@ export interface FileRouteTypes {
     | '/inventory/warehouses_/$id_/edit'
     | '/procurement/goods-receipts_/$id/print'
     | '/procurement/orders_/$id_/edit'
+    | '/procurement/purchase-orders_/$id/edit'
     | '/procurement/purchase-orders_/$id/print'
     | '/procurement/quotes_/$id_/edit'
     | '/procurement/requests_/$id_/edit'
@@ -2977,8 +3188,11 @@ export interface RootRouteChildren {
   ApiRecurringRoute: typeof ApiRecurringRoute
   ApiRolesRoute: typeof ApiRolesRoute
   ApiUsersRoute: typeof ApiUsersRoute
+  ApprovalsIdRoute: typeof ApprovalsIdRoute
   ApprovalsNewRoute: typeof ApprovalsNewRoute
+  AssetsIdRoute: typeof AssetsIdRoute
   AssetsNewRoute: typeof AssetsNewRoute
+  AuditIdRoute: typeof AuditIdRoute
   BeneficiariesIdRoute: typeof BeneficiariesIdRoute
   BeneficiariesNewRoute: typeof BeneficiariesNewRoute
   CampaignsNewRoute: typeof CampaignsNewRoute
@@ -3110,15 +3324,28 @@ export interface RootRouteChildren {
   FinanceSuppliersNewRoute: typeof FinanceSuppliersNewRoute
   GrantsIdEditRoute: typeof GrantsIdEditRoute
   HrIdEditRoute: typeof HrIdEditRoute
+  InventoryItemsIdRoute: typeof InventoryItemsIdRoute
   InventoryItemsNewRoute: typeof InventoryItemsNewRoute
+  InventoryStocktakeIdRoute: typeof InventoryStocktakeIdRoute
   InventoryStocktakeNewRoute: typeof InventoryStocktakeNewRoute
+  InventoryWarehousesIdRoute: typeof InventoryWarehousesIdRoute
   InventoryWarehousesNewRoute: typeof InventoryWarehousesNewRoute
   MeetingsIdEditRoute: typeof MeetingsIdEditRoute
   MembershipsIdEditRoute: typeof MembershipsIdEditRoute
   PermissionsIdEditRoute: typeof PermissionsIdEditRoute
+  ProcurementGoodsReceiptsIdRoute: typeof ProcurementGoodsReceiptsIdRouteWithChildren
+  ProcurementGoodsReceiptsNewRoute: typeof ProcurementGoodsReceiptsNewRoute
+  ProcurementOrdersIdRoute: typeof ProcurementOrdersIdRoute
   ProcurementOrdersNewRoute: typeof ProcurementOrdersNewRoute
+  ProcurementPurchaseOrdersIdRoute: typeof ProcurementPurchaseOrdersIdRouteWithChildren
+  ProcurementPurchaseOrdersNewRoute: typeof ProcurementPurchaseOrdersNewRoute
+  ProcurementPurchaseReturnsIdRoute: typeof ProcurementPurchaseReturnsIdRoute
+  ProcurementPurchaseReturnsNewRoute: typeof ProcurementPurchaseReturnsNewRoute
+  ProcurementQuotesIdRoute: typeof ProcurementQuotesIdRoute
   ProcurementQuotesNewRoute: typeof ProcurementQuotesNewRoute
+  ProcurementRequestsIdRoute: typeof ProcurementRequestsIdRoute
   ProcurementRequestsNewRoute: typeof ProcurementRequestsNewRoute
+  ProcurementSuppliersIdRoute: typeof ProcurementSuppliersIdRoute
   ProcurementSuppliersNewRoute: typeof ProcurementSuppliersNewRoute
   ProjectsIdEditRoute: typeof ProjectsIdEditRoute
   RecurringIdEditRoute: typeof RecurringIdEditRoute
@@ -3137,9 +3364,7 @@ export interface RootRouteChildren {
   InventoryItemsIdEditRoute: typeof InventoryItemsIdEditRoute
   InventoryStocktakeIdEditRoute: typeof InventoryStocktakeIdEditRoute
   InventoryWarehousesIdEditRoute: typeof InventoryWarehousesIdEditRoute
-  ProcurementGoodsReceiptsIdPrintRoute: typeof ProcurementGoodsReceiptsIdPrintRoute
   ProcurementOrdersIdEditRoute: typeof ProcurementOrdersIdEditRoute
-  ProcurementPurchaseOrdersIdPrintRoute: typeof ProcurementPurchaseOrdersIdPrintRoute
   ProcurementQuotesIdEditRoute: typeof ProcurementQuotesIdEditRoute
   ProcurementRequestsIdEditRoute: typeof ProcurementRequestsIdEditRoute
   ProcurementSuppliersIdEditRoute: typeof ProcurementSuppliersIdEditRoute
@@ -3738,6 +3963,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BeneficiariesIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/audit_/$id': {
+      id: '/audit_/$id'
+      path: '/audit/$id'
+      fullPath: '/audit/$id'
+      preLoaderRoute: typeof AuditIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/assets_/new': {
       id: '/assets_/new'
       path: '/assets/new'
@@ -3745,11 +3977,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssetsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/assets_/$id': {
+      id: '/assets_/$id'
+      path: '/assets/$id'
+      fullPath: '/assets/$id'
+      preLoaderRoute: typeof AssetsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/approvals_/new': {
       id: '/approvals_/new'
       path: '/approvals/new'
       fullPath: '/approvals/new'
       preLoaderRoute: typeof ApprovalsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/approvals_/$id': {
+      id: '/approvals_/$id'
+      path: '/approvals/$id'
+      fullPath: '/approvals/$id'
+      preLoaderRoute: typeof ApprovalsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/users': {
@@ -3997,11 +4243,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProcurementSuppliersNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/procurement/suppliers_/$id': {
+      id: '/procurement/suppliers_/$id'
+      path: '/procurement/suppliers/$id'
+      fullPath: '/procurement/suppliers/$id'
+      preLoaderRoute: typeof ProcurementSuppliersIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/procurement/requests_/new': {
       id: '/procurement/requests_/new'
       path: '/procurement/requests/new'
       fullPath: '/procurement/requests/new'
       preLoaderRoute: typeof ProcurementRequestsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/procurement/requests_/$id': {
+      id: '/procurement/requests_/$id'
+      path: '/procurement/requests/$id'
+      fullPath: '/procurement/requests/$id'
+      preLoaderRoute: typeof ProcurementRequestsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/procurement/quotes_/new': {
@@ -4011,11 +4271,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProcurementQuotesNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/procurement/quotes_/$id': {
+      id: '/procurement/quotes_/$id'
+      path: '/procurement/quotes/$id'
+      fullPath: '/procurement/quotes/$id'
+      preLoaderRoute: typeof ProcurementQuotesIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/procurement/purchase-returns_/new': {
+      id: '/procurement/purchase-returns_/new'
+      path: '/procurement/purchase-returns/new'
+      fullPath: '/procurement/purchase-returns/new'
+      preLoaderRoute: typeof ProcurementPurchaseReturnsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/procurement/purchase-returns_/$id': {
+      id: '/procurement/purchase-returns_/$id'
+      path: '/procurement/purchase-returns/$id'
+      fullPath: '/procurement/purchase-returns/$id'
+      preLoaderRoute: typeof ProcurementPurchaseReturnsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/procurement/purchase-orders_/new': {
+      id: '/procurement/purchase-orders_/new'
+      path: '/procurement/purchase-orders/new'
+      fullPath: '/procurement/purchase-orders/new'
+      preLoaderRoute: typeof ProcurementPurchaseOrdersNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/procurement/purchase-orders_/$id': {
+      id: '/procurement/purchase-orders_/$id'
+      path: '/procurement/purchase-orders/$id'
+      fullPath: '/procurement/purchase-orders/$id'
+      preLoaderRoute: typeof ProcurementPurchaseOrdersIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/procurement/orders_/new': {
       id: '/procurement/orders_/new'
       path: '/procurement/orders/new'
       fullPath: '/procurement/orders/new'
       preLoaderRoute: typeof ProcurementOrdersNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/procurement/orders_/$id': {
+      id: '/procurement/orders_/$id'
+      path: '/procurement/orders/$id'
+      fullPath: '/procurement/orders/$id'
+      preLoaderRoute: typeof ProcurementOrdersIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/procurement/goods-receipts_/new': {
+      id: '/procurement/goods-receipts_/new'
+      path: '/procurement/goods-receipts/new'
+      fullPath: '/procurement/goods-receipts/new'
+      preLoaderRoute: typeof ProcurementGoodsReceiptsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/procurement/goods-receipts_/$id': {
+      id: '/procurement/goods-receipts_/$id'
+      path: '/procurement/goods-receipts/$id'
+      fullPath: '/procurement/goods-receipts/$id'
+      preLoaderRoute: typeof ProcurementGoodsReceiptsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/permissions_/$id_/edit': {
@@ -4046,6 +4362,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InventoryWarehousesNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/inventory/warehouses_/$id': {
+      id: '/inventory/warehouses_/$id'
+      path: '/inventory/warehouses/$id'
+      fullPath: '/inventory/warehouses/$id'
+      preLoaderRoute: typeof InventoryWarehousesIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/inventory/stocktake_/new': {
       id: '/inventory/stocktake_/new'
       path: '/inventory/stocktake/new'
@@ -4053,11 +4376,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InventoryStocktakeNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/inventory/stocktake_/$id': {
+      id: '/inventory/stocktake_/$id'
+      path: '/inventory/stocktake/$id'
+      fullPath: '/inventory/stocktake/$id'
+      preLoaderRoute: typeof InventoryStocktakeIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/inventory/items_/new': {
       id: '/inventory/items_/new'
       path: '/inventory/items/new'
       fullPath: '/inventory/items/new'
       preLoaderRoute: typeof InventoryItemsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventory/items_/$id': {
+      id: '/inventory/items_/$id'
+      path: '/inventory/items/$id'
+      fullPath: '/inventory/items/$id'
+      preLoaderRoute: typeof InventoryItemsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hr_/$id_/edit': {
@@ -4650,10 +4987,17 @@ declare module '@tanstack/react-router' {
     }
     '/procurement/purchase-orders_/$id/print': {
       id: '/procurement/purchase-orders_/$id/print'
-      path: '/procurement/purchase-orders/$id/print'
+      path: '/print'
       fullPath: '/procurement/purchase-orders/$id/print'
       preLoaderRoute: typeof ProcurementPurchaseOrdersIdPrintRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ProcurementPurchaseOrdersIdRoute
+    }
+    '/procurement/purchase-orders_/$id/edit': {
+      id: '/procurement/purchase-orders_/$id/edit'
+      path: '/edit'
+      fullPath: '/procurement/purchase-orders/$id/edit'
+      preLoaderRoute: typeof ProcurementPurchaseOrdersIdEditRouteImport
+      parentRoute: typeof ProcurementPurchaseOrdersIdRoute
     }
     '/procurement/orders_/$id_/edit': {
       id: '/procurement/orders_/$id_/edit'
@@ -4664,10 +5008,10 @@ declare module '@tanstack/react-router' {
     }
     '/procurement/goods-receipts_/$id/print': {
       id: '/procurement/goods-receipts_/$id/print'
-      path: '/procurement/goods-receipts/$id/print'
+      path: '/print'
       fullPath: '/procurement/goods-receipts/$id/print'
       preLoaderRoute: typeof ProcurementGoodsReceiptsIdPrintRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ProcurementGoodsReceiptsIdRoute
     }
     '/inventory/warehouses_/$id_/edit': {
       id: '/inventory/warehouses_/$id_/edit'
@@ -4940,6 +5284,37 @@ const FinanceSuppliersIdRouteChildren: FinanceSuppliersIdRouteChildren = {
 const FinanceSuppliersIdRouteWithChildren =
   FinanceSuppliersIdRoute._addFileChildren(FinanceSuppliersIdRouteChildren)
 
+interface ProcurementGoodsReceiptsIdRouteChildren {
+  ProcurementGoodsReceiptsIdPrintRoute: typeof ProcurementGoodsReceiptsIdPrintRoute
+}
+
+const ProcurementGoodsReceiptsIdRouteChildren: ProcurementGoodsReceiptsIdRouteChildren =
+  {
+    ProcurementGoodsReceiptsIdPrintRoute: ProcurementGoodsReceiptsIdPrintRoute,
+  }
+
+const ProcurementGoodsReceiptsIdRouteWithChildren =
+  ProcurementGoodsReceiptsIdRoute._addFileChildren(
+    ProcurementGoodsReceiptsIdRouteChildren,
+  )
+
+interface ProcurementPurchaseOrdersIdRouteChildren {
+  ProcurementPurchaseOrdersIdEditRoute: typeof ProcurementPurchaseOrdersIdEditRoute
+  ProcurementPurchaseOrdersIdPrintRoute: typeof ProcurementPurchaseOrdersIdPrintRoute
+}
+
+const ProcurementPurchaseOrdersIdRouteChildren: ProcurementPurchaseOrdersIdRouteChildren =
+  {
+    ProcurementPurchaseOrdersIdEditRoute: ProcurementPurchaseOrdersIdEditRoute,
+    ProcurementPurchaseOrdersIdPrintRoute:
+      ProcurementPurchaseOrdersIdPrintRoute,
+  }
+
+const ProcurementPurchaseOrdersIdRouteWithChildren =
+  ProcurementPurchaseOrdersIdRoute._addFileChildren(
+    ProcurementPurchaseOrdersIdRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AidRoute: AidRoute,
@@ -4995,8 +5370,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRecurringRoute: ApiRecurringRoute,
   ApiRolesRoute: ApiRolesRoute,
   ApiUsersRoute: ApiUsersRoute,
+  ApprovalsIdRoute: ApprovalsIdRoute,
   ApprovalsNewRoute: ApprovalsNewRoute,
+  AssetsIdRoute: AssetsIdRoute,
   AssetsNewRoute: AssetsNewRoute,
+  AuditIdRoute: AuditIdRoute,
   BeneficiariesIdRoute: BeneficiariesIdRoute,
   BeneficiariesNewRoute: BeneficiariesNewRoute,
   CampaignsNewRoute: CampaignsNewRoute,
@@ -5128,15 +5506,29 @@ const rootRouteChildren: RootRouteChildren = {
   FinanceSuppliersNewRoute: FinanceSuppliersNewRoute,
   GrantsIdEditRoute: GrantsIdEditRoute,
   HrIdEditRoute: HrIdEditRoute,
+  InventoryItemsIdRoute: InventoryItemsIdRoute,
   InventoryItemsNewRoute: InventoryItemsNewRoute,
+  InventoryStocktakeIdRoute: InventoryStocktakeIdRoute,
   InventoryStocktakeNewRoute: InventoryStocktakeNewRoute,
+  InventoryWarehousesIdRoute: InventoryWarehousesIdRoute,
   InventoryWarehousesNewRoute: InventoryWarehousesNewRoute,
   MeetingsIdEditRoute: MeetingsIdEditRoute,
   MembershipsIdEditRoute: MembershipsIdEditRoute,
   PermissionsIdEditRoute: PermissionsIdEditRoute,
+  ProcurementGoodsReceiptsIdRoute: ProcurementGoodsReceiptsIdRouteWithChildren,
+  ProcurementGoodsReceiptsNewRoute: ProcurementGoodsReceiptsNewRoute,
+  ProcurementOrdersIdRoute: ProcurementOrdersIdRoute,
   ProcurementOrdersNewRoute: ProcurementOrdersNewRoute,
+  ProcurementPurchaseOrdersIdRoute:
+    ProcurementPurchaseOrdersIdRouteWithChildren,
+  ProcurementPurchaseOrdersNewRoute: ProcurementPurchaseOrdersNewRoute,
+  ProcurementPurchaseReturnsIdRoute: ProcurementPurchaseReturnsIdRoute,
+  ProcurementPurchaseReturnsNewRoute: ProcurementPurchaseReturnsNewRoute,
+  ProcurementQuotesIdRoute: ProcurementQuotesIdRoute,
   ProcurementQuotesNewRoute: ProcurementQuotesNewRoute,
+  ProcurementRequestsIdRoute: ProcurementRequestsIdRoute,
   ProcurementRequestsNewRoute: ProcurementRequestsNewRoute,
+  ProcurementSuppliersIdRoute: ProcurementSuppliersIdRoute,
   ProcurementSuppliersNewRoute: ProcurementSuppliersNewRoute,
   ProjectsIdEditRoute: ProjectsIdEditRoute,
   RecurringIdEditRoute: RecurringIdEditRoute,
@@ -5155,9 +5547,7 @@ const rootRouteChildren: RootRouteChildren = {
   InventoryItemsIdEditRoute: InventoryItemsIdEditRoute,
   InventoryStocktakeIdEditRoute: InventoryStocktakeIdEditRoute,
   InventoryWarehousesIdEditRoute: InventoryWarehousesIdEditRoute,
-  ProcurementGoodsReceiptsIdPrintRoute: ProcurementGoodsReceiptsIdPrintRoute,
   ProcurementOrdersIdEditRoute: ProcurementOrdersIdEditRoute,
-  ProcurementPurchaseOrdersIdPrintRoute: ProcurementPurchaseOrdersIdPrintRoute,
   ProcurementQuotesIdEditRoute: ProcurementQuotesIdEditRoute,
   ProcurementRequestsIdEditRoute: ProcurementRequestsIdEditRoute,
   ProcurementSuppliersIdEditRoute: ProcurementSuppliersIdEditRoute,
