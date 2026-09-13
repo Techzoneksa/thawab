@@ -26,16 +26,24 @@ function client() {
       max: 10,
       prepare: false,
       onnotice: () => {},
-      // Resilience against a stuck/leaked transaction that holds a row lock and
-      // would otherwise hang every later write forever (a governance approve/post
-      // spins indefinitely, then the pool exhausts). These GUCs are set per
-      // connection at startup:
-      //  - lock_timeout: a statement WAITING for a lock aborts after 15s (does NOT
-      //    interrupt legitimate long-running work — only lock waits) → the caller
-      //    gets a clear error instead of an infinite hang.
-      //  - idle_in_transaction_session_timeout: Postgres terminates a transaction
-      //    left idle for 60s (a leaked/abandoned txn), releasing its locks so the
-      //    system self-heals without a restart.
+      // Pooler resilience: with a transaction pooler (e.g. Supabase pgBouncer)
+      // the client can hold a connection that the pooler has already closed
+      // (a "half-open" socket) — the next query on it then hangs until the OS
+      // TCP timeout, which looks like an approve/post that spins forever. These
+      // options make the client proactively recycle connections so it never
+      // reuses a dead one, and fail fast instead of hanging:
+      //  - idle_timeout : close an idle connection after 20s (well before the
+      //    pooler's own idle cutoff) so stale sockets are never reused.
+      //  - max_lifetime : recycle any connection after ~30 min regardless.
+      //  - connect_timeout : give up connecting after 15s instead of hanging.
+      idle_timeout: 20, // seconds
+      max_lifetime: 60 * 30, // seconds
+      connect_timeout: 15, // seconds
+      // Also set the server-side timeouts per connection. The transaction pooler
+      // may drop these startup GUCs (they are additionally enforced at the DB
+      // level via `ALTER DATABASE ... SET`), but they apply on a direct
+      // connection: a statement WAITING for a lock aborts after 15s, and a
+      // transaction left idle for 60s is terminated so locks self-heal.
       connection: {
         lock_timeout: 15000, // ms
         idle_in_transaction_session_timeout: 60000, // ms
