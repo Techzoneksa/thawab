@@ -146,6 +146,8 @@ import { Route as FinanceSalesInvoicesNewRouteImport } from './routes/finance.sa
 import { Route as FinanceSalesInvoicesIdRouteImport } from './routes/finance.sales-invoices_.$id'
 import { Route as FinanceJournalNewRouteImport } from './routes/finance.journal_.new'
 import { Route as FinanceJournalIdRouteImport } from './routes/finance.journal_.$id'
+import { Route as FinanceCustomersNewRouteImport } from './routes/finance.customers_.new'
+import { Route as FinanceCustomersIdRouteImport } from './routes/finance.customers_.$id'
 import { Route as FinanceCostCentersNewRouteImport } from './routes/finance.cost-centers_.new'
 import { Route as FinanceClosingNewRouteImport } from './routes/finance.closing_.new'
 import { Route as FinanceBudgetsNewRouteImport } from './routes/finance.budgets_.new'
@@ -220,6 +222,7 @@ import { Route as FinanceSalesInvoicesIdEditRouteImport } from './routes/finance
 import { Route as FinanceReceiptVouchersIdPrintRouteImport } from './routes/finance.receipt-vouchers_.$id.print'
 import { Route as FinancePaymentVouchersIdPrintRouteImport } from './routes/finance.payment-vouchers_.$id.print'
 import { Route as FinanceJournalIdEditRouteImport } from './routes/finance.journal_.$id_.edit'
+import { Route as FinanceCustomersIdEditRouteImport } from './routes/finance.customers_.$id.edit'
 import { Route as FinanceCostCentersIdEditRouteImport } from './routes/finance.cost-centers_.$id_.edit'
 import { Route as FinanceClosingIdEditRouteImport } from './routes/finance.closing_.$id_.edit'
 import { Route as FinanceBudgetsIdEditRouteImport } from './routes/finance.budgets_.$id_.edit'
@@ -914,6 +917,16 @@ const FinanceJournalIdRoute = FinanceJournalIdRouteImport.update({
   path: '/finance/journal/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FinanceCustomersNewRoute = FinanceCustomersNewRouteImport.update({
+  id: '/finance/customers_/new',
+  path: '/finance/customers/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FinanceCustomersIdRoute = FinanceCustomersIdRouteImport.update({
+  id: '/finance/customers_/$id',
+  path: '/finance/customers/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FinanceCostCentersNewRoute = FinanceCostCentersNewRouteImport.update({
   id: '/finance/cost-centers_/new',
   path: '/finance/cost-centers/new',
@@ -1306,6 +1319,11 @@ const FinanceJournalIdEditRoute = FinanceJournalIdEditRouteImport.update({
   path: '/finance/journal/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FinanceCustomersIdEditRoute = FinanceCustomersIdEditRouteImport.update({
+  id: '/edit',
+  path: '/edit',
+  getParentRoute: () => FinanceCustomersIdRoute,
+} as any)
 const FinanceCostCentersIdEditRoute =
   FinanceCostCentersIdEditRouteImport.update({
     id: '/finance/cost-centers_/$id_/edit',
@@ -1502,6 +1520,8 @@ export interface FileRoutesByFullPath {
   '/finance/budgets/new': typeof FinanceBudgetsNewRoute
   '/finance/closing/new': typeof FinanceClosingNewRoute
   '/finance/cost-centers/new': typeof FinanceCostCentersNewRoute
+  '/finance/customers/$id': typeof FinanceCustomersIdRouteWithChildren
+  '/finance/customers/new': typeof FinanceCustomersNewRoute
   '/finance/journal/$id': typeof FinanceJournalIdRoute
   '/finance/journal/new': typeof FinanceJournalNewRoute
   '/finance/sales-invoices/$id': typeof FinanceSalesInvoicesIdRouteWithChildren
@@ -1532,6 +1552,7 @@ export interface FileRoutesByFullPath {
   '/finance/budgets/$id/edit': typeof FinanceBudgetsIdEditRoute
   '/finance/closing/$id/edit': typeof FinanceClosingIdEditRoute
   '/finance/cost-centers/$id/edit': typeof FinanceCostCentersIdEditRoute
+  '/finance/customers/$id/edit': typeof FinanceCustomersIdEditRoute
   '/finance/journal/$id/edit': typeof FinanceJournalIdEditRoute
   '/finance/payment-vouchers/$id/print': typeof FinancePaymentVouchersIdPrintRoute
   '/finance/receipt-vouchers/$id/print': typeof FinanceReceiptVouchersIdPrintRoute
@@ -1720,6 +1741,8 @@ export interface FileRoutesByTo {
   '/finance/budgets/new': typeof FinanceBudgetsNewRoute
   '/finance/closing/new': typeof FinanceClosingNewRoute
   '/finance/cost-centers/new': typeof FinanceCostCentersNewRoute
+  '/finance/customers/$id': typeof FinanceCustomersIdRouteWithChildren
+  '/finance/customers/new': typeof FinanceCustomersNewRoute
   '/finance/journal/$id': typeof FinanceJournalIdRoute
   '/finance/journal/new': typeof FinanceJournalNewRoute
   '/finance/sales-invoices/$id': typeof FinanceSalesInvoicesIdRouteWithChildren
@@ -1750,6 +1773,7 @@ export interface FileRoutesByTo {
   '/finance/budgets/$id/edit': typeof FinanceBudgetsIdEditRoute
   '/finance/closing/$id/edit': typeof FinanceClosingIdEditRoute
   '/finance/cost-centers/$id/edit': typeof FinanceCostCentersIdEditRoute
+  '/finance/customers/$id/edit': typeof FinanceCustomersIdEditRoute
   '/finance/journal/$id/edit': typeof FinanceJournalIdEditRoute
   '/finance/payment-vouchers/$id/print': typeof FinancePaymentVouchersIdPrintRoute
   '/finance/receipt-vouchers/$id/print': typeof FinanceReceiptVouchersIdPrintRoute
@@ -1939,6 +1963,8 @@ export interface FileRoutesById {
   '/finance/budgets_/new': typeof FinanceBudgetsNewRoute
   '/finance/closing_/new': typeof FinanceClosingNewRoute
   '/finance/cost-centers_/new': typeof FinanceCostCentersNewRoute
+  '/finance/customers_/$id': typeof FinanceCustomersIdRouteWithChildren
+  '/finance/customers_/new': typeof FinanceCustomersNewRoute
   '/finance/journal_/$id': typeof FinanceJournalIdRoute
   '/finance/journal_/new': typeof FinanceJournalNewRoute
   '/finance/sales-invoices_/$id': typeof FinanceSalesInvoicesIdRouteWithChildren
@@ -1969,6 +1995,7 @@ export interface FileRoutesById {
   '/finance/budgets_/$id_/edit': typeof FinanceBudgetsIdEditRoute
   '/finance/closing_/$id_/edit': typeof FinanceClosingIdEditRoute
   '/finance/cost-centers_/$id_/edit': typeof FinanceCostCentersIdEditRoute
+  '/finance/customers_/$id/edit': typeof FinanceCustomersIdEditRoute
   '/finance/journal_/$id_/edit': typeof FinanceJournalIdEditRoute
   '/finance/payment-vouchers_/$id/print': typeof FinancePaymentVouchersIdPrintRoute
   '/finance/receipt-vouchers_/$id/print': typeof FinanceReceiptVouchersIdPrintRoute
@@ -2159,6 +2186,8 @@ export interface FileRouteTypes {
     | '/finance/budgets/new'
     | '/finance/closing/new'
     | '/finance/cost-centers/new'
+    | '/finance/customers/$id'
+    | '/finance/customers/new'
     | '/finance/journal/$id'
     | '/finance/journal/new'
     | '/finance/sales-invoices/$id'
@@ -2189,6 +2218,7 @@ export interface FileRouteTypes {
     | '/finance/budgets/$id/edit'
     | '/finance/closing/$id/edit'
     | '/finance/cost-centers/$id/edit'
+    | '/finance/customers/$id/edit'
     | '/finance/journal/$id/edit'
     | '/finance/payment-vouchers/$id/print'
     | '/finance/receipt-vouchers/$id/print'
@@ -2377,6 +2407,8 @@ export interface FileRouteTypes {
     | '/finance/budgets/new'
     | '/finance/closing/new'
     | '/finance/cost-centers/new'
+    | '/finance/customers/$id'
+    | '/finance/customers/new'
     | '/finance/journal/$id'
     | '/finance/journal/new'
     | '/finance/sales-invoices/$id'
@@ -2407,6 +2439,7 @@ export interface FileRouteTypes {
     | '/finance/budgets/$id/edit'
     | '/finance/closing/$id/edit'
     | '/finance/cost-centers/$id/edit'
+    | '/finance/customers/$id/edit'
     | '/finance/journal/$id/edit'
     | '/finance/payment-vouchers/$id/print'
     | '/finance/receipt-vouchers/$id/print'
@@ -2595,6 +2628,8 @@ export interface FileRouteTypes {
     | '/finance/budgets_/new'
     | '/finance/closing_/new'
     | '/finance/cost-centers_/new'
+    | '/finance/customers_/$id'
+    | '/finance/customers_/new'
     | '/finance/journal_/$id'
     | '/finance/journal_/new'
     | '/finance/sales-invoices_/$id'
@@ -2625,6 +2660,7 @@ export interface FileRouteTypes {
     | '/finance/budgets_/$id_/edit'
     | '/finance/closing_/$id_/edit'
     | '/finance/cost-centers_/$id_/edit'
+    | '/finance/customers_/$id/edit'
     | '/finance/journal_/$id_/edit'
     | '/finance/payment-vouchers_/$id/print'
     | '/finance/receipt-vouchers_/$id/print'
@@ -2812,6 +2848,8 @@ export interface RootRouteChildren {
   FinanceBudgetsNewRoute: typeof FinanceBudgetsNewRoute
   FinanceClosingNewRoute: typeof FinanceClosingNewRoute
   FinanceCostCentersNewRoute: typeof FinanceCostCentersNewRoute
+  FinanceCustomersIdRoute: typeof FinanceCustomersIdRouteWithChildren
+  FinanceCustomersNewRoute: typeof FinanceCustomersNewRoute
   FinanceJournalIdRoute: typeof FinanceJournalIdRoute
   FinanceJournalNewRoute: typeof FinanceJournalNewRoute
   FinanceSalesInvoicesIdRoute: typeof FinanceSalesInvoicesIdRouteWithChildren
@@ -3820,6 +3858,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FinanceJournalIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/finance/customers_/new': {
+      id: '/finance/customers_/new'
+      path: '/finance/customers/new'
+      fullPath: '/finance/customers/new'
+      preLoaderRoute: typeof FinanceCustomersNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/finance/customers_/$id': {
+      id: '/finance/customers_/$id'
+      path: '/finance/customers/$id'
+      fullPath: '/finance/customers/$id'
+      preLoaderRoute: typeof FinanceCustomersIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/finance/cost-centers_/new': {
       id: '/finance/cost-centers_/new'
       path: '/finance/cost-centers/new'
@@ -4338,6 +4390,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FinanceJournalIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/finance/customers_/$id/edit': {
+      id: '/finance/customers_/$id/edit'
+      path: '/edit'
+      fullPath: '/finance/customers/$id/edit'
+      preLoaderRoute: typeof FinanceCustomersIdEditRouteImport
+      parentRoute: typeof FinanceCustomersIdRoute
+    }
     '/finance/cost-centers_/$id_/edit': {
       id: '/finance/cost-centers_/$id_/edit'
       path: '/finance/cost-centers/$id/edit'
@@ -4399,6 +4458,17 @@ const ApiHrRouteChildren: ApiHrRouteChildren = {
 }
 
 const ApiHrRouteWithChildren = ApiHrRoute._addFileChildren(ApiHrRouteChildren)
+
+interface FinanceCustomersIdRouteChildren {
+  FinanceCustomersIdEditRoute: typeof FinanceCustomersIdEditRoute
+}
+
+const FinanceCustomersIdRouteChildren: FinanceCustomersIdRouteChildren = {
+  FinanceCustomersIdEditRoute: FinanceCustomersIdEditRoute,
+}
+
+const FinanceCustomersIdRouteWithChildren =
+  FinanceCustomersIdRoute._addFileChildren(FinanceCustomersIdRouteChildren)
 
 interface FinanceSalesInvoicesIdRouteChildren {
   FinanceSalesInvoicesIdEditRoute: typeof FinanceSalesInvoicesIdEditRoute
@@ -4582,6 +4652,8 @@ const rootRouteChildren: RootRouteChildren = {
   FinanceBudgetsNewRoute: FinanceBudgetsNewRoute,
   FinanceClosingNewRoute: FinanceClosingNewRoute,
   FinanceCostCentersNewRoute: FinanceCostCentersNewRoute,
+  FinanceCustomersIdRoute: FinanceCustomersIdRouteWithChildren,
+  FinanceCustomersNewRoute: FinanceCustomersNewRoute,
   FinanceJournalIdRoute: FinanceJournalIdRoute,
   FinanceJournalNewRoute: FinanceJournalNewRoute,
   FinanceSalesInvoicesIdRoute: FinanceSalesInvoicesIdRouteWithChildren,

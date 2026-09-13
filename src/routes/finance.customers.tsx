@@ -1,18 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { AppShell, Card, Btn, Badge, Table, Td } from "@/components/erp/AppShell";
 import { Pager } from "@/components/erp/Pager";
-import { showToast, ConfirmDialog, EntityFormDrawer, EmptyState } from "@/components/erp/actions";
+import { showToast, ConfirmDialog, EmptyState } from "@/components/erp/actions";
 import { fmtSAR } from "@/data/sample";
 import { Plus, Eye, Pencil, Power, Scale } from "lucide-react";
 import { useAuth, userCan } from "@/lib/api/auth";
 import {
   listFinanceCustomers,
-  getFinanceCustomer,
-  getCustomerLedger,
-  createFinanceCustomer,
-  updateFinanceCustomer,
   setCustomerActive,
   getArReconciliation,
   type FinanceCustomer,
@@ -26,12 +22,11 @@ export const Route = createFileRoute("/finance/customers")({
 function Page() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const nav = useNavigate();
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [page, setPage] = useState(1);
   useEffect(() => setPage(1), [search, showAll]);
-  const [editing, setEditing] = useState<{ item?: FinanceCustomer } | null>(null);
-  const [detailId, setDetailId] = useState<string | null>(null);
   const [showRecon, setShowRecon] = useState(false);
   const [toggleTarget, setToggleTarget] = useState<{
     id: string;
@@ -74,7 +69,7 @@ function Page() {
             </Btn>
           )}
           {canCreate && (
-            <Btn variant="primary" onClick={() => setEditing({})}>
+            <Btn variant="primary" onClick={() => nav({ to: "/finance/customers/new" })}>
               <Plus size={15} /> عميل جديد
             </Btn>
           )}
@@ -114,7 +109,12 @@ function Page() {
           renderRow={(c: FinanceCustomer) => (
             <>
               <Td className="font-mono text-xs">{c.customerCode || "—"}</Td>
-              <Td className="font-semibold">{c.name}</Td>
+              <Td
+                className="font-semibold cursor-pointer hover:underline"
+                onClick={() => nav({ to: "/finance/customers/$id", params: { id: c.id } as any })}
+              >
+                {c.name}
+              </Td>
               <Td className="text-xs font-mono">{c.taxNumber || "—"}</Td>
               <Td className="text-xs">{c.phone || "—"}</Td>
               <Td className="text-xs">
@@ -131,7 +131,9 @@ function Page() {
                   <button
                     className="p-1.5 rounded hover:bg-muted"
                     title="عرض"
-                    onClick={() => setDetailId(c.id)}
+                    onClick={() =>
+                      nav({ to: "/finance/customers/$id", params: { id: c.id } as any })
+                    }
                   >
                     <Eye size={15} />
                   </button>
@@ -139,7 +141,9 @@ function Page() {
                     <button
                       className="p-1.5 rounded hover:bg-muted"
                       title="تعديل"
-                      onClick={() => setEditing({ item: c })}
+                      onClick={() =>
+                        nav({ to: "/finance/customers/$id/edit", params: { id: c.id } as any })
+                      }
                     >
                       <Pencil size={15} />
                     </button>
@@ -169,18 +173,6 @@ function Page() {
         unit="عميل"
         onPage={setPage}
       />
-
-      {editing && (
-        <EditDrawer
-          item={editing.item}
-          onClose={() => setEditing(null)}
-          onSaved={() => {
-            invalidate();
-            setEditing(null);
-          }}
-        />
-      )}
-      {detailId && <DetailDrawer id={detailId} onClose={() => setDetailId(null)} />}
 
       <ConfirmDialog
         open={!!toggleTarget}
@@ -230,257 +222,6 @@ function ReconPanel() {
   );
 }
 
-function EditDrawer({
-  item,
-  onClose,
-  onSaved,
-}: {
-  item?: FinanceCustomer;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [f, setF] = useState<any>({
-    name: item?.name || "",
-    legalName: item?.legalName || "",
-    vatNumber: item?.taxNumber || "",
-    commercialRegistration: item?.commercialRegistration || "",
-    phone: item?.phone || "",
-    email: item?.email || "",
-    currency: item?.currency || "SAR",
-    paymentTermsDays: item?.paymentTermsDays ?? "",
-    contactPerson: item?.contactPerson || "",
-    address: item?.address || "",
-    notes: item?.notes || "",
-  });
-  const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
-
-  const mut = useMutation({
-    mutationFn: async () => {
-      const body: any = {
-        id: item?.id,
-        name: f.name,
-        legalName: f.legalName,
-        vatNumber: f.vatNumber || null,
-        commercialRegistration: f.commercialRegistration || null,
-        phone: f.phone || null,
-        email: f.email || "",
-        currency: f.currency,
-        paymentTermsDays: f.paymentTermsDays === "" ? null : Number(f.paymentTermsDays),
-        contactPerson: f.contactPerson,
-        address: f.address,
-        notes: f.notes,
-      };
-      return item?.id ? updateFinanceCustomer(body) : createFinanceCustomer(body);
-    },
-    onSuccess: () => {
-      showToast(item ? "تم الحفظ" : "تم الإنشاء", "success");
-      onSaved();
-    },
-    onError: (e: Error) => showToast(e.message, "error"),
-  });
-
-  return (
-    <EntityFormDrawer
-      open
-      onClose={onClose}
-      title={item ? `تعديل العميل ${item.customerCode || ""}` : "عميل جديد"}
-      onSave={() => mut.mutate()}
-      saveText={item ? "حفظ" : "إنشاء"}
-      loading={mut.isPending}
-    >
-      <div className="space-y-3">
-        <Field label="اسم العميل *">
-          <input className="inp" value={f.name} onChange={(e) => set("name", e.target.value)} />
-        </Field>
-        <Field label="الاسم القانوني">
-          <input
-            className="inp"
-            value={f.legalName}
-            onChange={(e) => set("legalName", e.target.value)}
-          />
-        </Field>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="الرقم الضريبي (VAT)">
-            <input
-              className="inp font-mono"
-              value={f.vatNumber}
-              onChange={(e) => set("vatNumber", e.target.value)}
-            />
-          </Field>
-          <Field label="السجل التجاري">
-            <input
-              className="inp"
-              value={f.commercialRegistration}
-              onChange={(e) => set("commercialRegistration", e.target.value)}
-            />
-          </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="الهاتف">
-            <input className="inp" value={f.phone} onChange={(e) => set("phone", e.target.value)} />
-          </Field>
-          <Field label="البريد">
-            <input className="inp" value={f.email} onChange={(e) => set("email", e.target.value)} />
-          </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="العملة">
-            <input
-              className="inp"
-              value={f.currency}
-              onChange={(e) => set("currency", e.target.value)}
-            />
-          </Field>
-          <Field label="مدة السداد (يوم)">
-            <input
-              className="inp"
-              type="number"
-              min="0"
-              value={f.paymentTermsDays}
-              onChange={(e) => set("paymentTermsDays", e.target.value)}
-            />
-          </Field>
-        </div>
-        <Field label="جهة الاتصال">
-          <input
-            className="inp"
-            value={f.contactPerson}
-            onChange={(e) => set("contactPerson", e.target.value)}
-          />
-        </Field>
-        <Field label="العنوان">
-          <input
-            className="inp"
-            value={f.address}
-            onChange={(e) => set("address", e.target.value)}
-          />
-        </Field>
-        <Field label="ملاحظات">
-          <textarea
-            className="inp"
-            rows={2}
-            value={f.notes}
-            onChange={(e) => set("notes", e.target.value)}
-          />
-        </Field>
-      </div>
-    </EntityFormDrawer>
-  );
-}
-
-function DetailDrawer({ id, onClose }: { id: string; onClose: () => void }) {
-  const { user } = useAuth();
-  const [tab, setTab] = useState<"overview" | "statement">("overview");
-  const q = useQuery({ queryKey: ["fin-customer", id], queryFn: () => getFinanceCustomer(id) });
-  const canLedger = userCan(user, "finance.customer.ledger.view");
-  const ledgerQ = useQuery({
-    queryKey: ["fin-customer-ledger", id],
-    queryFn: () => getCustomerLedger(id),
-    enabled: tab === "statement" && canLedger,
-    retry: false,
-  });
-  const d = q.data;
-  return (
-    <EntityFormDrawer open onClose={onClose} title="العميل" onSave={onClose} saveText="إغلاق">
-      {d && (
-        <div className="space-y-3 text-sm">
-          <div className="flex items-center justify-between">
-            <div className="font-bold">{d.item.name}</div>
-            <Badge tone={d.item.status === "active" ? "success" : "muted"}>
-              {d.item.status === "active" ? "نشط" : "موقوف"}
-            </Badge>
-          </div>
-
-          <Card className="p-3">
-            <div className="grid grid-cols-3 gap-2">
-              <KV label="الرصيد المدين" value={fmtSAR(d.balance.receivableBalance)} />
-              <KV label="إجمالي المدين" value={fmtSAR(d.balance.periodDebit)} />
-              <KV label="إجمالي الدائن" value={fmtSAR(d.balance.periodCredit)} />
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-2">
-              الرصيد المدين محسوب من سطور الذمم المدينة المرتبطة بالعميل في الأستاذ العام
-              (مُرحّلة/معكوسة) — لا رصيد مخزّن.
-            </div>
-          </Card>
-
-          <div className="flex gap-1.5">
-            {(["overview", "statement"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`rounded-full border px-3 py-1 text-xs font-medium ${tab === t ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"}`}
-              >
-                {t === "overview" ? "نظرة عامة" : "كشف الحساب"}
-              </button>
-            ))}
-          </div>
-
-          {tab === "overview" ? (
-            <div className="grid grid-cols-2 gap-2">
-              <KV label="الرمز" value={d.item.customerCode || "—"} />
-              <KV label="الرقم الضريبي" value={d.item.taxNumber || "—"} />
-              <KV label="السجل التجاري" value={d.item.commercialRegistration || "—"} />
-              <KV label="العملة" value={d.item.currency} />
-              <KV label="الهاتف" value={d.item.phone || "—"} />
-              <KV
-                label="مدة السداد"
-                value={d.item.paymentTermsDays != null ? `${d.item.paymentTermsDays} يوم` : "—"}
-              />
-              <KV label="جهة الاتصال" value={d.item.contactPerson || "—"} />
-              <KV label="العنوان" value={d.item.address || "—"} />
-            </div>
-          ) : !canLedger ? (
-            <div className="text-xs text-destructive">لا تملك صلاحية عرض كشف الحساب</div>
-          ) : ledgerQ.isLoading ? (
-            <div className="text-xs text-muted-foreground">جارٍ التحميل…</div>
-          ) : (ledgerQ.data?.movements.length ?? 0) === 0 ? (
-            <div className="text-xs text-muted-foreground">لا توجد حركات على ذمم هذا العميل.</div>
-          ) : (
-            <div className="overflow-x-auto max-h-72">
-              <table className="w-full text-[11px]">
-                <thead className="text-muted-foreground text-right">
-                  <tr>
-                    <th className="py-1 pe-2">التاريخ</th>
-                    <th className="py-1 pe-2">القيد</th>
-                    <th className="py-1 pe-2">المصدر</th>
-                    <th className="py-1 pe-2">مدين</th>
-                    <th className="py-1 pe-2">دائن</th>
-                    <th className="py-1 pe-2">الرصيد</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ledgerQ.data!.movements.map((m) => (
-                    <tr key={m.lineId} className="border-t">
-                      <td className="py-1 pe-2 tabular-nums">{m.date}</td>
-                      <td className="py-1 pe-2 font-mono">{m.number}</td>
-                      <td className="py-1 pe-2">{m.source}</td>
-                      <td className="py-1 pe-2 tabular-nums">{m.debit ? fmtSAR(m.debit) : "—"}</td>
-                      <td className="py-1 pe-2 tabular-nums">
-                        {m.credit ? fmtSAR(m.credit) : "—"}
-                      </td>
-                      <td className="py-1 pe-2 tabular-nums font-semibold">
-                        {fmtSAR(m.receivableBalance)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-    </EntityFormDrawer>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <div className="text-xs font-semibold text-muted-foreground mb-1">{label}</div>
-      {children}
-    </label>
-  );
-}
 function KV({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border bg-muted/30 px-3 py-2">
