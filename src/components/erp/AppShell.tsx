@@ -948,8 +948,20 @@ export function Table<T>({
   );
 }
 
-export function Td({ children, className = "" }: { children?: ReactNode; className?: string }) {
-  return <td className={`px-4 py-3 whitespace-nowrap ${className}`}>{children}</td>;
+export function Td({
+  children,
+  className = "",
+  onClick,
+}: {
+  children?: ReactNode;
+  className?: string;
+  onClick?: () => void;
+}) {
+  return (
+    <td className={`px-4 py-3 whitespace-nowrap ${className}`} onClick={onClick}>
+      {children}
+    </td>
+  );
 }
 
 export function MobileTable<T>({
