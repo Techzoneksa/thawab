@@ -155,6 +155,8 @@ function Page() {
   } | null>(null);
   const [actionReason, setActionReason] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
+  // View a journal on a dedicated FULL PAGE (no pop-up) with print/PDF/Excel/share.
+  const viewEntry = (id: string) => navigate({ to: "/finance/journal/$id", params: { id } });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["journal", { search: searchQuery, status: statusFilter, fund: fundFilter, page }],
@@ -436,7 +438,7 @@ function Page() {
               <Td className="text-xs">{e.date}</Td>
               <Td>
                 <button
-                  onClick={() => setDetailId(e.id)}
+                  onClick={() => viewEntry(e.id)}
                   className="font-semibold hover:text-primary text-right"
                 >
                   {e.description}
@@ -451,7 +453,7 @@ function Page() {
                 <ActionMenu
                   actions={getJournalActions(
                     e,
-                    setDetailId,
+                    viewEntry,
                     openEdit,
                     setDeleteTarget,
                     setActionTarget,
@@ -468,7 +470,7 @@ function Page() {
                     {e.number} · {e.date}
                   </div>
                   <button
-                    onClick={() => setDetailId(e.id)}
+                    onClick={() => viewEntry(e.id)}
                     className="text-sm font-bold hover:text-primary text-right mt-0.5 line-clamp-2"
                   >
                     {e.description}
@@ -780,7 +782,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 function getJournalActions(
   e: JournalEntry,
-  setDetailId: (id: string) => void,
+  viewEntry: (id: string) => void,
   openEdit: (e: JournalEntry) => void,
   setDeleteTarget: (id: string) => void,
   setActionTarget: (t: { id: string; number: string; action: JournalWorkflowAction }) => void,
@@ -791,7 +793,7 @@ function getJournalActions(
     icon: any;
     onClick: () => void;
     variant?: "destructive";
-  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => setDetailId(e.id) }];
+  }> = [{ label: "عرض التفاصيل", icon: Eye, onClick: () => viewEntry(e.id) }];
 
   // Contextual by workflow state. The server is authoritative — buttons the
   // user is not permitted to use return 403 on click.

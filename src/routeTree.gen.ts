@@ -144,6 +144,7 @@ import { Route as HrPayrollNewRouteImport } from './routes/hr.payroll_.new'
 import { Route as GrantsIdEditRouteImport } from './routes/grants_.$id_.edit'
 import { Route as FinanceSalesInvoicesNewRouteImport } from './routes/finance.sales-invoices_.new'
 import { Route as FinanceJournalNewRouteImport } from './routes/finance.journal_.new'
+import { Route as FinanceJournalIdRouteImport } from './routes/finance.journal_.$id'
 import { Route as FinanceCostCentersNewRouteImport } from './routes/finance.cost-centers_.new'
 import { Route as FinanceClosingNewRouteImport } from './routes/finance.closing_.new'
 import { Route as FinanceBudgetsNewRouteImport } from './routes/finance.budgets_.new'
@@ -901,6 +902,11 @@ const FinanceJournalNewRoute = FinanceJournalNewRouteImport.update({
   path: '/finance/journal/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FinanceJournalIdRoute = FinanceJournalIdRouteImport.update({
+  id: '/finance/journal_/$id',
+  path: '/finance/journal/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FinanceCostCentersNewRoute = FinanceCostCentersNewRouteImport.update({
   id: '/finance/cost-centers_/new',
   path: '/finance/cost-centers/new',
@@ -1483,6 +1489,7 @@ export interface FileRoutesByFullPath {
   '/finance/budgets/new': typeof FinanceBudgetsNewRoute
   '/finance/closing/new': typeof FinanceClosingNewRoute
   '/finance/cost-centers/new': typeof FinanceCostCentersNewRoute
+  '/finance/journal/$id': typeof FinanceJournalIdRoute
   '/finance/journal/new': typeof FinanceJournalNewRoute
   '/finance/sales-invoices/new': typeof FinanceSalesInvoicesNewRoute
   '/grants/$id/edit': typeof GrantsIdEditRoute
@@ -1698,6 +1705,7 @@ export interface FileRoutesByTo {
   '/finance/budgets/new': typeof FinanceBudgetsNewRoute
   '/finance/closing/new': typeof FinanceClosingNewRoute
   '/finance/cost-centers/new': typeof FinanceCostCentersNewRoute
+  '/finance/journal/$id': typeof FinanceJournalIdRoute
   '/finance/journal/new': typeof FinanceJournalNewRoute
   '/finance/sales-invoices/new': typeof FinanceSalesInvoicesNewRoute
   '/grants/$id/edit': typeof GrantsIdEditRoute
@@ -1914,6 +1922,7 @@ export interface FileRoutesById {
   '/finance/budgets_/new': typeof FinanceBudgetsNewRoute
   '/finance/closing_/new': typeof FinanceClosingNewRoute
   '/finance/cost-centers_/new': typeof FinanceCostCentersNewRoute
+  '/finance/journal_/$id': typeof FinanceJournalIdRoute
   '/finance/journal_/new': typeof FinanceJournalNewRoute
   '/finance/sales-invoices_/new': typeof FinanceSalesInvoicesNewRoute
   '/grants_/$id_/edit': typeof GrantsIdEditRoute
@@ -2131,6 +2140,7 @@ export interface FileRouteTypes {
     | '/finance/budgets/new'
     | '/finance/closing/new'
     | '/finance/cost-centers/new'
+    | '/finance/journal/$id'
     | '/finance/journal/new'
     | '/finance/sales-invoices/new'
     | '/grants/$id/edit'
@@ -2346,6 +2356,7 @@ export interface FileRouteTypes {
     | '/finance/budgets/new'
     | '/finance/closing/new'
     | '/finance/cost-centers/new'
+    | '/finance/journal/$id'
     | '/finance/journal/new'
     | '/finance/sales-invoices/new'
     | '/grants/$id/edit'
@@ -2561,6 +2572,7 @@ export interface FileRouteTypes {
     | '/finance/budgets_/new'
     | '/finance/closing_/new'
     | '/finance/cost-centers_/new'
+    | '/finance/journal_/$id'
     | '/finance/journal_/new'
     | '/finance/sales-invoices_/new'
     | '/grants_/$id_/edit'
@@ -2775,6 +2787,7 @@ export interface RootRouteChildren {
   FinanceBudgetsNewRoute: typeof FinanceBudgetsNewRoute
   FinanceClosingNewRoute: typeof FinanceClosingNewRoute
   FinanceCostCentersNewRoute: typeof FinanceCostCentersNewRoute
+  FinanceJournalIdRoute: typeof FinanceJournalIdRoute
   FinanceJournalNewRoute: typeof FinanceJournalNewRoute
   FinanceSalesInvoicesNewRoute: typeof FinanceSalesInvoicesNewRoute
   GrantsIdEditRoute: typeof GrantsIdEditRoute
@@ -3768,6 +3781,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FinanceJournalNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/finance/journal_/$id': {
+      id: '/finance/journal_/$id'
+      path: '/finance/journal/$id'
+      fullPath: '/finance/journal/$id'
+      preLoaderRoute: typeof FinanceJournalIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/finance/cost-centers_/new': {
       id: '/finance/cost-centers_/new'
       path: '/finance/cost-centers/new'
@@ -4507,6 +4527,7 @@ const rootRouteChildren: RootRouteChildren = {
   FinanceBudgetsNewRoute: FinanceBudgetsNewRoute,
   FinanceClosingNewRoute: FinanceClosingNewRoute,
   FinanceCostCentersNewRoute: FinanceCostCentersNewRoute,
+  FinanceJournalIdRoute: FinanceJournalIdRoute,
   FinanceJournalNewRoute: FinanceJournalNewRoute,
   FinanceSalesInvoicesNewRoute: FinanceSalesInvoicesNewRoute,
   GrantsIdEditRoute: GrantsIdEditRoute,
