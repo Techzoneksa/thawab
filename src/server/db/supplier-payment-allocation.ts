@@ -25,6 +25,7 @@ import {
   supplierPaymentAllocations,
   journalLines,
   journalEntries,
+  suppliers,
 } from "./schema";
 import { resolveSystemAccountId, SYS } from "./gl";
 import { LOCK_NS } from "./lock-namespaces";
@@ -200,6 +201,13 @@ export async function paymentSettlement(dbh: Db, paymentId: string) {
       .limit(1)
   )[0] as any;
   if (!payment) throw new AppError("الدفعة غير موجودة", 404, "PAYMENT_NOT_FOUND");
+  const sup = (
+    await (dbh as any)
+      .select({ name: suppliers.name, code: suppliers.supplierCode })
+      .from(suppliers)
+      .where(eq(suppliers.id, payment.supplierId))
+      .limit(1)
+  )[0] as any;
   const apId = await apAccountId(dbh);
   const apDebit = await paymentApDebit(dbh, payment, apId);
   const allocated = await sumAllocForPayment(dbh, paymentId);
@@ -221,6 +229,13 @@ export async function paymentSettlement(dbh: Db, paymentId: string) {
   return {
     paymentId,
     status: payment.status,
+    supplierId: payment.supplierId,
+    supplierName: sup?.name ?? null,
+    supplierCode: sup?.code ?? null,
+    paymentDate: payment.paymentDate,
+    paymentMethod: payment.paymentMethod ?? null,
+    reference: payment.reference ?? null,
+    note: payment.note ?? null,
     apDebit,
     allocated,
     unapplied: r2(apDebit - allocated),

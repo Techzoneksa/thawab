@@ -144,6 +144,7 @@ import { Route as HrPayrollNewRouteImport } from './routes/hr.payroll_.new'
 import { Route as GrantsIdEditRouteImport } from './routes/grants_.$id_.edit'
 import { Route as FinanceSuppliersNewRouteImport } from './routes/finance.suppliers_.new'
 import { Route as FinanceSuppliersIdRouteImport } from './routes/finance.suppliers_.$id'
+import { Route as FinanceSupplierPaymentsIdRouteImport } from './routes/finance.supplier-payments_.$id'
 import { Route as FinanceSalesInvoicesNewRouteImport } from './routes/finance.sales-invoices_.new'
 import { Route as FinanceSalesInvoicesIdRouteImport } from './routes/finance.sales-invoices_.$id'
 import { Route as FinanceJournalNewRouteImport } from './routes/finance.journal_.new'
@@ -912,6 +913,12 @@ const FinanceSuppliersIdRoute = FinanceSuppliersIdRouteImport.update({
   path: '/finance/suppliers/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FinanceSupplierPaymentsIdRoute =
+  FinanceSupplierPaymentsIdRouteImport.update({
+    id: '/finance/supplier-payments_/$id',
+    path: '/finance/supplier-payments/$id',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const FinanceSalesInvoicesNewRoute = FinanceSalesInvoicesNewRouteImport.update({
   id: '/finance/sales-invoices_/new',
   path: '/finance/sales-invoices/new',
@@ -1560,6 +1567,7 @@ export interface FileRoutesByFullPath {
   '/finance/journal/new': typeof FinanceJournalNewRoute
   '/finance/sales-invoices/$id': typeof FinanceSalesInvoicesIdRouteWithChildren
   '/finance/sales-invoices/new': typeof FinanceSalesInvoicesNewRoute
+  '/finance/supplier-payments/$id': typeof FinanceSupplierPaymentsIdRoute
   '/finance/suppliers/$id': typeof FinanceSuppliersIdRouteWithChildren
   '/finance/suppliers/new': typeof FinanceSuppliersNewRoute
   '/grants/$id/edit': typeof GrantsIdEditRoute
@@ -1786,6 +1794,7 @@ export interface FileRoutesByTo {
   '/finance/journal/new': typeof FinanceJournalNewRoute
   '/finance/sales-invoices/$id': typeof FinanceSalesInvoicesIdRouteWithChildren
   '/finance/sales-invoices/new': typeof FinanceSalesInvoicesNewRoute
+  '/finance/supplier-payments/$id': typeof FinanceSupplierPaymentsIdRoute
   '/finance/suppliers/$id': typeof FinanceSuppliersIdRouteWithChildren
   '/finance/suppliers/new': typeof FinanceSuppliersNewRoute
   '/grants/$id/edit': typeof GrantsIdEditRoute
@@ -2013,6 +2022,7 @@ export interface FileRoutesById {
   '/finance/journal_/new': typeof FinanceJournalNewRoute
   '/finance/sales-invoices_/$id': typeof FinanceSalesInvoicesIdRouteWithChildren
   '/finance/sales-invoices_/new': typeof FinanceSalesInvoicesNewRoute
+  '/finance/supplier-payments_/$id': typeof FinanceSupplierPaymentsIdRoute
   '/finance/suppliers_/$id': typeof FinanceSuppliersIdRouteWithChildren
   '/finance/suppliers_/new': typeof FinanceSuppliersNewRoute
   '/grants_/$id_/edit': typeof GrantsIdEditRoute
@@ -2241,6 +2251,7 @@ export interface FileRouteTypes {
     | '/finance/journal/new'
     | '/finance/sales-invoices/$id'
     | '/finance/sales-invoices/new'
+    | '/finance/supplier-payments/$id'
     | '/finance/suppliers/$id'
     | '/finance/suppliers/new'
     | '/grants/$id/edit'
@@ -2467,6 +2478,7 @@ export interface FileRouteTypes {
     | '/finance/journal/new'
     | '/finance/sales-invoices/$id'
     | '/finance/sales-invoices/new'
+    | '/finance/supplier-payments/$id'
     | '/finance/suppliers/$id'
     | '/finance/suppliers/new'
     | '/grants/$id/edit'
@@ -2693,6 +2705,7 @@ export interface FileRouteTypes {
     | '/finance/journal_/new'
     | '/finance/sales-invoices_/$id'
     | '/finance/sales-invoices_/new'
+    | '/finance/supplier-payments_/$id'
     | '/finance/suppliers_/$id'
     | '/finance/suppliers_/new'
     | '/grants_/$id_/edit'
@@ -2918,6 +2931,7 @@ export interface RootRouteChildren {
   FinanceJournalNewRoute: typeof FinanceJournalNewRoute
   FinanceSalesInvoicesIdRoute: typeof FinanceSalesInvoicesIdRouteWithChildren
   FinanceSalesInvoicesNewRoute: typeof FinanceSalesInvoicesNewRoute
+  FinanceSupplierPaymentsIdRoute: typeof FinanceSupplierPaymentsIdRoute
   FinanceSuppliersIdRoute: typeof FinanceSuppliersIdRouteWithChildren
   FinanceSuppliersNewRoute: typeof FinanceSuppliersNewRoute
   GrantsIdEditRoute: typeof GrantsIdEditRoute
@@ -3910,6 +3924,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FinanceSuppliersIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/finance/supplier-payments_/$id': {
+      id: '/finance/supplier-payments_/$id'
+      path: '/finance/supplier-payments/$id'
+      fullPath: '/finance/supplier-payments/$id'
+      preLoaderRoute: typeof FinanceSupplierPaymentsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/finance/sales-invoices_/new': {
       id: '/finance/sales-invoices_/new'
       path: '/finance/sales-invoices/new'
@@ -4772,6 +4793,7 @@ const rootRouteChildren: RootRouteChildren = {
   FinanceJournalNewRoute: FinanceJournalNewRoute,
   FinanceSalesInvoicesIdRoute: FinanceSalesInvoicesIdRouteWithChildren,
   FinanceSalesInvoicesNewRoute: FinanceSalesInvoicesNewRoute,
+  FinanceSupplierPaymentsIdRoute: FinanceSupplierPaymentsIdRoute,
   FinanceSuppliersIdRoute: FinanceSuppliersIdRouteWithChildren,
   FinanceSuppliersNewRoute: FinanceSuppliersNewRoute,
   GrantsIdEditRoute: GrantsIdEditRoute,
