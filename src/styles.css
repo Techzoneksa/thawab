@@ -152,6 +152,20 @@
   [dir="ltr"] {
     text-align: left;
   }
+  /* Tailwind v4 Preflight no longer sets cursor:pointer on buttons — restore the
+     hand cursor for interactive elements so clickables read as clickable. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  label[for],
+  select:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
 }
 
 @utility scrollbar-thin {
