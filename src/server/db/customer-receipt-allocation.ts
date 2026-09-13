@@ -24,6 +24,7 @@ import {
   salesInvoices,
   customerReceiptAllocations,
   journalLines,
+  customers,
 } from "./schema";
 import { resolveSystemAccountId, SYS } from "./gl";
 import { LOCK_NS } from "./lock-namespaces";
@@ -180,6 +181,13 @@ export async function receiptSettlement(dbh: Db, receiptId: string) {
       .limit(1)
   )[0] as any;
   if (!receipt) throw new AppError("سند القبض غير موجود", 404, "RECEIPT_NOT_FOUND");
+  const cust = (
+    await (dbh as any)
+      .select({ name: customers.name, code: customers.customerCode })
+      .from(customers)
+      .where(eq(customers.id, receipt.customerId))
+      .limit(1)
+  )[0] as any;
   const arId = await arAccountId(dbh);
   const arCredit = await receiptArCredit(dbh, receipt, arId);
   const allocated = await sumAllocForReceipt(dbh, receiptId);
@@ -198,6 +206,13 @@ export async function receiptSettlement(dbh: Db, receiptId: string) {
   return {
     receiptId,
     status: receipt.status,
+    customerId: receipt.customerId,
+    customerName: cust?.name ?? null,
+    customerCode: cust?.code ?? null,
+    receiptDate: receipt.receiptDate,
+    receiptMethod: receipt.receiptMethod ?? null,
+    reference: receipt.reference ?? null,
+    note: receipt.note ?? null,
     arCredit,
     allocated,
     unapplied: r2(arCredit - allocated),
