@@ -56,6 +56,10 @@ export interface ConfirmDialogProps {
   confirmText?: string;
   cancelText?: string;
   variant?: "destructive" | "default";
+  /** While true the confirm button is disabled (prevents double-submit). */
+  loading?: boolean;
+  /** Optional extra content rendered under the message (e.g. a reason input). */
+  children?: ReactNode;
 }
 
 export function ConfirmDialog({
@@ -67,6 +71,8 @@ export function ConfirmDialog({
   confirmText = "تأكيد",
   cancelText = "إلغاء",
   variant = "default",
+  loading = false,
+  children,
 }: ConfirmDialogProps) {
   return (
     <AlertDialog
@@ -80,14 +86,17 @@ export function ConfirmDialog({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{message}</AlertDialogDescription>
         </AlertDialogHeader>
+        {children ? <div className="py-1">{children}</div> : null}
         <AlertDialogFooter>
-          <AlertDialogCancel>{cancelText}</AlertDialogCancel>
+          <AlertDialogCancel disabled={loading}>{cancelText}</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
+            disabled={loading}
             className={
               variant === "destructive" ? buttonVariants({ variant: "destructive" }) : undefined
             }
           >
+            {loading && <Loader2 size={16} className="animate-spin" />}
             {confirmText}
           </AlertDialogAction>
         </AlertDialogFooter>
