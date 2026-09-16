@@ -25,6 +25,11 @@ export const FINANCE_PERMISSIONS = {
   journalUpdateDraft: "finance.journal.update_draft",
   journalSubmit: "finance.journal.submit",
   journalApprove: "finance.journal.approve",
+  // Explicit override of separation-of-duties: a holder MAY approve a journal
+  // they created themselves. Granted deliberately for single-operator setups
+  // (a lone admin who both records and authorizes). The wildcard role ("*")
+  // already includes it. Never implied by journalApprove alone.
+  journalApproveOwn: "finance.journal.approve_own",
   journalReject: "finance.journal.reject",
   journalPost: "finance.journal.post",
   journalReverse: "finance.journal.reverse",
@@ -210,6 +215,11 @@ export const FINANCE_PERM_GROUPS: FinancePermGroup[] = [
         key: FINANCE_PERMISSIONS.journalReject,
         label: "رفض/إعادة قيد",
         desc: "رفض القيد أو إعادته للتعديل",
+      },
+      {
+        key: FINANCE_PERMISSIONS.journalApproveOwn,
+        label: "اعتماد القيود الذاتية (تجاوز فصل المهام)",
+        desc: "السماح للمستخدم باعتماد القيود التي أنشأها بنفسه — للتشغيل الفردي",
       },
     ],
   },
@@ -876,6 +886,10 @@ export function evaluateTransition(input: {
   currentUserId: string;
   reason?: string;
   sourceType?: string | null;
+  /** When true, the maker≠checker block is waived: the current user may act on a
+   *  journal they created. Set by the caller when the role holds the explicit
+   *  self-approval override (journalApproveOwn / wildcard). */
+  allowSelfApproval?: boolean;
   /** Optional state matrix (defaults to the journal one) so other governed
    *  entities reuse this exact decision engine with their own transitions. */
   transitions?: Transition[];
@@ -897,7 +911,12 @@ export function evaluateTransition(input: {
       code: "FORBIDDEN",
       message: "لا تملك صلاحية لهذا الإجراء المالي",
     };
-  if (t.makerCheckerBlocked && input.createdBy && input.createdBy === input.currentUserId)
+  if (
+    t.makerCheckerBlocked &&
+    !input.allowSelfApproval &&
+    input.createdBy &&
+    input.createdBy === input.currentUserId
+  )
     return {
       ok: false,
       permission: perm,

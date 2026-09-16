@@ -24,6 +24,7 @@ import {
   evaluateTransition,
   effectivePermission,
   decisionHttpStatus,
+  FINANCE_PERMISSIONS,
   type JournalAction,
 } from "@/lib/finance-permissions";
 import type { Ctx } from "./api-utils";
@@ -98,6 +99,13 @@ export async function transitionJournal(
   // the dedicated opening-balance permissions, not the generic journal ones.
   const perm = t ? effectivePermission(entry.sourceType, action, t.permission) : null;
   const granted = perm ? await hasPermission(ctx.user.role, perm) : false;
+  // Explicit, opt-in waiver of maker≠checker: only when the role carries the
+  // dedicated self-approval override (or the wildcard "*"). Single-operator
+  // deployments grant this so one admin can both record and authorize.
+  const allowSelfApproval = await hasPermission(
+    ctx.user.role,
+    FINANCE_PERMISSIONS.journalApproveOwn,
+  );
   const decision = evaluateTransition({
     fromStatus: entry.status,
     action,
@@ -106,6 +114,7 @@ export async function transitionJournal(
     currentUserId: ctx.user.id,
     reason,
     sourceType: entry.sourceType,
+    allowSelfApproval,
   });
   if (!decision.ok || !t)
     throw new AppError(
