@@ -50,6 +50,13 @@ function runBootMigrationsOnce(): Promise<void> {
     error: null,
     checkedCandidates: candidates,
   };
+  // Multi-tenant deployments need no default database — each tenant DB is
+  // migrated at provisioning (npm run db:migrate against its URL). With no
+  // default DATABASE_URL, getDb() would throw; skip boot migration cleanly.
+  if (!process.env.DATABASE_URL) {
+    console.warn("[db] no default DATABASE_URL — skipping boot migration (multi-tenant mode).");
+    return Promise.resolve();
+  }
   if (!folder) {
     const msg = `migrations folder not found (checked: ${candidates.join(", ")})`;
     _bootMigration.error = msg;
