@@ -17,7 +17,7 @@ import { db, now, genId, addAudit } from "./index";
 import { journalEntries, financeWorkflowEvents } from "./schema";
 import { hasPermission } from "./auth";
 import { AppError } from "./errors";
-import { postDraftEntry, reverseEntry } from "./gl";
+import { postDraftEntry, reverseEntry, applyTxTimeouts } from "./gl";
 import { JournalStatus } from "@/lib/enums";
 import {
   findTransition,
@@ -119,6 +119,9 @@ export async function transitionJournal(
   let reversalId: string | undefined;
 
   await db.transaction(async (tx) => {
+    // Fail fast instead of hanging: a blocked row/advisory lock aborts in ~15s
+    // and this transition can never sit idle holding a pooled connection.
+    await applyTxTimeouts(tx as any);
     if (action === "post") {
       // Lock + re-check under the row lock to prevent double-post races, then
       // hand off to the CERTIFIED posting engine (period/account/double-entry).

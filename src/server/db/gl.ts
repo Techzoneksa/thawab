@@ -93,6 +93,26 @@ type Db = {
   execute: (q: any) => Promise<any>;
 };
 
+/**
+ * Transaction-scoped timeout guard. Call once at the START of any finance
+ * transaction that takes a lock (posting, reversal, governance transitions).
+ *
+ * Why per-transaction `SET LOCAL` and not only the client/DB settings: with a
+ * transaction pooler (Supabase pgBouncer) the connection-startup GUCs can be
+ * dropped, so a statement WAITING on the journal-numbering advisory lock could
+ * otherwise hang forever — which surfaces as "approve/post spins and never
+ * returns" and, worse, keeps the advisory lock + pooled connection held so
+ * every LATER approve/post also hangs. `SET LOCAL` is honored inside the
+ * transaction on the pooler, so a blocked lock wait aborts in ~15s, a runaway
+ * statement in ~30s, and an idle-in-transaction connection is terminated —
+ * releasing the lock so the queue self-heals instead of piling up.
+ */
+export async function applyTxTimeouts(tx: Db): Promise<void> {
+  await tx.execute(sql`SET LOCAL lock_timeout = '15s'`);
+  await tx.execute(sql`SET LOCAL statement_timeout = '30s'`);
+  await tx.execute(sql`SET LOCAL idle_in_transaction_session_timeout = '30s'`);
+}
+
 export async function resolveSystemAccountId(tx: Db, key: SysKey): Promise<string> {
   const row = (await tx.select().from(accounts).where(eq(accounts.systemKey, key)).limit(1))[0];
   if (!row) throw new AppError(`GL: system account "${key}" not found — run the bootstrap seed`);
@@ -131,6 +151,10 @@ export async function resolvePostingPeriod(tx: Db, dateISO: string): Promise<str
 }
 
 async function nextJournalNumber(tx: Db, dateISO: string): Promise<string> {
+  // Bound the advisory-lock wait (and the rest of this posting transaction) so a
+  // stale/stuck holder can never freeze every subsequent posting — see
+  // applyTxTimeouts. Safe to call again if the caller already set them.
+  await applyTxTimeouts(tx);
   await tx.execute(sql`SELECT pg_advisory_xact_lock(${NUMBER_LOCK_KEY})`);
   const year = dateISO.slice(0, 4);
   const prefix = `JV-${year}-`;
