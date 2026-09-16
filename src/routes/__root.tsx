@@ -7,19 +7,22 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider, useAuth } from "@/lib/api/auth";
 
-// Pages reachable without a session (login + the emailed set-password link).
-const PUBLIC_PATHS = ["/login", "/set-password"];
+// Pages reachable without a session (login, the emailed set-password link, and
+// the first-run setup wizard for a fresh/empty tenant database).
+const PUBLIC_PATHS = ["/login", "/set-password", "/setup"];
+const SETUP_PATH = "/setup";
 // The forced first-login password-change screen (blocks the rest of the app).
 const CHANGE_PW_PATH = "/change-password";
 
 /**
  * Client-side guard:
+ *  - no session on a fresh (empty) tenant DB → /setup (first-run wizard)
  *  - unauthenticated users on a non-public path → /login
  *  - authenticated users flagged mustChangePassword → /change-password (blocked
  *    from every other page until they set a new password).
@@ -30,17 +33,46 @@ function AuthGate({ children }: { children: ReactNode }) {
   const pathname = router.state.location.pathname;
   const isPublic = PUBLIC_PATHS.includes(pathname);
   const mustChange = !!user?.mustChangePassword;
+  // null = not yet checked; only queried when nobody is logged in.
+  const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (isLoading) return;
-    if (!user && !isPublic) {
-      router.navigate({ to: "/login" });
-    } else if (user && mustChange && pathname !== CHANGE_PW_PATH) {
+    if (user) {
+      setNeedsSetup(false);
+      return;
+    }
+    let alive = true;
+    fetch("/api/auth-bootstrap")
+      .then((r) => r.json())
+      .then((d) => alive && setNeedsSetup(!!d.needsSetup))
+      .catch(() => alive && setNeedsSetup(false));
+    return () => {
+      alive = false;
+    };
+  }, [isLoading, user]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!user) {
+      if (needsSetup === null) return; // still deciding
+      if (needsSetup) {
+        if (pathname !== SETUP_PATH) router.navigate({ to: SETUP_PATH });
+      } else if (pathname === SETUP_PATH || !isPublic) {
+        router.navigate({ to: "/login" });
+      }
+      return;
+    }
+    if (mustChange && pathname !== CHANGE_PW_PATH) {
       router.navigate({ to: CHANGE_PW_PATH });
     }
-  }, [isLoading, user, mustChange, isPublic, pathname, router]);
+  }, [isLoading, user, mustChange, isPublic, pathname, router, needsSetup]);
 
-  if (!isLoading && !user && !isPublic) return null;
+  if (!isLoading && !user) {
+    if (needsSetup === null) return null;
+    if (needsSetup && pathname !== SETUP_PATH) return null;
+    if (!needsSetup && (pathname === SETUP_PATH || !isPublic)) return null;
+  }
   if (!isLoading && user && mustChange && pathname !== CHANGE_PW_PATH) return null;
   return <>{children}</>;
 }
