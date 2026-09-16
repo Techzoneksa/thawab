@@ -141,6 +141,71 @@ export async function login(email: string, password: string, ip = "", userAgent 
   return { user: safe, token, mustChangePassword: user.mustChangePassword };
 }
 
+/**
+ * First-run bootstrap (SaaS onboarding). On a brand-new (empty) tenant database
+ * the first visitor self-creates the owner super-admin and is logged in. Guarded
+ * so it ONLY works while there are zero users — once an admin exists it refuses,
+ * so the public setup endpoint can never be abused to add admins later.
+ */
+export async function needsBootstrap(): Promise<boolean> {
+  const rows = await db.select({ id: users.id }).from(users).limit(1);
+  return rows.length === 0;
+}
+
+export async function bootstrapFirstAdmin(
+  input: { name: string; email: string; password: string },
+  ip = "",
+  userAgent = "",
+): Promise<{ user: Record<string, unknown>; token: string } | { error: string; code: "ALREADY_SETUP" }> {
+  const email = input.email.trim().toLowerCase();
+  const name = input.name.trim();
+  const ts = now();
+  let newUserId: string | null = null;
+
+  await db.transaction(async (tx) => {
+    // Refuse unless the tenant DB is still empty (idempotent, race-safe).
+    const existing = await tx.select({ id: users.id }).from(users).limit(1);
+    if (existing.length > 0) return;
+
+    const roleId = "role-admin";
+    const role = (await tx.select().from(roles).where(eq(roles.id, roleId)).limit(1))[0];
+    if (!role) {
+      await tx.insert(roles).values({
+        id: roleId,
+        name: "مدير النظام",
+        description: "صلاحيات كاملة",
+        permissions: JSON.stringify(["*"]),
+        createdAt: ts,
+      });
+    } else {
+      await tx
+        .update(roles)
+        .set({ permissions: JSON.stringify(["*"]) })
+        .where(eq(roles.id, roleId));
+    }
+
+    const id = genId("USR");
+    await tx.insert(users).values({
+      id,
+      name,
+      email,
+      password: hashPassword(input.password),
+      role: roleId,
+      status: "active",
+      mustChangePassword: false,
+      createdAt: ts,
+    });
+    newUserId = id;
+  });
+
+  if (!newUserId) return { error: "تم إعداد النظام مسبقاً", code: "ALREADY_SETUP" };
+
+  const token = await createSession(newUserId, ip, userAgent);
+  const created = (await db.select().from(users).where(eq(users.id, newUserId)).limit(1))[0];
+  const { password: _pw, ...safe } = created;
+  return { user: safe, token };
+}
+
 export async function logout(token: string) {
   await db.delete(sessions).where(eq(sessions.token, token));
   invalidateAuthCache({ token });

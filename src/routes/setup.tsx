@@ -1,87 +1,66 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Lock, Mail, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, User, AlertCircle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { showToast } from "@/components/erp/actions";
 
-const API = "/api/auth";
+const API = "/api/auth-bootstrap";
 
-export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "تسجيل الدخول — ثواب" }] }),
-  component: LoginPage,
+export const Route = createFileRoute("/setup")({
+  head: () => ({ meta: [{ title: "إعداد النظام — ثواب" }] }),
+  beforeLoad: async () => {
+    // Only reachable while the tenant DB is empty; otherwise send to login.
+    if (typeof window === "undefined") return;
+    try {
+      const res = await fetch(API);
+      const data = await res.json();
+      if (!data.needsSetup) throw redirect({ href: "/login" });
+    } catch (e) {
+      if (e && typeof e === "object" && "href" in e) throw e; // re-throw redirect
+    }
+  },
+  component: SetupPage,
 });
 
-async function getCurrentUser() {
-  if (typeof window === "undefined") return null;
-  try {
-    const res = await fetch(API, {
-      headers: { "x-session-token": localStorage.getItem("session_token") || "" },
-    });
-    const data = await res.json();
-    return data.user;
-  } catch {
-    return null;
-  }
-}
-
-/** True when this (tenant) database is brand-new and needs first-run setup. */
-async function needsSetup() {
-  if (typeof window === "undefined") return false;
-  try {
-    const res = await fetch("/api/auth-bootstrap");
-    const data = await res.json();
-    return !!data.needsSetup;
-  } catch {
-    return false;
-  }
-}
-
-export async function beforeLoad() {
-  // A fresh tenant DB (no users) goes straight to the self-service setup wizard.
-  if (await needsSetup()) {
-    throw redirect({ href: "/setup" });
-  }
-  const user = await getCurrentUser();
-  if (user) {
-    throw redirect({ href: "/" });
-  }
-}
-
-export default function LoginPage() {
+function SetupPage() {
   const queryClient = useQueryClient();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSetup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    if (password.length < 8) {
+      setError("كلمة المرور يجب أن تكون 8 أحرف على الأقل");
+      return;
+    }
+    if (password !== confirm) {
+      setError("كلمتا المرور غير متطابقتين");
+      return;
+    }
     setIsLoading(true);
-
     try {
       const res = await fetch(API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ name, email, password }),
       });
-
       const data = await res.json();
-
       if (!res.ok || data.error) {
-        setError(data.message || "حدث خطأ أثناء تسجيل الدخول");
+        setError(data.message || "تعذّر إكمال الإعداد");
         setIsLoading(false);
         return;
       }
-
-      localStorage.setItem("session_token", data.token);
       queryClient.setQueryData(["currentUser"], data.user);
-      showToast(`مرحباً ${data.user.name}!`, "success");
-      // Force a password change on first login if required.
-      window.location.href = data.mustChangePassword ? "/change-password" : "/";
+      showToast(`تم إنشاء حساب المدير — مرحباً ${data.user.name}!`, "success");
+      window.location.href = "/";
     } catch {
       setError("حدث خطأ في الاتصال بالخادم");
       setIsLoading(false);
@@ -97,7 +76,13 @@ export default function LoginPage() {
         </div>
 
         <Card className="p-6 lg:p-8">
-          <h2 className="text-xl font-bold text-center mb-6">تسجيل الدخول</h2>
+          <div className="flex items-center justify-center gap-2 mb-2 text-primary">
+            <ShieldCheck size={20} />
+            <h2 className="text-xl font-bold text-center">الإعداد الأول</h2>
+          </div>
+          <p className="text-xs text-center text-muted-foreground mb-6">
+            أنشئ حساب مدير النظام لهذه الجمعية. هذا الحساب يملك كامل الصلاحيات.
+          </p>
 
           {error && (
             <div className="flex items-center gap-2 p-3 mb-4 rounded-lg bg-destructive/10 text-destructive text-sm">
@@ -106,7 +91,27 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleSetup} className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
+                اسم المدير
+              </label>
+              <div className="relative">
+                <User
+                  size={15}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full rounded-lg border bg-background py-3 pr-10 pl-3 text-sm"
+                  placeholder="الاسم الكامل"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
                 البريد الإلكتروني
@@ -122,7 +127,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full rounded-lg border bg-background py-3 pr-10 pl-3 text-sm"
-                  placeholder="example@domain.sa"
+                  placeholder="admin@domain.sa"
                   dir="ltr"
                 />
               </div>
@@ -143,7 +148,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full rounded-lg border bg-background py-3 pr-10 pl-10 text-sm"
-                  placeholder="••••••••"
+                  placeholder="8 أحرف على الأقل"
                   dir="ltr"
                 />
                 <button
@@ -156,6 +161,27 @@ export default function LoginPage() {
               </div>
             </div>
 
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
+                تأكيد كلمة المرور
+              </label>
+              <div className="relative">
+                <Lock
+                  size={15}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  className="w-full rounded-lg border bg-background py-3 pr-10 pl-3 text-sm"
+                  placeholder="أعد إدخال كلمة المرور"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+
             <Button
               type="submit"
               disabled={isLoading}
@@ -164,10 +190,10 @@ export default function LoginPage() {
               {isLoading ? (
                 <div className="flex items-center gap-2">
                   <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
-                  جاري التسجيل...
+                  جارٍ الإنشاء...
                 </div>
               ) : (
-                "تسجيل الدخول"
+                "إنشاء الحساب والدخول"
               )}
             </Button>
           </form>

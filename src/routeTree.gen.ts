@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkflowsRouteImport } from './routes/workflows'
+import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SetPasswordRouteImport } from './routes/set-password'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as RecurringRouteImport } from './routes/recurring'
@@ -118,6 +119,7 @@ import { Route as ApiDiagnoseRouteImport } from './routes/api/diagnose'
 import { Route as ApiCampaignsRouteImport } from './routes/api/campaigns'
 import { Route as ApiBeneficiariesRouteImport } from './routes/api/beneficiaries'
 import { Route as ApiAuthSetupRouteImport } from './routes/api/auth-setup'
+import { Route as ApiAuthBootstrapRouteImport } from './routes/api/auth-bootstrap'
 import { Route as ApiAuthRouteImport } from './routes/api/auth'
 import { Route as ApiAuditRouteImport } from './routes/api/audit'
 import { Route as ApiAssetsRouteImport } from './routes/api/assets'
@@ -271,6 +273,11 @@ import { Route as ApiInternalFinancePreflightRouteImport } from './routes/api/in
 const WorkflowsRoute = WorkflowsRouteImport.update({
   id: '/workflows',
   path: '/workflows',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SetPasswordRoute = SetPasswordRouteImport.update({
@@ -814,6 +821,11 @@ const ApiBeneficiariesRoute = ApiBeneficiariesRouteImport.update({
 const ApiAuthSetupRoute = ApiAuthSetupRouteImport.update({
   id: '/api/auth-setup',
   path: '/api/auth-setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthBootstrapRoute = ApiAuthBootstrapRouteImport.update({
+  id: '/api/auth-bootstrap',
+  path: '/api/auth-bootstrap',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthRoute = ApiAuthRouteImport.update({
@@ -1635,6 +1647,7 @@ export interface FileRoutesByFullPath {
   '/recurring': typeof RecurringRoute
   '/reports': typeof ReportsRoute
   '/set-password': typeof SetPasswordRoute
+  '/setup': typeof SetupRoute
   '/workflows': typeof WorkflowsRoute
   '/aid/new': typeof AidNewRoute
   '/api/aid': typeof ApiAidRoute
@@ -1642,6 +1655,7 @@ export interface FileRoutesByFullPath {
   '/api/assets': typeof ApiAssetsRoute
   '/api/audit': typeof ApiAuditRoute
   '/api/auth': typeof ApiAuthRoute
+  '/api/auth-bootstrap': typeof ApiAuthBootstrapRoute
   '/api/auth-setup': typeof ApiAuthSetupRoute
   '/api/beneficiaries': typeof ApiBeneficiariesRoute
   '/api/campaigns': typeof ApiCampaignsRoute
@@ -1895,6 +1909,7 @@ export interface FileRoutesByTo {
   '/recurring': typeof RecurringRoute
   '/reports': typeof ReportsRoute
   '/set-password': typeof SetPasswordRoute
+  '/setup': typeof SetupRoute
   '/workflows': typeof WorkflowsRoute
   '/aid/new': typeof AidNewRoute
   '/api/aid': typeof ApiAidRoute
@@ -1902,6 +1917,7 @@ export interface FileRoutesByTo {
   '/api/assets': typeof ApiAssetsRoute
   '/api/audit': typeof ApiAuditRoute
   '/api/auth': typeof ApiAuthRoute
+  '/api/auth-bootstrap': typeof ApiAuthBootstrapRoute
   '/api/auth-setup': typeof ApiAuthSetupRoute
   '/api/beneficiaries': typeof ApiBeneficiariesRoute
   '/api/campaigns': typeof ApiCampaignsRoute
@@ -2156,6 +2172,7 @@ export interface FileRoutesById {
   '/recurring': typeof RecurringRoute
   '/reports': typeof ReportsRoute
   '/set-password': typeof SetPasswordRoute
+  '/setup': typeof SetupRoute
   '/workflows': typeof WorkflowsRoute
   '/aid_/new': typeof AidNewRoute
   '/api/aid': typeof ApiAidRoute
@@ -2163,6 +2180,7 @@ export interface FileRoutesById {
   '/api/assets': typeof ApiAssetsRoute
   '/api/audit': typeof ApiAuditRoute
   '/api/auth': typeof ApiAuthRoute
+  '/api/auth-bootstrap': typeof ApiAuthBootstrapRoute
   '/api/auth-setup': typeof ApiAuthSetupRoute
   '/api/beneficiaries': typeof ApiBeneficiariesRoute
   '/api/campaigns': typeof ApiCampaignsRoute
@@ -2418,6 +2436,7 @@ export interface FileRouteTypes {
     | '/recurring'
     | '/reports'
     | '/set-password'
+    | '/setup'
     | '/workflows'
     | '/aid/new'
     | '/api/aid'
@@ -2425,6 +2444,7 @@ export interface FileRouteTypes {
     | '/api/assets'
     | '/api/audit'
     | '/api/auth'
+    | '/api/auth-bootstrap'
     | '/api/auth-setup'
     | '/api/beneficiaries'
     | '/api/campaigns'
@@ -2678,6 +2698,7 @@ export interface FileRouteTypes {
     | '/recurring'
     | '/reports'
     | '/set-password'
+    | '/setup'
     | '/workflows'
     | '/aid/new'
     | '/api/aid'
@@ -2685,6 +2706,7 @@ export interface FileRouteTypes {
     | '/api/assets'
     | '/api/audit'
     | '/api/auth'
+    | '/api/auth-bootstrap'
     | '/api/auth-setup'
     | '/api/beneficiaries'
     | '/api/campaigns'
@@ -2938,6 +2960,7 @@ export interface FileRouteTypes {
     | '/recurring'
     | '/reports'
     | '/set-password'
+    | '/setup'
     | '/workflows'
     | '/aid_/new'
     | '/api/aid'
@@ -2945,6 +2968,7 @@ export interface FileRouteTypes {
     | '/api/assets'
     | '/api/audit'
     | '/api/auth'
+    | '/api/auth-bootstrap'
     | '/api/auth-setup'
     | '/api/beneficiaries'
     | '/api/campaigns'
@@ -3199,6 +3223,7 @@ export interface RootRouteChildren {
   RecurringRoute: typeof RecurringRoute
   ReportsRoute: typeof ReportsRoute
   SetPasswordRoute: typeof SetPasswordRoute
+  SetupRoute: typeof SetupRoute
   WorkflowsRoute: typeof WorkflowsRoute
   AidNewRoute: typeof AidNewRoute
   ApiAidRoute: typeof ApiAidRoute
@@ -3206,6 +3231,7 @@ export interface RootRouteChildren {
   ApiAssetsRoute: typeof ApiAssetsRoute
   ApiAuditRoute: typeof ApiAuditRoute
   ApiAuthRoute: typeof ApiAuthRoute
+  ApiAuthBootstrapRoute: typeof ApiAuthBootstrapRoute
   ApiAuthSetupRoute: typeof ApiAuthSetupRoute
   ApiBeneficiariesRoute: typeof ApiBeneficiariesRoute
   ApiCampaignsRoute: typeof ApiCampaignsRoute
@@ -3421,6 +3447,13 @@ declare module '@tanstack/react-router' {
       path: '/workflows'
       fullPath: '/workflows'
       preLoaderRoute: typeof WorkflowsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/set-password': {
@@ -4177,6 +4210,13 @@ declare module '@tanstack/react-router' {
       path: '/api/auth-setup'
       fullPath: '/api/auth-setup'
       preLoaderRoute: typeof ApiAuthSetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth-bootstrap': {
+      id: '/api/auth-bootstrap'
+      path: '/api/auth-bootstrap'
+      fullPath: '/api/auth-bootstrap'
+      preLoaderRoute: typeof ApiAuthBootstrapRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth': {
@@ -5405,6 +5445,7 @@ const rootRouteChildren: RootRouteChildren = {
   RecurringRoute: RecurringRoute,
   ReportsRoute: ReportsRoute,
   SetPasswordRoute: SetPasswordRoute,
+  SetupRoute: SetupRoute,
   WorkflowsRoute: WorkflowsRoute,
   AidNewRoute: AidNewRoute,
   ApiAidRoute: ApiAidRoute,
@@ -5412,6 +5453,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAssetsRoute: ApiAssetsRoute,
   ApiAuditRoute: ApiAuditRoute,
   ApiAuthRoute: ApiAuthRoute,
+  ApiAuthBootstrapRoute: ApiAuthBootstrapRoute,
   ApiAuthSetupRoute: ApiAuthSetupRoute,
   ApiBeneficiariesRoute: ApiBeneficiariesRoute,
   ApiCampaignsRoute: ApiCampaignsRoute,
