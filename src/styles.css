@@ -2,10 +2,47 @@
 @source "../src";
 @import "tw-animate-css";
 
+/* Ping AR LT — self-hosted brand font (no external Google Fonts dependency). */
+@font-face {
+  font-family: "Ping AR LT";
+  src: url("./fonts/ping-ar-lt-regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Ping AR LT";
+  src: url("./fonts/ping-ar-lt-medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Ping AR LT";
+  src: url("./fonts/ping-ar-lt-bold.ttf") format("truetype");
+  font-weight: 600 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Ping AR LT";
+  src: url("./fonts/ping-ar-lt-heavy.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Ping AR LT";
+  src: url("./fonts/ping-ar-lt-black.ttf") format("truetype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Tajawal", "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --font-sans: "Ping AR LT", "Tajawal", system-ui, sans-serif;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
