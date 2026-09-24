@@ -26,8 +26,10 @@ import {
   Play,
   ChevronDown,
   ChevronRight,
+  Download,
+  Upload,
 } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   showToast,
   ConfirmDialog,
@@ -46,6 +48,12 @@ import {
   activateAccount,
   type Account,
 } from "@/lib/api/accounts";
+import {
+  downloadTemplate,
+  parseAccountsFile,
+  runImport,
+  type AccountsPreview,
+} from "@/lib/api/data-io";
 
 export const Route = createFileRoute("/finance/accounts")({
   head: () => ({ meta: [{ title: "دليل الحسابات — ثواب" }] }),
@@ -78,6 +86,52 @@ function Page() {
   const [view, setView] = useState<"tree" | "table">("tree");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importPreview, setImportPreview] = useState<AccountsPreview | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const preview = await parseAccountsFile(file);
+      if (preview.accountCount === 0) {
+        showToast("لم يُعثر على حسابات صالحة في الملف — استخدم النموذج المرفق", "error");
+        return;
+      }
+      setImportPreview(preview);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "تعذّر قراءة الملف", "error");
+    }
+  };
+
+  const doImport = async () => {
+    if (!importPreview) return;
+    setImporting(true);
+    try {
+      const res = await runImport({
+        type: "accounts",
+        accounts: importPreview.accounts,
+        fileName: importPreview.fileName,
+        fileHash: importPreview.fileHash,
+      });
+      if (res.ok) {
+        showToast(
+          `تم استيراد ${res.created} حساب${res.skipped ? ` — وتجاهُل ${res.skipped} موجود مسبقاً` : ""}`,
+          "success",
+        );
+        queryClient.invalidateQueries({ queryKey: ["accounts"] });
+        setImportPreview(null);
+      } else {
+        showToast(res.errors?.[0] || "تعذّر الاستيراد", "error");
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "تعذّر الاستيراد", "error");
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["accounts", { search: searchQuery, type: typeFilter, status: statusFilter }],
@@ -249,6 +303,24 @@ function Page() {
             </button>
           </div>
           <DocumentActions document={buildDoc} />
+          <Btn
+            variant="ghost"
+            onClick={() =>
+              downloadTemplate("accounts").catch((e) => showToast(e.message, "error"))
+            }
+          >
+            <Download size={15} /> نموذج الشجرة
+          </Btn>
+          <Btn variant="ghost" onClick={() => fileRef.current?.click()}>
+            <Upload size={15} /> استيراد Excel
+          </Btn>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx"
+            onChange={onImportFile}
+            className="hidden"
+          />
           <Btn variant="primary" onClick={() => openAdd()}>
             <Plus size={15} /> حساب جديد
           </Btn>
@@ -544,6 +616,26 @@ function Page() {
         cancelText="إلغاء"
         variant="default"
       />
+
+      <ConfirmDialog
+        open={!!importPreview}
+        onClose={() => setImportPreview(null)}
+        onConfirm={doImport}
+        loading={importing}
+        title="استيراد دليل الحسابات"
+        message={`سيتم إنشاء ${importPreview?.accountCount ?? 0} حساب من الملف. الحسابات الموجودة مسبقاً (بنفس الرمز) لن تتغيّر.`}
+        confirmText="استيراد"
+        cancelText="إلغاء"
+      >
+        {importPreview?.warnings.length ? (
+          <div className="max-h-40 overflow-auto rounded-lg bg-warning/10 p-2 text-xs space-y-1">
+            <div className="font-semibold text-warning">تنبيهات ({importPreview.warnings.length}):</div>
+            {importPreview.warnings.slice(0, 20).map((w, i) => (
+              <div key={i}>• {w}</div>
+            ))}
+          </div>
+        ) : null}
+      </ConfirmDialog>
 
       <MobileFilterDrawer open={filterOpen} onClose={() => setFilterOpen(false)}>
         <div className="space-y-4">

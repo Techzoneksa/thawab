@@ -3,7 +3,7 @@
  * ExcelJS is dynamically imported (code-split) on both the read and write path.
  */
 
-export type IoType = "journal" | "budget";
+export type IoType = "journal" | "budget" | "accounts";
 
 // Header (Arabic) ↔ payload key. Order defines the template column order.
 // The journal layout mirrors the client's own template ("استيراد القيود") exactly
@@ -32,6 +32,67 @@ const BUDGET_COLUMNS: { header: string; key: string; type?: "number" }[] = [
   { header: "المبلغ المخطط", key: "plannedAmount", type: "number" },
   { header: "ملاحظات", key: "notes" },
 ];
+
+// Chart-of-accounts template columns. Hierarchy is expressed by "رمز الحساب الأب"
+// (a code that appears elsewhere in the same file or already exists); the level
+// is derived from that chain server-side.
+const ACCOUNTS_COLUMNS: { header: string; key: string; type?: "number" }[] = [
+  { header: "رمز الحساب", key: "code" },
+  { header: "اسم الحساب", key: "name" },
+  { header: "التصنيف", key: "classification" },
+  { header: "رمز الحساب الأب", key: "parentCode" },
+  { header: "قابل للترحيل", key: "postable" },
+  { header: "العملة", key: "currency" },
+  { header: "الوصف", key: "description" },
+];
+
+const ACCOUNTS_PARSE_ALIASES: Record<string, string> = {
+  "رمز الحساب": "code",
+  "رقم الحساب": "code",
+  "اسم الحساب": "name",
+  التصنيف: "classification",
+  النوع: "classification",
+  "رمز الحساب الأب": "parentCode",
+  "الحساب الأب": "parentCode",
+  "قابل للترحيل": "postable",
+  العملة: "currency",
+  الوصف: "description",
+};
+
+// Accepted labels (Arabic + English) → the stored classification enum value.
+const CLASSIFICATION_ALIASES: Record<string, string> = {
+  أصول: "asset",
+  اصول: "asset",
+  أصل: "asset",
+  asset: "asset",
+  خصوم: "liability",
+  التزامات: "liability",
+  مطلوبات: "liability",
+  liability: "liability",
+  "حقوق ملكية": "equity",
+  "حقوق الملكية": "equity",
+  "صافي الأصول": "equity",
+  equity: "equity",
+  إيرادات: "revenue",
+  ايرادات: "revenue",
+  دخل: "revenue",
+  revenue: "revenue",
+  مصروفات: "expense",
+  مصاريف: "expense",
+  نفقات: "expense",
+  expense: "expense",
+};
+function mapClassification(v: string): string | null {
+  const n = normHeader(v);
+  return CLASSIFICATION_ALIASES[n] ?? CLASSIFICATION_ALIASES[n.toLowerCase()] ?? null;
+}
+function parseBool(v: string, dflt: boolean): boolean {
+  const s = normHeader(v).toLowerCase();
+  if (!s) return dflt;
+  if (["نعم", "1", "true", "yes", "y"].includes(s)) return true;
+  if (["لا", "0", "false", "no", "n"].includes(s)) return false;
+  return dflt;
+}
 
 // Collapse internal whitespace so header matching tolerates spacing variants
 // (e.g. "مركز التكلفة / المشروع" vs "مركز التكلفة  /المشروع").
@@ -63,6 +124,7 @@ const JOURNAL_PARSE_ALIASES: Record<string, string> = {
 const HEADER_MAP: Record<IoType, Record<string, string>> = {
   journal: Object.fromEntries(JOURNAL_COLUMNS.map((c) => [c.header, c.key])),
   budget: Object.fromEntries(BUDGET_COLUMNS.map((c) => [c.header, c.key])),
+  accounts: Object.fromEntries(ACCOUNTS_COLUMNS.map((c) => [c.header, c.key])),
 };
 
 // Normalized header → key for PARSING an uploaded workbook.
@@ -71,6 +133,9 @@ const PARSE_MAP: Record<IoType, Record<string, string>> = {
     Object.entries(JOURNAL_PARSE_ALIASES).map(([h, k]) => [normHeader(h), k]),
   ),
   budget: Object.fromEntries(BUDGET_COLUMNS.map((c) => [normHeader(c.header), c.key])),
+  accounts: Object.fromEntries(
+    Object.entries(ACCOUNTS_PARSE_ALIASES).map(([h, k]) => [normHeader(h), k]),
+  ),
 };
 
 function download(blob: Blob, filename: string) {
@@ -174,6 +239,22 @@ export async function exportData(type: IoType) {
 
 // ---------- Template (empty, with examples) ----------
 export async function downloadTemplate(type: IoType) {
+  if (type === "accounts") {
+    const example: Record<string, unknown>[] = [
+      { code: "1", name: "الأصول", classification: "أصول", parentCode: "", postable: "لا", currency: "SAR", description: "مجموعة رئيسية" },
+      { code: "11", name: "الأصول المتداولة", classification: "أصول", parentCode: "1", postable: "لا", currency: "SAR", description: "" },
+      { code: "1101", name: "الصندوق", classification: "أصول", parentCode: "11", postable: "نعم", currency: "SAR", description: "النقد بالصندوق" },
+      { code: "1102", name: "البنك", classification: "أصول", parentCode: "11", postable: "نعم", currency: "SAR", description: "" },
+      { code: "2", name: "الخصوم", classification: "خصوم", parentCode: "", postable: "لا", currency: "SAR", description: "" },
+      { code: "3", name: "صافي الأصول", classification: "حقوق ملكية", parentCode: "", postable: "لا", currency: "SAR", description: "" },
+      { code: "4", name: "الإيرادات", classification: "إيرادات", parentCode: "", postable: "لا", currency: "SAR", description: "" },
+      { code: "401", name: "التبرعات", classification: "إيرادات", parentCode: "4", postable: "نعم", currency: "SAR", description: "" },
+      { code: "5", name: "المصروفات", classification: "مصروفات", parentCode: "", postable: "لا", currency: "SAR", description: "" },
+      { code: "501", name: "الرواتب والأجور", classification: "مصروفات", parentCode: "5", postable: "نعم", currency: "SAR", description: "" },
+    ];
+    await writeSheet(ACCOUNTS_COLUMNS, example, HEADER_MAP.accounts, "قالب دليل الحسابات", "قالب-شجرة-الحسابات.xlsx");
+    return;
+  }
   const columns = type === "journal" ? JOURNAL_COLUMNS : BUDGET_COLUMNS;
   const example: Record<string, unknown>[] =
     type === "journal"
@@ -393,12 +474,86 @@ export async function parseBudgetFile(file: File): Promise<BudgetPreview> {
   return { budgets, budgetCount: budgets.length, lineCount, totalPlanned, warnings };
 }
 
+export interface AccountsPreview {
+  accounts: {
+    code: string;
+    name: string;
+    classification: string;
+    parentCode?: string;
+    postable: boolean;
+    currency: string;
+    description?: string;
+  }[];
+  accountCount: number;
+  warnings: string[];
+  fileName: string;
+  fileHash: string;
+}
+
+export async function parseAccountsFile(file: File): Promise<AccountsPreview> {
+  const fileHash = await sha256Hex(await file.arrayBuffer());
+  const rows = await parseRows(file, "accounts");
+  const out: AccountsPreview["accounts"] = [];
+  const warnings: string[] = [];
+  const seen = new Set<string>();
+
+  for (const row of rows) {
+    const code = (row.code || "").trim();
+    const name = (row.name || "").trim();
+    if (!code || !name) {
+      warnings.push("سطر بدون «رمز الحساب» أو «اسم الحساب» تم تجاهله");
+      continue;
+    }
+    if (seen.has(code)) {
+      warnings.push(`رمز حساب مكرّر في الملف: ${code} — تم تجاهل التكرار`);
+      continue;
+    }
+    const classification = mapClassification(row.classification || "");
+    if (!classification) {
+      warnings.push(
+        `حساب ${code}: تصنيف غير معروف "${row.classification || ""}" — استخدم: أصول/خصوم/حقوق ملكية/إيرادات/مصروفات`,
+      );
+      continue;
+    }
+    seen.add(code);
+    out.push({
+      code,
+      name,
+      classification,
+      parentCode: (row.parentCode || "").trim() || undefined,
+      postable: parseBool(row.postable || "", true),
+      currency: (row.currency || "").trim() || "SAR",
+      description: (row.description || "").trim() || undefined,
+    });
+  }
+
+  // Parent-reference sanity (a parent must appear in the file itself; parents
+  // that already exist in the DB are validated server-side).
+  const codes = new Set(out.map((a) => a.code));
+  for (const a of out) {
+    if (a.parentCode && !codes.has(a.parentCode)) {
+      warnings.push(
+        `حساب ${a.code}: الحساب الأب "${a.parentCode}" غير موجود في الملف — سيُقبل فقط إذا كان موجوداً مسبقاً في النظام`,
+      );
+    }
+  }
+
+  return {
+    accounts: out,
+    accountCount: out.length,
+    warnings,
+    fileName: file.name,
+    fileHash,
+  };
+}
+
 // ---------- Submit import ----------
 export interface ImportResult {
   ok: boolean;
   created: number;
   errors?: string[];
   errorCount?: number;
+  skipped?: number;
   batchId?: string;
   duplicate?: boolean;
   batch?: {
@@ -418,7 +573,13 @@ export async function runImport(
         fileName?: string;
         fileHash?: string;
       }
-    | { type: "budget"; budgets: BudgetPreview["budgets"] },
+    | { type: "budget"; budgets: BudgetPreview["budgets"] }
+    | {
+        type: "accounts";
+        accounts: AccountsPreview["accounts"];
+        fileName?: string;
+        fileHash?: string;
+      },
 ): Promise<ImportResult> {
   const res = await fetch("/api/data/import", {
     method: "POST",

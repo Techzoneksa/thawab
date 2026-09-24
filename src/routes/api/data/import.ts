@@ -6,7 +6,7 @@ import { accounts, costCenters, budgets, budgetLines, importBatches } from "@/se
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
 import { hasPermission } from "@/server/db/auth";
 import { postBalancedEntry } from "@/server/db/gl";
-import { JournalStatus, Fund, BudgetStatus } from "@/lib/enums";
+import { JournalStatus, Fund, BudgetStatus, AccountClassification, AccountStatus } from "@/lib/enums";
 
 const journalLineSchema = z.object({
   accountCode: z.string().trim().min(1),
@@ -37,6 +37,16 @@ const budgetSchema = z.object({
   lines: z.array(budgetLineSchema).min(1),
 });
 
+const accountImportSchema = z.object({
+  code: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  classification: z.nativeEnum(AccountClassification),
+  parentCode: z.string().trim().optional(),
+  postable: z.boolean().default(true),
+  currency: z.string().trim().default("SAR"),
+  description: z.string().optional(),
+});
+
 const importSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("journal"),
@@ -45,6 +55,12 @@ const importSchema = z.discriminatedUnion("type", [
     fileHash: z.string().optional(),
   }),
   z.object({ type: z.literal("budget"), budgets: z.array(budgetSchema).min(1) }),
+  z.object({
+    type: z.literal("accounts"),
+    accounts: z.array(accountImportSchema).min(1),
+    fileName: z.string().optional(),
+    fileHash: z.string().optional(),
+  }),
 ]);
 
 const BALANCE_TOLERANCE = 0.005;
@@ -58,13 +74,105 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     // Governance (Phase 1B): journal import requires the dedicated import
     // permission — which never implies posting (imported journals are created
     // as DRAFT and must pass submit → approve → post like any manual journal).
-    const needed = body.type === "journal" ? "finance.import.journal" : "finance.budget.create";
+    const needed =
+      body.type === "journal"
+        ? "finance.import.journal"
+        : body.type === "accounts"
+          ? "finance.accounts.create"
+          : "finance.budget.create";
     if (!(await hasPermission(ctx.user.role, needed)))
       return err("لا تملك صلاحية لهذا الاستيراد", 403, "FORBIDDEN");
 
-    // Resolve account codes → ids (shared by both flows).
+    // Resolve account codes → ids (shared by the flows).
     const accs = await db.select().from(accounts);
     const accByCode = new Map(accs.map((a) => [String(a.code).trim(), a]));
+
+    // ---------------- Chart-of-accounts import ----------------
+    if (body.type === "accounts") {
+      const fileByCode = new Map(body.accounts.map((a) => [a.code, a]));
+      const errors: string[] = [];
+
+      // Validate parent references (must exist in the file or already in the DB).
+      for (const a of body.accounts) {
+        if (a.parentCode && !fileByCode.has(a.parentCode) && !accByCode.has(a.parentCode))
+          errors.push(`حساب ${a.code}: الحساب الأب "${a.parentCode}" غير موجود`);
+      }
+      if (errors.length)
+        return Response.json(
+          { ok: false, created: 0, errors: errors.slice(0, 50), errorCount: errors.length },
+          { status: 422 },
+        );
+
+      // Order parents before children (file-internal parents), guarding cycles.
+      const ordered: typeof body.accounts = [];
+      const placed = new Set<string>();
+      const visiting = new Set<string>();
+      const place = (a: (typeof body.accounts)[number]) => {
+        if (placed.has(a.code) || visiting.has(a.code)) return;
+        visiting.add(a.code);
+        if (a.parentCode && fileByCode.has(a.parentCode)) place(fileByCode.get(a.parentCode)!);
+        visiting.delete(a.code);
+        placed.add(a.code);
+        ordered.push(a);
+      };
+      body.accounts.forEach(place);
+
+      // code → {id, level} for existing accounts and ones created in this batch.
+      const codeToId = new Map<string, { id: string; level: number }>();
+      for (const [code, row] of accByCode) codeToId.set(code, { id: row.id, level: row.level || 1 });
+
+      let created = 0;
+      let skipped = 0;
+      const ts = now();
+      await db.transaction(async (tx) => {
+        for (const a of ordered) {
+          if (accByCode.has(a.code)) {
+            skipped++;
+            continue; // never overwrite an existing account
+          }
+          let parentId: string | null = null;
+          let level = 1;
+          if (a.parentCode) {
+            const p = codeToId.get(a.parentCode);
+            if (p) {
+              parentId = p.id;
+              level = p.level + 1;
+            }
+          }
+          const accId = genId("ACC");
+          await tx.insert(accounts).values({
+            id: accId,
+            code: a.code,
+            name: a.name,
+            classification: a.classification,
+            level,
+            parentId,
+            currency: a.currency || "SAR",
+            balance: 0,
+            postable: a.postable,
+            status: AccountStatus.ACTIVE,
+            description: a.description ?? "",
+            notes: "مستوردة من Excel",
+            createdBy: ctx.user.id,
+            createdAt: ts,
+            updatedAt: ts,
+          });
+          codeToId.set(a.code, { id: accId, level });
+          created++;
+        }
+      });
+
+      await addAudit({
+        action: "import",
+        entityType: "account",
+        entityId: "bulk",
+        description: `استيراد دليل الحسابات: ${created} حساب جديد${skipped ? `، تم تجاهل ${skipped} موجود مسبقاً` : ""}`,
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        ip: ctx.ip,
+      });
+      return Response.json({ ok: true, created, skipped });
+    }
 
     // ---------------- Journal import ----------------
     if (body.type === "journal") {
