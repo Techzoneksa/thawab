@@ -564,6 +564,7 @@ export type JournalAction =
   | "approve"
   | "return" // → back to DRAFT (maker fixes and resubmits)
   | "reject"
+  | "restore" // REJECTED → DRAFT (recover a rejected entry for editing)
   | "post"
   | "reverse"
   | "issue" // Phase 3C — release an approved Purchase Order (no accounting effect)
@@ -625,6 +626,14 @@ export const JOURNAL_TRANSITIONS: Transition[] = [
     from: JournalStatus.DRAFT,
     action: "cancel",
     to: JournalStatus.CANCELLED,
+    permission: FINANCE_PERMISSIONS.journalUpdateDraft,
+  },
+  // Recover a REJECTED entry back to an editable draft, so it can be fixed and
+  // resubmitted instead of re-keyed from scratch.
+  {
+    from: JournalStatus.REJECTED,
+    action: "restore",
+    to: JournalStatus.DRAFT,
     permission: FINANCE_PERMISSIONS.journalUpdateDraft,
   },
 ];

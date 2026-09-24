@@ -40,7 +40,7 @@ const createSchema = z.object({
 
 const actionSchema = z.object({
   id: z.string().min(1),
-  action: z.enum(["submit", "approve", "return", "reject", "post", "reverse", "cancel"]),
+  action: z.enum(["submit", "approve", "return", "reject", "restore", "post", "reverse", "cancel"]),
   reason: z.string().optional(),
 });
 
