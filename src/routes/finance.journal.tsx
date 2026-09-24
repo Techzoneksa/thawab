@@ -87,6 +87,12 @@ const ACTION_LABELS: Record<
     reasonRequired: true,
     destructive: true,
   },
+  restore: {
+    title: "استرجاع القيد",
+    verb: "استرجاع",
+    done: "تم استرجاع القيد كمسودة",
+    reasonRequired: false,
+  },
   post: { title: "ترحيل القيد", verb: "ترحيل", done: "تم ترحيل القيد", reasonRequired: false },
   reverse: { title: "عكس القيد", verb: "عكس", done: "تم عكس القيد", reasonRequired: true },
   cancel: {
@@ -684,6 +690,12 @@ function getJournalActions(
     actions.push({ label: "ترحيل", icon: CheckCircle, onClick: () => setActionTarget(t("post")) });
   } else if (e.status === JournalStatus.POSTED) {
     actions.push({ label: "عكس", icon: RotateCcw, onClick: () => setActionTarget(t("reverse")) });
+  } else if (e.status === JournalStatus.REJECTED) {
+    actions.push({
+      label: "استرجاع كمسودة",
+      icon: Undo2,
+      onClick: () => setActionTarget(t("restore")),
+    });
   }
 
   return actions;
