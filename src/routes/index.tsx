@@ -18,6 +18,7 @@ import { getProjects, type Project } from "@/lib/api/projects";
 import { getDonors } from "@/lib/api/donors";
 import { getBeneficiaries } from "@/lib/api/beneficiaries";
 import { getIncomeExpense } from "@/lib/api/financial-statements";
+import { SensitiveOpsCard } from "@/components/audit/SensitiveOpsCard";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -343,6 +344,8 @@ function Dashboard() {
           <KpiCard key={k.label} k={k} />
         ))}
       </MobileKPIGrid>
+
+      <SensitiveOpsCard />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 lg:gap-4 mt-4 lg:mt-6">
         <Card className="p-4 lg:p-5 xl:col-span-2">

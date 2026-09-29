@@ -94,6 +94,13 @@ const ACTION_LABELS: Record<
     reasonRequired: false,
   },
   post: { title: "ترحيل القيد", verb: "ترحيل", done: "تم ترحيل القيد", reasonRequired: false },
+  unpost: {
+    title: "إلغاء ترحيل القيد",
+    verb: "إلغاء ترحيل",
+    done: "تم إلغاء الترحيل — القيد الآن مسودة",
+    reasonRequired: true,
+    destructive: true,
+  },
   reverse: { title: "عكس القيد", verb: "عكس", done: "تم عكس القيد", reasonRequired: true },
   cancel: {
     title: "إلغاء القيد",
@@ -461,6 +468,7 @@ function Page() {
                     openEdit,
                     setDeleteTarget,
                     setActionTarget,
+                    can,
                   )}
                 />
               </Td>
@@ -660,8 +668,19 @@ function getJournalActions(
   openEdit: (e: JournalEntry) => void,
   setDeleteTarget: (id: string) => void,
   setActionTarget: (t: { id: string; number: string; action: JournalWorkflowAction }) => void,
+  can: (permission: string) => boolean,
 ) {
   const t = (action: JournalWorkflowAction) => ({ id: e.id, number: e.number, action });
+  // Super-admin overrides are only offered to holders (server enforces anyway).
+  const canOverride = can(FINANCE_PERMISSIONS.journalDelete);
+  const canUnpost = can(FINANCE_PERMISSIONS.journalUnpost);
+  const del = () =>
+    actions.push({
+      label: "حذف نهائي",
+      icon: Trash2,
+      onClick: () => setDeleteTarget(e.id),
+      variant: "destructive",
+    });
   const actions: Array<{
     label: string;
     icon: any;
@@ -704,16 +723,49 @@ function getJournalActions(
       onClick: () => setActionTarget(t("reject")),
       variant: "destructive",
     });
+    if (canOverride) {
+      actions.push({
+        label: "إلغاء القيد",
+        icon: XCircle,
+        onClick: () => setActionTarget(t("cancel")),
+        variant: "destructive",
+      });
+      del();
+    }
   } else if (e.status === JournalStatus.APPROVED) {
     actions.push({ label: "ترحيل", icon: CheckCircle, onClick: () => setActionTarget(t("post")) });
+    actions.push({
+      label: "إعادة للتعديل",
+      icon: Undo2,
+      onClick: () => setActionTarget(t("return")),
+    });
+    if (canOverride) {
+      actions.push({
+        label: "إلغاء القيد",
+        icon: XCircle,
+        onClick: () => setActionTarget(t("cancel")),
+        variant: "destructive",
+      });
+      del();
+    }
   } else if (e.status === JournalStatus.POSTED) {
     actions.push({ label: "عكس", icon: RotateCcw, onClick: () => setActionTarget(t("reverse")) });
+    if (canUnpost)
+      actions.push({
+        label: "إلغاء الترحيل (إرجاع لمسودة)",
+        icon: Undo2,
+        onClick: () => setActionTarget(t("unpost")),
+        variant: "destructive",
+      });
   } else if (e.status === JournalStatus.REJECTED) {
     actions.push({
       label: "استرجاع كمسودة",
       icon: Undo2,
       onClick: () => setActionTarget(t("restore")),
     });
+    if (canOverride) del();
+  } else if (e.status === JournalStatus.CANCELLED) {
+    if (canOverride) del();
   }
 
   return actions;

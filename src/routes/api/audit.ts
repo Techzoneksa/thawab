@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { and, count, desc, eq, like, or, sql } from "drizzle-orm";
 import { db } from "@/server/db/index";
 import { auditLog } from "@/server/db/schema";
+import { SENSITIVE_EXACT_ACTIONS, SENSITIVE_SUFFIX_REGEX } from "@/lib/audit-sensitive";
 import { authHandler, err, type Ctx } from "@/server/db/api-utils";
 
 // GET /api/audit — list with filters and pagination.
@@ -64,6 +65,14 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
   if (entityId) conditions.push(eq(auditLog.entityId, entityId));
   if (dateFrom) conditions.push(sql`${auditLog.timestamp} >= ${dateFrom}`);
   if (dateTo) conditions.push(sql`${auditLog.timestamp} <= ${dateTo}`);
+  // Sensitive operations only (delete/cancel/unpost/reverse/reject/reopen/edit).
+  if (url.searchParams.get("sensitive") === "1")
+    conditions.push(
+      sql`(lower(${auditLog.action}) in (${sql.join(
+        SENSITIVE_EXACT_ACTIONS.map((a) => sql`${a}`),
+        sql`, `,
+      )}) or ${auditLog.action} ~* ${SENSITIVE_SUFFIX_REGEX})`,
+    );
   const where = conditions.length ? and(...conditions) : undefined;
 
   const [{ c: total }] = await db.select({ c: count() }).from(auditLog).where(where);

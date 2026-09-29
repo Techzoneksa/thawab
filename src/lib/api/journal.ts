@@ -225,7 +225,7 @@ export async function deleteJournalEntry(options: {
 }
 
 export type JournalWorkflowAction =
-  "submit" | "approve" | "return" | "reject" | "restore" | "post" | "reverse" | "cancel";
+  "submit" | "approve" | "return" | "reject" | "restore" | "unpost" | "post" | "reverse" | "cancel";
 
 const ACTION_ERR: Record<JournalWorkflowAction, string> = {
   submit: "فشل إرسال القيد للاعتماد",
@@ -233,6 +233,7 @@ const ACTION_ERR: Record<JournalWorkflowAction, string> = {
   return: "فشل إعادة القيد للتعديل",
   reject: "فشل رفض القيد",
   restore: "فشل استرجاع القيد",
+  unpost: "فشل إلغاء ترحيل القيد",
   post: "فشل ترحيل القيد",
   reverse: "فشل عكس القيد",
   cancel: "فشل إلغاء القيد",

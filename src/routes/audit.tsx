@@ -22,6 +22,9 @@ import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/audit")({
   head: () => ({ meta: [{ title: "سجل التدقيق — ثواب" }] }),
+  // ?sensitive=1 opens the log pre-filtered to sensitive operations (dashboard link).
+  validateSearch: (s: Record<string, unknown>): { sensitive?: "1" } =>
+    s.sensitive === "1" || s.sensitive === 1 ? { sensitive: "1" } : {},
   component: Page,
 });
 
@@ -35,6 +38,8 @@ function Page() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
+  const search = Route.useSearch();
+  const [sensitiveOnly, setSensitiveOnly] = useState(search.sensitive === "1");
 
   const { data, isLoading, error } = useQuery({
     queryKey: [
@@ -47,10 +52,12 @@ function Page() {
         dateFrom,
         dateTo,
         page,
+        sensitiveOnly,
       },
     ],
     queryFn: () =>
       getAuditEntries({
+        sensitive: sensitiveOnly,
         search: searchQuery,
         userName: userFilter,
         action: actionFilter,
@@ -69,7 +76,7 @@ function Page() {
 
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, userFilter, actionFilter, entityFilter, dateFrom, dateTo]);
+  }, [searchQuery, userFilter, actionFilter, entityFilter, dateFrom, dateTo, sensitiveOnly]);
 
   const stats = [
     { label: "إجمالي السجلات", value: total },
@@ -87,6 +94,7 @@ function Page() {
   const buildDoc = async (): Promise<DocumentDefinition> => {
     const today = new Date().toISOString().slice(0, 10);
     const res = await getAuditEntries({
+      sensitive: sensitiveOnly,
       search: searchQuery,
       userName: userFilter,
       action: actionFilter,
@@ -152,6 +160,17 @@ function Page() {
       </div>
 
       <FilterBar>
+        <button
+          type="button"
+          onClick={() => setSensitiveOnly((v) => !v)}
+          className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+            sensitiveOnly
+              ? "border-destructive bg-destructive/10 text-destructive"
+              : "hover:bg-muted text-muted-foreground"
+          }`}
+        >
+          العمليات الحساسة فقط
+        </button>
         <div className="relative flex-1 min-w-[200px] hidden lg:block">
           <Search
             size={14}
