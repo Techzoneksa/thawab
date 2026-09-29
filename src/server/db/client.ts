@@ -12,8 +12,9 @@ import { getCurrentTenant } from "./tenant-context";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
-if (!DATABASE_URL) {
-  // Fail loud and early — there is no SQLite fallback anymore.
+if (!DATABASE_URL && !process.env.TENANTS_JSON) {
+  // Fail loud and early — there is no SQLite fallback anymore. (A multi-tenant
+  // deployment configures TENANTS_JSON instead and needs no default database.)
   console.error("[db] FATAL: DATABASE_URL is not set. Set it to a PostgreSQL connection string.");
 }
 
