@@ -148,6 +148,9 @@ function Page() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  // Last failure of the pending workflow action, shown inside the dialog so
+  // the reason (e.g. no open fiscal period) is never missed.
+  const [actionError, setActionError] = useState<string | null>(null);
   const [actionTarget, setActionTarget] = useState<{
     id: string;
     number: string;
@@ -207,8 +210,16 @@ function Page() {
       setActionTarget(null);
       setActionReason("");
     },
-    onError: (err: Error) => showToast(err.message, "error"),
+    onError: (err: Error) => {
+      setActionError(err.message);
+      showToast(err.message, "error");
+    },
   });
+
+  // A new/closed dialog starts without a stale error.
+  useEffect(() => {
+    setActionError(null);
+  }, [actionTarget]);
 
   const handleDelete = () => {
     if (deleteTarget) {
@@ -223,6 +234,7 @@ function Page() {
       showToast("السبب مطلوب لهذا الإجراء", "error");
       return;
     }
+    setActionError(null);
     actionMutation.mutate({
       id: actionTarget.id,
       action: actionTarget.action,
@@ -561,6 +573,12 @@ function Page() {
                 />
               </div>
             )}
+            {actionError && (
+              <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                <div className="font-semibold">تعذّر تنفيذ الإجراء:</div>
+                <div className="mt-1">{actionError.replace(/^GL:\s*/, "")}</div>
+              </div>
+            )}
             <div className="mt-4 flex justify-end gap-2">
               <Btn
                 variant="ghost"
@@ -581,7 +599,7 @@ function Page() {
                 disabled={actionMutation.isPending || (reasonNeeded && !actionReason.trim())}
                 onClick={handleActionConfirm}
               >
-                {ACTION_LABELS[actionTarget.action].verb}
+                {actionMutation.isPending ? "جارٍ التنفيذ…" : ACTION_LABELS[actionTarget.action].verb}
               </Btn>
             </div>
           </div>

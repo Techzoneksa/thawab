@@ -35,6 +35,12 @@ function AuthGate({ children }: { children: ReactNode }) {
   const mustChange = !!user?.mustChangePassword;
   // null = not yet checked; only queried when nobody is logged in.
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
+  // Hydration safety: the server has no session token, so it cannot know the
+  // auth state. Render the same neutral loader on the server AND on the first
+  // client paint, and only decide after mount — otherwise the server HTML and
+  // the first client render differ (React error #418 on every page load).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (isLoading) return;
@@ -68,6 +74,13 @@ function AuthGate({ children }: { children: ReactNode }) {
     }
   }, [isLoading, user, mustChange, isPublic, pathname, router, needsSetup]);
 
+  if (!mounted) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background" dir="rtl">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
   if (!isLoading && !user) {
     if (needsSetup === null) return null;
     if (needsSetup && pathname !== SETUP_PATH) return null;
