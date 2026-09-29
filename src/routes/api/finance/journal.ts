@@ -13,7 +13,11 @@ import {
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
 import { postBalancedEntry } from "@/server/db/gl";
 import { hasPermission } from "@/server/db/auth";
-import { transitionJournal, journalWorkflowHistory } from "@/server/db/finance-workflow";
+import {
+  transitionJournal,
+  journalWorkflowHistory,
+  deleteJournalEntry,
+} from "@/server/db/finance-workflow";
 import { AppError } from "@/server/db/errors";
 import { JournalStatus, Fund } from "@/lib/enums";
 import { normalizeBusinessDate } from "@/lib/business-date";
@@ -41,7 +45,7 @@ const createSchema = z.object({
 
 const actionSchema = z.object({
   id: z.string().min(1),
-  action: z.enum(["submit", "approve", "return", "reject", "restore", "post", "reverse", "cancel"]),
+  action: z.enum(["submit", "approve", "return", "reject", "restore", "unpost", "post", "reverse", "cancel"]),
   reason: z.string().optional(),
 });
 
@@ -330,24 +334,14 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
 }
 
 async function DELETE({ request }: { request: Request }, ctx: Ctx) {
-  const id = new URL(request.url).searchParams.get("id");
-  if (!id) return err("معرف القيد مطلوب", 400, "BAD_REQUEST");
-  const entry = (
-    await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1)
-  )[0];
-  if (!entry) return err("القيد غير موجود", 404, "NOT_FOUND");
-  if (entry.status !== JournalStatus.DRAFT) return err("يمكن حذف المسودات فقط", 400, "BAD_STATE");
-  await db.delete(journalEntries).where(eq(journalEntries.id, id)); // lines cascade
-  await addAudit({
-    action: "delete",
-    entityType: "journal_entry",
-    entityId: id,
-    description: `حذف القيد ${entry.number}`,
-    userId: ctx.user.id,
-    userName: ctx.user.name,
-    ip: ctx.ip,
+  return guard(async () => {
+    const id = new URL(request.url).searchParams.get("id");
+    if (!id) return err("معرف القيد مطلوب", 400, "BAD_REQUEST");
+    // Draft: draft-editing permission. Non-draft (unposted): super admin only.
+    // Posted: must be unposted first. Snapshot + actor name go to the audit log.
+    await deleteJournalEntry(ctx, id);
+    return Response.json({ success: true });
   });
-  return Response.json({ success: true });
 }
 
 export const Route = createFileRoute("/api/finance/journal")({

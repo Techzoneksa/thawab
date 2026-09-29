@@ -22,6 +22,8 @@ export interface AuditFilters {
   entityId?: string;
   dateFrom?: string;
   dateTo?: string;
+  /** Only delete/cancel/unpost/reverse/reject/reopen/edit operations. */
+  sensitive?: boolean;
   page?: number;
   limit?: number;
 }
@@ -40,14 +42,16 @@ export async function getAuditEntries(filters: AuditFilters = {}): Promise<{
   options: AuditOptions;
 }> {
   const params = new URLSearchParams();
+  // The page's dropdowns use "الكل" (all) as their unfiltered value — never send it.
+  const pick = (v?: string) => (v && v !== "الكل" ? v : "");
   if (filters.search) params.set("search", filters.search);
-  if (filters.userName) params.set("userName", filters.userName);
-  if (filters.action) params.set("action", filters.action);
-  if (filters.entityType)
-    params.set("entityType", filters.entityType);
+  if (pick(filters.userName)) params.set("userName", pick(filters.userName));
+  if (pick(filters.action)) params.set("action", pick(filters.action));
+  if (pick(filters.entityType)) params.set("entityType", pick(filters.entityType));
   if (filters.entityId) params.set("entityId", filters.entityId);
   if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
   if (filters.dateTo) params.set("dateTo", filters.dateTo);
+  if (filters.sensitive) params.set("sensitive", "1");
   if (filters.page) params.set("page", String(filters.page));
   if (filters.limit) params.set("limit", String(filters.limit));
 

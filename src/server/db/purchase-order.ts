@@ -356,6 +356,7 @@ const AUDIT_ACTION: Record<JournalAction, string> = {
   return: "PURCHASE_ORDER_RETURNED",
   reject: "PURCHASE_ORDER_REJECTED",
   restore: "PURCHASE_ORDER_RESTORED",
+  unpost: "PURCHASE_ORDER_UNPOSTED",
   issue: "PURCHASE_ORDER_ISSUED",
   cancel: "PURCHASE_ORDER_CANCELLED",
   post: "PURCHASE_ORDER_POST", // unused (a PO never posts)

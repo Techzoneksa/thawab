@@ -12,13 +12,13 @@
  * Posting and reversal REUSE the certified Phase 1A engine (gl.ts). This module
  * adds no accounting math and never touches GL calculations.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import { db, now, genId, addAudit } from "./index";
-import { journalEntries, financeWorkflowEvents } from "./schema";
+import { journalEntries, journalLines, financeWorkflowEvents, fiscalPeriods } from "./schema";
 import { hasPermission } from "./auth";
 import { AppError } from "./errors";
 import { postDraftEntry, reverseEntry, applyTxTimeouts } from "./gl";
-import { JournalStatus } from "@/lib/enums";
+import { JournalStatus, FiscalPeriodStatus } from "@/lib/enums";
 import {
   findTransition,
   evaluateTransition,
@@ -35,6 +35,7 @@ const AUDIT_ACTION: Record<JournalAction, string> = {
   return: "JOURNAL_RETURNED",
   reject: "JOURNAL_REJECTED",
   restore: "JOURNAL_RESTORED",
+  unpost: "JOURNAL_UNPOSTED",
   post: "JOURNAL_POSTED",
   reverse: "JOURNAL_REVERSED",
   issue: "JOURNAL_ISSUE",
@@ -71,6 +72,35 @@ export async function recordWorkflowEvent(
     metadata: JSON.stringify(e.metadata ?? {}),
     createdAt: now(),
   });
+}
+
+/**
+ * Journals that may be unposted/deleted by the super-admin overrides: entries
+ * keyed by hand, imported, or the opening balance. Document-generated journals
+ * (receipt/payment vouchers, invoices, payroll…) stay in sync with their source
+ * document, so they must be cancelled from that document instead.
+ */
+const OVERRIDABLE_SOURCES = new Set(["", "manual", "journal_import", "opening_balance"]);
+function isOverridableSource(sourceType: string | null | undefined): boolean {
+  return OVERRIDABLE_SOURCES.has(sourceType ?? "");
+}
+
+/** The fiscal period covering `date` must exist and be OPEN to change its GL. */
+async function assertPeriodOpenFor(tx: Tx, date: string, verb: string) {
+  const day = String(date).slice(0, 10);
+  const period = (
+    await tx
+      .select()
+      .from(fiscalPeriods)
+      .where(and(lte(fiscalPeriods.startDate, day), gte(fiscalPeriods.endDate, day)))
+      .limit(1)
+  )[0];
+  if (period && period.status !== FiscalPeriodStatus.OPEN)
+    throw new AppError(
+      `الفترة المالية "${period.name}" مقفلة — لا يمكن ${verb} قيد داخلها. أعد فتح الفترة أولاً.`,
+      409,
+      "PERIOD_CLOSED",
+    );
 }
 
 export interface TransitionResult {
@@ -158,6 +188,45 @@ export async function transitionJournal(
       if (!locked || locked.status !== JournalStatus.POSTED)
         throw new AppError("تعذّر العكس — تغيّرت حالة القيد", 409, "STATE_CONFLICT");
       reversalId = await reverseEntry(tx as any, id, ctx.user.id);
+    } else if (action === "unpost") {
+      // Super-admin undo of a posting: the entry leaves the GL (balances and
+      // statements only count POSTED/REVERSED) and becomes an editable draft.
+      const locked = (
+        await tx
+          .select()
+          .from(journalEntries)
+          .where(eq(journalEntries.id, id))
+          .for("update")
+          .limit(1)
+      )[0];
+      if (!locked || locked.status !== JournalStatus.POSTED)
+        throw new AppError("تعذّر إلغاء الترحيل — تغيّرت حالة القيد", 409, "STATE_CONFLICT");
+      if (!isOverridableSource(locked.sourceType))
+        throw new AppError(
+          "هذا القيد صادر من مستند (سند/فاتورة…) — ألغِ المستند نفسه بدلاً من إلغاء ترحيل قيده",
+          409,
+          "DOCUMENT_SOURCE",
+        );
+      if (locked.reversedOf)
+        throw new AppError("هذا قيد عكسي — لا يمكن إلغاء ترحيله", 409, "REVERSAL_ENTRY");
+      await assertPeriodOpenFor(tx, locked.date, "إلغاء ترحيل");
+      const changed = await tx
+        .update(journalEntries)
+        .set({
+          status: JournalStatus.DRAFT,
+          postedBy: null,
+          postedAt: null,
+          approvedBy: null,
+          approvedAt: null,
+          submittedBy: null,
+          submittedAt: null,
+          periodId: null,
+          updatedAt: ts,
+        })
+        .where(and(eq(journalEntries.id, id), eq(journalEntries.status, JournalStatus.POSTED)))
+        .returning({ id: journalEntries.id });
+      if (changed.length === 0)
+        throw new AppError("تعذّر إلغاء الترحيل — تغيّرت حالة القيد", 409, "STATE_CONFLICT");
     } else {
       // Atomic guarded transition: only one request can move it off `from`.
       const cols: Record<string, unknown> = { status: t.to, updatedAt: ts };
@@ -167,6 +236,12 @@ export async function transitionJournal(
       } else if (action === "approve") {
         cols.approvedBy = ctx.user.id;
         cols.approvedAt = ts;
+      } else if (t.to === JournalStatus.DRAFT) {
+        // Back to the maker (return/restore): prior approval no longer applies.
+        cols.submittedBy = null;
+        cols.submittedAt = null;
+        cols.approvedBy = null;
+        cols.approvedAt = null;
       }
       const changed = await tx
         .update(journalEntries)
@@ -206,6 +281,73 @@ export async function transitionJournal(
     await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1)
   )[0];
   return { item, reversalId };
+}
+
+/**
+ * Delete a journal entry.
+ *  - DRAFT: allowed for the draft-editing permission (unchanged behaviour).
+ *  - Other NON-posted states (submitted/approved/rejected/cancelled): super-admin
+ *    (finance.journal.delete), manual/import/opening sources only.
+ *  - POSTED/REVERSED: never directly — unpost first (keeps the period guard and
+ *    the audit trail).
+ * A full snapshot (entry + lines) is written to the audit log before deletion.
+ */
+export async function deleteJournalEntry(ctx: Ctx, id: string): Promise<void> {
+  const entry = (
+    await db.select().from(journalEntries).where(eq(journalEntries.id, id)).limit(1)
+  )[0];
+  if (!entry) throw new AppError("القيد غير موجود", 404, "NOT_FOUND");
+  if (entry.status === JournalStatus.POSTED || entry.status === JournalStatus.REVERSED)
+    throw new AppError(
+      "لا يمكن حذف قيد مرحّل — ألغِ ترحيله أولاً (إرجاع إلى مسودة) ثم احذفه",
+      409,
+      "POSTED",
+    );
+  if (entry.status !== JournalStatus.DRAFT) {
+    if (!(await hasPermission(ctx.user.role, FINANCE_PERMISSIONS.journalDelete)))
+      throw new AppError("حذف القيود غير المسودة يتطلب صلاحية المدير العام", 403, "FORBIDDEN");
+    if (!isOverridableSource(entry.sourceType))
+      throw new AppError(
+        "هذا القيد صادر من مستند (سند/فاتورة…) — ألغِ المستند نفسه",
+        409,
+        "DOCUMENT_SOURCE",
+      );
+  }
+
+  const lines = await db.select().from(journalLines).where(eq(journalLines.journalEntryId, id));
+  try {
+    await db.transaction(async (tx) => {
+      await applyTxTimeouts(tx as any);
+      await recordWorkflowEvent(tx, {
+        entityType: "journal_entry",
+        entityId: id,
+        action: "delete",
+        fromStatus: entry.status,
+        toStatus: null,
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        metadata: { number: entry.number },
+      });
+      await tx.delete(journalEntries).where(eq(journalEntries.id, id)); // lines cascade
+    });
+  } catch (e) {
+    const code = (e as { code?: string; cause?: { code?: string } })?.code ??
+      (e as { cause?: { code?: string } })?.cause?.code;
+    if (code === "23503")
+      throw new AppError("القيد مرتبط بمستندات أخرى في النظام — لا يمكن حذفه", 409, "IN_USE");
+    throw e;
+  }
+
+  await addAudit({
+    action: "delete",
+    entityType: "journal_entry",
+    entityId: id,
+    description: `حذف القيد ${entry.number} (${entry.status}) — ${entry.description ?? ""}`,
+    userId: ctx.user.id,
+    userName: ctx.user.name,
+    before: JSON.stringify({ entry, lines }),
+    ip: ctx.ip,
+  });
 }
 
 /** Chronological workflow history for one journal (for the detail timeline). */

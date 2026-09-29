@@ -33,6 +33,10 @@ export const FINANCE_PERMISSIONS = {
   journalReject: "finance.journal.reject",
   journalPost: "finance.journal.post",
   journalReverse: "finance.journal.reverse",
+  // Super-admin overrides (the wildcard "*" role has them; grant to other roles
+  // only deliberately). Governed: reason/period/source guards live server-side.
+  journalUnpost: "finance.journal.unpost", // POSTED → DRAFT (undo posting)
+  journalDelete: "finance.journal.delete", // cancel/delete non-draft, unposted entries
 
   importJournal: "finance.import.journal",
 
@@ -238,6 +242,22 @@ export const FINANCE_PERM_GROUPS: FinancePermGroup[] = [
     key: "finance-reversal",
     label: "المالية — العكس",
     perms: [{ key: FINANCE_PERMISSIONS.journalReverse, label: "عكس قيد", desc: "عكس قيد مُرحَّل" }],
+  },
+  {
+    key: "finance-superadmin",
+    label: "المالية — صلاحيات المدير العام (حسّاسة)",
+    perms: [
+      {
+        key: FINANCE_PERMISSIONS.journalUnpost,
+        label: "إلغاء ترحيل قيد",
+        desc: "إرجاع قيد مرحّل إلى مسودة (بسبب، وفي فترة مفتوحة، للقيود اليدوية/المستوردة/الافتتاحية)",
+      },
+      {
+        key: FINANCE_PERMISSIONS.journalDelete,
+        label: "إلغاء/حذف قيد غير مرحّل",
+        desc: "إلغاء أو حذف نهائي لقيد مُرسل/معتمد/مرفوض/ملغى (يُحفظ نسخة في سجل التدقيق)",
+      },
+    ],
   },
   {
     key: "finance-periods",
@@ -565,6 +585,7 @@ export type JournalAction =
   | "return" // → back to DRAFT (maker fixes and resubmits)
   | "reject"
   | "restore" // REJECTED → DRAFT (recover a rejected entry for editing)
+  | "unpost" // POSTED → DRAFT (super admin: undo posting; reason, open period, manual sources only)
   | "post"
   | "reverse"
   | "issue" // Phase 3C — release an approved Purchase Order (no accounting effect)
@@ -635,6 +656,37 @@ export const JOURNAL_TRANSITIONS: Transition[] = [
     action: "restore",
     to: JournalStatus.DRAFT,
     permission: FINANCE_PERMISSIONS.journalUpdateDraft,
+  },
+  // Send an APPROVED (not yet posted) entry back to the maker for changes.
+  {
+    from: JournalStatus.APPROVED,
+    action: "return",
+    to: JournalStatus.DRAFT,
+    permission: FINANCE_PERMISSIONS.journalReject,
+    reasonRequired: true,
+  },
+  // Super-admin: cancel an entry that is in the approval pipeline.
+  {
+    from: JournalStatus.SUBMITTED,
+    action: "cancel",
+    to: JournalStatus.CANCELLED,
+    permission: FINANCE_PERMISSIONS.journalDelete,
+  },
+  {
+    from: JournalStatus.APPROVED,
+    action: "cancel",
+    to: JournalStatus.CANCELLED,
+    permission: FINANCE_PERMISSIONS.journalDelete,
+  },
+  // Super-admin: undo a posting (entry leaves the GL and becomes a draft again).
+  // Extra server-side guards: open period, manual/import/opening sources only,
+  // never a reversal pair. See transitionJournal.
+  {
+    from: JournalStatus.POSTED,
+    action: "unpost",
+    to: JournalStatus.DRAFT,
+    permission: FINANCE_PERMISSIONS.journalUnpost,
+    reasonRequired: true,
   },
 ];
 
