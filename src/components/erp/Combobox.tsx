@@ -113,6 +113,16 @@ export function Combobox<T>({
           setOpen(true);
           setQ(e.target.value);
         }}
+        onKeyDown={(e) => {
+          // Enter picks the best (first) match — e.g. type an account number + Enter.
+          if (e.key === "Enter" && open) {
+            e.preventDefault();
+            if (!loading && items.length > 0) pick(items[0]);
+          } else if (e.key === "Escape") {
+            setOpen(false);
+            setQ("");
+          }
+        }}
       />
       {open && (
         <div className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-lg border bg-card shadow-lg">
