@@ -17,7 +17,7 @@ const { resolveTenantByHost } = await import("../src/server/db/tenant-registry.t
 const { runWithTenant } = await import("../src/server/db/tenant-context.ts");
 const { needsBootstrap, bootstrapFirstAdmin } = await import("../src/server/db/auth.ts");
 const { db } = await import("../src/server/db/index.ts");
-const { users } = await import("../src/server/db/schema.ts");
+const { users, fiscalPeriods } = await import("../src/server/db/schema.ts");
 
 function withHost<T>(host: string, fn: () => Promise<T>): Promise<T> {
   return runWithTenant(resolveTenantByHost(host), fn);
@@ -49,6 +49,15 @@ const bUsers = await withHost("abufadi.jaadpro.com", () => db.select().from(user
 check("A has exactly 1 user", aUsers.length === 1);
 check("B has 0 users (no leak from A)", bUsers.length === 0);
 check("A admin has role-admin", aUsers[0]?.role === "role-admin");
+
+// 4b) First-run seeds ONE open fiscal period for the current year (A only)
+const year = new Date().toISOString().slice(0, 4);
+const aPeriods = await withHost("radifa.jaadpro.com", () => db.select().from(fiscalPeriods));
+const bPeriods = await withHost("abufadi.jaadpro.com", () => db.select().from(fiscalPeriods));
+check("A has one open period for the current year",
+  aPeriods.length === 1 && aPeriods[0].status === "open" &&
+  aPeriods[0].startDate === `${year}-01-01` && aPeriods[0].endDate === `${year}-12-31`);
+check("B has no period (not bootstrapped)", bPeriods.length === 0);
 
 // 5) Second bootstrap on A is refused
 const again = await withHost("radifa.jaadpro.com", () =>

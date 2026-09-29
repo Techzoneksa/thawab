@@ -5,10 +5,10 @@
  * No external dependencies — uses node:crypto only.
  */
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { and, desc, eq, gt } from "drizzle-orm";
+import { and, desc, eq, gt, gte, lte } from "drizzle-orm";
 import { db, now, genId } from "./index";
-import { users, sessions, roles, loginAttempts } from "./schema";
-import { UserStatus } from "@/lib/enums";
+import { users, sessions, roles, loginAttempts, fiscalPeriods } from "./schema";
+import { UserStatus, FiscalPeriodStatus } from "@/lib/enums";
 
 const SCRYPT_N = 16384;
 const SCRYPT_KEYLEN = 64;
@@ -196,6 +196,30 @@ export async function bootstrapFirstAdmin(
       createdAt: ts,
     });
     newUserId = id;
+
+    // A fresh tenant cannot post anything until an OPEN fiscal period covers
+    // the entry date, so seed the current calendar year as an open period
+    // (only when none covers today). The admin can edit/split it later.
+    const today = ts.slice(0, 10);
+    const year = today.slice(0, 4);
+    const covering = await tx
+      .select({ id: fiscalPeriods.id })
+      .from(fiscalPeriods)
+      .where(and(lte(fiscalPeriods.startDate, today), gte(fiscalPeriods.endDate, today)))
+      .limit(1);
+    if (covering.length === 0) {
+      await tx.insert(fiscalPeriods).values({
+        id: genId("FP"),
+        name: `السنة المالية ${year}`,
+        startDate: `${year}-01-01`,
+        endDate: `${year}-12-31`,
+        status: FiscalPeriodStatus.OPEN,
+        notes: "أُنشئت تلقائياً عند الإعداد الأول",
+        createdBy: id,
+        createdAt: ts,
+        updatedAt: ts,
+      });
+    }
   });
 
   if (!newUserId) return { error: "تم إعداد النظام مسبقاً", code: "ALREADY_SETUP" };
