@@ -36,8 +36,18 @@ jobs:
           fi
           echo "configured=true" >> "$GITHUB_OUTPUT"
           mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          # Normalize a key pasted from a Windows terminal (CRLF / stray spaces),
+          # and also accept a single-line base64 of the key file.
+          if printf '%s' "$SSH_KEY" | grep -q "BEGIN"; then
+            printf '%s\n' "$SSH_KEY" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' > ~/.ssh/id_deploy
+          else
+            printf '%s' "$SSH_KEY" | tr -d '\r\n ' | base64 -d > ~/.ssh/id_deploy
+          fi
           chmod 600 ~/.ssh/id_deploy
+          if ! ssh-keygen -y -f ~/.ssh/id_deploy > /dev/null 2>&1; then
+            echo "::error::VPS_SSH_KEY is not a valid private key — re-copy it (or use: base64 -w0 /root/.ssh/gh_deploy)."
+            exit 1
+          fi
           ssh-keyscan -p "${PORT:-22}" -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
           # The forced command on the server runs the deploy; no command needed.
           ssh -i ~/.ssh/id_deploy -p "${PORT:-22}" -o BatchMode=yes "$DEPLOY_USER@$HOST"
