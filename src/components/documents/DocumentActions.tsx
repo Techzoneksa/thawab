@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Eye, Printer, FileText, FileSpreadsheet, MoreHorizontal, X, Loader2 } from "lucide-react";
 import { useCan } from "@/lib/api/auth";
 import type { DocumentDefinition } from "@/lib/documents/types";
@@ -134,11 +135,13 @@ export function DocumentActions({ document: docSource, perms, className = "" }: 
         )}
       </div>
 
-      {/* Hidden mount so window.print() can isolate the document. The
+      {/* Hidden mount so window.print() can isolate the document. Portaled to
+          <body> so no app container (sidebar offset, hidden <header>, transforms)
+          becomes its containing block in print. The
           `doc-print-mount` class lets the print CSS neutralize this off-screen
           clipping wrapper — otherwise `.thawab-doc` (position:absolute;inset:0)
           resolves against a 0×0 containing block and prints blank. */}
-      {active && !preview && (
+      {active && !preview && createPortal(
         <div
           aria-hidden
           className="doc-print-mount"
@@ -152,7 +155,8 @@ export function DocumentActions({ document: docSource, perms, className = "" }: 
           }}
         >
           <DocumentLayout def={active} />
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* Preview overlay */}

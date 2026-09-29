@@ -46,7 +46,6 @@ export const DOC_STYLES = `
 .doc-footer-bar{display:flex;justify-content:space-between;font-size:9px;color:#9ca3af;border-top:1px solid #e5e7eb;margin-top:10px;padding-top:6px}
 @media print{
   @page{size:A4 portrait;margin:12mm}
-  @page landscape{size:A4 landscape}
   html,body{background:#fff !important}
   body *{visibility:hidden}
   /* Neutralize the off-screen 0×0 clipping mount so the absolutely-positioned
@@ -54,11 +53,22 @@ export const DOC_STYLES = `
   .doc-print-mount{position:static !important;left:auto !important;top:auto !important;
     width:auto !important;height:auto !important;overflow:visible !important}
   .thawab-doc,.thawab-doc *{visibility:visible}
-  .thawab-doc{position:absolute;left:0;top:0;right:0;width:auto;min-height:0;margin:0;padding:0;box-shadow:none}
+  /* .landscape repeated so the screen width (297mm) never leaks into print and
+     overflows the paper — the page box (@page) decides the printable width. */
+  .thawab-doc,.thawab-doc.landscape{position:absolute;left:0;top:0;right:0;width:auto;min-height:0;margin:0;padding:0;box-shadow:none}
+  /* Page-level print CSS (PrintStyle) hides every <header>/<footer>; the
+     document's own header/footer must survive it. */
+  .thawab-doc header.doc-header,.thawab-doc footer.doc-footer{display:block !important}
+  .doc-table td{word-break:break-word}
+  /* While the print mount is present, drop the (invisible) app from layout —
+     otherwise its height spills into trailing blank pages. */
+  body:has(> .doc-print-mount) > *:not(.doc-print-mount){display:none !important}
   .doc-table thead{display:table-header-group}
   .doc-table tr{break-inside:avoid}
 }
 `;
+
+const LANDSCAPE_PAGE = "@media print{@page{size:A4 landscape;margin:10mm}}";
 
 export function DocumentLayout({
   def,
@@ -70,6 +80,10 @@ export function DocumentLayout({
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: DOC_STYLES }} />
+      {/* Landscape documents print on A4 landscape (later @page rule wins). */}
+      {def.orientation === "landscape" && (
+        <style dangerouslySetInnerHTML={{ __html: LANDSCAPE_PAGE }} />
+      )}
       <div className={`thawab-doc ${def.orientation === "landscape" ? "landscape" : ""}`}>
         <DocumentHeader def={def} />
         <main className="doc-body">{children ?? <DocumentTable def={def} />}</main>
