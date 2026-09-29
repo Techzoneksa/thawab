@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -30,6 +30,12 @@ function AuthGate({ children }: { children: ReactNode }) {
   const pathname = router.state.location.pathname;
   const isPublic = PUBLIC_PATHS.includes(pathname);
   const mustChange = !!user?.mustChangePassword;
+  // Hydration safety: the server has no session token, so it cannot know the
+  // auth state. Render the same neutral loader on the server AND on the first
+  // client paint, and only decide after mount — otherwise the server HTML and
+  // the first client render differ (React error #418 on every page load).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (isLoading) return;
@@ -40,6 +46,13 @@ function AuthGate({ children }: { children: ReactNode }) {
     }
   }, [isLoading, user, mustChange, isPublic, pathname, router]);
 
+  if (!mounted) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background" dir="rtl">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
   if (!isLoading && !user && !isPublic) return null;
   if (!isLoading && user && mustChange && pathname !== CHANGE_PW_PATH) return null;
   return <>{children}</>;
