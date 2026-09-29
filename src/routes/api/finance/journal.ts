@@ -16,6 +16,7 @@ import { hasPermission } from "@/server/db/auth";
 import { transitionJournal, journalWorkflowHistory } from "@/server/db/finance-workflow";
 import { AppError } from "@/server/db/errors";
 import { JournalStatus, Fund } from "@/lib/enums";
+import { normalizeBusinessDate } from "@/lib/business-date";
 import { FINANCE_PERMISSIONS } from "@/lib/finance-permissions";
 
 const lineSchema = z.object({
@@ -201,9 +202,16 @@ async function POST(event: { request: Request }, ctx: Ctx) {
     if (!(await hasPermission(ctx.user.role, FINANCE_PERMISSIONS.journalCreate)))
       return err("لا تملك صلاحية إنشاء القيود", 403, "FORBIDDEN");
     const b = createSchema.parse(body);
+    const date = b.date ? normalizeBusinessDate(b.date) : now().slice(0, 10);
+    if (!date)
+      return err(
+        `تاريخ القيد غير صالح "${b.date}" — استخدم صيغة 2024-02-10 أو 10/02/2024`,
+        422,
+        "INVALID_DATE",
+      );
     const entryId = await db.transaction((tx) =>
       postBalancedEntry(tx as any, {
-        date: (b.date || now()).slice(0, 10),
+        date,
         description: b.description,
         fund: b.fund,
         currency: b.currency,
@@ -251,6 +259,13 @@ const updateSchema = z.object({
 async function PUT(event: { request: Request }, ctx: Ctx) {
   return guard(async () => {
     const b = await parseBody(event.request, updateSchema);
+    const newDate = b.date ? normalizeBusinessDate(b.date) : null;
+    if (b.date && !newDate)
+      return err(
+        `تاريخ القيد غير صالح "${b.date}" — استخدم صيغة 2024-02-10 أو 10/02/2024`,
+        422,
+        "INVALID_DATE",
+      );
     const entry = (
       await db.select().from(journalEntries).where(eq(journalEntries.id, b.id)).limit(1)
     )[0];
@@ -287,7 +302,7 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
       await tx
         .update(journalEntries)
         .set({
-          date: b.date ? b.date.slice(0, 10) : entry.date,
+          date: newDate ?? entry.date,
           description: b.description ?? entry.description,
           fund: b.fund ?? entry.fund,
           projectId: b.projectId === undefined ? entry.projectId : b.projectId,

@@ -3,6 +3,8 @@
  * ExcelJS is dynamically imported (code-split) on both the read and write path.
  */
 
+import { normalizeBusinessDate } from "@/lib/business-date";
+
 export type IoType = "journal" | "budget" | "accounts";
 
 // Header (Arabic) ↔ payload key. Order defines the template column order.
@@ -413,6 +415,11 @@ export async function parseJournalFile(file: File): Promise<JournalPreview> {
     if (Math.abs(d - c) > 0.005)
       warnings.push(`قيد ${e.number}: غير متوازن (مدين ${d.toFixed(2)} ≠ دائن ${c.toFixed(2)})`);
     if (!e.description) warnings.push(`قيد ${e.number}: بدون وصف`);
+    if (e.date) {
+      const iso = normalizeBusinessDate(e.date);
+      if (iso) e.date = iso;
+      else warnings.push(`قيد ${e.number}: تاريخ غير صالح "${e.date}" — استخدم 2024-02-10 أو 10/02/2024`);
+    }
   }
   return {
     entries,
