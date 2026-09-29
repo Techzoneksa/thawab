@@ -7,6 +7,7 @@ import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-ut
 import { hasPermission } from "@/server/db/auth";
 import { postBalancedEntry } from "@/server/db/gl";
 import { JournalStatus, Fund, BudgetStatus, AccountClassification, AccountStatus } from "@/lib/enums";
+import { normalizeBusinessDate } from "@/lib/business-date";
 
 const journalLineSchema = z.object({
   accountCode: z.string().trim().min(1),
@@ -245,8 +246,13 @@ async function POST(event: { request: Request }, ctx: Ctx) {
           errors.push(
             `قيد ${rowLabel}: غير متوازن (مدين ${debit.toFixed(2)} ≠ دائن ${credit.toFixed(2)})`,
           );
+        const date = entry.date ? normalizeBusinessDate(entry.date) : now().slice(0, 10);
+        if (!date)
+          errors.push(
+            `قيد ${rowLabel}: تاريخ غير صالح "${entry.date}" — استخدم 2024-02-10 أو 10/02/2024`,
+          );
         return {
-          date: (entry.date || now()).slice(0, 10),
+          date: date ?? now().slice(0, 10),
           description: entry.description,
           fund: validFund(entry.fund) ? entry.fund : Fund.UNRESTRICTED,
           lines,

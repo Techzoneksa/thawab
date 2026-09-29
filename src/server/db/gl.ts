@@ -16,6 +16,7 @@ import { accounts, journalEntries, journalLines, fiscalPeriods } from "./schema"
 import { now, genId } from "./index";
 import { JournalStatus, FiscalPeriodStatus, Fund } from "@/lib/enums";
 import { AppError } from "./errors";
+import { ISO_DATE_RE } from "@/lib/business-date";
 
 /** Stable keys for the accounts the posting engine resolves at runtime. */
 export const SYS = {
@@ -136,6 +137,10 @@ export async function cashOrBankAccountId(tx: Db, method: string | undefined): P
  */
 export async function resolvePostingPeriod(tx: Db, dateISO: string): Promise<string> {
   const day = dateISO.slice(0, 10);
+  if (!ISO_DATE_RE.test(day))
+    throw new AppError(
+      `GL: تاريخ القيد "${dateISO}" بصيغة غير صالحة — يجب أن يكون بالصيغة YYYY-MM-DD (مثال 2024-02-10)`,
+    );
   const period = (
     await tx
       .select()
@@ -209,6 +214,12 @@ export async function postBalancedEntry(tx: Db, input: PostEntryInput): Promise<
     if (acc.status !== "active") throw new AppError(`GL: الحساب ${acc.name} غير نشط`);
   }
 
+  // The journal number and period lookup are both derived from the date text, so
+  // a non-ISO date must never be stored (it would yield e.g. "JV-10/0-00001").
+  if (!ISO_DATE_RE.test(String(input.date).slice(0, 10)))
+    throw new AppError(
+      `GL: تاريخ القيد "${input.date}" بصيغة غير صالحة — يجب أن يكون بالصيغة YYYY-MM-DD`,
+    );
   const status = input.status ?? JournalStatus.POSTED;
   const periodId =
     status === JournalStatus.POSTED ? await resolvePostingPeriod(tx, input.date) : null;
