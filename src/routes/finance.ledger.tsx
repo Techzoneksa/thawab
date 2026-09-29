@@ -15,11 +15,12 @@ import {
   MobileFilterDrawer,
 } from "@/components/erp/AppShell";
 import { Filter, BookOpen } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
+import { Combobox } from "@/components/erp/Combobox";
 import { EmptyState } from "@/components/erp/actions";
 import { DocumentActions } from "@/components/documents/DocumentActions";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
-import { getLedgerMovements, type LedgerMovement } from "@/lib/api/ledger";
+import { getLedgerMovements, type LedgerMovement, type LedgerOptions } from "@/lib/api/ledger";
 
 export const Route = createFileRoute("/finance/ledger")({
   head: () => ({ meta: [{ title: "دفتر الأستاذ — ثواب" }] }),
@@ -31,6 +32,77 @@ function fmt(n: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n);
+}
+
+type LedgerAccount = LedgerOptions["accounts"][number];
+// Stable fallback: a fresh [] each render would re-trigger the picker's search.
+const EMPTY_OPTIONS: LedgerOptions = { accounts: [], costCenters: [], projects: [] };
+
+const toLatinDigits = (v: string) =>
+  v.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
+
+/**
+ * Account filter you can TYPE into: account number (exact → prefix → contains)
+ * or name. Enter picks the best match, so "1101 ⏎" selects account 1101.
+ * Searches the account list the ledger API already returned (no extra request).
+ */
+function AccountPicker({
+  accounts,
+  value,
+  onChange,
+  stacked,
+}: {
+  accounts: LedgerAccount[];
+  value: string;
+  onChange: (id: string) => void;
+  stacked?: boolean;
+}) {
+  const search = useCallback(
+    async (raw: string) => {
+      const q = toLatinDigits(raw).trim().toLowerCase();
+      if (!q) return { items: accounts.slice(0, 50) };
+      const rank = (a: LedgerAccount) => {
+        const code = a.code.toLowerCase();
+        if (code === q) return 0;
+        if (code.startsWith(q)) return 1;
+        if (code.includes(q)) return 2;
+        if (a.name.toLowerCase().includes(q)) return 3;
+        return -1;
+      };
+      const items = accounts
+        .map((a) => ({ a, r: rank(a) }))
+        .filter((x) => x.r >= 0)
+        .sort((x, y) => x.r - y.r || x.a.code.localeCompare(y.a.code))
+        .slice(0, 50)
+        .map((x) => x.a);
+      return { items };
+    },
+    [accounts],
+  );
+  const selected = accounts.find((a) => a.id === value);
+  return (
+    <div className={stacked ? "" : "flex items-center gap-2 text-sm"}>
+      <span
+        className={
+          stacked
+            ? "text-xs font-semibold text-muted-foreground"
+            : "text-muted-foreground whitespace-nowrap"
+        }
+      >
+        الحساب{stacked ? "" : ":"}
+      </span>
+      <Combobox<LedgerAccount>
+        className={stacked ? "mt-1" : "min-w-[260px]"}
+        value={value}
+        displayValue={selected ? `${selected.code} — ${selected.name}` : ""}
+        placeholder="كل الحسابات — اكتب رقم الحساب أو اسمه"
+        search={search}
+        getId={(a) => a.id}
+        getLabel={(a) => `${a.code} — ${a.name}`}
+        onSelect={(a) => onChange(a?.id || "")}
+      />
+    </div>
+  );
 }
 
 function Page() {
@@ -52,7 +124,7 @@ function Page() {
   const movements = data?.movements || [];
   const totals = data?.totals || { debit: 0, credit: 0, net: 0 };
   const balances = data?.balances || { opening: 0, closing: 0 };
-  const options = data?.options || { accounts: [], costCenters: [], projects: [] };
+  const options = data?.options || EMPTY_OPTIONS;
 
   const summary = [
     {
@@ -82,15 +154,21 @@ function Page() {
     if (dateFrom) filters.push({ label: "من", value: dateFrom });
     if (dateTo) filters.push({ label: "إلى", value: dateTo });
     if (search) filters.push({ label: "بحث", value: search });
+    const hasCostCenter = movements.some((m) => m.costCenterName);
+    const hasProject = movements.some((m) => m.projectName);
     return {
       title: "دفتر الأستاذ العام",
       date: today,
       orientation: "landscape",
       filters,
       columns: [
-        { key: "date", label: "التاريخ", type: "date", width: "12%" },
-        { key: "entryNumber", label: "رقم القيد", width: "12%" },
-        { key: "description", label: "الوصف", width: "40%" },
+        { key: "date", label: "التاريخ", type: "date", width: "9%" },
+        { key: "entryNumber", label: "رقم القيد", width: "10%" },
+        { key: "accountCode", label: "رقم الحساب", width: "8%" },
+        { key: "accountName", label: "اسم الحساب", width: "15%" },
+        { key: "description", label: "الوصف", width: "24%" },
+        ...(hasCostCenter ? [{ key: "costCenter", label: "مركز التكلفة" }] : []),
+        ...(hasProject ? [{ key: "project", label: "المشروع" }] : []),
         { key: "debit", label: "مدين", type: "money" },
         { key: "credit", label: "دائن", type: "money" },
         { key: "balance", label: "الرصيد", type: "money" },
@@ -98,7 +176,11 @@ function Page() {
       rows: movements.map((m: LedgerMovement) => ({
         date: m.date,
         entryNumber: m.entryNumber,
+        accountCode: m.accountCode,
+        accountName: m.accountName,
         description: m.description,
+        costCenter: m.costCenterName || "",
+        project: m.projectName || "",
         debit: m.debit,
         credit: m.credit,
         balance: m.runningBalance,
@@ -148,25 +230,7 @@ function Page() {
       </div>
 
       <FilterBar>
-        <Select
-          label="الحساب"
-          options={["كل الحساتب", ...options.accounts.map((a) => `${a.code} — ${a.name}`)]}
-          value={
-            accountId
-              ? options.accounts.find((a) => a.id === accountId)
-                ? `${options.accounts.find((a) => a.id === accountId)!.code} — ${options.accounts.find((a) => a.id === accountId)!.name}`
-                : "كل الحسابات"
-              : "كل الحسابات"
-          }
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v === "كل الحسابات") setAccountId("");
-            else {
-              const a = options.accounts.find((x) => `${x.code} — ${x.name}` === v);
-              setAccountId(a?.id || "");
-            }
-          }}
-        />
+        <AccountPicker accounts={options.accounts} value={accountId} onChange={setAccountId} />
         <Select
           label="مركز التكلفة"
           options={["كل المراكز", ...options.costCenters.map((c) => c.name)]}
@@ -269,7 +333,7 @@ function Page() {
         />
       ) : (
         <MobileTable
-          columns={["التاريخ", "القيد", "الحساب", "الوصف", "مدين", "دائن", "الرصيد"]}
+          columns={["التاريخ", "القيد", "رقم الحساب", "اسم الحساب", "الوصف", "مدين", "دائن", "الرصيد"]}
           rows={movements}
           renderRow={(m: LedgerMovement) => (
             <>
@@ -277,11 +341,9 @@ function Page() {
               <Td>
                 <span className="font-mono text-xs text-info">{m.entryNumber}</span>
               </Td>
+              <Td className="font-mono text-xs">{m.accountCode}</Td>
               <Td>
-                <div className="text-xs">
-                  <span className="font-mono text-muted-foreground">{m.accountCode}</span>
-                  <span className="font-semibold mx-1">{m.accountName}</span>
-                </div>
+                <div className="text-xs font-semibold">{m.accountName}</div>
                 {(m.costCenterName || m.projectName) && (
                   <div className="text-[10px] text-muted-foreground">
                     {m.costCenterName && <span>{m.costCenterName}</span>}
@@ -364,25 +426,7 @@ function Page() {
 
       <MobileFilterDrawer open={filterOpen} onClose={() => setFilterOpen(false)}>
         <div className="space-y-4">
-          <Select
-            label="الحساب"
-            options={["كل الحسابات", ...options.accounts.map((a) => `${a.code} — ${a.name}`)]}
-            value={
-              accountId
-                ? options.accounts.find((a) => a.id === accountId)
-                  ? `${options.accounts.find((a) => a.id === accountId)!.code} — ${options.accounts.find((a) => a.id === accountId)!.name}`
-                  : "كل الحسابات"
-                : "كل الحسابات"
-            }
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === "كل الحسابات") setAccountId("");
-              else {
-                const a = options.accounts.find((x) => `${x.code} — ${x.name}` === v);
-                setAccountId(a?.id || "");
-              }
-            }}
-          />
+          <AccountPicker accounts={options.accounts} value={accountId} onChange={setAccountId} stacked />
           <Select
             label="مركز التكلفة"
             options={["كل المراكز", ...options.costCenters.map((c) => c.name)]}
