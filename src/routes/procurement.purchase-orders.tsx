@@ -69,11 +69,18 @@ function Page() {
       breadcrumb={["الرئيسية", "المشتريات", "أوامر الشراء"]}
       title="أوامر الشراء"
       actions={
-        canCreate ? (
-          <Btn variant="primary" onClick={() => nav({ to: "/procurement/purchase-orders/new" })}>
-            <Plus size={15} /> أمر شراء جديد
+        <>
+          {/* Historical (pre-governance) orders stay reachable, read-only, here
+              instead of as a second "purchase orders" entry in the sidebar. */}
+          <Btn variant="outline" onClick={() => nav({ to: "/procurement/orders" })}>
+            أرشيف الأوامر القديمة
           </Btn>
-        ) : null
+          {canCreate && (
+            <Btn variant="primary" onClick={() => nav({ to: "/procurement/purchase-orders/new" })}>
+              <Plus size={15} /> أمر شراء جديد
+            </Btn>
+          )}
+        </>
       }
     >
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">

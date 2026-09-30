@@ -6,7 +6,16 @@ import { Check, ChevronRight, Circle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-const DropdownMenu = DropdownMenuPrimitive.Root;
+// Non-modal by default: a modal menu locks page scroll and sets
+// pointer-events:none on <body> while open, so the page "freezes" under the
+// wheel until the menu is dismissed. Outside click / Esc still close it.
+// Pass modal explicitly to override.
+const DropdownMenu = ({
+  modal = false,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) => (
+  <DropdownMenuPrimitive.Root modal={modal} {...props} />
+);
 
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
