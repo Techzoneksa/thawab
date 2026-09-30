@@ -40,7 +40,7 @@ function acctClassification(a: Account): string {
 }
 
 export const Route = createFileRoute("/finance/accounts_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل حساب — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل حساب" }] }),
   component: EditAccountPage,
 });
 

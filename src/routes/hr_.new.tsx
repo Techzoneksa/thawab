@@ -16,7 +16,7 @@ import { label, options } from "@/lib/i18n/labels";
 import { createEmployee } from "@/lib/api/hr";
 
 export const Route = createFileRoute("/hr_/new")({
-  head: () => ({ meta: [{ title: "موظف جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "موظف جديد" }] }),
   component: NewEmployeePage,
 });
 

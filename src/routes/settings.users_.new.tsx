@@ -15,7 +15,7 @@ import { createUser } from "@/lib/api/users";
 import { getRoles } from "@/lib/api/roles";
 
 export const Route = createFileRoute("/settings/users_/new")({
-  head: () => ({ meta: [{ title: "مستخدم جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "مستخدم جديد" }] }),
   component: NewUserPage,
 });
 

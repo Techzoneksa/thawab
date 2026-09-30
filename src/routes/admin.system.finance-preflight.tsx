@@ -9,7 +9,7 @@ import { useState } from "react";
 import { getPreflight, applyFinanceMigrations, certifyPhase1A } from "@/lib/api/finance-preflight";
 
 export const Route = createFileRoute("/admin/system/finance-preflight")({
-  head: () => ({ meta: [{ title: "اعتماد الجاهزية المالية — ثواب" }] }),
+  head: () => ({ meta: [{ title: "اعتماد الجاهزية المالية" }] }),
   component: Page,
 });
 

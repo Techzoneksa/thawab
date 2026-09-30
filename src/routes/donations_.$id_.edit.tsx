@@ -25,7 +25,7 @@ import { DonationStatus, DonationMethod, DonationChannel } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/donations_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل تبرع — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل تبرع" }] }),
   component: EditDonationPage,
 });
 

@@ -22,7 +22,7 @@ import {
 } from "@/lib/api/recurring";
 
 export const Route = createFileRoute("/recurring_/new")({
-  head: () => ({ meta: [{ title: "تبرع متكرر جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تبرع متكرر جديد" }] }),
   component: NewRecurringPage,
 });
 

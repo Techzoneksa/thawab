@@ -19,7 +19,7 @@ import { label } from "@/lib/i18n/labels";
 import { UserStatus } from "@/lib/enums";
 
 export const Route = createFileRoute("/settings/users")({
-  head: () => ({ meta: [{ title: "المستخدمون — ثواب" }] }),
+  head: () => ({ meta: [{ title: "المستخدمون" }] }),
   component: UsersPage,
 });
 

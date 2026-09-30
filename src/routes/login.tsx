@@ -1,4 +1,5 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { useOrgName } from "@/lib/api/org-settings";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Lock, Mail, AlertCircle } from "lucide-react";
@@ -9,7 +10,7 @@ import { showToast } from "@/components/erp/actions";
 const API = "/api/auth";
 
 export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "تسجيل الدخول — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تسجيل الدخول" }] }),
   component: LoginPage,
 });
 
@@ -50,6 +51,7 @@ export async function beforeLoad() {
 }
 
 export default function LoginPage() {
+  const orgName = useOrgName();
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -92,7 +94,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4" dir="rtl">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-primary">ثواب</h1>
+          <h1 className="text-3xl font-extrabold text-primary">{orgName || "تسجيل الدخول"}</h1>
           <p className="text-sm text-muted-foreground mt-1">نظام إدارة الجمعيات والجهات الخيرية</p>
         </div>
 

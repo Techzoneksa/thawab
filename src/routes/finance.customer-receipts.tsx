@@ -10,7 +10,7 @@ import { useAuth, userCan } from "@/lib/api/auth";
 import { listCustomerReceipts, type CustomerReceiptRow } from "@/lib/api/ar-allocation";
 
 export const Route = createFileRoute("/finance/customer-receipts")({
-  head: () => ({ meta: [{ title: "تحصيل العملاء والتخصيص — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تحصيل العملاء والتخصيص" }] }),
   component: Page,
 });
 

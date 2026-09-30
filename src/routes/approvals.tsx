@@ -36,7 +36,7 @@ const STATUS_TABS = [
 ];
 
 export const Route = createFileRoute("/approvals")({
-  head: () => ({ meta: [{ title: "صندوق الموافقات — ثواب" }] }),
+  head: () => ({ meta: [{ title: "صندوق الموافقات" }] }),
   component: Page,
 });
 

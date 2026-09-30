@@ -25,7 +25,7 @@ import { AidStatus, AidType } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/aid_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل مساعدة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل مساعدة" }] }),
   component: EditAidPage,
 });
 

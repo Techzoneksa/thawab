@@ -33,7 +33,7 @@ import {
 } from "@/lib/api/cost-centers";
 
 export const Route = createFileRoute("/finance/cost-centers")({
-  head: () => ({ meta: [{ title: "مراكز التكلفة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "مراكز التكلفة" }] }),
   component: Page,
 });
 

@@ -10,7 +10,7 @@ import { label } from "@/lib/i18n/labels";
 import type { DocumentDefinition } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/inventory/warehouses_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل المستودع — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل المستودع" }] }),
   component: WarehouseDetailPage,
 });
 

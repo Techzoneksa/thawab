@@ -10,7 +10,7 @@ import { getSupplier } from "@/lib/api/suppliers";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/procurement/suppliers_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل المورد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل المورد" }] }),
   component: SupplierDetailPage,
 });
 

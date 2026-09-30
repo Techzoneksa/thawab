@@ -25,7 +25,7 @@ import {
 } from "@/components/erp/actions";
 
 export const Route = createFileRoute("/hr")({
-  head: () => ({ meta: [{ title: "الموارد البشرية — ثواب" }] }),
+  head: () => ({ meta: [{ title: "الموارد البشرية" }] }),
   component: () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();

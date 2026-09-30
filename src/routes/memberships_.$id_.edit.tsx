@@ -16,7 +16,7 @@ import { label, options } from "@/lib/i18n/labels";
 import { getMembership, updateMembership, type Membership } from "@/lib/api/memberships";
 
 export const Route = createFileRoute("/memberships_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل عضو — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل عضو" }] }),
   component: EditMembershipPage,
 });
 

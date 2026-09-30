@@ -17,7 +17,7 @@ import { label, options } from "@/lib/i18n/labels";
 import { createEndowment } from "@/lib/api/endowments";
 
 export const Route = createFileRoute("/endowments_/new")({
-  head: () => ({ meta: [{ title: "وقف جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "وقف جديد" }] }),
   component: NewEndowmentPage,
 });
 

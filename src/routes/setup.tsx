@@ -9,7 +9,7 @@ import { showToast } from "@/components/erp/actions";
 const API = "/api/auth-bootstrap";
 
 export const Route = createFileRoute("/setup")({
-  head: () => ({ meta: [{ title: "إعداد النظام — ثواب" }] }),
+  head: () => ({ meta: [{ title: "إعداد النظام" }] }),
   beforeLoad: async () => {
     // Only reachable while the tenant DB is empty; otherwise send to login.
     if (typeof window === "undefined") return;
@@ -71,7 +71,7 @@ function SetupPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4" dir="rtl">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-primary">ثواب</h1>
+          <h1 className="text-3xl font-extrabold text-primary">إعداد النظام</h1>
           <p className="text-sm text-muted-foreground mt-1">نظام إدارة الجمعيات والجهات الخيرية</p>
         </div>
 

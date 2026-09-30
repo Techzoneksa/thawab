@@ -6,7 +6,7 @@ import { getPurchaseOrder } from "@/lib/api/governed-purchase-orders";
 import { PO_STATUS } from "./procurement.purchase-orders";
 
 export const Route = createFileRoute("/procurement/purchase-orders_/$id/print")({
-  head: () => ({ meta: [{ title: "طباعة أمر شراء — ثواب" }] }),
+  head: () => ({ meta: [{ title: "طباعة أمر شراء" }] }),
   component: PrintPage,
 });
 

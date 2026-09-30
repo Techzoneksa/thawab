@@ -33,7 +33,7 @@ import { label } from "@/lib/i18n/labels";
 import type { DocumentDefinition } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/assets_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل الأصل — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل الأصل" }] }),
   component: AssetDetailPage,
 });
 

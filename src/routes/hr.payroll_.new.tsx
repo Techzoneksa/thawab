@@ -17,7 +17,7 @@ import { PayrollPayMethod } from "@/lib/enums";
 import { createPayrollRun } from "@/lib/api/payroll";
 
 export const Route = createFileRoute("/hr/payroll_/new")({
-  head: () => ({ meta: [{ title: "مسير رواتب جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "مسير رواتب جديد" }] }),
   component: NewPayrollPage,
 });
 

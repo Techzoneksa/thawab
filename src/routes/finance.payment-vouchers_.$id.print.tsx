@@ -6,7 +6,7 @@ import { getPaymentVoucher } from "@/lib/api/payment-vouchers";
 import { PV_STATUS } from "./finance.payment-vouchers";
 
 export const Route = createFileRoute("/finance/payment-vouchers_/$id/print")({
-  head: () => ({ meta: [{ title: "طباعة سند صرف — ثواب" }] }),
+  head: () => ({ meta: [{ title: "طباعة سند صرف" }] }),
   component: PrintPage,
 });
 

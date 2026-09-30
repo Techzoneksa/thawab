@@ -8,7 +8,7 @@ import { getSupplier, paySupplier, type Supplier } from "@/lib/api/suppliers";
 import { fmtSAR } from "@/data/sample";
 
 export const Route = createFileRoute("/procurement/suppliers_/$id_/pay")({
-  head: () => ({ meta: [{ title: "سداد للمورد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "سداد للمورد" }] }),
   component: PaySupplierPage,
 });
 

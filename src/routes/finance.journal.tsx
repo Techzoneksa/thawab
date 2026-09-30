@@ -54,7 +54,7 @@ import {
 } from "@/lib/api/journal";
 
 export const Route = createFileRoute("/finance/journal")({
-  head: () => ({ meta: [{ title: "قيود اليومية — ثواب" }] }),
+  head: () => ({ meta: [{ title: "قيود اليومية" }] }),
   component: Page,
 });
 

@@ -10,7 +10,7 @@ import { WebhookEvent } from "@/lib/enums";
 import { createWebhook } from "@/lib/api/integrations";
 
 export const Route = createFileRoute("/settings/webhooks_/new")({
-  head: () => ({ meta: [{ title: "Webhook جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "Webhook جديد" }] }),
   component: NewWebhookPage,
 });
 

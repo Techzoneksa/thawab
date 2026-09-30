@@ -16,7 +16,7 @@ import { label, options } from "@/lib/i18n/labels";
 import { createBranch } from "@/lib/api/branches";
 
 export const Route = createFileRoute("/settings/branches_/new")({
-  head: () => ({ meta: [{ title: "فرع جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "فرع جديد" }] }),
   component: NewBranchPage,
 });
 

@@ -6,7 +6,7 @@ import { fmtSAR } from "@/data/sample";
 import { apAging, apAgingBySupplier } from "@/lib/api/ap-allocation";
 
 export const Route = createFileRoute("/finance/ap-aging")({
-  head: () => ({ meta: [{ title: "أعمار الذمم الدائنة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "أعمار الذمم الدائنة" }] }),
   component: Page,
 });
 

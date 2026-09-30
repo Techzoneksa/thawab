@@ -38,7 +38,7 @@ import {
 } from "@/lib/api/budgets";
 
 export const Route = createFileRoute("/finance/budgets")({
-  head: () => ({ meta: [{ title: "الموازنات — ثواب" }] }),
+  head: () => ({ meta: [{ title: "الموازنات" }] }),
   component: Page,
 });
 

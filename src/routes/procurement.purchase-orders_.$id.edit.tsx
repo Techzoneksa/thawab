@@ -2,7 +2,7 @@ import { createFileRoute, useParams } from "@tanstack/react-router";
 import { PurchaseOrderForm } from "@/components/procurement/PurchaseOrderForm";
 
 export const Route = createFileRoute("/procurement/purchase-orders_/$id/edit")({
-  head: () => ({ meta: [{ title: "تعديل أمر شراء — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل أمر شراء" }] }),
   component: EditPurchaseOrderPage,
 });
 

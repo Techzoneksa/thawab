@@ -31,7 +31,7 @@ import {
 } from "@/lib/api/journal";
 
 export const Route = createFileRoute("/finance/journal_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل قيد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل قيد" }] }),
   component: EditJournalPage,
 });
 

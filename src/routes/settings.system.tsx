@@ -7,7 +7,7 @@ import { ShieldCheck, Globe, Wrench } from "lucide-react";
 const TENANTS: string[] = [];
 
 export const Route = createFileRoute("/settings/system")({
-  head: () => ({ meta: [{ title: "إعدادات النظام — ثواب" }] }),
+  head: () => ({ meta: [{ title: "إعدادات النظام" }] }),
   component: () => {
     const [maintenanceMode, setMaintenanceMode] = useState(false);
     const [confirmOpen, setConfirmOpen] = useState(false);

@@ -24,7 +24,7 @@ import {
 } from "@/lib/api/data-io";
 
 export const Route = createFileRoute("/data")({
-  head: () => ({ meta: [{ title: "الاستيراد والتصدير — ثواب" }] }),
+  head: () => ({ meta: [{ title: "الاستيراد والتصدير" }] }),
   component: Page,
 });
 

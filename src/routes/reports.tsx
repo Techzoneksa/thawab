@@ -77,7 +77,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
 ];
 
 export const Route = createFileRoute("/reports")({
-  head: () => ({ meta: [{ title: "مركز التقارير — ثواب" }] }),
+  head: () => ({ meta: [{ title: "مركز التقارير" }] }),
   component: Page,
 });
 

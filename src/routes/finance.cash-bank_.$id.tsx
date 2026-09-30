@@ -16,7 +16,7 @@ const parseKind = (s: Record<string, unknown>): { kind: Kind } => ({
 });
 
 export const Route = createFileRoute("/finance/cash-bank_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل النقد/البنك — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل النقد/البنك" }] }),
   validateSearch: parseKind,
   component: CashBankDetailPage,
 });

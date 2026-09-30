@@ -31,7 +31,7 @@ import {
 } from "@/lib/api/purchase-orders";
 
 export const Route = createFileRoute("/procurement/orders_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل أمر شراء — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل أمر شراء" }] }),
   component: EditOrderPage,
 });
 

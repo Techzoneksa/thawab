@@ -2,7 +2,7 @@ import { createFileRoute, useParams } from "@tanstack/react-router";
 import { CustomerForm } from "@/components/finance/CustomerForm";
 
 export const Route = createFileRoute("/finance/customers_/$id/edit")({
-  head: () => ({ meta: [{ title: "تعديل عميل — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل عميل" }] }),
   component: EditCustomerPage,
 });
 

@@ -16,7 +16,7 @@ import {
 import type { DocumentDefinition } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/finance/customer-receipts_/$id")({
-  head: () => ({ meta: [{ title: "تخصيص التحصيل — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تخصيص التحصيل" }] }),
   component: ReceiptDetailPage,
 });
 

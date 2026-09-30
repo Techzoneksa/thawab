@@ -26,7 +26,7 @@ import { getProjects } from "@/lib/api/projects";
 import { createJournalEntry, type JournalFund } from "@/lib/api/journal";
 
 export const Route = createFileRoute("/finance/journal_/new")({
-  head: () => ({ meta: [{ title: "قيد يومية جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "قيد يومية جديد" }] }),
   component: NewJournalPage,
 });
 

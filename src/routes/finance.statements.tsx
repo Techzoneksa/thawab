@@ -42,7 +42,7 @@ import { DocumentActions } from "@/components/documents/DocumentActions";
 import type { DocumentDefinition, DocColumn, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/finance/statements")({
-  head: () => ({ meta: [{ title: "القوائم المالية — ثواب" }] }),
+  head: () => ({ meta: [{ title: "القوائم المالية" }] }),
   component: Page,
 });
 

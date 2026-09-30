@@ -27,7 +27,7 @@ import type { DocumentDefinition } from "@/lib/documents/types";
 import { SI_STATUS, Timeline, Row, KV, ReasonDialog } from "./finance.supplier-invoices";
 
 export const Route = createFileRoute("/finance/supplier-invoices_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل فاتورة مورد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل فاتورة مورد" }] }),
   component: SupplierInvoiceDetailPage,
 });
 

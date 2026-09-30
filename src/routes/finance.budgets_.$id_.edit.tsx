@@ -30,7 +30,7 @@ import {
 } from "@/lib/api/budgets";
 
 export const Route = createFileRoute("/finance/budgets_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل موازنة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل موازنة" }] }),
   component: EditBudgetPage,
 });
 

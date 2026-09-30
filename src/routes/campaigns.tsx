@@ -23,7 +23,7 @@ import {
 } from "@/components/erp/actions";
 
 export const Route = createFileRoute("/campaigns")({
-  head: () => ({ meta: [{ title: "حملات التبرع — ثواب" }] }),
+  head: () => ({ meta: [{ title: "حملات التبرع" }] }),
   component: () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();

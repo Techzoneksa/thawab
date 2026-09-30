@@ -18,7 +18,7 @@ import { label, options } from "@/lib/i18n/labels";
 import { createSupplier, type SupplierStatus } from "@/lib/api/suppliers";
 
 export const Route = createFileRoute("/procurement/suppliers_/new")({
-  head: () => ({ meta: [{ title: "مورد جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "مورد جديد" }] }),
   component: NewSupplierPage,
 });
 

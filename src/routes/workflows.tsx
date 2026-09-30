@@ -14,7 +14,7 @@ type Workflow = { name: string; avg: string; active: number; steps: string[] };
 const WORKFLOWS: Workflow[] = [];
 
 export const Route = createFileRoute("/workflows")({
-  head: () => ({ meta: [{ title: "سير العمل — ثواب" }] }),
+  head: () => ({ meta: [{ title: "سير العمل" }] }),
   component: Page,
 });
 

@@ -9,7 +9,7 @@ import { Link2 } from "lucide-react";
 import { listSupplierPaymentsForAlloc, type SupplierPaymentRow } from "@/lib/api/ap-allocation";
 
 export const Route = createFileRoute("/finance/supplier-payments")({
-  head: () => ({ meta: [{ title: "دفعات الموردين والتخصيص — ثواب" }] }),
+  head: () => ({ meta: [{ title: "دفعات الموردين والتخصيص" }] }),
   component: Page,
 });
 

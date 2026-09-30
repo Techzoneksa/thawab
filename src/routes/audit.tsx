@@ -21,7 +21,7 @@ import { DocumentActions } from "@/components/documents/DocumentActions";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/audit")({
-  head: () => ({ meta: [{ title: "سجل التدقيق — ثواب" }] }),
+  head: () => ({ meta: [{ title: "سجل التدقيق" }] }),
   // ?sensitive=1 opens the log pre-filtered to sensitive operations (dashboard link).
   validateSearch: (s: Record<string, unknown>): { sensitive?: "1" } =>
     s.sensitive === "1" || s.sensitive === 1 ? { sensitive: "1" } : {},

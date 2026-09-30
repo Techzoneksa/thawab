@@ -46,7 +46,7 @@ import { showToast } from "@/components/erp/actions";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "لوحة المعلومات التنفيذية — ثواب" },
+      { title: "لوحة المعلومات التنفيذية" },
       {
         name: "description",
         content:

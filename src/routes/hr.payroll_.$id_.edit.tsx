@@ -22,7 +22,7 @@ import {
 } from "@/lib/api/payroll";
 
 export const Route = createFileRoute("/hr/payroll_/$id_/edit")({
-  head: () => ({ meta: [{ title: "مسير رواتب — ثواب" }] }),
+  head: () => ({ meta: [{ title: "مسير رواتب" }] }),
   component: EditPayrollPage,
 });
 

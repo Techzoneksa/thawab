@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 const API_BASE = "/api/settings/org";
 
 export interface OrgSettings {
@@ -41,4 +42,27 @@ export async function saveOrgSettings(data: OrgSettingsInput): Promise<OrgSettin
   }
   const d = await res.json();
   return d.item;
+}
+
+/** The association's display name (public, per site). "" until set. */
+export async function getOrgBrand(): Promise<{ name: string }> {
+  try {
+    const res = await fetch("/api/settings/brand");
+    if (!res.ok) return { name: "" };
+    return res.json();
+  } catch {
+    return { name: "" };
+  }
+}
+
+/** Display name of THIS association — replaces any product name in the UI. */
+export function useOrgName(): string {
+  const { data } = useQuery({ queryKey: ["org-brand"], queryFn: getOrgBrand, staleTime: 300_000 });
+  return data?.name?.trim() || "";
+}
+
+/** One-letter badge for the association logo (skips a leading "جمعية"). */
+export function orgInitial(name: string): string {
+  const core = name.replace(/^جمعية\s+/, "").replace(/^ال/, "").trim();
+  return (core || name).charAt(0) || "ج";
 }

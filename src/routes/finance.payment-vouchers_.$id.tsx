@@ -26,7 +26,7 @@ import type { DocumentDefinition } from "@/lib/documents/types";
 import { PV_STATUS, Timeline, KV, ReasonDialog } from "./finance.payment-vouchers";
 
 export const Route = createFileRoute("/finance/payment-vouchers_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل سند صرف — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل سند صرف" }] }),
   component: PaymentVoucherDetailPage,
 });
 

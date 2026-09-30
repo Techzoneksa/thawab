@@ -5,7 +5,7 @@
  * No external dependencies — uses node:crypto only.
  */
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { and, desc, eq, gt, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gt, gte, lte, sql } from "drizzle-orm";
 import { db, now, genId } from "./index";
 import { users, sessions, roles, loginAttempts, fiscalPeriods } from "./schema";
 import { UserStatus, FiscalPeriodStatus } from "@/lib/enums";
@@ -124,12 +124,17 @@ async function recordAttempt(email: string, ip: string, success: boolean) {
 
 const GENERIC_ERROR = "البريد الإلكتروني أو كلمة المرور غير صحيحة";
 
-export async function login(email: string, password: string, ip = "", userAgent = "") {
+export async function login(rawEmail: string, password: string, ip = "", userAgent = "") {
+  // Case/whitespace-insensitive: phones auto-capitalize, and older accounts may
+  // have been stored with capitals.
+  const email = rawEmail.trim().toLowerCase();
   if ((await recentFailures(email, ip)) >= MAX_FAILS) {
     return { error: "تم تجاوز عدد المحاولات المسموح. حاول لاحقاً.", code: "LOCKED_OUT" };
   }
 
-  const user = (await db.select().from(users).where(eq(users.email, email)).limit(1))[0];
+  const user = (
+    await db.select().from(users).where(sql`lower(trim(${users.email})) = ${email}`).limit(1)
+  )[0];
   const ok = !!user && user.status === UserStatus.ACTIVE && verifyPassword(password, user.password);
 
   await recordAttempt(email, ip, ok);

@@ -17,7 +17,7 @@ import type { DocumentDefinition } from "@/lib/documents/types";
 import { SV_STATUS, FUND_OPTIONS, KV, Row, Timeline, ReasonDialog } from "./finance.sales-invoices";
 
 export const Route = createFileRoute("/finance/sales-invoices_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل فاتورة مبيعات — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل فاتورة مبيعات" }] }),
   component: SalesInvoiceDetailPage,
 });
 

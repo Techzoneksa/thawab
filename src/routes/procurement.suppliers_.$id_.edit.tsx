@@ -29,7 +29,7 @@ import {
 import { fmtSAR } from "@/data/sample";
 
 export const Route = createFileRoute("/procurement/suppliers_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل مورد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل مورد" }] }),
   component: EditSupplierPage,
 });
 

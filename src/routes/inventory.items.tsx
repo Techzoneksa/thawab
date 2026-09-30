@@ -40,7 +40,7 @@ import { DocumentActions } from "@/components/documents/DocumentActions";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/inventory/items")({
-  head: () => ({ meta: [{ title: "الأصناف — ثواب" }] }),
+  head: () => ({ meta: [{ title: "الأصناف" }] }),
   component: Page,
 });
 

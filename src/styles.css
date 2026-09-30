@@ -168,16 +168,17 @@
     font-family: var(--font-sans);
     -webkit-tap-highlight-color: transparent;
     scroll-behavior: smooth;
-    overflow-x: hidden;
+    /* clip (not hidden): hides horizontal overflow WITHOUT turning the element
+       into a scroll container, so the mouse wheel always reaches the page. */
+    overflow-x: clip;
     overscroll-behavior: none;
   }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-feature-settings: "ss01", "cv11";
-    overscroll-behavior: none;
     -webkit-font-smoothing: antialiased;
-    overflow-x: hidden;
+    overflow-x: clip;
     max-width: 100vw;
   }
   #root, #__app, main {
@@ -220,7 +221,7 @@
   .mobile-container {
     width: 100%;
     max-width: 100%;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
   .no-scrollbar {
     -ms-overflow-style: none;

@@ -40,7 +40,7 @@ const DEPARTMENTS = [
 ];
 
 export const Route = createFileRoute("/procurement/requests_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل طلب شراء — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل طلب شراء" }] }),
   component: EditRequestPage,
 });
 

@@ -30,7 +30,7 @@ import { StocktakeStatus } from "@/lib/enums";
 import { label } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/inventory/stocktake_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل جرد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل جرد" }] }),
   component: EditStocktakePage,
 });
 

@@ -17,7 +17,7 @@ import { label, options } from "@/lib/i18n/labels";
 import { createCampaign } from "@/lib/api/campaigns";
 
 export const Route = createFileRoute("/campaigns_/new")({
-  head: () => ({ meta: [{ title: "حملة جديدة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "حملة جديدة" }] }),
   component: NewCampaignPage,
 });
 

@@ -22,7 +22,7 @@ import { ProjectStatus } from "@/lib/enums";
 import { options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/projects_/new")({
-  head: () => ({ meta: [{ title: "مشروع جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "مشروع جديد" }] }),
   component: NewProjectPage,
 });
 

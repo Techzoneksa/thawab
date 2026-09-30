@@ -2,7 +2,7 @@ import { createFileRoute, useParams } from "@tanstack/react-router";
 import { PaymentVoucherForm } from "@/components/finance/PaymentVoucherForm";
 
 export const Route = createFileRoute("/finance/payment-vouchers_/$id/edit")({
-  head: () => ({ meta: [{ title: "تعديل سند صرف — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل سند صرف" }] }),
   component: EditPaymentVoucherPage,
 });
 

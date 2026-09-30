@@ -18,7 +18,7 @@ import { EndowmentReturnStatus } from "@/lib/enums";
 import { createEndowmentReturn } from "@/lib/api/endowment-returns";
 
 export const Route = createFileRoute("/endowment-returns_/new")({
-  head: () => ({ meta: [{ title: "عائد وقف جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "عائد وقف جديد" }] }),
   component: NewEndowmentReturnPage,
 });
 

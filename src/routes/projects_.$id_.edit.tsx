@@ -24,7 +24,7 @@ import { ProjectStatus } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/projects_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل مشروع — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل مشروع" }] }),
   component: EditProjectPage,
 });
 

@@ -27,7 +27,7 @@ import { BeneficiaryStatus } from "@/lib/enums";
 import { label } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/beneficiaries_/$id")({
-  head: () => ({ meta: [{ title: "ملف المستفيد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "ملف المستفيد" }] }),
   component: Page,
 });
 

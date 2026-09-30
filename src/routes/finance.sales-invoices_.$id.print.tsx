@@ -6,7 +6,7 @@ import { getSalesInvoice } from "@/lib/api/sales-invoices";
 import { SV_STATUS } from "./finance.sales-invoices";
 
 export const Route = createFileRoute("/finance/sales-invoices_/$id/print")({
-  head: () => ({ meta: [{ title: "طباعة فاتورة مبيعات — ثواب" }] }),
+  head: () => ({ meta: [{ title: "طباعة فاتورة مبيعات" }] }),
   component: PrintPage,
 });
 

@@ -18,7 +18,7 @@ import { DonorOrgCategory, DonorOrgStatus } from "@/lib/enums";
 import { createDonorOrg } from "@/lib/api/donor-orgs";
 
 export const Route = createFileRoute("/donor-orgs_/new")({
-  head: () => ({ meta: [{ title: "جهة مانحة جديدة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "جهة مانحة جديدة" }] }),
   component: NewDonorOrgPage,
 });
 

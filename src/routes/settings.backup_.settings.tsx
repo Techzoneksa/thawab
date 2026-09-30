@@ -16,7 +16,7 @@ import { BackupFrequency } from "@/lib/enums";
 import { getBackup, updateBackupConfig } from "@/lib/api/backup";
 
 export const Route = createFileRoute("/settings/backup_/settings")({
-  head: () => ({ meta: [{ title: "إعدادات النسخ الاحتياطي — ثواب" }] }),
+  head: () => ({ meta: [{ title: "إعدادات النسخ الاحتياطي" }] }),
   component: BackupSettingsPage,
 });
 

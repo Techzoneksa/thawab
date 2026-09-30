@@ -6,7 +6,7 @@ import { getGoodsReceipt } from "@/lib/api/goods-receipts";
 import { GRN_STATUS } from "./procurement.goods-receipts";
 
 export const Route = createFileRoute("/procurement/goods-receipts_/$id/print")({
-  head: () => ({ meta: [{ title: "طباعة سند استلام — ثواب" }] }),
+  head: () => ({ meta: [{ title: "طباعة سند استلام" }] }),
   component: PrintPage,
 });
 

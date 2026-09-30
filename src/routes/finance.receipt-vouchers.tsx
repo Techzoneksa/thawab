@@ -10,7 +10,7 @@ import { useAuth, userCan } from "@/lib/api/auth";
 import { listReceiptVouchers, type ReceiptVoucher } from "@/lib/api/receipt-vouchers";
 
 export const Route = createFileRoute("/finance/receipt-vouchers")({
-  head: () => ({ meta: [{ title: "سندات القبض — ثواب" }] }),
+  head: () => ({ meta: [{ title: "سندات القبض" }] }),
   component: Page,
 });
 

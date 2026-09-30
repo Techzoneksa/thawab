@@ -20,7 +20,7 @@ import { CostCenterStatus as CostCenterStatusEnum } from "@/lib/enums";
 import { createCostCenter, type CostCenterStatus } from "@/lib/api/cost-centers";
 
 export const Route = createFileRoute("/finance/cost-centers_/new")({
-  head: () => ({ meta: [{ title: "مركز تكلفة جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "مركز تكلفة جديد" }] }),
   component: NewCostCenterPage,
 });
 

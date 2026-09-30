@@ -27,7 +27,7 @@ import {
 } from "@/lib/api/accounts";
 
 export const Route = createFileRoute("/finance/accounts_/new")({
-  head: () => ({ meta: [{ title: "حساب جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "حساب جديد" }] }),
   component: NewAccountPage,
 });
 

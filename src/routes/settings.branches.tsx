@@ -23,7 +23,7 @@ import { BranchStatus } from "@/lib/enums";
 import { MapPin, Plus, Pencil, Ban, CheckCircle2, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/settings/branches")({
-  head: () => ({ meta: [{ title: "الفروع — ثواب" }] }),
+  head: () => ({ meta: [{ title: "الفروع" }] }),
   component: () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();

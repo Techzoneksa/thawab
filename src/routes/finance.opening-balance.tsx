@@ -9,7 +9,7 @@ import { getAccounts, type Account } from "@/lib/api/accounts";
 import { getOpeningBalances, postOpeningBalance } from "@/lib/api/opening-balance";
 
 export const Route = createFileRoute("/finance/opening-balance")({
-  head: () => ({ meta: [{ title: "الأرصدة الافتتاحية — ثواب" }] }),
+  head: () => ({ meta: [{ title: "الأرصدة الافتتاحية" }] }),
   component: Page,
 });
 

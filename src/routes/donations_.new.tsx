@@ -24,7 +24,7 @@ import { DonationStatus, DonationMethod, DonationChannel, ProjectStatus } from "
 import { options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/donations_/new")({
-  head: () => ({ meta: [{ title: "تبرع جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تبرع جديد" }] }),
   component: NewDonationPage,
 });
 

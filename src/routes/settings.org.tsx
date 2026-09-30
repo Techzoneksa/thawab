@@ -47,7 +47,7 @@ const EMPTY: Required<OrgSettingsInput> = {
 };
 
 export const Route = createFileRoute("/settings/org")({
-  head: () => ({ meta: [{ title: "إعدادات الجمعية — ثواب" }] }),
+  head: () => ({ meta: [{ title: "إعدادات الجمعية" }] }),
   component: () => {
     const queryClient = useQueryClient();
     const [form, setForm] = useState<Required<OrgSettingsInput>>(EMPTY);
@@ -69,6 +69,7 @@ export const Route = createFileRoute("/settings/org")({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["orgSettings"] });
         queryClient.invalidateQueries({ queryKey: ["org-settings"] });
+        queryClient.invalidateQueries({ queryKey: ["org-brand"] });
         invalidateOrg();
         showToast("تم حفظ التغييرات بنجاح", "success");
       },

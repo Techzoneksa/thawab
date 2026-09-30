@@ -17,7 +17,7 @@ import { IntegrationCategory, IntegrationStatus } from "@/lib/enums";
 import { createIntegration } from "@/lib/api/integrations";
 
 export const Route = createFileRoute("/settings/integrations_/new")({
-  head: () => ({ meta: [{ title: "تكامل جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تكامل جديد" }] }),
   component: NewIntegrationPage,
 });
 

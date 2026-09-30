@@ -18,7 +18,7 @@ import { IntegrationStatus } from "@/lib/enums";
 import { getIntegration, updateIntegration, setIntegrationStatus } from "@/lib/api/integrations";
 
 export const Route = createFileRoute("/settings/integrations_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل تكامل — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل تكامل" }] }),
   component: EditIntegrationPage,
 });
 

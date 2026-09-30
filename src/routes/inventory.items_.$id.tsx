@@ -12,7 +12,7 @@ import { label } from "@/lib/i18n/labels";
 import type { DocumentDefinition } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/inventory/items_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل الصنف — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل الصنف" }] }),
   component: ItemDetailPage,
 });
 

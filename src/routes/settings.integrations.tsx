@@ -26,7 +26,7 @@ import {
 } from "@/lib/api/integrations";
 
 export const Route = createFileRoute("/settings/integrations")({
-  head: () => ({ meta: [{ title: "التكاملات — ثواب" }] }),
+  head: () => ({ meta: [{ title: "التكاملات" }] }),
   component: Page,
 });
 

@@ -10,7 +10,7 @@ import { customerLookup } from "@/lib/api/customers-finance";
 import { createCustomerReceipt } from "@/lib/api/ar-allocation";
 
 export const Route = createFileRoute("/finance/customer-receipts_/new")({
-  head: () => ({ meta: [{ title: "تسجيل تحصيل من عميل — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تسجيل تحصيل من عميل" }] }),
   component: NewReceiptPage,
 });
 

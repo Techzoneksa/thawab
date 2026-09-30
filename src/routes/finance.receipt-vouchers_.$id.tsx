@@ -26,7 +26,7 @@ import type { DocumentDefinition } from "@/lib/documents/types";
 import { RV_STATUS, Timeline, KV, ReasonDialog } from "./finance.receipt-vouchers";
 
 export const Route = createFileRoute("/finance/receipt-vouchers_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل سند قبض — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل سند قبض" }] }),
   component: ReceiptVoucherDetailPage,
 });
 

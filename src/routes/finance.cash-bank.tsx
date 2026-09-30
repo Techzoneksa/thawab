@@ -16,7 +16,7 @@ import {
 } from "@/lib/api/cash-bank";
 
 export const Route = createFileRoute("/finance/cash-bank")({
-  head: () => ({ meta: [{ title: "النقد والبنوك — ثواب" }] }),
+  head: () => ({ meta: [{ title: "النقد والبنوك" }] }),
   component: Page,
 });
 

@@ -18,7 +18,7 @@ import { createApproval } from "@/lib/api/approvals";
 const TYPE_OPTIONS = ["قيد يومية", "طلب شراء", "مساعدة", "ميزانية مشروع", "فاتورة مورد", "أخرى"];
 
 export const Route = createFileRoute("/approvals_/new")({
-  head: () => ({ meta: [{ title: "طلب موافقة جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "طلب موافقة جديد" }] }),
   component: NewApprovalPage,
 });
 

@@ -16,7 +16,7 @@ import { KeyRound, Plus, Pencil, Copy, Trash2 } from "lucide-react";
 import { getRoles, createRole, deleteRole, type Role } from "@/lib/api/roles";
 
 export const Route = createFileRoute("/permissions")({
-  head: () => ({ meta: [{ title: "الصلاحيات — ثواب" }] }),
+  head: () => ({ meta: [{ title: "الصلاحيات" }] }),
   component: Page,
 });
 

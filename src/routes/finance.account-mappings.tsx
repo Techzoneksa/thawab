@@ -14,7 +14,7 @@ import {
 } from "@/lib/api/account-mappings";
 
 export const Route = createFileRoute("/finance/account-mappings")({
-  head: () => ({ meta: [{ title: "ربط الحسابات النظامية — ثواب" }] }),
+  head: () => ({ meta: [{ title: "ربط الحسابات النظامية" }] }),
   component: Page,
 });
 

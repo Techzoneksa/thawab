@@ -10,7 +10,7 @@ import { useAuth, userCan } from "@/lib/api/auth";
 import { listPaymentVouchers, type PaymentVoucher } from "@/lib/api/payment-vouchers";
 
 export const Route = createFileRoute("/finance/payment-vouchers")({
-  head: () => ({ meta: [{ title: "سندات الصرف — ثواب" }] }),
+  head: () => ({ meta: [{ title: "سندات الصرف" }] }),
   component: Page,
 });
 

@@ -16,7 +16,7 @@ import { label, options } from "@/lib/i18n/labels";
 import { getEmployee, updateEmployee, type Employee } from "@/lib/api/hr";
 
 export const Route = createFileRoute("/hr_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل موظف — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل موظف" }] }),
   component: EditEmployeePage,
 });
 

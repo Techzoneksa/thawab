@@ -15,7 +15,7 @@ import { getFinanceSupplier, getSupplierLedger } from "@/lib/api/suppliers-finan
 import type { DocumentDefinition } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/finance/suppliers_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل المورد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل المورد" }] }),
   component: SupplierDetailPage,
 });
 

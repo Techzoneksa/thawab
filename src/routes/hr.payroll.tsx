@@ -19,7 +19,7 @@ import { PayrollStatus } from "@/lib/enums";
 import { getPayrollRuns, deletePayrollRun, type PayrollRun } from "@/lib/api/payroll";
 
 export const Route = createFileRoute("/hr/payroll")({
-  head: () => ({ meta: [{ title: "مسير الرواتب — ثواب" }] }),
+  head: () => ({ meta: [{ title: "مسير الرواتب" }] }),
   component: Page,
 });
 

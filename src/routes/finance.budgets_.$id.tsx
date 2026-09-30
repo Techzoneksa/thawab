@@ -18,7 +18,7 @@ import {
 import type { DocumentDefinition } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/finance/budgets_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل الموازنة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل الموازنة" }] }),
   component: BudgetDetailPage,
 });
 

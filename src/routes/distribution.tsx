@@ -8,7 +8,7 @@ import { ExportButton } from "@/components/erp/actions";
 type RegionItem = { n: string; b: number; v: number };
 
 export const Route = createFileRoute("/distribution")({
-  head: () => ({ meta: [{ title: "تقارير التوزيع — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تقارير التوزيع" }] }),
   component: () => {
     const [regions] = useState<RegionItem[]>([
       { n: "الرياض", b: 4120, v: 980000 },

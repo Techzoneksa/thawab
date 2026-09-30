@@ -16,7 +16,7 @@ import { label, options } from "@/lib/i18n/labels";
 import { getBranch, updateBranch, type Branch } from "@/lib/api/branches";
 
 export const Route = createFileRoute("/settings/branches_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل فرع — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل فرع" }] }),
   component: EditBranchPage,
 });
 

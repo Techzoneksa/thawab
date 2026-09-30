@@ -10,7 +10,7 @@ import { useAuth, userCan } from "@/lib/api/auth";
 import { listSalesInvoices, type SalesInvoice } from "@/lib/api/sales-invoices";
 
 export const Route = createFileRoute("/finance/sales-invoices")({
-  head: () => ({ meta: [{ title: "فواتير المبيعات — ثواب" }] }),
+  head: () => ({ meta: [{ title: "فواتير المبيعات" }] }),
   component: Page,
 });
 

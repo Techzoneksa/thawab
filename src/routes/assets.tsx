@@ -23,7 +23,7 @@ import { DocumentActions } from "@/components/documents/DocumentActions";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/assets")({
-  head: () => ({ meta: [{ title: "الأصول الثابتة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "الأصول الثابتة" }] }),
   component: Page,
 });
 

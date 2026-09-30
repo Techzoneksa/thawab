@@ -30,7 +30,7 @@ import {
 import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/assets_/new")({
-  head: () => ({ meta: [{ title: "أصل جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "أصل جديد" }] }),
   component: NewAssetPage,
 });
 

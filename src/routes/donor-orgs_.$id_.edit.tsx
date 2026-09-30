@@ -25,7 +25,7 @@ import {
 } from "@/lib/api/donor-orgs";
 
 export const Route = createFileRoute("/donor-orgs_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل جهة مانحة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل جهة مانحة" }] }),
   component: EditDonorOrgPage,
 });
 

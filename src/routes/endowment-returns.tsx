@@ -31,7 +31,7 @@ import {
 } from "@/lib/api/endowment-returns";
 
 export const Route = createFileRoute("/endowment-returns")({
-  head: () => ({ meta: [{ title: "عوائد الأوقاف — ثواب" }] }),
+  head: () => ({ meta: [{ title: "عوائد الأوقاف" }] }),
   component: Page,
 });
 

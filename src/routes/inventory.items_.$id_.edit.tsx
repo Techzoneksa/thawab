@@ -46,7 +46,7 @@ const CATEGORIES = [
 ];
 
 export const Route = createFileRoute("/inventory/items_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل صنف — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل صنف" }] }),
   component: EditItemPage,
 });
 

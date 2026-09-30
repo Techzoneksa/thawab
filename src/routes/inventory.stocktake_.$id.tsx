@@ -21,7 +21,7 @@ import { label } from "@/lib/i18n/labels";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/inventory/stocktake_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل الجرد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل الجرد" }] }),
   component: StocktakeDetailPage,
 });
 

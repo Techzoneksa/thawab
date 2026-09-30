@@ -17,7 +17,7 @@ import { label, options } from "@/lib/i18n/labels";
 import { getGrant, updateGrant, type Grant } from "@/lib/api/grants";
 
 export const Route = createFileRoute("/grants_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل منحة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل منحة" }] }),
   component: EditGrantPage,
 });
 

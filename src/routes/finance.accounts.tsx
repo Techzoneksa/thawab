@@ -56,7 +56,7 @@ import {
 } from "@/lib/api/data-io";
 
 export const Route = createFileRoute("/finance/accounts")({
-  head: () => ({ meta: [{ title: "دليل الحسابات — ثواب" }] }),
+  head: () => ({ meta: [{ title: "دليل الحسابات" }] }),
   component: Page,
 });
 

@@ -10,7 +10,7 @@ import { useAuth, userCan } from "@/lib/api/auth";
 import { listPurchaseOrders, type PurchaseOrder } from "@/lib/api/governed-purchase-orders";
 
 export const Route = createFileRoute("/procurement/purchase-orders")({
-  head: () => ({ meta: [{ title: "أوامر الشراء — ثواب" }] }),
+  head: () => ({ meta: [{ title: "أوامر الشراء" }] }),
   component: Page,
 });
 

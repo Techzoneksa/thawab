@@ -26,7 +26,7 @@ import {
 } from "@/lib/api/cost-centers";
 
 export const Route = createFileRoute("/finance/cost-centers_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل مركز تكلفة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل مركز تكلفة" }] }),
   component: EditCostCenterPage,
 });
 

@@ -54,7 +54,7 @@ const CATEGORIES = [
 ];
 
 export const Route = createFileRoute("/assets_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل أصل — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل أصل" }] }),
   component: EditAssetPage,
 });
 

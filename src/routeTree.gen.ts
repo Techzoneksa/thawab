@@ -195,6 +195,7 @@ import { Route as AssetsIdEditRouteImport } from './routes/assets_.$id_.edit'
 import { Route as ApiSettingsWebhooksRouteImport } from './routes/api/settings/webhooks'
 import { Route as ApiSettingsOrgRouteImport } from './routes/api/settings/org'
 import { Route as ApiSettingsIntegrationsRouteImport } from './routes/api/settings/integrations'
+import { Route as ApiSettingsBrandRouteImport } from './routes/api/settings/brand'
 import { Route as ApiSettingsBranchesRouteImport } from './routes/api/settings/branches'
 import { Route as ApiSettingsBackupRouteImport } from './routes/api/settings/backup'
 import { Route as ApiReportsSummaryRouteImport } from './routes/api/reports/summary'
@@ -1218,6 +1219,11 @@ const ApiSettingsIntegrationsRoute = ApiSettingsIntegrationsRouteImport.update({
   path: '/api/settings/integrations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSettingsBrandRoute = ApiSettingsBrandRouteImport.update({
+  id: '/api/settings/brand',
+  path: '/api/settings/brand',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSettingsBranchesRoute = ApiSettingsBranchesRouteImport.update({
   id: '/api/settings/branches',
   path: '/api/settings/branches',
@@ -1777,6 +1783,7 @@ export interface FileRoutesByFullPath {
   '/api/reports/summary': typeof ApiReportsSummaryRoute
   '/api/settings/backup': typeof ApiSettingsBackupRoute
   '/api/settings/branches': typeof ApiSettingsBranchesRoute
+  '/api/settings/brand': typeof ApiSettingsBrandRoute
   '/api/settings/integrations': typeof ApiSettingsIntegrationsRoute
   '/api/settings/org': typeof ApiSettingsOrgRoute
   '/api/settings/webhooks': typeof ApiSettingsWebhooksRoute
@@ -2039,6 +2046,7 @@ export interface FileRoutesByTo {
   '/api/reports/summary': typeof ApiReportsSummaryRoute
   '/api/settings/backup': typeof ApiSettingsBackupRoute
   '/api/settings/branches': typeof ApiSettingsBranchesRoute
+  '/api/settings/brand': typeof ApiSettingsBrandRoute
   '/api/settings/integrations': typeof ApiSettingsIntegrationsRoute
   '/api/settings/org': typeof ApiSettingsOrgRoute
   '/api/settings/webhooks': typeof ApiSettingsWebhooksRoute
@@ -2302,6 +2310,7 @@ export interface FileRoutesById {
   '/api/reports/summary': typeof ApiReportsSummaryRoute
   '/api/settings/backup': typeof ApiSettingsBackupRoute
   '/api/settings/branches': typeof ApiSettingsBranchesRoute
+  '/api/settings/brand': typeof ApiSettingsBrandRoute
   '/api/settings/integrations': typeof ApiSettingsIntegrationsRoute
   '/api/settings/org': typeof ApiSettingsOrgRoute
   '/api/settings/webhooks': typeof ApiSettingsWebhooksRoute
@@ -2566,6 +2575,7 @@ export interface FileRouteTypes {
     | '/api/reports/summary'
     | '/api/settings/backup'
     | '/api/settings/branches'
+    | '/api/settings/brand'
     | '/api/settings/integrations'
     | '/api/settings/org'
     | '/api/settings/webhooks'
@@ -2828,6 +2838,7 @@ export interface FileRouteTypes {
     | '/api/reports/summary'
     | '/api/settings/backup'
     | '/api/settings/branches'
+    | '/api/settings/brand'
     | '/api/settings/integrations'
     | '/api/settings/org'
     | '/api/settings/webhooks'
@@ -3090,6 +3101,7 @@ export interface FileRouteTypes {
     | '/api/reports/summary'
     | '/api/settings/backup'
     | '/api/settings/branches'
+    | '/api/settings/brand'
     | '/api/settings/integrations'
     | '/api/settings/org'
     | '/api/settings/webhooks'
@@ -3351,6 +3363,7 @@ export interface RootRouteChildren {
   ApiReportsSummaryRoute: typeof ApiReportsSummaryRoute
   ApiSettingsBackupRoute: typeof ApiSettingsBackupRoute
   ApiSettingsBranchesRoute: typeof ApiSettingsBranchesRoute
+  ApiSettingsBrandRoute: typeof ApiSettingsBrandRoute
   ApiSettingsIntegrationsRoute: typeof ApiSettingsIntegrationsRoute
   ApiSettingsOrgRoute: typeof ApiSettingsOrgRoute
   ApiSettingsWebhooksRoute: typeof ApiSettingsWebhooksRoute
@@ -4744,6 +4757,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSettingsIntegrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/settings/brand': {
+      id: '/api/settings/brand'
+      path: '/api/settings/brand'
+      fullPath: '/api/settings/brand'
+      preLoaderRoute: typeof ApiSettingsBrandRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/settings/branches': {
       id: '/api/settings/branches'
       path: '/api/settings/branches'
@@ -5573,6 +5593,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiReportsSummaryRoute: ApiReportsSummaryRoute,
   ApiSettingsBackupRoute: ApiSettingsBackupRoute,
   ApiSettingsBranchesRoute: ApiSettingsBranchesRoute,
+  ApiSettingsBrandRoute: ApiSettingsBrandRoute,
   ApiSettingsIntegrationsRoute: ApiSettingsIntegrationsRoute,
   ApiSettingsOrgRoute: ApiSettingsOrgRoute,
   ApiSettingsWebhooksRoute: ApiSettingsWebhooksRoute,

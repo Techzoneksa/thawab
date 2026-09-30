@@ -6,7 +6,7 @@ import { fmtSAR } from "@/data/sample";
 import { getArAging, getArAgingByCustomer } from "@/lib/api/sales-invoices";
 
 export const Route = createFileRoute("/finance/ar-aging")({
-  head: () => ({ meta: [{ title: "أعمار الذمم المدينة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "أعمار الذمم المدينة" }] }),
   component: Page,
 });
 

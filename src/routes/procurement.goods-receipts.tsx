@@ -10,7 +10,7 @@ import { useAuth, userCan } from "@/lib/api/auth";
 import { listGoodsReceipts, type GoodsReceipt } from "@/lib/api/goods-receipts";
 
 export const Route = createFileRoute("/procurement/goods-receipts")({
-  head: () => ({ meta: [{ title: "سندات الاستلام — ثواب" }] }),
+  head: () => ({ meta: [{ title: "سندات الاستلام" }] }),
   component: Page,
 });
 

@@ -19,7 +19,7 @@ import { FiscalPeriodStatus } from "@/lib/enums";
 import { getPeriod, updatePeriod, closePeriod, reopenPeriod } from "@/lib/api/periods";
 
 export const Route = createFileRoute("/finance/closing_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل فترة مالية — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل فترة مالية" }] }),
   component: EditPeriodPage,
 });
 

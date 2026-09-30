@@ -17,7 +17,7 @@ import { FiscalPeriodStatus } from "@/lib/enums";
 import { createPeriod } from "@/lib/api/periods";
 
 export const Route = createFileRoute("/finance/closing_/new")({
-  head: () => ({ meta: [{ title: "فترة مالية جديدة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "فترة مالية جديدة" }] }),
   component: NewPeriodPage,
 });
 

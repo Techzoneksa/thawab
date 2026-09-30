@@ -25,7 +25,7 @@ import { DonorType, DonorTag } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/donors_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل متبرع — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل متبرع" }] }),
   component: EditDonorPage,
 });
 

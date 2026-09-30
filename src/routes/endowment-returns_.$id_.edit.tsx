@@ -23,7 +23,7 @@ import {
 } from "@/lib/api/endowment-returns";
 
 export const Route = createFileRoute("/endowment-returns_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل عائد وقف — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل عائد وقف" }] }),
   component: EditEndowmentReturnPage,
 });
 

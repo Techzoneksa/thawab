@@ -17,7 +17,7 @@ import { label, options } from "@/lib/i18n/labels";
 import { createGrant } from "@/lib/api/grants";
 
 export const Route = createFileRoute("/grants_/new")({
-  head: () => ({ meta: [{ title: "منحة جديدة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "منحة جديدة" }] }),
   component: NewGrantPage,
 });
 

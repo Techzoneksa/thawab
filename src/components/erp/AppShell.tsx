@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/api/auth";
 import { getNotifications } from "@/lib/api/notifications";
-import { getOrgSettings } from "@/lib/api/org-settings";
+import { getOrgSettings, useOrgName, orgInitial } from "@/lib/api/org-settings";
 import {
   LayoutDashboard,
   Bell,
@@ -231,6 +231,7 @@ function useBodyScrollLock(locked: boolean) {
 }
 
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const orgName = useOrgName();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   useBodyScrollLock(open);
   return (
@@ -251,10 +252,12 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
         <div className="flex items-center justify-between gap-3 px-5 py-5 border-b border-white/10">
           <div className="flex items-center gap-3 min-w-0">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary to-info text-white font-extrabold">
-              ث
+              {orgInitial(orgName)}
             </div>
             <div className="min-w-0">
-              <div className="font-extrabold truncate">ثواب</div>
+              <div className="font-extrabold truncate" title={orgName}>
+                {orgName || "الجمعية"}
+              </div>
               <div className="text-[11px] text-nav-muted truncate">نظام إدارة الجمعيات الخيرية</div>
             </div>
           </div>
@@ -362,6 +365,7 @@ function Topbar({
   aiOpen: boolean;
   setAiOpen: (v: boolean) => void;
 }) {
+  const orgName = useOrgName();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user } = useAuth();
   const { data: orgData } = useQuery({
@@ -472,7 +476,7 @@ function Topbar({
         >
           <Menu size={22} />
         </button>
-        <h1 className="flex-1 text-base font-bold truncate px-1 min-w-0">{pageTitle || "ثواب"}</h1>
+        <h1 className="flex-1 text-base font-bold truncate px-1 min-w-0">{pageTitle || orgName || "الرئيسية"}</h1>
         {AI_ASSISTANT_ENABLED && (
           <button
             onClick={() => setAiOpen(true)}
@@ -705,6 +709,7 @@ export function AppShell({
   breadcrumb?: string[];
   actions?: ReactNode;
 }) {
+  const orgName = useOrgName();
   const [open, setOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
 
@@ -745,7 +750,7 @@ export function AppShell({
           {children}
         </main>
         <footer className="hidden lg:flex border-t bg-surface px-6 py-3 text-[11px] text-muted-foreground flex-wrap items-center justify-between gap-2">
-          <span>© {hijriYear()}هـ — ثواب. مستضاف داخل المملكة العربية السعودية.</span>
+          <span>© {hijriYear()}هـ — {orgName || "الجمعية"}. مستضاف داخل المملكة العربية السعودية.</span>
           <span>نظام خاص لإدارة الجمعيات والجهات الخيرية</span>
         </footer>
       </div>

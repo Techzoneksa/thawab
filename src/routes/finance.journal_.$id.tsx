@@ -15,7 +15,7 @@ import {
 import type { DocumentDefinition } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/finance/journal_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل قيد اليومية — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل قيد اليومية" }] }),
   component: JournalDetailPage,
 });
 

@@ -28,7 +28,7 @@ import { WarehouseStatus } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/inventory/warehouses_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل مستودع — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل مستودع" }] }),
   component: EditWarehousePage,
 });
 

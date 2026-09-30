@@ -19,7 +19,7 @@ import { InventoryItemStatus, WarehouseStatus } from "@/lib/enums";
 import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/inventory/items_/new")({
-  head: () => ({ meta: [{ title: "صنف جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "صنف جديد" }] }),
   component: NewItemPage,
 });
 

@@ -15,7 +15,7 @@ import {
 } from "@/lib/api/customers-finance";
 
 export const Route = createFileRoute("/finance/customers")({
-  head: () => ({ meta: [{ title: "العملاء والذمم المدينة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "العملاء والذمم المدينة" }] }),
   component: Page,
 });
 

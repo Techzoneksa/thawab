@@ -10,7 +10,7 @@ import { getApproval, actOnApproval, type ApprovalAction } from "@/lib/api/appro
 import { ApprovalStatus, Priority } from "@/lib/enums";
 
 export const Route = createFileRoute("/approvals_/$id")({
-  head: () => ({ meta: [{ title: "مراجعة طلب موافقة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "مراجعة طلب موافقة" }] }),
   component: ApprovalDetailPage,
 });
 

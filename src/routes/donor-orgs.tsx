@@ -31,7 +31,7 @@ import {
 } from "@/lib/api/donor-orgs";
 
 export const Route = createFileRoute("/donor-orgs")({
-  head: () => ({ meta: [{ title: "الجهات المانحة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "الجهات المانحة" }] }),
   component: Page,
 });
 

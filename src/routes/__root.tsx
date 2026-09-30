@@ -153,19 +153,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
       { name: "theme-color", content: "#ffffff" },
       { name: "mobile-web-app-capable", content: "yes" },
-      { title: "ثواب — نظام إدارة الجمعيات والجهات الخيرية" },
+      { title: "نظام إدارة الجمعيات والجهات الخيرية" },
       {
         name: "description",
         content: "نظام خاص لإدارة الجمعيات والجهات الخيرية في المملكة العربية السعودية.",
       },
       { name: "author", content: "Techzone" },
-      { property: "og:title", content: "ثواب — نظام إدارة الجمعيات والجهات الخيرية" },
+      { property: "og:title", content: "نظام إدارة الجمعيات والجهات الخيرية" },
       {
         property: "og:description",
         content: "نظام خاص لإدارة الجمعيات والجهات الخيرية في المملكة العربية السعودية.",
       },
       { property: "og:type", content: "website" },
-      { name: "twitter:title", content: "ثواب — نظام إدارة الجمعيات والجهات الخيرية" },
+      { name: "twitter:title", content: "نظام إدارة الجمعيات والجهات الخيرية" },
       {
         name: "twitter:description",
         content: "نظام خاص لإدارة الجمعيات والجهات الخيرية في المملكة العربية السعودية.",

@@ -39,7 +39,7 @@ import { DocumentActions } from "@/components/documents/DocumentActions";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/receipts")({
-  head: () => ({ meta: [{ title: "الإيصالات الإلكترونية — ثواب" }] }),
+  head: () => ({ meta: [{ title: "الإيصالات الإلكترونية" }] }),
   component: Page,
 });
 
@@ -449,7 +449,7 @@ function ReceiptPrintDrawer({ receipt, onClose }: { receipt: Receipt; onClose: (
     <div className="print-only">
       <div className="p-8" dir="rtl">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold">ثواب — نظام إدارة الجمعيات الخيرية</h1>
+          {orgName && <h1 className="text-2xl font-bold">{orgName}</h1>}
           <h2 className="text-xl font-semibold mt-2">إيصال استلام تبرع</h2>
         </div>
         <div className="space-y-4">

@@ -12,7 +12,7 @@ import {
 } from "@/lib/api/purchase-orders";
 
 export const Route = createFileRoute("/procurement/orders_/$id_/receive")({
-  head: () => ({ meta: [{ title: "تسجيل الاستلام — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تسجيل الاستلام" }] }),
   component: ReceivePurchaseOrderPage,
 });
 

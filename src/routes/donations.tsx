@@ -56,7 +56,7 @@ import { DocumentActions } from "@/components/documents/DocumentActions";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/donations")({
-  head: () => ({ meta: [{ title: "إدارة التبرعات — ثواب" }] }),
+  head: () => ({ meta: [{ title: "إدارة التبرعات" }] }),
   component: Page,
 });
 

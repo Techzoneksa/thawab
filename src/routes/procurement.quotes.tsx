@@ -15,7 +15,7 @@ import { DocumentActions } from "@/components/documents/DocumentActions";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/procurement/quotes")({
-  head: () => ({ meta: [{ title: "عروض الأسعار — ثواب" }] }),
+  head: () => ({ meta: [{ title: "عروض الأسعار" }] }),
   component: Page,
 });
 

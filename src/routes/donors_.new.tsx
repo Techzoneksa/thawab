@@ -22,7 +22,7 @@ import { DonorType, DonorTag } from "@/lib/enums";
 import { options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/donors_/new")({
-  head: () => ({ meta: [{ title: "متبرع جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "متبرع جديد" }] }),
   component: NewDonorPage,
 });
 

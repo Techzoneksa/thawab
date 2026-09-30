@@ -15,7 +15,7 @@ import { showToast } from "@/components/erp/actions";
 import { getRole, updateRole } from "@/lib/api/roles";
 
 export const Route = createFileRoute("/permissions_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل دور — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل دور" }] }),
   component: EditRolePage,
 });
 

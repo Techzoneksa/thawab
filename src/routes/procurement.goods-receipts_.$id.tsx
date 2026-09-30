@@ -27,7 +27,7 @@ const GRNI_NOTE =
 type ReasonAction = "return" | "reject" | "reverse";
 
 export const Route = createFileRoute("/procurement/goods-receipts_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل سند استلام — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل سند استلام" }] }),
   component: GoodsReceiptDetailPage,
 });
 

@@ -17,7 +17,7 @@ import { ReportType, ReportPeriod, ReportFormat } from "@/lib/enums";
 import { createSavedReport } from "@/lib/api/saved-reports";
 
 export const Route = createFileRoute("/reports_/new")({
-  head: () => ({ meta: [{ title: "تقرير جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تقرير جديد" }] }),
   component: NewReportPage,
 });
 

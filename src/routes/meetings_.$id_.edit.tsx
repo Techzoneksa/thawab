@@ -17,7 +17,7 @@ import { label, options } from "@/lib/i18n/labels";
 import { getMeeting, updateMeeting, type Meeting } from "@/lib/api/meetings";
 
 export const Route = createFileRoute("/meetings_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل اجتماع — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل اجتماع" }] }),
   component: EditMeetingPage,
 });
 

@@ -22,7 +22,7 @@ import { StocktakeStatus, WarehouseStatus } from "@/lib/enums";
 import { label } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/inventory/stocktake_/new")({
-  head: () => ({ meta: [{ title: "جرد جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "جرد جديد" }] }),
   component: NewStocktakePage,
 });
 

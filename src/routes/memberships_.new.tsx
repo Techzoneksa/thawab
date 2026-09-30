@@ -16,7 +16,7 @@ import { label, options } from "@/lib/i18n/labels";
 import { createMembership } from "@/lib/api/memberships";
 
 export const Route = createFileRoute("/memberships_/new")({
-  head: () => ({ meta: [{ title: "عضو جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "عضو جديد" }] }),
   component: NewMembershipPage,
 });
 

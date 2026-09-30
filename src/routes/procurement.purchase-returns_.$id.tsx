@@ -11,7 +11,7 @@ import { getPurchaseReturn, purchaseReturnAction } from "@/lib/api/purchase-retu
 import type { DocumentDefinition } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/procurement/purchase-returns_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل مرتجع مشتريات — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل مرتجع مشتريات" }] }),
   component: PurchaseReturnDetailPage,
 });
 

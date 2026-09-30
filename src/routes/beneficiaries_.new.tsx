@@ -28,7 +28,7 @@ import { BeneficiaryStatus, BeneficiaryCategory, MaritalStatus } from "@/lib/enu
 import { label, options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/beneficiaries_/new")({
-  head: () => ({ meta: [{ title: "مستفيد جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "مستفيد جديد" }] }),
   component: NewBeneficiaryPage,
 });
 

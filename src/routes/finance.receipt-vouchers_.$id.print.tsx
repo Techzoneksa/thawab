@@ -6,7 +6,7 @@ import { getReceiptVoucher } from "@/lib/api/receipt-vouchers";
 import { RV_STATUS } from "./finance.receipt-vouchers";
 
 export const Route = createFileRoute("/finance/receipt-vouchers_/$id/print")({
-  head: () => ({ meta: [{ title: "طباعة سند قبض — ثواب" }] }),
+  head: () => ({ meta: [{ title: "طباعة سند قبض" }] }),
   component: PrintPage,
 });
 

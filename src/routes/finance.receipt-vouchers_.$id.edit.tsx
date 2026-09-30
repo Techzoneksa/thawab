@@ -2,7 +2,7 @@ import { createFileRoute, useParams } from "@tanstack/react-router";
 import { ReceiptVoucherForm } from "@/components/finance/ReceiptVoucherForm";
 
 export const Route = createFileRoute("/finance/receipt-vouchers_/$id/edit")({
-  head: () => ({ meta: [{ title: "تعديل سند قبض — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل سند قبض" }] }),
   component: EditReceiptVoucherPage,
 });
 

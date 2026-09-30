@@ -18,7 +18,7 @@ import { options } from "@/lib/i18n/labels";
 import { createPurchaseRequest } from "@/lib/api/purchase-requests";
 
 export const Route = createFileRoute("/procurement/requests_/new")({
-  head: () => ({ meta: [{ title: "طلب شراء جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "طلب شراء جديد" }] }),
   component: NewRequestPage,
 });
 

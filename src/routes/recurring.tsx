@@ -33,7 +33,7 @@ import {
 } from "@/lib/api/recurring";
 
 export const Route = createFileRoute("/recurring")({
-  head: () => ({ meta: [{ title: "التبرعات المتكررة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "التبرعات المتكررة" }] }),
   component: Page,
 });
 

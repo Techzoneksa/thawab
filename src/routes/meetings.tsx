@@ -15,7 +15,7 @@ import { useState } from "react";
 import { showToast, ConfirmDialog, ActionMenu, EmptyState } from "@/components/erp/actions";
 
 export const Route = createFileRoute("/meetings")({
-  head: () => ({ meta: [{ title: "الاجتماعات — ثواب" }] }),
+  head: () => ({ meta: [{ title: "الاجتماعات" }] }),
   component: () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();

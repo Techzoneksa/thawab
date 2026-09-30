@@ -23,7 +23,7 @@ import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 import { getLedgerMovements, type LedgerMovement, type LedgerOptions } from "@/lib/api/ledger";
 
 export const Route = createFileRoute("/finance/ledger")({
-  head: () => ({ meta: [{ title: "دفتر الأستاذ — ثواب" }] }),
+  head: () => ({ meta: [{ title: "دفتر الأستاذ" }] }),
   component: Page,
 });
 

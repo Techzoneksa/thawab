@@ -25,7 +25,7 @@ import { getAccounts } from "@/lib/api/accounts";
 import { createBudget, type BudgetStatus } from "@/lib/api/budgets";
 
 export const Route = createFileRoute("/finance/budgets_/new")({
-  head: () => ({ meta: [{ title: "موازنة جديدة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "موازنة جديدة" }] }),
   component: NewBudgetPage,
 });
 

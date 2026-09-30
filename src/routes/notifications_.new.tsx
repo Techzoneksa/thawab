@@ -23,7 +23,7 @@ const TONE_BADGE: Record<string, "info" | "warning" | "destructive" | "success">
 };
 
 export const Route = createFileRoute("/notifications_/new")({
-  head: () => ({ meta: [{ title: "تنبيه جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تنبيه جديد" }] }),
   component: NewNotificationPage,
 });
 

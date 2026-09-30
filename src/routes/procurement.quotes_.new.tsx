@@ -20,7 +20,7 @@ import { getPurchaseRequests, type PurchaseRequest } from "@/lib/api/purchase-re
 import { createQuote, type QuoteStatus } from "@/lib/api/quotes";
 
 export const Route = createFileRoute("/procurement/quotes_/new")({
-  head: () => ({ meta: [{ title: "عرض سعر جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "عرض سعر جديد" }] }),
   component: NewQuotePage,
 });
 

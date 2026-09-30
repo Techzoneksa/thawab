@@ -12,7 +12,7 @@ import { ShoppingCart } from "lucide-react";
  * redirects to the governed Purchase Orders page.
  */
 export const Route = createFileRoute("/procurement/orders_/new")({
-  head: () => ({ meta: [{ title: "أمر شراء محكوم — ثواب" }] }),
+  head: () => ({ meta: [{ title: "أمر شراء محكوم" }] }),
   component: LegacyCreateRetired,
 });
 

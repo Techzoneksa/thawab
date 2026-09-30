@@ -8,7 +8,7 @@ import { getAuditEntry } from "@/lib/api/audit";
 import type { DocumentDefinition, DocMeta } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/audit_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل سجل التدقيق — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل سجل التدقيق" }] }),
   component: AuditDetailPage,
 });
 

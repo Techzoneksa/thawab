@@ -18,7 +18,7 @@ import { label } from "@/lib/i18n/labels";
 import { UserStatus } from "@/lib/enums";
 
 export const Route = createFileRoute("/settings/users_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل مستخدم — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل مستخدم" }] }),
   component: EditUserPage,
 });
 

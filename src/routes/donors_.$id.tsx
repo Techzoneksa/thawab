@@ -32,7 +32,7 @@ import { DonorTag } from "@/lib/enums";
 import { label } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/donors_/$id")({
-  head: () => ({ meta: [{ title: "ملف المتبرع — ثواب" }] }),
+  head: () => ({ meta: [{ title: "ملف المتبرع" }] }),
   component: Page,
 });
 

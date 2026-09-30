@@ -23,7 +23,7 @@ import { AidType, BeneficiaryStatus, ProjectStatus } from "@/lib/enums";
 import { options } from "@/lib/i18n/labels";
 
 export const Route = createFileRoute("/aid_/new")({
-  head: () => ({ meta: [{ title: "مساعدة جديدة — ثواب" }] }),
+  head: () => ({ meta: [{ title: "مساعدة جديدة" }] }),
   component: NewAidPage,
 });
 

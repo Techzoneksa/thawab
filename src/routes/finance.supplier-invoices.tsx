@@ -10,7 +10,7 @@ import { useAuth, userCan } from "@/lib/api/auth";
 import { listSupplierInvoices, type SupplierInvoice } from "@/lib/api/supplier-invoices";
 
 export const Route = createFileRoute("/finance/supplier-invoices")({
-  head: () => ({ meta: [{ title: "فواتير الموردين — ثواب" }] }),
+  head: () => ({ meta: [{ title: "فواتير الموردين" }] }),
   component: Page,
 });
 

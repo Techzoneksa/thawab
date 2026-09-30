@@ -9,7 +9,7 @@ import { showToast } from "@/components/erp/actions";
 import { createRole } from "@/lib/api/roles";
 
 export const Route = createFileRoute("/permissions_/new")({
-  head: () => ({ meta: [{ title: "دور جديد — ثواب" }] }),
+  head: () => ({ meta: [{ title: "دور جديد" }] }),
   component: NewRolePage,
 });
 

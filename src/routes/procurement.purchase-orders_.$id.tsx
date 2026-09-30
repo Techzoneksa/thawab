@@ -15,7 +15,7 @@ import {
 import type { DocumentDefinition } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/procurement/purchase-orders_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل أمر شراء — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل أمر شراء" }] }),
   component: PurchaseOrderDetailPage,
 });
 

@@ -18,7 +18,7 @@ import { label } from "@/lib/i18n/labels";
 import { getBackup, runBackup, deleteBackupRecord, type BackupRecord } from "@/lib/api/backup";
 
 export const Route = createFileRoute("/settings/backup")({
-  head: () => ({ meta: [{ title: "النسخ الاحتياطي — ثواب" }] }),
+  head: () => ({ meta: [{ title: "النسخ الاحتياطي" }] }),
   component: Page,
 });
 

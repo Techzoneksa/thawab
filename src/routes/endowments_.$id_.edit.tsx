@@ -17,7 +17,7 @@ import { label, options } from "@/lib/i18n/labels";
 import { getEndowment, updateEndowment, type Endowment } from "@/lib/api/endowments";
 
 export const Route = createFileRoute("/endowments_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل وقف — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل وقف" }] }),
   component: EditEndowmentPage,
 });
 

@@ -21,7 +21,7 @@ import { getSuppliers } from "@/lib/api/suppliers";
 import type { DocumentDefinition } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/procurement/orders_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل أمر الشراء — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل أمر الشراء" }] }),
   component: PurchaseOrderDetailPage,
 });
 

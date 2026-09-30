@@ -25,7 +25,7 @@ import {
 } from "@/lib/api/recurring";
 
 export const Route = createFileRoute("/recurring_/$id_/edit")({
-  head: () => ({ meta: [{ title: "تعديل تبرع متكرر — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تعديل تبرع متكرر" }] }),
   component: EditRecurringPage,
 });
 

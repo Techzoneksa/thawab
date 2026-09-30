@@ -22,7 +22,7 @@ import {
 } from "@/lib/api/notifications";
 
 export const Route = createFileRoute("/notifications")({
-  head: () => ({ meta: [{ title: "التنبيهات — ثواب" }] }),
+  head: () => ({ meta: [{ title: "التنبيهات" }] }),
   component: Page,
 });
 

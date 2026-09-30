@@ -11,7 +11,7 @@ import { getFinanceCustomer, getCustomerLedger } from "@/lib/api/customers-finan
 import type { DocumentDefinition } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/finance/customers_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل العميل — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل العميل" }] }),
   component: CustomerDetailPage,
 });
 

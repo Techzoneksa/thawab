@@ -22,7 +22,7 @@ import { getQuote, acceptQuote, rejectQuote, deleteQuote, type Quote } from "@/l
 import type { DocumentDefinition } from "@/lib/documents/types";
 
 export const Route = createFileRoute("/procurement/quotes_/$id")({
-  head: () => ({ meta: [{ title: "تفاصيل عرض سعر — ثواب" }] }),
+  head: () => ({ meta: [{ title: "تفاصيل عرض سعر" }] }),
   component: QuoteDetailPage,
 });
 

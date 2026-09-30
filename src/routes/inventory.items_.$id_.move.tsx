@@ -16,7 +16,7 @@ import {
 import { getWarehouses } from "@/lib/api/warehouses";
 
 export const Route = createFileRoute("/inventory/items_/$id_/move")({
-  head: () => ({ meta: [{ title: "حركة مخزون — ثواب" }] }),
+  head: () => ({ meta: [{ title: "حركة مخزون" }] }),
   component: MoveItemPage,
 });
 
