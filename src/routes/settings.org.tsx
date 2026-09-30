@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { invalidateOrg } from "@/lib/documents/org";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppShell, Card, Btn, Badge, MobilePageHeader } from "@/components/erp/AppShell";
@@ -7,7 +8,8 @@ import { getOrgSettings, saveOrgSettings, type OrgSettingsInput } from "@/lib/ap
 
 const FIELDS: { l: string; k: keyof OrgSettingsInput }[] = [
   { l: "اسم الجمعية", k: "name" },
-  { l: "رقم التسجيل بالمركز الوطني", k: "regNo" },
+  { l: "الرقم الموحد للمنشأة", k: "unifiedNo" },
+  { l: "رقم الترخيص (المركز الوطني)", k: "regNo" },
   { l: "الرقم الضريبي", k: "taxNo" },
   { l: "البريد الإلكتروني", k: "email" },
   { l: "الجوال", k: "phone" },
@@ -29,6 +31,7 @@ const NATIONAL_FIELDS: { l: string; k: keyof OrgSettingsInput }[] = [
 const EMPTY: Required<OrgSettingsInput> = {
   name: "",
   regNo: "",
+  unifiedNo: "",
   taxNo: "",
   email: "",
   phone: "",
@@ -65,6 +68,8 @@ export const Route = createFileRoute("/settings/org")({
       mutationFn: saveOrgSettings,
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["orgSettings"] });
+        queryClient.invalidateQueries({ queryKey: ["org-settings"] });
+        invalidateOrg();
         showToast("تم حفظ التغييرات بنجاح", "success");
       },
       onError: (e: Error) => showToast(e.message, "error"),

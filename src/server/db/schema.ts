@@ -1981,6 +1981,8 @@ export const orgSettings = pgTable("org_settings", {
   id: text("id").primaryKey(),
   name: text("name").default(""),
   regNo: text("reg_no").default(""),
+  // الرقم الوطني الموحد للمنشأة (7xxxxxxxxx) — not a phone number.
+  unifiedNo: text("unified_no").default(""),
   taxNo: text("tax_no").default(""),
   email: text("email").default(""),
   phone: text("phone").default(""),

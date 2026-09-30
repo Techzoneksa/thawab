@@ -198,6 +198,17 @@ let scrollLockCount = 0;
 let scrollLockPrevOverflow = "";
 let scrollLockPrevPadRight = "";
 
+/** Current Hijri (Umm al-Qura) year, e.g. "1448". */
+function hijriYear(): string {
+  try {
+    return new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn", { year: "numeric" })
+      .format(new Date())
+      .replace(/\D/g, "");
+  } catch {
+    return "";
+  }
+}
+
 function useBodyScrollLock(locked: boolean) {
   useEffect(() => {
     if (!locked) return;
@@ -734,7 +745,7 @@ export function AppShell({
           {children}
         </main>
         <footer className="hidden lg:flex border-t bg-surface px-6 py-3 text-[11px] text-muted-foreground flex-wrap items-center justify-between gap-2">
-          <span>© 1446هـ — ثواب. مستضاف داخل المملكة العربية السعودية.</span>
+          <span>© {hijriYear()}هـ — ثواب. مستضاف داخل المملكة العربية السعودية.</span>
           <span>نظام خاص لإدارة الجمعيات والجهات الخيرية</span>
         </footer>
       </div>

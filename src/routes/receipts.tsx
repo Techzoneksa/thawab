@@ -24,6 +24,7 @@ import {
   EmptyState,
 } from "@/components/erp/actions";
 import { useAuth } from "@/lib/api/auth";
+import { getOrgSettings } from "@/lib/api/org-settings";
 import {
   getReceipts,
   printReceipt,
@@ -433,6 +434,12 @@ function Page() {
 
 // Receipt Print Drawer Component
 function ReceiptPrintDrawer({ receipt, onClose }: { receipt: Receipt; onClose: () => void }) {
+  const { data: orgData } = useQuery({
+    queryKey: ["org-settings"],
+    queryFn: () => getOrgSettings(),
+    staleTime: 300_000,
+  });
+  const orgName = orgData?.item?.name?.trim() || "";
   useEffect(() => {
     window.print();
     onClose();
@@ -472,7 +479,7 @@ function ReceiptPrintDrawer({ receipt, onClose }: { receipt: Receipt; onClose: (
           </div>
         </div>
         <div className="mt-8 pt-4 border-t text-center text-sm text-muted-foreground">
-          هذا إيصال رسمي صادر من جمعية ثواب الخيرية
+          {orgName ? `هذا إيصال رسمي صادر من ${orgName}` : "هذا إيصال رسمي"}
         </div>
       </div>
     </div>

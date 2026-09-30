@@ -208,17 +208,17 @@ if (existing.length > 0) {
 
   // Branches
   await client.execute(
-    "INSERT INTO branches (id,name,city,manager,phone,email,status,created_at) VALUES ('BR-001','الفرع الرئيسي - الرياض','الرياض','سلطان العتيبي','0114567890','riyadh@albir.org.sa','نشط','" +
+    "INSERT INTO branches (id,name,city,manager,phone,email,status,created_at) VALUES ('BR-001','الفرع الرئيسي - الرياض','الرياض','سلطان العتيبي','0114567890','riyadh@example.org','نشط','" +
       ts +
       "')",
   );
   await client.execute(
-    "INSERT INTO branches (id,name,city,manager,phone,email,status,created_at) VALUES ('BR-002','فرع جدة','جدة','نورة القحطاني','0126543210','jeddah@albir.org.sa','نشط','" +
+    "INSERT INTO branches (id,name,city,manager,phone,email,status,created_at) VALUES ('BR-002','فرع جدة','جدة','نورة القحطاني','0126543210','jeddah@example.org','نشط','" +
       ts +
       "')",
   );
   await client.execute(
-    "INSERT INTO branches (id,name,city,manager,phone,email,status,created_at) VALUES ('BR-003','فرع الدمام','الدمام','فهد الغامدي','0138234567','dammam@albir.org.sa','نشط','" +
+    "INSERT INTO branches (id,name,city,manager,phone,email,status,created_at) VALUES ('BR-003','فرع الدمام','الدمام','فهد الغامدي','0138234567','dammam@example.org','نشط','" +
       ts +
       "')",
   );
@@ -226,7 +226,7 @@ if (existing.length > 0) {
   // Users (simple base64 hash)
   const hash = (p) => Buffer.from(p).toString("base64");
   await client.execute(
-    "INSERT INTO users (id,name,email,password,role,branch_id,status,created_at,last_login) VALUES ('USR-001','سعد الغامدي','saud@albir.org.sa','" +
+    "INSERT INTO users (id,name,email,password,role,branch_id,status,created_at,last_login) VALUES ('USR-001','مدير النظام','saud@example.org','" +
       hash("admin123") +
       "','مدير النظام','BR-001','نشط','" +
       ts +
@@ -235,28 +235,28 @@ if (existing.length > 0) {
       "')",
   );
   await client.execute(
-    "INSERT INTO users (id,name,email,password,role,branch_id,status,created_at) VALUES ('USR-002','سارة الزهراني','sara@albir.org.sa','" +
+    "INSERT INTO users (id,name,email,password,role,branch_id,status,created_at) VALUES ('USR-002','سارة الزهراني','sara@example.org','" +
       hash("acc123") +
       "','محاسب','BR-001','نشط','" +
       ts +
       "')",
   );
   await client.execute(
-    "INSERT INTO users (id,name,email,password,role,branch_id,status,created_at) VALUES ('USR-003','محمد الغامدي','mohammed@albir.org.sa','" +
+    "INSERT INTO users (id,name,email,password,role,branch_id,status,created_at) VALUES ('USR-003','محمد الغامدي','mohammed@example.org','" +
       hash("mgr123") +
       "','مدير','BR-002','نشط','" +
       ts +
       "')",
   );
   await client.execute(
-    "INSERT INTO users (id,name,email,password,role,branch_id,status,created_at) VALUES ('USR-004','نورة القحطاني','noura@albir.org.sa','" +
+    "INSERT INTO users (id,name,email,password,role,branch_id,status,created_at) VALUES ('USR-004','نورة القحطاني','noura@example.org','" +
       hash("don123") +
       "','موظف تبرعات','BR-001','نشط','" +
       ts +
       "')",
   );
   await client.execute(
-    "INSERT INTO users (id,name,email,password,role,branch_id,status,created_at) VALUES ('USR-005','فهد العتيبي','fahad@albir.org.sa','" +
+    "INSERT INTO users (id,name,email,password,role,branch_id,status,created_at) VALUES ('USR-005','فهد العتيبي','fahad@example.org','" +
       hash("proj123") +
       "','منسق مشاريع','BR-003','نشط','" +
       ts +
@@ -454,7 +454,7 @@ if (existing.length > 0) {
       "')",
   );
   await client.execute(
-    "INSERT INTO beneficiaries (id,name,id_number,phone,city,category,status,created_by,created_at,updated_at) VALUES ('BEN-005','خالد القرني','1056789012','0555556677','مكة','عاطل','فعال','USR-005','" +
+    "INSERT INTO beneficiaries (id,name,id_number,phone,city,category,status,created_by,created_at,updated_at) VALUES ('BEN-005','مستفيد تجريبي','1056789012','0555556677','مكة','عاطل','فعال','USR-005','" +
       ts +
       "','" +
       ts +
@@ -554,7 +554,7 @@ if (existing.length > 0) {
 
   // Audit log entry
   await client.execute(
-    "INSERT INTO audit_log (id,user_id,user_name,action,entity_type,entity_id,description,timestamp) VALUES ('AUD-INIT','USR-001','سعد الغامدي','نظام','التهيئة','INIT','تم تهيئة قاعدة البيانات التجريبية','" +
+    "INSERT INTO audit_log (id,user_id,user_name,action,entity_type,entity_id,description,timestamp) VALUES ('AUD-INIT','USR-001','مدير النظام','نظام','التهيئة','INIT','تم تهيئة قاعدة البيانات التجريبية','" +
       ts +
       "')",
   );

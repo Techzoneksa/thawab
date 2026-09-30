@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { getBranches, branchNames } from "@/lib/api/branches";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppShell,
@@ -66,7 +67,6 @@ const toProjectStatusKey = (arLabel: string) =>
     : (PROJECT_STATUS_OPTIONS.find((o) => o.label === arLabel)?.value ?? "");
 
 const PROJECT_CATEGORIES = ["الكل", "إغاثي", "تنموي", "تعليمي", "صحي", "اجتماعي"];
-const PROJECT_BRANCHES = ["الكل", "الفرع الرئيسي", "فرع مكة", "فرع الرياض", "فرع جدة"];
 const PROJECT_TYPES = ["الكل", "برنامج موسمي", "مشروع مستدام", "حملة طارئة", "مبادرة مجتمعية"];
 
 function Page() {
@@ -85,6 +85,12 @@ function Page() {
   const [statusFilter, setStatusFilter] = useState("الكل");
   const [categoryFilter, setCategoryFilter] = useState("الكل");
   const [branchFilter, setBranchFilter] = useState("الكل");
+  const { data: branchData } = useQuery({
+    queryKey: ["branches"],
+    queryFn: () => getBranches(),
+    staleTime: 300_000,
+  });
+  const PROJECT_BRANCHES = ["الكل", ...branchNames(branchData)];
   const [page, setPage] = useState(1);
 
   const [apiFilters, setApiFilters] = useState<ProjectFilters>({

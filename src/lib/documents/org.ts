@@ -1,15 +1,17 @@
 /**
  * Organization / branding profile used on every printed document, PDF and Excel.
  *
- * TODO(config): back this with an `org_settings` table + the Settings ▸ المنظمة
- * page so admins can edit it and upload a logo. For now these are safe editable
- * defaults; update them to the charity's real registration data.
+ * Source of truth: Settings ▸ المنظمة (org_settings). Nothing is hard-coded, so
+ * every association (tenant) prints its own name.
  */
+import type { OrgSettings } from "@/lib/api/org-settings";
+
 export interface OrgProfile {
   nameAr: string;
   nameEn: string;
   vatNumber: string; // الرقم الضريبي
-  crNumber: string; // السجل التجاري / رقم الترخيص
+  crNumber: string; // السجل التجاري
+  unifiedNo: string; // الرقم الوطني الموحد للمنشأة
   licenseNumber: string; // رقم ترخيص الجمعية
   address: string;
   city: string;
@@ -21,11 +23,14 @@ export interface OrgProfile {
   logoDataUrl?: string;
 }
 
+/** Empty profile — documents never print an invented name. Real data comes
+ *  from Settings ▸ المنظمة (org_settings) via ensureOrg(). */
 export const ORG: OrgProfile = {
-  nameAr: "جمعية ثواب الخيرية",
-  nameEn: "Thawab Charity",
+  nameAr: "",
+  nameEn: "",
   vatNumber: "",
   crNumber: "",
+  unifiedNo: "",
   licenseNumber: "",
   address: "",
   city: "",
@@ -36,15 +41,52 @@ export const ORG: OrgProfile = {
   logoDataUrl: undefined,
 };
 
-export function getOrg(): OrgProfile {
-  // Client-side override (until a settings table exists).
-  if (typeof window !== "undefined") {
-    try {
-      const raw = localStorage.getItem("org_profile");
-      if (raw) return { ...ORG, ...JSON.parse(raw) };
-    } catch {
-      /* ignore */
-    }
+let current: OrgProfile = ORG;
+let loading: Promise<OrgProfile> | null = null;
+
+/** Map the Settings ▸ المنظمة record onto the printable profile. */
+export function orgFromSettings(s: Partial<OrgSettings>): OrgProfile {
+  return {
+    ...ORG,
+    nameAr: s.name?.trim() || "",
+    vatNumber: s.taxNo?.trim() || "",
+    licenseNumber: s.regNo?.trim() || "",
+    unifiedNo: s.unifiedNo?.trim() || "",
+    phone: s.phone?.trim() || "",
+    email: s.email?.trim() || "",
+    address: [s.buildingNo, s.street, s.district, s.postalCode].map((v) => v?.trim()).filter(Boolean).join(" "),
+    city: s.city?.trim() || "",
+  };
+}
+
+export function setOrgFromSettings(s: Partial<OrgSettings>) {
+  current = orgFromSettings(s);
+  loading = Promise.resolve(current);
+}
+
+/** Load the org profile once per page (call before building a document). */
+export function ensureOrg(): Promise<OrgProfile> {
+  if (typeof window === "undefined") return Promise.resolve(current);
+  if (!loading) {
+    loading = fetch("/api/settings/org")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.item) current = orgFromSettings(d.item);
+        return current;
+      })
+      .catch(() => {
+        loading = null; // retry next time
+        return current;
+      });
   }
-  return ORG;
+  return loading;
+}
+
+/** Forget the cached profile (after Settings ▸ المنظمة is saved). */
+export function invalidateOrg() {
+  loading = null;
+}
+
+export function getOrg(): OrgProfile {
+  return current;
 }

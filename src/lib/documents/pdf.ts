@@ -52,7 +52,18 @@ export async function exportPdf(def: DocumentDefinition) {
       margin: [32, 20, 32, 0],
       columns: [
         { text: org.nameAr, bold: true, fontSize: 13 },
-        { text: [org.vatNumber && `الرقم الضريبي: ${org.vatNumber}`, org.phone].filter(Boolean).join("\n"), alignment: "left", fontSize: 8 },
+        {
+          text: [
+            org.unifiedNo && `الرقم الموحد: ${org.unifiedNo}`,
+            org.licenseNumber && `رقم الترخيص: ${org.licenseNumber}`,
+            org.vatNumber && `الرقم الضريبي: ${org.vatNumber}`,
+            org.phone,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          alignment: "left",
+          fontSize: 8,
+        },
       ],
     },
     footer: (cur: number, total: number) => ({

@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { getBranches, branchNames } from "@/lib/api/branches";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell } from "@/components/erp/AppShell";
 import {
@@ -37,7 +38,12 @@ function NewProjectPage() {
   const [code, setCode] = useState("");
   const [type, setType] = useState("تنموي");
   const [category, setCategory] = useState("أخرى");
-  const [branch, setBranch] = useState("الفرع الرئيسي");
+  const [branch, setBranch] = useState("");
+  const { data: branchData } = useQuery({
+    queryKey: ["branches"],
+    queryFn: () => getBranches(),
+    staleTime: 300_000,
+  });
   const [manager, setManager] = useState("");
   const [budget, setBudget] = useState("0");
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
@@ -124,9 +130,12 @@ function NewProjectPage() {
           <FormRow>
             <FormField label="الفرع">
               <FormSelect value={branch} onChange={(e) => setBranch(e.target.value)}>
-                <option value="الفرع الرئيسي">الفرع الرئيسي</option>
-                <option value="فرع المنطقة الشمالية">فرع المنطقة الشمالية</option>
-                <option value="فرع المنطقة الجنوبية">فرع المنطقة الجنوبية</option>
+                <option value="">— بدون فرع —</option>
+                {branchNames(branchData).map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
               </FormSelect>
             </FormField>
             <FormField label="مدير المشروع">
