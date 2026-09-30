@@ -16,6 +16,7 @@
  */
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
+import { getCurrentTenant } from "./tenant-context";
 
 export interface MailResult {
   sent: boolean;
@@ -31,8 +32,17 @@ export function isMailerConfigured(): boolean {
   return !!(env("SMTP_HOST") && env("SMTP_USER") && env("SMTP_PASS"));
 }
 
-/** Public base URL for links in emails (no trailing slash). */
+/**
+ * Public base URL for links in emails (no trailing slash). In SaaS mode the
+ * link must point at the tenant that sent it (radifa.jaadpro.com, …), never at
+ * a single global APP_URL; single-tenant deployments keep APP_URL.
+ */
 export function appUrl(): string {
+  // Built from the registered slug + BASE_DOMAIN, never echoed from the raw
+  // Host header (a deep host like x.radifa.jaadpro.com also resolves to radifa).
+  const tenant = getCurrentTenant();
+  const base = (process.env.BASE_DOMAIN || "").trim().toLowerCase();
+  if (tenant && base) return `https://${tenant.id}.${base}`;
   return (env("APP_URL") || "https://thawab.jaadpro.com").replace(/\/+$/, "");
 }
 
