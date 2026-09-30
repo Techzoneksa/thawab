@@ -17,12 +17,17 @@ if ! [[ "$SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
 fi
 FILE="${THAWAB_TENANTS_FILE:-/root/thawab-tenants.json}"
 
-read -rsp "Database URL for '$SLUG' (input hidden): " URL
+read -rsp "Database URL for '$SLUG' (input hidden — paste, then Enter): " URL
 echo
+# Tolerate what copy/paste usually adds: surrounding spaces, CR, quotes, a
+# leading "DATABASE_URL=".
+URL="$(printf '%s' "$URL" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^DATABASE_URL=//' -e "s/^[\"']//" -e "s/[\"']\$//")"
 if ! [[ "$URL" == postgres://* || "$URL" == postgresql://* ]]; then
-  echo "[tenant-add] that is not a postgres:// URL — nothing changed"
+  echo "[tenant-add] that is not a postgres:// URL (got ${#URL} chars starting '${URL:0:12}…') — nothing changed"
   exit 1
 fi
+# Show WHERE it points (host:port/db, never the password) so you can confirm.
+echo "[tenant-add] database: $(printf '%s' "$URL" | sed -E 's#^[a-z]+://[^@]*@##; s#\?.*$##')"
 
 [ -s "$FILE" ] || echo '{}' > "$FILE"
 SLUG="$SLUG" URL="$URL" FILE="$FILE" node -e '
