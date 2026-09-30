@@ -176,8 +176,8 @@ function Page() {
 
   return (
     <AppShell
-      breadcrumb={["الرئيسية", "المشتريات", "أوامر الشراء (قديمة)"]}
-      title="أوامر الشراء (قديمة)"
+      breadcrumb={["الرئيسية", "المشتريات", "أوامر الشراء", "الأرشيف القديم"]}
+      title="أرشيف أوامر الشراء القديمة"
       actions={
         <>
           <DocumentActions document={buildDoc} />

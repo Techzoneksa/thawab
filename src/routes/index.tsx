@@ -301,7 +301,7 @@ function Dashboard() {
               <DropdownMenuItem onSelect={() => navigate({ to: "/procurement/requests/new" })}>
                 <Plus size={14} /> طلب شراء جديد
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => navigate({ to: "/procurement/orders/new" })}>
+              <DropdownMenuItem onSelect={() => navigate({ to: "/procurement/purchase-orders/new" })}>
                 <Plus size={14} /> أمر شراء جديد
               </DropdownMenuItem>
               <DropdownMenuSeparator />
