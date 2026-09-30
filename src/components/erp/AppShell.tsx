@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/api/auth";
 import { getNotifications } from "@/lib/api/notifications";
+import { getOrgSettings } from "@/lib/api/org-settings";
 import {
   LayoutDashboard,
   Bell,
@@ -351,6 +352,14 @@ function Topbar({
   setAiOpen: (v: boolean) => void;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { user } = useAuth();
+  const { data: orgData } = useQuery({
+    queryKey: ["org-settings"],
+    queryFn: () => getOrgSettings(),
+    staleTime: 300000,
+  });
+  const org = orgData?.item;
+  const orgLine = [org?.name, org?.fiscalYear].filter(Boolean).join(" · ") || "الجمعية";
   const { data: notifData } = useQuery({
     queryKey: ["notifications"],
     queryFn: () => getNotifications(),
@@ -408,7 +417,7 @@ function Topbar({
           </div>
         </div>
         <div className="hidden md:flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-xs text-muted-foreground">
-          <Globe size={14} /> جمعية البر الخيرية · الفرع الرئيسي · 1446هـ
+          <Globe size={14} /> {orgLine}
         </div>
         {AI_ASSISTANT_ENABLED && (
           <button
@@ -436,10 +445,10 @@ function Topbar({
           aria-label="حسابي"
         >
           <div className="grid h-7 w-7 place-items-center rounded-full bg-gradient-to-br from-primary to-info text-white text-[10px] font-bold">
-            س
+            {user?.name?.[0] || "؟"}
           </div>
           <span className="text-xs font-medium text-muted-foreground hidden sm:inline">
-            سعد الغامدي
+            {user?.name || "مستخدم"}
           </span>
         </button>
       </header>

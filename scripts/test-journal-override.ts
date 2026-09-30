@@ -30,8 +30,8 @@ async function expectErr(name: string, code: string, fn: () => Promise<unknown>)
 
 await runWithTenant({ id: "t", host: "t.jaadpro.com", databaseUrl: URL }, async () => {
   const today = new Date().toISOString().slice(0, 10);
-  const boot: any = await bootstrapFirstAdmin({ name: "خالد", email: "k@x.sa", password: "secret123" });
-  const admin = { user: { id: boot.user.id, role: "role-admin", name: "خالد" }, ip: "" } as any;
+  const boot: any = await bootstrapFirstAdmin({ name: "المدير العام", email: "admin@x.sa", password: "secret123" });
+  const admin = { user: { id: boot.user.id, role: "role-admin", name: "المدير العام" }, ip: "" } as any;
   await db.insert(S.roles).values({ id: "role-maker", name: "محاسب", permissions: JSON.stringify([
     "finance.view", "finance.journal.create", "finance.journal.update_draft", "finance.journal.submit"]), createdAt: today });
   await db.insert(S.users).values({ id: "USR-m", name: "محاسب", email: "m@x.sa", password: "x", role: "role-maker", createdAt: today });
@@ -86,7 +86,7 @@ await runWithTenant({ id: "t", host: "t.jaadpro.com", databaseUrl: URL }, async 
   check("its lines are gone too", lines.length === 0);
   const aud = (await db.select().from(S.auditLog).where(eq(S.auditLog.entityId, id))).find((r) => r.action === "delete");
   check("audit log records WHO deleted (name) + full snapshot",
-    !!aud && aud.userName === "خالد" && JSON.parse(aud.before || "{}").lines?.length === 2);
+    !!aud && aud.userName === "المدير العام" && JSON.parse(aud.before || "{}").lines?.length === 2);
   const ev = (await db.select().from(S.financeWorkflowEvents).where(eq(S.financeWorkflowEvents.entityId, id)));
   check("workflow history keeps every step incl. unpost + delete",
     ev.some((x) => x.action === "unpost" && x.reason === "خطأ في المبلغ") && ev.some((x) => x.action === "delete"));
