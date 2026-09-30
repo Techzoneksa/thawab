@@ -159,7 +159,8 @@ async function DELETE({ request }: { request: Request }, ctx: Ctx) {
 export const Route = createFileRoute("/api/settings/branches")({
   server: {
     handlers: {
-      GET: authHandler("settings.view", GET),
+      // Read: any signed-in user (branch names feed project forms/filters).
+      GET: authHandler(null, GET),
       POST: authHandler("settings.manage", POST),
       PUT: authHandler("settings.manage", PUT),
       DELETE: authHandler("settings.manage", DELETE),

@@ -4,6 +4,8 @@ export interface OrgSettings {
   id: string;
   name: string;
   regNo: string;
+  /** الرقم الوطني الموحد للمنشأة (7xxxxxxxxx) — not a phone number. */
+  unifiedNo: string;
   taxNo: string;
   email: string;
   phone: string;

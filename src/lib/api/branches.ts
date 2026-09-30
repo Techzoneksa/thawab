@@ -91,3 +91,10 @@ export async function deleteBranch(id: string): Promise<void> {
     throw new Error(err.message || err.error || "فشل في حذف الفرع");
   }
 }
+
+/** Names of the organization's real branches (Settings ▸ الفروع) for pickers. */
+export function branchNames(data: { items: Branch[] } | undefined, current?: string): string[] {
+  const names = (data?.items ?? []).map((b) => b.name).filter(Boolean);
+  if (current && !names.includes(current)) names.unshift(current); // keep a legacy value visible
+  return names;
+}

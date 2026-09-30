@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
+import { getBranches, branchNames } from "@/lib/api/branches";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { AppShell, Badge, statusTone } from "@/components/erp/AppShell";
@@ -46,6 +47,11 @@ function EditProjectPage() {
   const [type, setType] = useState("تنموي");
   const [category, setCategory] = useState("أخرى");
   const [branch, setBranch] = useState("");
+  const { data: branchData } = useQuery({
+    queryKey: ["branches"],
+    queryFn: () => getBranches(),
+    staleTime: 300_000,
+  });
   const [manager, setManager] = useState("");
   const [budget, setBudget] = useState("0");
   const [startDate, setStartDate] = useState("");
@@ -164,7 +170,16 @@ function EditProjectPage() {
             </FormField>
           </FormRow>
           <FormRow>
-            <FormField label="الفرع"><FormInput value={branch} onChange={(e) => setBranch(e.target.value)} /></FormField>
+            <FormField label="الفرع">
+              <FormSelect value={branch} onChange={(e) => setBranch(e.target.value)}>
+                <option value="">— بدون فرع —</option>
+                {branchNames(branchData, branch).map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </FormSelect>
+            </FormField>
             <FormField label="مدير المشروع"><FormInput value={manager} onChange={(e) => setManager(e.target.value)} /></FormField>
           </FormRow>
           <FormField label="الوصف"><FormTextarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} /></FormField>

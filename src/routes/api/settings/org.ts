@@ -10,6 +10,7 @@ const EMPTY = {
   id: ORG_ID,
   name: "",
   regNo: "",
+  unifiedNo: "",
   taxNo: "",
   email: "",
   phone: "",
@@ -34,6 +35,7 @@ async function GET(_event: { request: Request }, _ctx: Ctx) {
 const saveSchema = z.object({
   name: z.string().optional(),
   regNo: z.string().optional(),
+  unifiedNo: z.string().optional(),
   taxNo: z.string().optional(),
   email: z.string().optional(),
   phone: z.string().optional(),
@@ -60,6 +62,7 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
     const values = {
       name: b.name ?? existing?.name ?? "",
       regNo: b.regNo ?? existing?.regNo ?? "",
+      unifiedNo: b.unifiedNo ?? existing?.unifiedNo ?? "",
       taxNo: b.taxNo ?? existing?.taxNo ?? "",
       email: b.email ?? existing?.email ?? "",
       phone: b.phone ?? existing?.phone ?? "",
@@ -102,7 +105,10 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
 export const Route = createFileRoute("/api/settings/org")({
   server: {
     handlers: {
-      GET: authHandler("settings.view", GET),
+      // Read: any signed-in user — the org name/VAT/address are printed on every
+      // invoice/receipt/report, so printing must not depend on settings.view.
+      // Write stays admin-only.
+      GET: authHandler(null, GET),
       PUT: authHandler("settings.manage", PUT),
     },
   },

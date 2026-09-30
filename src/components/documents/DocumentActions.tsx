@@ -5,6 +5,7 @@ import { useCan } from "@/lib/api/auth";
 import type { DocumentDefinition } from "@/lib/documents/types";
 import { DocumentLayout } from "./DocumentLayout";
 import { printDocument } from "@/lib/documents/print";
+import { ensureOrg } from "@/lib/documents/org";
 import { exportExcel } from "@/lib/documents/excel";
 import { hasPdfFont, exportPdf } from "@/lib/documents/pdf";
 
@@ -58,6 +59,7 @@ export function DocumentActions({ document: docSource, perms, className = "" }: 
     setBusy(kind);
     setMenuOpen(false);
     try {
+      await ensureOrg();
       const d = await resolve(docSource);
       setActive(d);
       await fn(d);

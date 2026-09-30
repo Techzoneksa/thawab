@@ -12,9 +12,9 @@ export function DocumentHeader({ def }: { def: DocumentDefinition }) {
         <div className="doc-org-brand">
           {org.logoDataUrl ? (
             <img src={org.logoDataUrl} alt="" className="doc-logo" />
-          ) : (
+          ) : org.nameAr ? (
             <div className="doc-logo doc-logo-fallback">{org.nameAr.slice(0, 2)}</div>
-          )}
+          ) : null}
           <div>
             <div className="doc-org-name">{org.nameAr}</div>
             {org.nameEn && <div className="doc-org-name-en">{org.nameEn}</div>}
@@ -22,6 +22,7 @@ export function DocumentHeader({ def }: { def: DocumentDefinition }) {
         </div>
         <div className="doc-org-meta">
           {org.vatNumber && <div>الرقم الضريبي: {org.vatNumber}</div>}
+          {org.unifiedNo && <div>الرقم الموحد: {org.unifiedNo}</div>}
           {org.crNumber && <div>السجل التجاري: {org.crNumber}</div>}
           {org.licenseNumber && <div>رقم الترخيص: {org.licenseNumber}</div>}
           {org.phone && <div>هاتف: {org.phone}</div>}

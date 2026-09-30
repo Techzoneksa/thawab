@@ -42,6 +42,18 @@ export async function exportExcel(def: DocumentDefinition) {
   ws.getCell(`A${row}`).value = org.nameAr;
   ws.getCell(`A${row}`).alignment = { horizontal: "center" };
   row++;
+  const ids = [
+    org.unifiedNo && `الرقم الموحد: ${org.unifiedNo}`,
+    org.licenseNumber && `رقم الترخيص: ${org.licenseNumber}`,
+    org.vatNumber && `الرقم الضريبي: ${org.vatNumber}`,
+  ].filter(Boolean);
+  if (ids.length) {
+    ws.mergeCells(span(row));
+    ws.getCell(`A${row}`).value = ids.join("   ");
+    ws.getCell(`A${row}`).alignment = { horizontal: "center" };
+    ws.getCell(`A${row}`).font = { size: 10, color: { argb: "FF6B7280" } };
+    row++;
+  }
   if (def.number || def.date) {
     ws.mergeCells(span(row));
     ws.getCell(`A${row}`).value = [def.number && `المستند: ${def.number}`, def.date && `التاريخ: ${def.date.slice(0, 10)}`]
