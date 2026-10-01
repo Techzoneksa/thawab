@@ -64,6 +64,15 @@ export const INVENTORY_FINALIZE_PERMS: { key: string; label: string; desc?: stri
   },
 ];
 
+/** Highest-risk system permission: replaces ALL association data with a backup. */
+export const BACKUP_PERMS: { key: string; label: string; desc?: string }[] = [
+  {
+    key: "settings.backup.restore",
+    label: "استعادة وتنزيل النسخ الاحتياطية",
+    desc: "تستبدل جميع بيانات الجمعية بنسخة سابقة — صلاحية عالية جدًا",
+  },
+];
+
 const MODULE_KEYS = new Set(PERM_MODULES.map((m) => m.key));
 const ACTION_KEYS = new Set(PERM_ACTIONS.map((a) => a.key));
 

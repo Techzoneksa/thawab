@@ -604,6 +604,10 @@ export type BackupFrequency = (typeof BackupFrequency)[keyof typeof BackupFreque
 export const BackupType = {
   MANUAL: "manual",
   AUTO: "auto",
+  /** Automatic safety copy taken right before a restore. */
+  PRE_RESTORE: "pre_restore",
+  /** A restore event (record of what was restored, by whom, when). */
+  RESTORE: "restore",
 } as const;
 export type BackupType = (typeof BackupType)[keyof typeof BackupType];
 

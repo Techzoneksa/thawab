@@ -20,6 +20,13 @@ export interface BackupRecord {
   type: string;
   status: string;
   note: string;
+  fileName: string;
+  sizeBytes: number;
+  sha256: string;
+  tablesCount: number;
+  rowsCount: number;
+  error: string;
+  restoredFrom: string;
   createdBy: string | null;
   createdByName: string;
   createdAt: string;
@@ -32,7 +39,11 @@ export interface UpdateBackupConfigInput {
   location?: string;
 }
 
-export async function getBackup(): Promise<{ config: BackupConfig; records: BackupRecord[] }> {
+export async function getBackup(): Promise<{
+  config: BackupConfig;
+  records: BackupRecord[];
+  canRestore: boolean;
+}> {
   const res = await fetch(API_BASE);
   if (!res.ok) throw new Error("فشل في جلب بيانات النسخ الاحتياطي");
   return res.json();
@@ -71,3 +82,25 @@ export async function deleteBackupRecord(id: string): Promise<void> {
     throw new Error(e.message || e.error || "فشل في حذف السجل");
   }
 }
+
+/** Restore the association database from a backup (typed confirmation required). */
+export async function restoreBackup(id: string, confirm: string): Promise<{
+  restored: boolean;
+  rows: number;
+  restoredFrom: string;
+  safetyBackup: string;
+  relogin: boolean;
+}> {
+  const res = await fetch(API_BASE, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "restore", id, confirm }),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.message || e.error || "فشلت الاستعادة");
+  }
+  return res.json();
+}
+
+export const backupDownloadUrl = (id: string) => `${API_BASE}?download=${encodeURIComponent(id)}`;

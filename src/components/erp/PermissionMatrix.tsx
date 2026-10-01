@@ -1,4 +1,9 @@
-import { PERM_MODULES, PERM_ACTIONS, INVENTORY_FINALIZE_PERMS } from "@/lib/permissions-catalog";
+import {
+  PERM_MODULES,
+  PERM_ACTIONS,
+  INVENTORY_FINALIZE_PERMS,
+  BACKUP_PERMS,
+} from "@/lib/permissions-catalog";
 import { FINANCE_PERM_GROUPS } from "@/lib/finance-permissions";
 
 /**
@@ -179,6 +184,44 @@ export function PermissionMatrix({
           }
         >
           {INVENTORY_FINALIZE_PERMS.map((p) => (
+            <label key={p.key} className="flex items-start gap-2 cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                className="h-4 w-4 mt-0.5"
+                checked={superAdmin || set.has(p.key)}
+                disabled={superAdmin}
+                onChange={() =>
+                  mutate((s) => {
+                    if (s.has(p.key)) s.delete(p.key);
+                    else s.add(p.key);
+                  })
+                }
+              />
+              <span>
+                <span className="font-medium">{p.label}</span>
+                {p.desc ? <span className="text-muted-foreground"> — {p.desc}</span> : null}
+                <span className="block text-[10px] text-muted-foreground/70 font-mono">
+                  {p.key}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-xl border bg-card p-3">
+        <div className="text-sm font-bold mb-1">صلاحيات النسخ الاحتياطي (حسّاسة)</div>
+        <div className="text-xs text-muted-foreground mb-3">
+          الاستعادة تستبدل كل بيانات الجمعية بنسخة سابقة. تُمنح لمسؤول النظام فقط.
+        </div>
+        <div
+          className={
+            superAdmin
+              ? "opacity-40 pointer-events-none grid sm:grid-cols-2 gap-1.5"
+              : "grid sm:grid-cols-2 gap-1.5"
+          }
+        >
+          {BACKUP_PERMS.map((p) => (
             <label key={p.key} className="flex items-start gap-2 cursor-pointer text-xs">
               <input
                 type="checkbox"

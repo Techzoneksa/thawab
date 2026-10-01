@@ -1732,6 +1732,15 @@ export const backupRecords = pgTable("backup_records", {
   type: text("type").notNull().default("manual"),
   status: text("status").notNull().default("success"),
   note: text("note").default(""),
+  // Real backup artefact (0039): server file + integrity + content stats.
+  fileName: text("file_name").default(""),
+  sizeBytes: doublePrecision("size_bytes").default(0),
+  sha256: text("sha256").default(""),
+  tablesCount: integer("tables_count").default(0),
+  rowsCount: integer("rows_count").default(0),
+  error: text("error").default(""),
+  /** For type=restore: the backup record id that was restored. */
+  restoredFrom: text("restored_from").default(""),
   createdBy: text("created_by").references(() => users.id),
   createdByName: text("created_by_name").default(""),
   createdAt: text("created_at").notNull().default(""),

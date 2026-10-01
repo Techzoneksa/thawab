@@ -205,7 +205,12 @@ const LABELS: Record<string, Dict> = {
     invoice: "فاتورة",
   },
   backupFrequency: { daily: "يومي", weekly: "أسبوعي", monthly: "شهري" },
-  backupType: { manual: "يدوي", auto: "تلقائي" },
+  backupType: {
+    manual: "يدوي",
+    auto: "تلقائي",
+    pre_restore: "نسخة أمان قبل الاستعادة",
+    restore: "عملية استعادة",
+  },
   backupStatus: { success: "ناجح", failed: "فشل", running: "قيد التنفيذ" },
   payrollStatus: { draft: "مسودة", approved: "معتمد" },
   payrollPayMethod: { cash: "نقداً", bank: "تحويل بنكي", accrue: "استحقاق (ذمم)" },
