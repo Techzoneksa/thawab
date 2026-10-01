@@ -14,6 +14,8 @@ export interface Receipt {
   createdAt: string;
   donationAmount: number;
   projectName: string;
+  /** Payment method of the underlying donation. */
+  method?: string;
   donationStatus: string;
 }
 
@@ -55,10 +57,11 @@ export async function printReceipt(options: {
   userId?: string;
   userName?: string;
 }): Promise<void> {
+  // Server contract: PUT {id, action:"reprint"} marks the receipt printed + audits it.
   const res = await fetch(API_BASE, {
-    method: "POST",
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...options, action: "print" }),
+    body: JSON.stringify({ id: options.id, action: "reprint" }),
   });
   if (!res.ok) {
     const err = await res.json();
@@ -72,9 +75,9 @@ export async function voidReceipt(options: {
   userName?: string;
 }): Promise<Receipt> {
   const res = await fetch(API_BASE, {
-    method: "POST",
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...options, action: "void" }),
+    body: JSON.stringify({ id: options.id, action: "void" }),
   });
   if (!res.ok) {
     const err = await res.json();

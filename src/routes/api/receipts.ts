@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db, now, genId, addAudit } from "@/server/db/index";
-import { receipts, donations, donors } from "@/server/db/schema";
+import { receipts, donations, donors, projects } from "@/server/db/schema";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
 import { ReceiptType, ReceiptStatus } from "@/lib/enums";
 
@@ -19,13 +19,25 @@ async function GET({ request }: { request: Request }, _ctx: Ctx) {
   const dons = donIds.length ? await db.select().from(donations).where(inArray(donations.id, donIds)) : [];
   const donorIds = [...new Set(dons.map((d) => d.donorId).filter(Boolean))] as string[];
   const donorRows = donorIds.length ? await db.select().from(donors).where(inArray(donors.id, donorIds)) : [];
+  const projIds = [...new Set(dons.map((d) => d.projectId).filter(Boolean))] as string[];
+  const projRows = projIds.length ? await db.select().from(projects).where(inArray(projects.id, projIds)) : [];
   const donMap = new Map(dons.map((d) => [d.id, d]));
   const donorMap = new Map(donorRows.map((d) => [d.id, d]));
+  const projMap = new Map(projRows.map((p) => [p.id, p]));
 
   const enriched = items.map((r) => {
     const donation = r.donationId ? donMap.get(r.donationId) || null : null;
     const donor = donation?.donorId ? donorMap.get(donation.donorId) || null : null;
-    return { ...r, donation, donor };
+    const project = donation?.projectId ? projMap.get(donation.projectId) || null : null;
+    // Flat fields the receipt screens/print template read.
+    return {
+      ...r,
+      donation,
+      donor,
+      donorName: donor?.name || "",
+      projectName: project?.name || "",
+      method: donation?.method || "",
+    };
   });
 
   return Response.json({ items: enriched, total: enriched.length });

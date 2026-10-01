@@ -475,7 +475,7 @@ function ReceiptPrintDrawer({ receipt, onClose }: { receipt: Receipt; onClose: (
           </div>
           <div className="flex justify-between">
             <span>طريقة الدفع:</span>
-            <span>{label("receiptType", receipt.type)}</span>
+            <span>{receipt.method ? label("donationMethod", receipt.method) : "—"}</span>
           </div>
         </div>
         <div className="mt-8 pt-4 border-t text-center text-sm text-muted-foreground">

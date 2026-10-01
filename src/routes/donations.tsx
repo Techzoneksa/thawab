@@ -538,7 +538,7 @@ function Page() {
         onConfirm={handleCancel}
         title="إلغاء التبرع"
         message="هل أنت متأكد من إلغاء هذا التبرع؟"
-        confirmText="إلغاء"
+        confirmText="إلغاء التبرع"
         cancelText="التراجع"
         variant="destructive"
       />
