@@ -413,6 +413,19 @@ export async function transitionPurchaseOrder(
       const lines = await loadLines(tx as any, id);
       // Re-validate supplier active + totals intact at submit and issue.
       await validatePurchaseOrder(tx as any, linesToInput(locked, lines));
+      // A PO entering approval must be receivable: the goods receipt posts ITEM
+      // lines to a stock item and every other line to its chosen account.
+      for (const l of lines as any[]) {
+        const isItem = (l.lineType || PurchaseOrderLineType.ITEM) === PurchaseOrderLineType.ITEM;
+        if (isItem ? !l.itemId : !l.accountId)
+          throw new AppError(
+            isItem
+              ? `حدّد الصنف المخزني للبند "${l.description || "—"}" قبل الإرسال`
+              : `حدّد حساب الاستلام للبند "${l.description || "—"}" قبل الإرسال`,
+            400,
+            "PO_LINE_INCOMPLETE",
+          );
+      }
     }
 
     // Phase 3D: a PO that has already received goods (a posted GRN exists) must

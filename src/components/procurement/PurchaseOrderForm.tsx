@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppShell, Card, Btn } from "@/components/erp/AppShell";
 import { Combobox } from "@/components/erp/Combobox";
 import { showToast, EmptyState } from "@/components/erp/actions";
@@ -8,6 +8,9 @@ import { fmtSAR } from "@/data/sample";
 import { Plus, Trash2, ArrowRight } from "lucide-react";
 import { useAuth, userCan } from "@/lib/api/auth";
 import { supplierLookup } from "@/lib/api/suppliers-finance";
+import { accountLookup, getAccount } from "@/lib/api/accounts";
+import { getInventoryItems, getInventoryItem, type InventoryItem } from "@/lib/api/inventory-items";
+import { getWarehouses } from "@/lib/api/warehouses";
 import {
   createPurchaseOrder,
   updatePurchaseOrder,
@@ -23,6 +26,13 @@ type LineForm = {
   unit: string;
   unitPrice: string;
   taxRate: string;
+  /** ITEM lines: the stock item received into inventory (required to receive). */
+  itemId: string;
+  itemLabel: string;
+  warehouseId: string;
+  /** Non-ITEM lines: the account debited on receipt (required to receive). */
+  accountId: string;
+  accountLabel: string;
 };
 const emptyLine = (): LineForm => ({
   description: "",
@@ -31,7 +41,16 @@ const emptyLine = (): LineForm => ({
   unit: "",
   unitPrice: "",
   taxRate: "15",
+  itemId: "",
+  itemLabel: "",
+  warehouseId: "",
+  accountId: "",
+  accountLabel: "",
 });
+const itemLabel = (it: Pick<InventoryItem, "name" | "sku">) =>
+  `${it.sku ? `${it.sku} — ` : ""}${it.name}`;
+/** A line is receivable only when it points at what the goods receipt will post to. */
+const lineComplete = (l: LineForm) => (l.lineType === "ITEM" ? !!l.itemId : !!l.accountId);
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 const LINE_TYPES = [
   { k: "ITEM", l: "صنف مخزني" },
@@ -89,9 +108,49 @@ export function PurchaseOrderForm({ id }: { id?: string }) {
         unit: l.unit || "",
         unitPrice: String(l.unitPrice),
         taxRate: String(l.taxRate),
+        itemId: l.itemId || "",
+        itemLabel: "",
+        warehouseId: "",
+        accountId: l.accountId || "",
+        accountLabel: "",
       })),
     );
   }
+
+  // Edit mode: resolve labels/warehouse for the saved item/account ids once.
+  const [labelsLoaded, setLabelsLoaded] = useState(false);
+  useEffect(() => {
+    if (!isEdit || !seeded || labelsLoaded) return;
+    setLabelsLoaded(true);
+    lines.forEach((l, i) => {
+      if (l.itemId)
+        getInventoryItem(l.itemId)
+          .then((r) =>
+            setLines((p) =>
+              p.map((x, j) =>
+                j === i ? { ...x, itemLabel: itemLabel(r.item), warehouseId: r.item.warehouseId || "" } : x,
+              ),
+            ),
+          )
+          .catch(() => {});
+      if (l.accountId)
+        getAccount(l.accountId)
+          .then((r) =>
+            setLines((p) =>
+              p.map((x, j) => (j === i ? { ...x, accountLabel: `${r.item.code} — ${r.item.name}` } : x)),
+            ),
+          )
+          .catch(() => {});
+    });
+  }, [isEdit, seeded, labelsLoaded, lines]);
+
+  const warehousesQ = useQuery({
+    queryKey: ["warehouses", "po-form"],
+    queryFn: () => getWarehouses({}),
+    staleTime: 300_000,
+  });
+  const warehouseName = (wid: string) =>
+    (warehousesQ.data?.items || []).find((w) => w.id === wid)?.name || "";
 
   const computed = lines.map((l) => {
     const sub = round2((Number(l.quantity) || 0) * (Number(l.unitPrice) || 0));
@@ -123,6 +182,8 @@ export function PurchaseOrderForm({ id }: { id?: string }) {
             unit: l.unit || undefined,
             unitPrice: Number(l.unitPrice) || 0,
             taxRate: Number(l.taxRate) || 0,
+            itemId: l.lineType === "ITEM" ? l.itemId || null : null,
+            accountId: l.lineType === "ITEM" ? null : l.accountId || null,
           })),
       };
       return isEdit ? updatePurchaseOrder(body) : createPurchaseOrder(body);
@@ -140,13 +201,36 @@ export function PurchaseOrderForm({ id }: { id?: string }) {
   const rmLine = (i: number) => setLines((p) => p.filter((_, j) => j !== i));
   const setLine = (i: number, k: keyof LineForm, v: string) =>
     setLines((p) => p.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
+  const patchLine = (i: number, patch: Partial<LineForm>) =>
+    setLines((p) => p.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  /** Picking a stock item fills description/unit/price when they are still empty. */
+  const pickItem = (i: number, it: InventoryItem | null) =>
+    setLines((p) =>
+      p.map((l, j) =>
+        j !== i
+          ? l
+          : it
+            ? {
+                ...l,
+                itemId: it.id,
+                itemLabel: itemLabel(it),
+                warehouseId: it.warehouseId || "",
+                description: l.description || it.name,
+                unit: l.unit || it.unit || "",
+                unitPrice: l.unitPrice || (it.price ? String(it.price) : ""),
+              }
+            : { ...l, itemId: "", itemLabel: "", warehouseId: "" },
+      ),
+    );
 
   const validLines = lines.filter((l) => Number(l.quantity) > 0);
+  const incompleteLines = validLines.filter((l) => !lineComplete(l)).length;
   const canSubmit =
     !!f.supplierId &&
     !!f.subject.trim() &&
     !!f.orderDate &&
     validLines.length > 0 &&
+    incompleteLines === 0 &&
     !mut.isPending;
   const notDraft = isEdit && detailQ.data && detailQ.data.item.status !== "draft";
 
@@ -258,7 +342,14 @@ export function PurchaseOrderForm({ id }: { id?: string }) {
                     <select
                       className="inp !w-32"
                       value={l.lineType}
-                      onChange={(e) => setLine(i, "lineType", e.target.value)}
+                      onChange={(e) =>
+                        patchLine(i, {
+                          lineType: e.target.value,
+                          ...(e.target.value === "ITEM"
+                            ? { accountId: "", accountLabel: "" }
+                            : { itemId: "", itemLabel: "", warehouseId: "" }),
+                        })
+                      }
                     >
                       {LINE_TYPES.map((t) => (
                         <option key={t.k} value={t.k}>
@@ -267,6 +358,41 @@ export function PurchaseOrderForm({ id }: { id?: string }) {
                       ))}
                     </select>
                   </div>
+                  {l.lineType === "ITEM" ? (
+                    <div className="space-y-1">
+                      <Combobox<InventoryItem>
+                        value={l.itemId}
+                        displayValue={l.itemLabel}
+                        placeholder="الصنف المخزني * — ابحث بالاسم أو الرمز"
+                        search={(q) => getInventoryItems({ search: q })}
+                        getId={(it) => it.id}
+                        getLabel={(it) => itemLabel(it)}
+                        onSelect={(it) => pickItem(i, it)}
+                      />
+                      {l.itemId && (
+                        <div className="text-[11px] text-muted-foreground">
+                          {l.warehouseId
+                            ? `يُستلم إلى مستودع: ${warehouseName(l.warehouseId) || "—"}`
+                            : "⚠ الصنف غير مرتبط بمستودع — اربطه بمستودع من بطاقة الصنف قبل الاستلام"}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <Combobox<{ id: string; code: string; name: string }>
+                      value={l.accountId}
+                      displayValue={l.accountLabel}
+                      placeholder="حساب الاستلام * — ابحث برقم الحساب أو اسمه"
+                      search={(q) => accountLookup(q)}
+                      getId={(a) => a.id}
+                      getLabel={(a) => `${a.code} — ${a.name}`}
+                      onSelect={(a) =>
+                        patchLine(i, {
+                          accountId: a?.id || "",
+                          accountLabel: a ? `${a.code} — ${a.name}` : "",
+                        })
+                      }
+                    />
+                  )}
                   <div className="grid grid-cols-4 gap-1.5">
                     <NumIn
                       placeholder="الكمية"
@@ -318,6 +444,11 @@ export function PurchaseOrderForm({ id }: { id?: string }) {
 
           <Card className="p-3 flex items-center justify-between gap-3">
             <div className="text-sm">
+              {incompleteLines > 0 && (
+                <div className="text-[11px] text-destructive mb-0.5">
+                  {`حدّد الصنف المخزني أو حساب الاستلام في ${incompleteLines} بند`}
+                </div>
+              )}
               <span className="text-muted-foreground">الإجمالي: </span>
               <span className="font-extrabold tabular-nums">{fmtSAR(grand)}</span>
             </div>
