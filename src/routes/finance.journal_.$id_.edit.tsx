@@ -137,14 +137,24 @@ function EditJournalPage() {
     onError: (err: Error) => showToast(err.message, "error"),
   });
 
+  // Reversal needs a reason (server REASON_REQUIRED) — asked in a dialog.
+  const [reverseOpen, setReverseOpen] = useState(false);
+  const [reverseReason, setReverseReason] = useState("");
+  const [reverseError, setReverseError] = useState<string | null>(null);
   const reverseMutation = useMutation({
-    mutationFn: () => reverseJournalEntry({ id }),
+    mutationFn: () => reverseJournalEntry({ id, reason: reverseReason.trim() }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["journal-entry", id] });
       queryClient.invalidateQueries({ queryKey: ["journal"] });
       showToast("تم عكس القيد", "success");
+      setReverseOpen(false);
+      setReverseReason("");
+      setReverseError(null);
     },
-    onError: (err: Error) => showToast(err.message, "error"),
+    onError: (err: Error) => {
+      setReverseError(err.message);
+      showToast(err.message, "error");
+    },
   });
 
   const cancelMutation = useMutation({
@@ -496,7 +506,10 @@ function EditJournalPage() {
             <>
               <button
                 type="button"
-                onClick={() => reverseMutation.mutate()}
+                onClick={() => {
+                  setReverseError(null);
+                  setReverseOpen(true);
+                }}
                 disabled={reverseMutation.isPending}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-warning/30 bg-warning/10 text-warning px-3 py-2 text-sm font-semibold hover:bg-warning/20 transition-colors min-h-[40px]"
               >
@@ -515,6 +528,56 @@ function EditJournalPage() {
           ) : null
         }
       />
+      {reverseOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setReverseOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-card p-5 shadow-xl"
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <div className="text-base font-bold">عكس القيد</div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              {`سيُنشأ قيد عكسي مرحّل للقيد "${item.number}" بتاريخ اليوم، ويبقى الأصل في السجل.`}
+            </div>
+            <div className="mt-3">
+              <label className="text-xs font-semibold text-muted-foreground">سبب العكس (مطلوب)</label>
+              <textarea
+                autoFocus
+                className="mt-1 w-full rounded-lg border bg-background p-2 text-sm"
+                rows={3}
+                value={reverseReason}
+                onChange={(ev) => setReverseReason(ev.target.value)}
+                placeholder="اكتب سبباً واضحاً…"
+              />
+            </div>
+            {reverseError && (
+              <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                <div className="font-semibold">تعذّر تنفيذ الإجراء:</div>
+                <div className="mt-1">{reverseError.replace(/^GL:\s*/, "")}</div>
+              </div>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setReverseOpen(false)}
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-muted-foreground hover:bg-muted min-h-[40px]"
+              >
+                رجوع
+              </button>
+              <button
+                type="button"
+                disabled={reverseMutation.isPending || !reverseReason.trim()}
+                onClick={() => reverseMutation.mutate()}
+                className="rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground hover:opacity-90 disabled:opacity-50 min-h-[40px]"
+              >
+                {reverseMutation.isPending ? "جارٍ التنفيذ…" : "عكس"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
