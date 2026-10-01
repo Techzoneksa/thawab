@@ -5,6 +5,11 @@
  *
  *   node_modules/.bin/tsx scripts/tenant-doctor.ts <slug>             # report
  *   node_modules/.bin/tsx scripts/tenant-doctor.ts <slug> --fix-org   # + repair org_settings
+ *   node_modules/.bin/tsx scripts/tenant-doctor.ts <slug> --fix-legacy
+ *       re-apply the content of 0001–0004 idempotently (employees FK, org_settings,
+ *       supplier/branch national-address columns) and record them as applied.
+ *       Needed when a database pre-dates migration tracking and the runner skipped
+ *       them as "old". Existing data is never modified.
  *
  * Registry: $TENANTS_JSON, else $THAWAB_TENANTS_FILE (default /root/thawab-tenants.json).
  */
@@ -13,9 +18,10 @@ import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 
 const slug = process.argv[2];
-const fixOrg = process.argv.includes("--fix-org");
+const fixLegacy = process.argv.includes("--fix-legacy");
+const fixOrg = fixLegacy || process.argv.includes("--fix-org");
 if (!slug || slug.startsWith("-")) {
-  console.log("usage: tsx scripts/tenant-doctor.ts <slug> [--fix-org]");
+  console.log("usage: tsx scripts/tenant-doctor.ts <slug> [--fix-org | --fix-legacy]");
   process.exit(1);
 }
 const file = process.env.THAWAB_TENANTS_FILE || "/root/thawab-tenants.json";
@@ -49,6 +55,31 @@ const ORG_FIX = [
     (c) => `ALTER TABLE "org_settings" ADD COLUMN IF NOT EXISTS "${c}" text DEFAULT ''`,
   ),
   `ALTER TABLE "org_settings" ADD COLUMN IF NOT EXISTS "currency" text DEFAULT 'SAR'`,
+];
+
+const ADDRESS = ["building_no", "street", "district", "city", "postal_code", "additional_no"];
+const LEGACY_FIX = [
+  // 0003 — supplier national address
+  ...ADDRESS.map((c) => `ALTER TABLE "suppliers" ADD COLUMN IF NOT EXISTS "${c}" text DEFAULT ''`),
+  // 0004 — branch national address (branches.city pre-exists)
+  ...ADDRESS.filter((c) => c !== "city").map(
+    (c) => `ALTER TABLE "branches" ADD COLUMN IF NOT EXISTS "${c}" text DEFAULT ''`,
+  ),
+  // 0001 — employees.created_by → users.id. NOT VALID: enforced for new rows,
+  // never fails on (or rewrites) historical data.
+  `DO $$ BEGIN
+     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'employees_created_by_users_id_fk') THEN
+       ALTER TABLE "employees" ADD CONSTRAINT "employees_created_by_users_id_fk"
+         FOREIGN KEY ("created_by") REFERENCES "public"."users"("id")
+         ON DELETE no action ON UPDATE no action NOT VALID;
+     END IF;
+   END $$`,
+];
+const LEGACY_TAGS = [
+  "0001_overrated_marten_broadcloak",
+  "0002_optimal_hobgoblin",
+  "0003_sleepy_bastion",
+  "0004_tired_mandroid",
 ];
 
 await runWithTenant({ id: slug, host: slug, databaseUrl: url }, async () => {
@@ -109,6 +140,25 @@ await runWithTenant({ id: slug, host: slug, databaseUrl: url }, async () => {
     for (const s of ORG_FIX) await q(s);
     await q(`SELECT "id","name","unified_no","reg_no","building_no" FROM "org_settings" LIMIT 1`);
     console.log("[doctor] org_settings repaired ✅ (idempotent; existing data untouched)");
+  }
+
+  if (fixLegacy) {
+    for (const s of LEGACY_FIX) await q(s);
+    // Record 0001–0004 as applied (their effects are now present) so tracking
+    // matches reality. Hash = sha256 of the file, created_at = journal "when".
+    if (folder) {
+      const journal = JSON.parse(readFileSync(resolve(folder, "meta/_journal.json"), "utf8"));
+      for (const e of journal.entries as { tag: string; when: number }[]) {
+        if (!LEGACY_TAGS.includes(e.tag)) continue;
+        const h = createHash("sha256").update(readFileSync(resolve(folder, e.tag + ".sql"), "utf8")).digest("hex");
+        await q(
+          `INSERT INTO drizzle."__drizzle_migrations" (hash, created_at)
+           SELECT '${h}', ${Number(e.when)}
+           WHERE NOT EXISTS (SELECT 1 FROM drizzle."__drizzle_migrations" WHERE hash = '${h}')`,
+        );
+      }
+    }
+    console.log("[doctor] legacy migrations 0001–0004 re-applied + recorded ✅ (existing data untouched)");
   }
 });
 await closeDb();
