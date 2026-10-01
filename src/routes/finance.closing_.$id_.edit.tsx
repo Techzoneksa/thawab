@@ -43,6 +43,7 @@ function EditPeriodPage() {
   const [endDate, setEndDate] = useState("");
   const [notes, setNotes] = useState("");
   const [closeNotes, setCloseNotes] = useState("");
+  const [reopenReason, setReopenReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirm, setConfirm] = useState<"close" | "reopen" | null>(null);
 
@@ -82,12 +83,14 @@ function EditPeriodPage() {
   });
 
   const reopenMutation = useMutation({
-    mutationFn: () => reopenPeriod({ id, userId: user?.id, userName: user?.name }),
+    mutationFn: () =>
+      reopenPeriod({ id, reason: reopenReason.trim(), userId: user?.id, userName: user?.name }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["period", id] });
       queryClient.invalidateQueries({ queryKey: ["periods"] });
       showToast("تم إعادة فتح الفترة المالية", "success");
       setConfirm(null);
+      setReopenReason("");
     },
     onError: (err: Error) => showToast(err.message, "error"),
   });
@@ -256,9 +259,23 @@ function EditPeriodPage() {
                   بواسطة: <span className="font-semibold">{item.closedByName}</span>
                 </div>
               </div>
+              <FormField label="سبب إعادة الفتح" required>
+                <FormTextarea
+                  value={reopenReason}
+                  onChange={(e) => setReopenReason(e.target.value)}
+                  rows={2}
+                  placeholder="مثال: تصحيح قيد مرحّل بتاريخ خاطئ"
+                />
+              </FormField>
               <button
                 type="button"
-                onClick={() => setConfirm("reopen")}
+                onClick={() => {
+                  if (!reopenReason.trim()) {
+                    showToast("سبب إعادة الفتح مطلوب", "error");
+                    return;
+                  }
+                  setConfirm("reopen");
+                }}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-warning/30 bg-warning/10 text-warning px-4 py-2 text-sm font-semibold hover:bg-warning/20 transition-colors min-h-[40px]"
               >
                 إعادة فتح الفترة

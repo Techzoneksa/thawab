@@ -101,10 +101,11 @@ export async function closePeriod(options: {
   userId?: string;
   userName?: string;
 }): Promise<FiscalPeriod> {
+  // Server contract: PUT {id, action:"close"} (POST is "create period").
   const res = await fetch(API_BASE, {
-    method: "POST",
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...options, action: "close" }),
+    body: JSON.stringify({ id: options.id, action: "close", notes: options.notes }),
   });
   if (!res.ok) {
     const err = await res.json();
@@ -116,13 +117,15 @@ export async function closePeriod(options: {
 
 export async function reopenPeriod(options: {
   id: string;
+  /** Required by the server (higher-risk action, kept in the audit trail). */
+  reason: string;
   userId?: string;
   userName?: string;
 }): Promise<FiscalPeriod> {
   const res = await fetch(API_BASE, {
-    method: "POST",
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...options, action: "reopen" }),
+    body: JSON.stringify({ id: options.id, action: "reopen", reason: options.reason }),
   });
   if (!res.ok) {
     const err = await res.json();
