@@ -9,6 +9,7 @@ import { and, desc, eq, gt, gte, lte, sql } from "drizzle-orm";
 import { db, now, genId } from "./index";
 import { users, sessions, roles, loginAttempts, fiscalPeriods } from "./schema";
 import { UserStatus, FiscalPeriodStatus } from "@/lib/enums";
+import { getCurrentTenant } from "./tenant-context";
 
 const SCRYPT_N = 16384;
 const SCRYPT_KEYLEN = 64;
@@ -70,10 +71,21 @@ const AUTH_ROLE_TTL_MS = 30_000;
 const _userCache = new Map<string, { user: unknown; at: number }>();
 const _roleCache = new Map<string, { perms: string[]; at: number }>();
 
+/**
+ * SECURITY — tenant-scoped cache keys. One process serves every association,
+ * so a cache entry must never be found from another association's request: a
+ * token minted by association A, replayed (header/Bearer) against B's host,
+ * must miss the cache and then miss B's sessions table → 401. Role ids are
+ * identical across tenants (role-admin, …), so they are scoped the same way.
+ */
+function scoped(key: string): string {
+  return `${getCurrentTenant()?.id ?? "_default"}\u0000${key}`;
+}
+
 /** Clear cached auth state. Called on logout, password change, and role edits. */
 export function invalidateAuthCache(opts?: { token?: string; roleId?: string }) {
-  if (opts?.token) _userCache.delete(opts.token);
-  if (opts?.roleId) _roleCache.delete(opts.roleId);
+  if (opts?.token) _userCache.delete(scoped(opts.token));
+  if (opts?.roleId) _roleCache.delete(scoped(opts.roleId));
   if (!opts) {
     _userCache.clear();
     _roleCache.clear();
@@ -82,14 +94,15 @@ export function invalidateAuthCache(opts?: { token?: string; roleId?: string }) 
 
 export async function getCurrentUser(token: string | undefined | null) {
   if (!token) return null;
-  const cached = _userCache.get(token);
+  const cacheKey = scoped(token);
+  const cached = _userCache.get(cacheKey);
   if (cached && Date.now() - cached.at < AUTH_USER_TTL_MS) return cached.user as any;
 
   const session = (await db.select().from(sessions).where(eq(sessions.token, token)).limit(1))[0];
   if (!session) return null;
   if (new Date(session.expiresAt) < new Date()) {
     await db.delete(sessions).where(eq(sessions.id, session.id));
-    _userCache.delete(token);
+    _userCache.delete(cacheKey);
     return null;
   }
   const user = (await db.select().from(users).where(eq(users.id, session.userId)).limit(1))[0];
@@ -97,7 +110,7 @@ export async function getCurrentUser(token: string | undefined | null) {
   const { password: _pw, ...safe } = user;
   const permissions = await getRolePermissions(user.role);
   const result = { ...safe, permissions };
-  _userCache.set(token, { user: result, at: Date.now() });
+  _userCache.set(cacheKey, { user: result, at: Date.now() });
   return result;
 }
 
@@ -272,7 +285,8 @@ export async function forceChangePassword(userId: string, newPassword: string) {
 // ---------- RBAC ----------
 
 export async function getRolePermissions(roleId: string): Promise<string[]> {
-  const cached = _roleCache.get(roleId);
+  const roleKey = scoped(roleId);
+  const cached = _roleCache.get(roleKey);
   if (cached && Date.now() - cached.at < AUTH_ROLE_TTL_MS) return cached.perms;
   const row = (await db.select().from(roles).where(eq(roles.id, roleId)).limit(1))[0];
   if (!row) return [];
@@ -282,7 +296,7 @@ export async function getRolePermissions(roleId: string): Promise<string[]> {
   } catch {
     perms = [];
   }
-  _roleCache.set(roleId, { perms, at: Date.now() });
+  _roleCache.set(roleKey, { perms, at: Date.now() });
   return perms;
 }
 

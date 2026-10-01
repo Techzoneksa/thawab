@@ -4,7 +4,7 @@ import { and, count, desc, eq, like, ne, or } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { db, now, genId, addAudit } from "@/server/db/index";
 import { users, roles, sessions } from "@/server/db/schema";
-import { hashPassword } from "@/server/db/auth";
+import { hashPassword, invalidateAuthCache } from "@/server/db/auth";
 import { createSetupToken, INVITE_TTL_HOURS } from "@/server/db/invitations";
 import { sendInvitationEmail, appUrl } from "@/server/db/mailer";
 import { authHandler, parseBody, guard, err, type Ctx } from "@/server/db/api-utils";
@@ -174,6 +174,8 @@ async function PUT(event: { request: Request }, ctx: Ctx) {
 
     // If password changed, invalidate that user's other sessions.
     if (b.password) await db.delete(sessions).where(eq(sessions.userId, b.id));
+    // Role/status/password changes take effect immediately (no 15s cache lag).
+    invalidateAuthCache();
 
     await addAudit({
       action: "update",
@@ -200,6 +202,7 @@ async function DELETE({ request }: { request: Request }, ctx: Ctx) {
 
   await db.update(users).set({ status: UserStatus.INACTIVE }).where(eq(users.id, id));
   await db.delete(sessions).where(eq(sessions.userId, id));
+  invalidateAuthCache();
   await addAudit({
     action: "disable",
     entityType: "user",
